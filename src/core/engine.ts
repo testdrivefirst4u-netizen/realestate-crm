@@ -163,12 +163,25 @@ export interface CrmEngine {
   applyServerSettings: (s: ServerSettings) => void;
 }
 
-export function useCrmEngine(): CrmEngine {
-  const [data, setData] = useState<CRMData>(() => loadCachedData());
-  const [session, setSession] = useState<AuthSession | null>(() => loadSession());
-  const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
+/**
+ * What the server already knows when it renders the signed-in layout: the validated session and the
+ * company's public settings. With it the engine starts signed in (no client-side session check) and
+ * its first render touches no browser API, so it can be server-rendered.
+ */
+export interface CrmEngineInit {
+  session: AuthSession;
+  serverSettings?: ServerSettings;
+}
+
+export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
+  const [data, setData] = useState<CRMData>(() => (init ? { ...emptyCRMData(), serverSettings: init.serverSettings } : loadCachedData()));
+  /** Device preferences (localStorage) are merged in after mount when server-rendered; nothing is saved before that. */
+  const [prefsLoaded, setPrefsLoaded] = useState(!init);
+  const [session, setSession] = useState<AuthSession | null>(() => init?.session || loadSession());
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(init ? 'ready' : 'checking');
   const [sync, setSync] = useState<SyncState>({ status: 'idle', hasLoadedOnce: false });
-  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator === 'undefined' ? true : navigator.onLine);
+  /** Assumed online until mounted (the server render has no connectivity to report). */
+  const [isOnline, setIsOnline] = useState<boolean>(true);
   const [activeAlarmTask, setActiveAlarmTask] = useState<TaskItem | null>(null);
 
   const dataRef = useRef(data);
@@ -248,15 +261,23 @@ export function useCrmEngine(): CrmEngine {
     if (data.settings.timeZone) setTimeZone(data.settings.timeZone);
   }, [data.settings.timeZone]);
 
+  useEffect(() => {
+    if (prefsLoaded) return;
+    const prefs = loadCachedData();
+    setData((p) => ({ ...p, settings: prefs.settings, customization: prefs.customization, segments: prefs.segments }));
+    setPrefsLoaded(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // persist cache
   useEffect(() => {
-    saveCachedData(data);
-  }, [data]);
+    if (prefsLoaded) saveCachedData(data);
+  }, [data, prefsLoaded]);
 
   // online/offline
   useEffect(() => {
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
+    setIsOnline(navigator.onLine !== false);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
     return () => {
@@ -419,6 +440,11 @@ export function useCrmEngine(): CrmEngine {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (init) {
+        // The server validated the session before rendering this layout.
+        saveSession(init.session);
+        return;
+      }
       const s = loadSession();
       if (!s) {
         // Accounts are created by the company administrator (companies by the platform) — always sign in.

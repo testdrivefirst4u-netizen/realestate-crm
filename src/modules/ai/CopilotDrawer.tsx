@@ -51,7 +51,7 @@ import {
 } from './copilotTools';
 
 /* ------------------------------------------------------------------------ */
-/* Props (what App.tsx passes)                                                */
+/* Props (what the CRM shell passes)                                         */
 /* ------------------------------------------------------------------------ */
 
 export interface CopilotActions {

@@ -21,7 +21,7 @@ import { formatPhone } from '../../core/phone';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, Modal, Select, StageBadge, Tabs, cx, inputCls } from '../../components/ui';
 
 /* ------------------------------------------------------------------------ */
-/* Props (exactly what App.tsx passes)                                       */
+/* Props (exactly what app/(crm)/tasks/TasksClient.tsx passes)             */
 /* ------------------------------------------------------------------------ */
 
 export interface TasksViewProps {

@@ -29,11 +29,13 @@ const SIZES: Record<string, { box: string; img: string; text: string }> = {
  */
 export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' }) => {
   const company = useCompany();
-  const [deviceLogo, setDeviceLogo] = useState<string>(() => readDeviceLogo());
+  /** Read after mount: the server render cannot see this device's storage (and must match the first client render). */
+  const [deviceLogo, setDeviceLogo] = useState<string>('');
   const [failed, setFailed] = useState<string | null>(null);
 
   useEffect(() => {
     const update = () => setDeviceLogo(readDeviceLogo());
+    update();
     window.addEventListener('crm-logo-updated', update);
     window.addEventListener('storage', update);
     return () => {

@@ -6,15 +6,22 @@ The Amaya by Vera Vita sales CRM, moved off Google Sheets + Apps Script onto **N
 
 ```
 app/                 Next.js routes
-  [[...view]]/       the CRM (one page; /dashboard, /leads, /kanban, /followups, … ; ?lead=ENQ-0001 opens a lead)
+  (crm)/             the CRM: one route per screen (/dashboard, /leads, /kanban, /followups, …; ?lead=ENQ-0001 opens a lead)
+    layout.tsx       server: validates the session (→ /login) and the screen's plan/role gate, renders the shell
+    _components/     CrmShell — data engine, sidebar, top bar, overlays; screens read it with useCrm()
+    <view>/          page.tsx (server: title + gate) · <View>Client.tsx (the screen)
+  login/             sign-in (?next= returns to the requested screen)
+  superadmin/        platform console
   api/rpc            POST {action, data} → {status, data} — all CRM actions
   api/files/[id]     uploaded files (GridFS), session-checked
   api/reports/[id]   report snapshot CSV download
   api/webhooks/      chat360 · telephony (shared-secret authenticated)
   api/cron/          followups (hourly) · daily (housekeeping + digest) · sheets (every 5 min), Bearer CRON_SECRET
   api/health         uptime check
+proxy.ts             passes the requested URL to the CRM layout (for /login?next=)
 server/
   core/              config · db (MongoDB, counters, data version) · auth · settings/secrets · events/timeline · leadShape
+  core/pageSession   session + screen gate for server-rendered pages
   modules/           leads · tasks · inventory · records · storage · reports · chat360 · calls · ai · jobs · system
   router.ts          action registry + permission checks
 src/                 React UI (ported from v2)

@@ -100,7 +100,7 @@ describe('Sidebar follows the plan', () => {
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
     return renderToStaticMarkup(
       createElement(TenantProvider, { settings }, createElement(Sidebar, {
-        currentView: 'dashboard', onSelectView: () => {}, isCollapsed: false, onToggleCollapse: () => {}, isMobileOpen: false, onCloseMobile: () => {},
+        currentView: 'dashboard', isCollapsed: false, onToggleCollapse: () => {}, isMobileOpen: false, onCloseMobile: () => {},
         sync: { status: 'idle', hasLoadedOnce: true }, isOnline: true, currentUser: user, can: () => true, features: resolveFeatures(settings), onLogout: () => {},
       }))
     );

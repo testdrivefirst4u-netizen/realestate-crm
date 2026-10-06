@@ -119,6 +119,9 @@ export function loadSession(): AuthSession | null {
 }
 
 /** Stores who is signed in — never a secret: the token field is always the `'cookie'` placeholder. */
+/** sessionStorage key: why the session ended, shown once on the sign-in page (e.g. a suspended company). */
+export const SIGNED_OUT_REASON_KEY = 'crm.signedOutReason';
+
 export function saveSession(session: AuthSession | null) {
   try {
     if (session) localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify({ user: session.user, expiresAt: session.expiresAt, token: 'cookie' }));

@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import {
   LayoutDashboard, Users, KanbanSquare, CalendarClock, CheckSquare, Building2, FileText, MessageSquareQuote, BarChart3, Settings, ChevronLeft, ChevronRight,
   Database, Layers, History, LogOut, MessageCircle, PhoneCall, WifiOff, X,
@@ -6,18 +7,19 @@ import {
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
-import { hasFeature, useCompany } from '../core/tenant';
+import { useCompany } from '../core/tenant';
+import { type ViewId, viewAllowed, viewHref } from '../core/views';
 import { formatRelative } from '../core/dates';
 import { Permission } from '../core/rbac';
 import { roleLabel } from '../core/rbac';
 
-export type ViewId =
-  | 'dashboard' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
-  | 'documents' | 'templates' | 'reports' | 'audit' | 'settings';
+export type { ViewId };
 
 interface SidebarProps {
-  currentView: ViewId;
-  onSelectView: (view: ViewId) => void;
+  /** Screen of the current URL (null on a path that is not a screen). */
+  currentView: ViewId | null;
+  /** Called when a navigation link is followed (closes the mobile drawer). */
+  onNavigate?: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   isMobileOpen: boolean;
@@ -32,24 +34,24 @@ interface SidebarProps {
   unreadChats?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, unreadChats }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, unreadChats }) => {
   const company = useCompany();
-  const on = (name: Parameters<typeof hasFeature>[1]) => hasFeature({ features }, name);
-  const navItems: Array<{ id: ViewId; label: string; icon: any; show: boolean; badge?: number }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, show: true },
-    { id: 'leads', label: 'All Leads', icon: Users, show: true },
-    { id: 'kanban', label: 'Enquiry Status', icon: KanbanSquare, show: true },
-    { id: 'followups', label: 'Follow-ups', icon: CalendarClock, show: true },
-    { id: 'tasks', label: 'Tasks & Notes', icon: CheckSquare, show: true },
-    { id: 'chat360', label: 'WhatsApp (Chat360)', icon: MessageCircle, show: on('chat360') && can('chat.view'), badge: unreadChats },
-    { id: 'calls', label: 'Call History', icon: PhoneCall, show: on('calls') && can('calls.view') },
-    { id: 'inventory', label: 'Inventory', icon: Building2, show: on('inventory') && can('inventory.view') },
-    { id: 'segments', label: 'Client Segments', icon: Layers, show: on('segments') },
-    { id: 'documents', label: 'Documents', icon: FileText, show: on('documents') },
-    { id: 'templates', label: 'Templates', icon: MessageSquareQuote, show: on('templates') },
-    { id: 'reports', label: 'Reports', icon: BarChart3, show: on('reports') && can('reports.view') },
-    { id: 'audit', label: 'Audit Log', icon: History, show: can('audit.view') },
-    { id: 'settings', label: 'Settings', icon: Settings, show: true },
+  const allowed = (v: ViewId) => viewAllowed(v, { features }, can);
+  const navItems: Array<{ id: ViewId; label: string; icon: any; badge?: number }> = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'leads', label: 'All Leads', icon: Users },
+    { id: 'kanban', label: 'Enquiry Status', icon: KanbanSquare },
+    { id: 'followups', label: 'Follow-ups', icon: CalendarClock },
+    { id: 'tasks', label: 'Tasks & Notes', icon: CheckSquare },
+    { id: 'chat360', label: 'WhatsApp (Chat360)', icon: MessageCircle, badge: unreadChats },
+    { id: 'calls', label: 'Call History', icon: PhoneCall },
+    { id: 'inventory', label: 'Inventory', icon: Building2 },
+    { id: 'segments', label: 'Client Segments', icon: Layers },
+    { id: 'documents', label: 'Documents', icon: FileText },
+    { id: 'templates', label: 'Templates', icon: MessageSquareQuote },
+    { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'audit', label: 'Audit Log', icon: History },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const statusText = !isOnline || sync.status === 'offline' ? 'Offline' : sync.status === 'error' ? 'Sync error' : sync.status === 'syncing' || sync.status === 'loading' ? 'Syncing…' : sync.lastSyncAt ? `Synced ${formatRelative(sync.lastSyncAt)}` : 'Connecting…';
@@ -76,16 +78,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isC
       </div>
 
       <nav className="flex-1 py-3 overflow-y-auto space-y-0.5 px-3">
-        {navItems.filter((i) => i.show).map((item) => {
+        {navItems.filter((i) => allowed(i.id)).map((item) => {
           const Icon = item.icon;
           const isActive = currentView === item.id;
           return (
-            <button key={item.id} onClick={() => onSelectView(item.id)} title={isCollapsed ? item.label : undefined}
+            <Link key={item.id} href={viewHref(item.id)} onClick={onNavigate} aria-current={isActive ? 'page' : undefined} title={isCollapsed ? item.label : undefined}
               className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all group ${isActive ? 'bg-[#E7D8C6]/12 text-white font-semibold border-l-4 border-[#A9825A]' : 'text-[#E7D8C6]/75 hover:bg-[#E7D8C6]/6 hover:text-white'}`}>
               <Icon size={18} className={`flex-shrink-0 ${isActive ? 'text-[#A9825A]' : 'text-[#E7D8C6]/60 group-hover:text-[#E7D8C6]'}`} />
               <span className={`truncate flex-1 text-left ${isCollapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
               {!!item.badge && <span className={`text-[10px] font-bold bg-[#A9825A] text-white rounded-full px-1.5 ${isCollapsed ? 'lg:hidden' : ''}`}>{item.badge}</span>}
-            </button>
+            </Link>
           );
         })}
       </nav>
@@ -102,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isC
       </div>
 
       <div className="p-3">
-        <button onClick={() => onSelectView('settings')} className={`w-full flex items-center gap-2.5 p-2 rounded-lg bg-[#1D2F3F]/70 hover:bg-[#162330] border border-[#E7D8C6]/10 transition ${isCollapsed ? 'lg:justify-center' : ''}`} title="Server sync status">
+        <Link href={viewHref('settings')} onClick={onNavigate} className={`w-full flex items-center gap-2.5 p-2 rounded-lg bg-[#1D2F3F]/70 hover:bg-[#162330] border border-[#E7D8C6]/10 transition ${isCollapsed ? 'lg:justify-center' : ''}`} title="Server sync status">
           <div className="relative">
             {!isOnline ? <WifiOff size={16} className="text-[#E7A98A]" /> : <Database size={16} className={sync.status === 'error' ? 'text-[#E7A98A]' : 'text-[#7C8B78]'} />}
             {(sync.status === 'syncing' || sync.status === 'loading') && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#A9825A] animate-ping" />}
@@ -111,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isC
             <span className="text-[11px] font-semibold text-white truncate">CRM server</span>
             <span className={`text-[10px] truncate ${statusTone}`}>{statusText}</span>
           </div>
-        </button>
+        </Link>
       </div>
     </aside>
   );

@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlatformActionName, PlatformActions } from '@/server/platform/contract';
 
-export const LOGIN_PATH = '/superadmin/login';
+/** The one sign-in page for CRM users and super admins (/superadmin/login only remains for first-run setup). */
+export const LOGIN_PATH = '/login';
 const PUBLIC_ACTIONS = new Set<PlatformActionName>(['saStatus', 'saLogin', 'saSetup']);
 
 export class ApiError extends Error {

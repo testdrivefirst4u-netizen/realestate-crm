@@ -75,7 +75,7 @@ describe('where the photo replaces the initials', () => {
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} }); // AppLogo reads it
     const sidebar = (currentUser: UserAccount) =>
       renderToStaticMarkup(createElement(Sidebar, {
-        currentView: 'dashboard', onSelectView: () => {}, isCollapsed: false, onToggleCollapse: () => {}, isMobileOpen: false, onCloseMobile: () => {},
+        currentView: 'dashboard', isCollapsed: false, onToggleCollapse: () => {}, isMobileOpen: false, onCloseMobile: () => {},
         sync: { status: 'idle', hasLoadedOnce: true }, isOnline: true, currentUser, can: () => true, features: {}, onLogout: () => {},
       }));
     expect(sidebar({ ...RAHUL, avatar: JPEG })).toContain(`src="${JPEG}"`);

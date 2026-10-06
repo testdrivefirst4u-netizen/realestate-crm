@@ -416,7 +416,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
 
   /* ------------------------ Modules & notifications --------------------- */
 
-  // Same fallback as App.tsx: a key missing from the server object is treated as enabled.
+  // Same fallback as the CRM shell (hasFeature): a key missing from the server object is treated as enabled.
   const serverFeatures: Record<string, boolean> = { ...Object.fromEntries(FEATURE_TOGGLES.map((f) => [f.key, true])), ...(s.features || {}) };
   const [features, setFeatures] = useState<Record<string, boolean>>(serverFeatures);
   const [featuresBusy, setFeaturesBusy] = useState(false);

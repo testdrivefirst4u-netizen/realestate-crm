@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
+  // Each CRM screen is its own route under app/(crm)/; `/` opens the dashboard (the query, e.g. ?lead=…, is kept).
+  async redirects() {
+    return [{ source: '/', destination: '/dashboard', permanent: false }];
+  },
 };
 
 export default nextConfig;

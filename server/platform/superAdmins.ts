@@ -158,6 +158,12 @@ async function recordFailure(key: string) {
   }
 }
 
+/** Is this e-mail a super admin account? (The unified sign-in tries the console first for these.) */
+export async function isSuperAdminEmail(email: string): Promise<boolean> {
+  const e = String(email || '').trim().toLowerCase();
+  return !!e && !!(await (await admins()).findOne({ emailLower: e }, { projection: { _id: 1 } }));
+}
+
 /** Sign in. Returns the raw token for the route handler (it goes into the cookie, never into JSON). */
 export async function saLogin(d: any, ctx: Pick<SaCtx, 'ip' | 'userAgent'>): Promise<{ user: SuperAdmin; expiresAt: string; token: string }> {
   const email = String(d?.email || '').trim().toLowerCase();

@@ -9,11 +9,11 @@
 import { NextResponse } from 'next/server';
 import { platformDispatch } from '@/server/platform/router';
 import { errEnvelope } from '@/server/core/errors';
+import { PLATFORM_COOKIE, clearPlatformSessionCookie, setPlatformSessionCookie } from '@/server/platform/cookie';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const PLATFORM_COOKIE = 'platform_session';
 const MAX_BODY = 1024 * 1024; // 1 MB (logos are ≤ 48 KB)
 
 /** Same rule as core/request.ts → isSameOrigin, evaluated on this request's headers. */
@@ -67,16 +67,7 @@ export async function POST(req: Request) {
   });
 
   const res = json(result.body, result.status);
-  if (result.session && !result.clearSession) {
-    res.cookies.set(PLATFORM_COOKIE, result.session.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      expires: new Date(result.session.expiresAt),
-    });
-  } else if (result.clearSession) {
-    res.cookies.set(PLATFORM_COOKIE, '', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/', maxAge: 0 });
-  }
+  if (result.session && !result.clearSession) setPlatformSessionCookie(res, result.session);
+  else if (result.clearSession) clearPlatformSessionCookie(res);
   return res;
 }

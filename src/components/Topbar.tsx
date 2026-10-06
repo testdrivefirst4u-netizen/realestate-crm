@@ -9,9 +9,10 @@ import { Permission } from '../core/rbac';
 import { StageBadge } from './ui';
 import { formatPhone } from '../core/phone';
 import { useCompany, useFeature } from '../core/tenant';
+import { VIEW_TITLES, type ViewId } from '../core/views';
 
 interface TopbarProps {
-  currentView: string;
+  currentView: ViewId | null;
   leads: Lead[];
   onOpenLead: (leadId: string) => void;
   onOpenAddLead: () => void;
@@ -32,11 +33,6 @@ interface TopbarProps {
   can: (p: Permission) => boolean;
   aiEnabled: boolean;
 }
-
-const VIEW_TITLES: Record<string, string> = {
-  dashboard: 'Dashboard', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
-  inventory: 'Inventory', chat360: 'WhatsApp · Chat360', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
-};
 
 export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, unreadCount, onToggleNotificationDrawer, onToggleSidebarMobile, currentUser, can, aiEnabled }) => {
   const company = useCompany();
@@ -59,7 +55,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
       <div className="flex items-center gap-2 min-w-0">
         <button onClick={onToggleSidebarMobile} className="lg:hidden p-2 rounded-md text-[#1D2F3F] hover:bg-[#F4F0EB]" aria-label="Menu"><Menu size={18} /></button>
         <div className="lg:hidden"><AppLogo size="xs" /></div>
-        <h1 className="text-base sm:text-lg md:text-xl font-bold text-[#1D2F3F] tracking-tight truncate">{VIEW_TITLES[currentView] || company?.name || 'CRM'}</h1>
+        <h1 className="text-base sm:text-lg md:text-xl font-bold text-[#1D2F3F] tracking-tight truncate">{(currentView && VIEW_TITLES[currentView]) || company?.name || 'CRM'}</h1>
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
