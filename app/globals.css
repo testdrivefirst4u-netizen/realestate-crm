@@ -78,3 +78,17 @@ code, pre, .font-mono {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #D2C9BF; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #A9825A; }
+
+/* Public legal pages (/privacy, /terms, /data-deletion) */
+.legal-doc h1 { font-size: 2rem; line-height: 1.2; font-weight: 600; color: #14202B; margin: 0 0 0.25rem; }
+.legal-doc .updated { font-size: 0.875rem; color: #6B6158; margin: 0 0 2rem; }
+.legal-doc h2 { font-size: 1.25rem; font-weight: 600; color: #14202B; margin: 2.25rem 0 0.75rem; }
+.legal-doc h3 { font-size: 1.05rem; font-weight: 600; color: #1D2F3F; margin: 1.5rem 0 0.5rem; }
+.legal-doc p, .legal-doc li { font-size: 1rem; line-height: 1.7; }
+.legal-doc p { margin: 0 0 1rem; }
+.legal-doc ul, .legal-doc ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+.legal-doc ul { list-style: disc; }
+.legal-doc ol { list-style: decimal; }
+.legal-doc li { margin: 0.3rem 0; }
+.legal-doc a { color: #7A5B37; text-decoration: underline; text-underline-offset: 2px; }
+.legal-doc strong { color: #14202B; font-weight: 600; }

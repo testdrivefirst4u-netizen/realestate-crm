@@ -149,7 +149,9 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
             </form>
           )}
 
-          <p className="m-0 text-[11px] text-[#8A7F77]">v{APP.version} · Data stays on your CRM server</p>
+          <p className="m-0 text-[11px] text-[#8A7F77]">
+            v{APP.version} · <a href="/privacy" className="underline underline-offset-2 hover:text-[#3D3530]">Privacy</a> · <a href="/terms" className="underline underline-offset-2 hover:text-[#3D3530]">Terms</a> · <a href="/data-deletion" className="underline underline-offset-2 hover:text-[#3D3530]">Data deletion</a>
+          </p>
         </div>
       </main>
     </div>
