@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* The CRM screens live in src/ (outside app/): scan them explicitly for utility classes. */
+@source "../src";
+
+/* Jost is loaded once from the root layout (<link> in app/layout.tsx). */
+@theme {
+  --font-sans: 'Jost', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Jost', ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+:root {
+  --display-scale: 1;
+  --h1-size: 1.45rem;
+  --h2-size: 1.22rem;
+  --h3-size: 1.02rem;
+  --h4-size: 0.88rem;
+  --font-main: 'Jost', sans-serif;
+}
+
+html {
+  font-family: var(--font-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-feature-settings: "kern" 1;
+}
+
+body {
+  font-family: var(--font-main);
+  color: #26211E;
+  background-color: #F4F0EB;
+  overflow-x: hidden;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+}
+
+/* Code (ids, JSON fields, transcripts) stays monospace so columns align. */
+code, pre, .font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  *, ::before, ::after { box-sizing: border-box; }
+
+  h1 { font-size: var(--h1-size); font-weight: 700; line-height: 1.25; letter-spacing: -0.015em; color: #14202B; overflow-wrap: break-word; }
+  h2 { font-size: var(--h2-size); font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; color: #14202B; overflow-wrap: break-word; }
+  h3 { font-size: var(--h3-size); font-weight: 600; line-height: 1.3; color: #1D2F3F; overflow-wrap: break-word; }
+  h4 { font-size: var(--h4-size); font-weight: 600; line-height: 1.35; color: #1D2F3F; overflow-wrap: break-word; }
+
+  button, input, select, textarea { font-family: inherit; }
+
+  .tabular-nums, .font-numeric { font-variant-numeric: tabular-nums; }
+  .safe-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .safe-text-wrap { max-width: 100%; word-break: break-word; overflow-wrap: break-word; hyphens: auto; }
+}
+
+/* Entrance animations used by modals/drawers/toasts (tailwindcss-animate is not installed). */
+@keyframes crm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes crm-slide-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes crm-slide-in-bottom { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes crm-zoom-in { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.animate-in { animation-duration: 180ms; animation-timing-function: ease-out; animation-fill-mode: both; animation-name: crm-fade-in; }
+.animate-in.slide-in-from-right { animation-name: crm-slide-in-right; }
+.animate-in.slide-in-from-bottom-2 { animation-name: crm-slide-in-bottom; }
+.animate-in.zoom-in-95 { animation-name: crm-zoom-in; }
+.animate-in.fade-in { animation-name: crm-fade-in; }
+.duration-150 { animation-duration: 150ms; }
+.duration-200 { animation-duration: 200ms; }
+
+/* Slim scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D2C9BF; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #A9825A; }

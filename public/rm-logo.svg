@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8D5B5" />
+      <stop offset="25%" stop-color="#C59E6B" />
+      <stop offset="50%" stop-color="#EEDCC2" />
+      <stop offset="75%" stop-color="#A9825A" />
+      <stop offset="100%" stop-color="#876138" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#192836" />
+      <stop offset="100%" stop-color="#0E1923" />
+    </linearGradient>
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Tile -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#bgGrad)" stroke="url(#goldGrad)" stroke-width="8" />
+  
+  <!-- Subtle Inner Border Accent -->
+  <rect x="36" y="36" width="440" height="440" rx="76" fill="none" stroke="#E7D8C6" stroke-width="1.5" stroke-opacity="0.25" stroke-dasharray="8 6" />
+
+  <!-- Monogram RM Motif -->
+  <g fill="url(#goldGrad)" filter="url(#subtleGlow)">
+    <!-- Letter R -->
+    <path d="M 120 130 
+             L 210 130 
+             C 255 130, 280 152, 280 190 
+             C 280 226, 256 248, 218 253 
+             L 282 382 
+             L 242 382 
+             L 182 260 
+             L 156 260 
+             L 156 382 
+             L 120 382 
+             Z 
+             M 156 162 
+             L 156 228 
+             L 204 228 
+             C 230 228, 244 214, 244 195 
+             C 244 176, 230 162, 204 162 
+             Z" />
+
+    <!-- Letter M intertwined with precision geometry -->
+    <path d="M 276 130 
+             L 316 130 
+             L 364 265 
+             L 412 130 
+             L 452 130 
+             L 452 382 
+             L 416 382 
+             L 416 200 
+             L 376 315 
+             L 352 315 
+             L 312 200 
+             L 312 382 
+             L 276 382 
+             Z" />
+
+    <!-- Diamond Accent at center bottom -->
+    <polygon points="256,410 264,422 256,434 248,422" fill="url(#goldGrad)" />
+  </g>
+</svg>
