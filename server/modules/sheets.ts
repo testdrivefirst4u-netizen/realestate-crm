@@ -51,6 +51,11 @@ const L = CFG.LEAD;
 export const COLL_EXPORTS = 'sheetExports';
 export const INTERVALS: SyncInterval[] = [0, 5, 15, 60];
 export const MAX_ROWS_PER_RUN = 2000;
+/**
+ * Time one manual "Sync now" may spend on rows: it must answer before the browser gives up (120 s) and well
+ * inside the function's maxDuration. Rows not reached are left for the next sync, which continues from there.
+ */
+export const MANUAL_SYNC_BUDGET_MS = 90_000;
 export const DEFAULT_EXPORT_TAB = 'CRM Leads';
 export const FOLLOWUPS_HEADER = 'Follow-ups';
 export const DEFAULT_EXPORT_HEADERS = [
@@ -323,15 +328,20 @@ async function findSheetSource(id: unknown): Promise<SourceDoc> {
   return s;
 }
 
-/** Import new rows of a google_sheet source (manual: ctx = the user; cron: null). */
-export async function syncSheetImport(sourceId: unknown, ctx: Ctx | null): Promise<SyncResult> {
+/**
+ * Import new rows of a google_sheet source (manual: ctx = the user; cron: null). Stops starting new rows at
+ * `deadline` (default: MANUAL_SYNC_BUDGET_MS from now) and saves its progress, so a large sheet is imported
+ * over several syncs instead of being cut off by the platform's time limit with nothing recorded.
+ */
+export async function syncSheetImport(sourceId: unknown, ctx: Ctx | null, opts: { deadline?: number } = {}): Promise<SyncResult> {
   const src = await findSheetSource(sourceId);
-  const res = await withLock(await sourcesCol(), src._id, () => syncLocked(src));
+  const deadline = opts.deadline ?? Date.now() + MANUAL_SYNC_BUDGET_MS;
+  const res = await withLock(await sourcesCol(), src._id, () => syncLocked(src, deadline));
   if (ctx) await auditLog(ctx, 'Google Sheet Synced', 'Settings', src._id, `${src.name}: ${res.message}`);
   return res;
 }
 
-async function syncLocked(src: SourceDoc): Promise<SyncResult> {
+async function syncLocked(src: SourceDoc, deadline: number): Promise<SyncResult> {
   const cfg: SheetImportConfig = { ...defaultSheetImportConfig(), ...src.config.sheet! };
   const id = cfg.spreadsheetId;
   const access = sheetAccessFor(cfg.auth);
@@ -383,7 +393,11 @@ async function syncLocked(src: SourceDoc): Promise<SyncResult> {
     const tally = { created: 0, duplicates: 0, rejected: 0, failed: 0, replayed: 0 };
     const statuses: Array<{ range: string; values: string[][] }> = [];
     const when = fmtHuman(new Date());
+    /** Rows actually handled this run (the rest wait for the next sync). */
+    let processed = 0;
     for (const c of candidates) {
+      if (Date.now() > deadline) break;
+      processed++;
       const key = `row:${id}:${tab}:${c.rowNumber}:${sha256Hex(JSON.stringify(c.values)).slice(0, 16)}`;
       const r = await ingestLead(source, c.fields, { ip: '', origin: 'google-sheets', idempotencyKey: key });
       if (r.replay) tally.replayed++;
@@ -413,11 +427,14 @@ async function syncLocked(src: SourceDoc): Promise<SyncResult> {
       tally.failed ? `${tally.failed} failed` : '',
       tally.replayed ? `${tally.replayed} already imported` : '',
     ].filter(Boolean);
+    const waiting = candidates.length - processed;
     let message = parts.length ? parts.join(', ') : 'No new rows';
-    if (more) message += ` (more than ${MAX_ROWS_PER_RUN} rows waiting — the next sync continues)`;
+    if (waiting > 0) message += ` — ${plural(waiting, 'row')}${more ? ' or more' : ''} still waiting, the next sync continues`;
+    else if (more) message += ` (more than ${MAX_ROWS_PER_RUN} rows waiting — the next sync continues)`;
     if (note) message += `. ${note}`;
 
-    const lastRow = statusIdx < 0 && candidates.length ? candidates[candidates.length - 1].rowNumber : cfg.lastRow;
+    // Without a status column progress is the last row handled (never one the deadline skipped).
+    const lastRow = statusIdx < 0 && processed ? candidates[processed - 1].rowNumber : cfg.lastRow;
     await save({ lastRow, lastSyncAt: new Date().toISOString(), lastSyncResult: truncate(message, 500) });
     return { created: tally.created, duplicates: tally.duplicates, rejected: tally.rejected, failed: tally.failed, message };
   } catch (e: any) {
@@ -645,7 +662,7 @@ export async function runDueSheetJobs(opts: { deadline?: number } = {}): Promise
       continue;
     }
     try {
-      out.imports.push({ id: s._id, result: (await syncSheetImport(s._id, null)).message });
+      out.imports.push({ id: s._id, result: (await syncSheetImport(s._id, null, { deadline: opts.deadline })).message });
     } catch (e: any) {
       out.imports.push({ id: s._id, error: errMsg(e) });
     }
