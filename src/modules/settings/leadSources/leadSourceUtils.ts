@@ -50,6 +50,8 @@ export const MAPPABLE_FIELDS = [
   'Purchase or Rent',
   'Enquired For',
   'Relationship to Prospect',
+  'Site Visit Date',
+  'Site Visit Status',
   'Assigned RM',
   'Enquiry Source',
 ] as const;
