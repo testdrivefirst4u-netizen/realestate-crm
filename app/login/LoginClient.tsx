@@ -34,7 +34,7 @@ async function signIn(email: string, password: string): Promise<LoginResult> {
   throw new AppError(code, body?.message || `Sign-in failed (HTTP ${res.status})`);
 }
 
-export function LoginClient({ next }: { next: string | null }) {
+export function LoginClient({ next, photoUrl }: { next: string | null; photoUrl?: string | null }) {
   const router = useRouter();
   /** Why the last session ended (e.g. the company was suspended), handed over by the CRM shell — shown once. */
   const [reason, setReason] = useState<string | undefined>(undefined);
@@ -63,7 +63,7 @@ export function LoginClient({ next }: { next: string | null }) {
 
   return (
     <ErrorBoundary scope="login">
-      <LoginScreen status="login" lastError={reason} onLogin={login} />
+      <LoginScreen status="login" lastError={reason} onLogin={login} photoUrl={photoUrl} />
       <Toasts />
     </ErrorBoundary>
   );
