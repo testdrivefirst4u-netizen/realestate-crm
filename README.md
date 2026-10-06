@@ -16,7 +16,8 @@ app/                 Next.js routes
   api/files/[id]     uploaded files (GridFS), session-checked
   api/reports/[id]   report snapshot CSV download
   api/webhooks/      chat360 · telephony (shared-secret authenticated)
-  api/cron/          followups (hourly) · daily (housekeeping + digest) · sheets (every 5 min), Bearer CRON_SECRET
+  api/cron/          followups (hourly) · daily (housekeeping + digest) · sheets · meta (every 5 min), Bearer CRON_SECRET
+                     Vercel Hobby runs each once a day (vercel.json); .github/workflows/cron.yml calls them on schedule
   api/health         uptime check
 proxy.ts             passes the requested URL to the CRM layout (for /login?next=)
 server/
