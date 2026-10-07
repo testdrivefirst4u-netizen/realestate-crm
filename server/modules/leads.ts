@@ -20,6 +20,7 @@ import { settingsAll } from '../core/settings';
 import { assertLeadAccess, canSeeLead, leadFilter } from '../core/scope';
 import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, shortId, str, truncate } from '../core/utils';
 import { scheduleLeadAlerts } from './leadAlerts';
+import { firstFollowup, nextFollowup as sequenceNextFollowup, parseSequence } from './sequences';
 
 /** A lead as the browser sees it: keys are the sheet header names ('Prospect Name', 'Follow-up 3' …). */
 export type UiLead = Record<string, string>;
@@ -251,6 +252,9 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   let id = await resolveSuppliedId('ENQ', 4, obj[L.ID], leadIdTaken);
   const now = new Date();
   let doc = buildNewDoc(id, obj, actor, now);
+  // follow-up sequence: a new open lead without a date gets its first follow-up (Settings › Alerts & follow-ups)
+  const autoFollowup = firstFollowup(parseSequence((await settingsAll()).followupSequence), doc, now);
+  if (autoFollowup) doc.nextFollowupAt = autoFollowup;
   for (let attempt = 0; ; attempt++) {
     try {
       await leads.insertOne(doc);
@@ -262,7 +266,9 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
     }
   }
   const lead = toUiLead(doc)!;
-  await runEffects(createdEffects(lead, actor, options.eventSource || 'crm'));
+  const created = createdEffects(lead, actor, options.eventSource || 'crm');
+  if (autoFollowup) created.timeline[0].details += ' · first follow-up ' + fmtHuman(autoFollowup);
+  await runEffects(created);
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
   scheduleLeadAlerts(lead, 'created'); // e-mail the RM / auto WhatsApp reply, after the response
   return { id, lead, version: await bumpVersion() };
@@ -420,14 +426,16 @@ export async function appendRemark(
   const leads = await leadsCol();
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const cur = await leads.findOne({ _id: String(id) }, { projection: { followups: 1 } });
+    const cur = await leads.findOne({ _id: String(id) }, { projection: { followups: 1, stage: 1, enquiryDate: 1, createdAt: 1 } });
     if (!cur) throw fail('NOT_FOUND', 'Lead not found: ' + id);
     const target = nextFollowupSlot(cur);
     if (target > cap) throw fail('VALIDATION', `Follow-up limit (${cap}) reached for this lead`);
     const now = new Date();
     const value = fmtSheet(now) + ' — ' + text;
     const set: Partial<LeadDoc> = { lastFollowupAt: now, updatedAt: now, updatedBy: actor };
-    if (nf) set.nextFollowupAt = nf;
+    // no date given: the follow-up sequence schedules the next step (null when it is over or switched off)
+    const auto = nf ? null : sequenceNextFollowup(parseSequence((await settingsAll()).followupSequence), { stage: String(cur.stage || ''), enquiryDate: cur.enquiryDate, createdAt: cur.createdAt }, target, now);
+    if (nf || auto) set.nextFollowupAt = nf || auto;
     // atomic: the slot must still be free
     const doc = await leads.findOneAndUpdate(
       { _id: cur._id, 'followups.n': { $ne: target } } as any,
@@ -437,6 +445,7 @@ export async function appendRemark(
     if (!doc) continue;
     await addTimeline(cur._id, 'remark_added', 'Follow-up #' + target + ' logged', text, actor, 'Lead', cur._id);
     if (nf) await addTimeline(cur._id, 'followup_scheduled', 'Next follow-up set', fmtHuman(nf), actor, 'Lead', cur._id);
+    else if (auto) await addTimeline(cur._id, 'followup_scheduled', 'Next follow-up scheduled automatically', fmtHuman(auto), 'System', 'Lead', cur._id);
     await auditLog(ctx, 'Follow-up Logged', 'Lead', cur._id, truncate(text, 120));
     return { index: target, timestamp: now.toISOString(), value, lead: toUiLead(doc)!, version: await bumpVersion() };
   }

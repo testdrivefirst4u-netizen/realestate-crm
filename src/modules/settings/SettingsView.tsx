@@ -65,7 +65,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'users', label: 'Users & roles', icon: <Users size={14} />, show: can('users.manage') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
-      { id: 'leadAlerts', label: 'Lead alerts', icon: <BellRing size={14} />, show: can('settings.view') },
+      { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
       { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('leads.trash') || can('leads.delete'), badge: trashedLeads.length || undefined },
     ];

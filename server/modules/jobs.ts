@@ -11,6 +11,8 @@ import { logError, trimErrors, trimEvents } from '../core/events';
 import type { LeadDoc } from '../core/leadShape';
 import { settingsAll } from '../core/settings';
 import { dateKey, fmtDate, fmtHuman, makeZoned, truncate } from '../core/utils';
+import { updateLead } from './leads';
+import { parseSequence, STALE_STAGES } from './sequences';
 
 const S = CFG.STAGES;
 /** Stages that never get overdue reminders (TRIGGER_followups). */
@@ -110,11 +112,38 @@ async function sendDigest(): Promise<boolean> {
   return true;
 }
 
-export async function runDaily(): Promise<{ ok: true; digestSent: boolean }> {
+/**
+ * Follow-up sequence option: New/Open/Warm leads with no activity (no update) for `autoNotRespondingDays` days
+ * move to "Not Responding" (through updateLead, so the timeline, events and audit record it). Off when 0.
+ * At most 500 per run.
+ */
+export async function markStaleLeads(now = new Date()): Promise<number> {
+  const seq = parseSequence((await settingsAll()).followupSequence);
+  if (!seq.autoNotRespondingDays) return 0;
+  const cutoff = new Date(now.getTime() - seq.autoNotRespondingDays * 86_400_000);
+  const stale = await (await col<LeadDoc>(CFG.COLL.LEADS))
+    .find({ stage: { $in: STALE_STAGES }, updatedAt: { $lt: cutoff } } as any, { projection: { _id: 1 } })
+    .limit(500)
+    .toArray();
+  let moved = 0;
+  for (const l of stale) {
+    try {
+      await updateLead(l._id, { [CFG.LEAD.STAGE]: S.NOT_RESPONDING }, null);
+      moved++;
+    } catch (e: any) {
+      await logError('trigger.daily.stale', 'INTERNAL', e?.message, e?.stack, 'trigger', { leadId: l._id });
+    }
+  }
+  return moved;
+}
+
+export async function runDaily(): Promise<{ ok: true; digestSent: boolean; markedNotResponding?: number }> {
   let digestSent = false;
+  let markedNotResponding = 0;
+  try { markedNotResponding = await markStaleLeads(); } catch (e: any) { await logError('trigger.daily.stale', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { await cleanupSessions(); } catch (e: any) { await logError('trigger.daily.sessions', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { await trimEvents(); } catch (e: any) { await logError('trigger.daily.events', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { await trimErrors(); } catch (e: any) { await logError('trigger.daily.errors', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { digestSent = await sendDigest(); } catch (e: any) { await logError('trigger.daily.digest', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
-  return { ok: true, digestSent };
+  return { ok: true, digestSent, markedNotResponding };
 }

@@ -255,6 +255,6 @@ describe('jobs', () => {
   });
 
   it('daily job runs housekeeping and skips the digest without SMTP', async () => {
-    expect(await runDaily()).toEqual({ ok: true, digestSent: false });
+    expect(await runDaily()).toEqual({ ok: true, digestSent: false, markedNotResponding: 0 });
   });
 });

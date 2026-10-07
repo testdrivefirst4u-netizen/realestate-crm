@@ -1,9 +1,9 @@
 /**
- * Settings › Lead alerts — instant e-mail to the assigned RM (and chosen colleagues) when a lead arrives or is
+ * Settings › Alerts & follow-ups — instant e-mail to the assigned RM (and chosen colleagues) when a lead arrives or is
  * reassigned, plus an optional automatic WhatsApp template reply to every new lead (server: modules/leadAlerts.ts).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { BellRing, MessageCircle, Save } from 'lucide-react';
+import { BellRing, CalendarClock, MessageCircle, Save } from 'lucide-react';
 import { UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -21,6 +21,14 @@ interface LeadAlertConfig {
   whatsappParams: string;
 }
 
+interface SequenceConfig {
+  enabled: boolean;
+  days: number[];
+  hour: number;
+  autoNotRespondingDays: number;
+}
+const SEQ_DEFAULTS: SequenceConfig = { enabled: true, days: [1, 3, 7], hour: 10, autoNotRespondingDays: 0 };
+
 const DEFAULTS: LeadAlertConfig = { emailRm: true, emailAlso: '', whatsappAuto: false, whatsappTemplate: '', whatsappLanguage: 'en', whatsappParams: '{first_name}' };
 const list = (s: string) => s.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
 
@@ -35,16 +43,24 @@ const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; disab
 );
 
 export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount[] }> = ({ serverSettings, can, onApplyServerSettings, users }) => {
-  const s = (serverSettings || {}) as ServerSettingsExt & { leadAlerts?: Partial<LeadAlertConfig>; mailConfigured?: boolean };
+  const s = (serverSettings || {}) as ServerSettingsExt & { leadAlerts?: Partial<LeadAlertConfig>; followupSequence?: Partial<SequenceConfig>; mailConfigured?: boolean };
   const editable = can('settings.edit');
   const whatsappFeature = useFeature('chat360');
   const chatReady = whatsappFeature && !!s.chat360Configured;
 
   const [cfg, setCfg] = useState<LeadAlertConfig>(DEFAULTS);
+  const [seq, setSeq] = useState<SequenceConfig>(SEQ_DEFAULTS);
+  const [daysText, setDaysText] = useState(SEQ_DEFAULTS.days.join(', '));
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (s.leadAlerts) setCfg({ ...DEFAULTS, ...s.leadAlerts });
   }, [s.leadAlerts]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!s.followupSequence) return;
+    const next = { ...SEQ_DEFAULTS, ...s.followupSequence };
+    setSeq(next);
+    setDaysText(next.days.join(', '));
+  }, [s.followupSequence]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = useMemo(() => users.filter((u) => u.status !== 'Disabled' && u.email), [users]);
   const chosen = new Set(list(cfg.emailAlso));
@@ -59,11 +75,11 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
   const save = async () => {
     setSaving(true);
     try {
-      const res = await api.settings.update({ leadAlerts: cfg } as any);
+      const res = await api.settings.update({ leadAlerts: cfg, followupSequence: { ...seq, days: daysText } } as any);
       onApplyServerSettings(res);
-      toast('Lead alerts saved', undefined, 'success');
+      toast('Alerts & follow-ups saved', undefined, 'success');
     } catch (e) {
-      toast('Could not save lead alerts', toAppError(reportError('settings.leadAlerts', e)).userMessage, 'alert');
+      toast('Could not save alerts & follow-ups', toAppError(reportError('settings.leadAlerts', e)).userMessage, 'alert');
     } finally {
       setSaving(false);
     }
@@ -116,12 +132,32 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
         </div>
       </Card>
 
+      <Card title={<span className="inline-flex items-center gap-2"><CalendarClock size={16} className="text-[#A9825A]" /> Follow-up sequence</span>} subtitle="Fills in each lead’s next follow-up automatically, so no enquiry is forgotten. RMs get the usual reminder when it is due. A date the RM picks always wins.">
+        <div className="space-y-4">
+          <Toggle checked={seq.enabled} disabled={!editable} onChange={(v) => setSeq((x) => ({ ...x, enabled: v }))} label="Schedule follow-ups automatically" hint="New, Open, Warm, Hot and Qualified leads only. When a follow-up is logged without a next date, the next step is scheduled." />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Follow up on days" hint="Days after the enquiry, e.g. 1, 3, 7" className="sm:col-span-2">
+              <input className={inputCls} value={daysText} disabled={!editable || !seq.enabled} onChange={(e) => setDaysText(e.target.value)} placeholder="1, 3, 7" />
+            </Field>
+            <Field label="At (hour)" hint="Local time, 0–23">
+              <input className={inputCls} type="number" min={0} max={23} value={seq.hour} disabled={!editable || !seq.enabled} onChange={(e) => setSeq((x) => ({ ...x, hour: Number(e.target.value) }))} />
+            </Field>
+          </div>
+          <Field label="Mark as “Not Responding” after" hint="New, Open or Warm leads with no activity for this many days move to Not Responding (checked daily). 0 = never.">
+            <div className="flex items-center gap-2">
+              <input className={inputCls + ' !w-24'} type="number" min={0} max={365} value={seq.autoNotRespondingDays} disabled={!editable} onChange={(e) => setSeq((x) => ({ ...x, autoNotRespondingDays: Number(e.target.value) || 0 }))} />
+              <span className="text-xs text-[#6B5F57]">days without activity</span>
+            </div>
+          </Field>
+        </div>
+      </Card>
+
       {editable ? (
         <div className="flex justify-end">
-          <Button variant="primary" onClick={save} loading={saving} icon={<Save size={13} />}>Save lead alerts</Button>
+          <Button variant="primary" onClick={save} loading={saving} icon={<Save size={13} />}>Save alerts &amp; follow-ups</Button>
         </div>
       ) : (
-        <InlineNotice tone="info">Only administrators can change lead alerts.</InlineNotice>
+        <InlineNotice tone="info">Only administrators can change alerts and follow-ups.</InlineNotice>
       )}
     </div>
   );
