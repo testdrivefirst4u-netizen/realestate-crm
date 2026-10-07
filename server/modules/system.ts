@@ -8,7 +8,7 @@
  */
 import type { ActionMap } from '../core/actions';
 import {
-  auditList, changePassword, createUser, Ctx, deleteUser, hasUsers, listUsers, login, logout, updateProfile, updateUser,
+  auditList, can, changePassword, createUser, Ctx, deleteUser, findUserById, hasUsers, listUsers, login, logout, normalizeRole, updateProfile, updateUser,
 } from '../core/auth';
 import { CFG } from '../core/config';
 import { getVersion, isTestMode } from '../core/db';
@@ -62,6 +62,20 @@ const devRemoved = () => {
   throw fail('NOT_CONFIGURED', 'Developer Mode has been retired. Code changes are now made in the Git repository and deployed through Vercel.');
 };
 
+/**
+ * Who may manage whom (on top of the action permission users.manageAgents):
+ *   - Admins (users.manage) manage Admins, Managers and Agents;
+ *   - Managers manage Agents (role RM) only;
+ *   - only platform support (Developer) may create, edit or remove Developer / support accounts.
+ */
+function assertTeamAccess(ctx: Ctx, nextRole: unknown, current: { role?: unknown; support?: boolean } | null) {
+  const roles = [nextRole === undefined ? null : normalizeRole(nextRole), current ? normalizeRole(current.role) : null].filter(Boolean);
+  if (normalizeRole(ctx.user?.role) !== 'Developer' && (roles.includes('Developer') || current?.support)) {
+    throw fail('FORBIDDEN', 'Only platform support can manage support accounts');
+  }
+  if (!can(ctx.user, 'users.manage') && roles.some((r) => r !== 'RM')) throw fail('FORBIDDEN', 'Managers can only add and manage Agents');
+}
+
 export const actions: ActionMap = {
   /* ---- public ---- */
   // SaaS: companies and their first administrator are created by a platform super admin
@@ -111,17 +125,21 @@ export const actions: ActionMap = {
   getSettings: { fn: (_d, ctx) => getSettings(ctx), perm: 'settings.view' },
   updateSettings: { fn: (d, ctx) => updateSettings(d.data, ctx), perm: 'settings.edit' },
   setSecret: { fn: (d, ctx) => setSecret(d.key, d.value, ctx), perm: 'secrets.manage' },
-  listUsers: { fn: () => listUsers(), perm: 'users.manage' },
+  listUsers: { fn: () => listUsers(), perm: 'users.manageAgents' },
   saveUser: {
-    perm: 'users.manage',
+    perm: 'users.manageAgents',
     fn: async (d, ctx) => {
-      if (d.data && d.data.id) return updateUser(d.data, ctx);
-      const created = await createUser(d.data || {}, ctx);
+      const data = d.data || {};
+      const current = data.id ? await findUserById(String(data.id)) : null;
+      if (data.id && !current) throw fail('NOT_FOUND', 'User not found');
+      assertTeamAccess(ctx, data.role !== undefined ? data.role : current ? current.role : 'RM', current);
+      if (data.id) return updateUser(data, ctx);
+      const created = await createUser(data, ctx);
       return { ...created.user, ...(created.temporaryPassword ? { temporaryPassword: created.temporaryPassword } : {}) };
     },
   },
-  deleteUser: { fn: (d, ctx) => deleteUser(d.id, ctx), perm: 'users.manage' },
-  resetPassword: { fn: (d, ctx) => updateUser({ id: d.id, password: d.newPassword }, ctx), perm: 'users.manage' },
+  deleteUser: { fn: async (d, ctx) => (assertTeamAccess(ctx, undefined, await findUserById(String(d.id))), deleteUser(d.id, ctx)), perm: 'users.manageAgents' },
+  resetPassword: { fn: async (d, ctx) => (assertTeamAccess(ctx, undefined, await findUserById(String(d.id))), updateUser({ id: d.id, password: d.newPassword }, ctx)), perm: 'users.manageAgents' },
   getAuditLog: { fn: (d) => auditList(d.limit), perm: 'audit.view' },
   getErrorLog: { fn: (d) => listErrors(d.limit), perm: 'settings.view' },
 

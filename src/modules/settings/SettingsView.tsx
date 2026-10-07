@@ -59,22 +59,23 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
 
   const sections = useMemo(() => {
     const list: Array<{ id: SectionId; label: string; icon: React.ReactNode; show: boolean; badge?: React.ReactNode }> = [
-      { id: 'sync', label: 'Sync & preferences', icon: <RefreshCw size={14} />, show: true },
+      // Company users see My profile, Team and Display; everything else is for Platform support (super admin).
+      { id: 'sync', label: 'Sync & preferences', icon: <RefreshCw size={14} />, show: can('settings.view') },
       { id: 'display', label: 'Display & branding', icon: <Monitor size={14} />, show: true },
       { id: 'profile', label: 'My profile', icon: <UserCircle2 size={14} />, show: true },
-      { id: 'company', label: 'Company & plan', icon: <Building2 size={14} />, show: can('users.manage') },
-      { id: 'users', label: 'Users & roles', icon: <Users size={14} />, show: can('users.manage') },
+      { id: 'company', label: 'Company & plan', icon: <Building2 size={14} />, show: can('settings.view') },
+      { id: 'users', label: 'Team', icon: <Users size={14} />, show: can('users.manageAgents') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'visitBooking', label: 'Visit booking', icon: <CalendarDays size={14} />, show: can('settings.view') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
-      { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('leads.trash') || can('leads.delete'), badge: trashedLeads.length || undefined },
+      { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view'), badge: trashedLeads.length || undefined },
     ];
     return list.filter((s) => s.show);
   }, [can, trashedLeads.length]);
 
-  const [active, setActive] = useState<SectionId>(() => initialSettingsSection<SectionId>(link, SECTION_IDS, 'sync'));
+  const [active, setActive] = useState<SectionId>(() => initialSettingsSection<SectionId>(link, SECTION_IDS, 'profile'));
   useEffect(() => {
     if (!sections.some((s) => s.id === active)) setActive(sections[0]?.id || 'sync');
   }, [sections, active]);
@@ -129,14 +130,14 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'sync' && <SyncSection {...base} sync={sync} onUpdateLocalSettings={onUpdateLocalSettings} onSyncNow={onSyncNow} />}
           {active === 'display' && <DisplaySection />}
           {active === 'profile' && <ProfileSection currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
-          {active === 'company' && can('users.manage') && <CompanySection serverSettings={serverSettings} users={users} />}
-          {active === 'users' && can('users.manage') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
+          {active === 'company' && can('settings.view') && <CompanySection serverSettings={serverSettings} users={users} />}
+          {active === 'users' && can('users.manageAgents') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}
           {active === 'visitBooking' && can('settings.view') && <VisitBookingSection {...base} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}
-          {active === 'recycle' && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
+          {active === 'recycle' && can('settings.view') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
         </div>
       </div>
     </div>

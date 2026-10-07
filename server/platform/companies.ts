@@ -13,7 +13,7 @@ import { CFG } from '../core/config';
 import { col, dbByName, ensureIndexes, getClient, getDb } from '../core/db';
 import { fail } from '../core/errors';
 import { runWithTenant } from '../core/tenant';
-import { createUser, listUsers, updateUser, SYSTEM_CTX, type Ctx, type PublicUser } from '../core/auth';
+import { createUser, listUsers, openSupportSession, updateUser, SYSTEM_CTX, type Ctx, type PublicUser } from '../core/auth';
 import { settingSet } from '../core/settings';
 import { escapeRegex, randomPassword, str, truncate } from '../core/utils';
 import { claimEmail, invalidateTenant, normalizeFeatures, PCOLL, toTenant, type CompanyDoc } from './registry';
@@ -71,6 +71,19 @@ function toCompanyUser(u: PublicUser): CompanyUser {
   return { id: u.id, name: u.name, email: u.email, role: u.role as CompanyUser['role'], status: u.status, lastLoginAt: u.lastLoginAt };
 }
 
+/**
+ * "Open company settings": a 2-hour session as the company's hidden Platform support account, which alone has
+ * the company's settings, integrations and keys. The route handler puts the token into the CRM session cookie.
+ */
+export async function openCompanySupport(d: { companyId: string }, ctx: SaCtx): Promise<{ companyId: string; token: string; expiresAt: string; redirect: string }> {
+  const c = await findCompany(d?.companyId);
+  if (c.status !== 'Active') throw fail('VALIDATION', 'Reactivate the company first — a suspended company cannot be opened.');
+  const sa = { name: ctx.sa?.name || '', email: ctx.sa?.email || '' };
+  const r = await runWithTenant(toTenant(c), () => openSupportSession(sa, { ip: ctx.ip, userAgent: ctx.userAgent }));
+  await platformAudit(ctx, 'Company Settings Opened', c._id, `${c.name} (2-hour support session)`);
+  return { companyId: c._id, token: r.token, expiresAt: r.expiresAt, redirect: '/settings' };
+}
+
 export async function findCompany(id: string): Promise<CompanyDoc> {
   const c = await (await companies()).findOne({ _id: String(id || ''), ...notDeleted });
   if (!c) throw fail('NOT_FOUND', 'Company not found');
@@ -98,7 +111,7 @@ async function companyUsage(c: CompanyDoc, full: boolean): Promise<Usage> {
       const db = await getDb();
       const count = (name: string, q: Record<string, unknown> = {}) => db.collection(name).countDocuments(q);
       const [activeUsers, leads, stats] = await Promise.all([
-        count(CFG.COLL.USERS, { status: { $ne: 'Disabled' } }),
+        count(CFG.COLL.USERS, { status: { $ne: 'Disabled' }, support: { $ne: true } } as any),
         count(CFG.COLL.LEADS),
         db.stats().catch(() => ({ dataSize: 0, indexSize: 0 }) as any),
       ]);

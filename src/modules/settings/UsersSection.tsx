@@ -5,7 +5,7 @@ import { api } from '../../core/api';
 import { formatDateTime, formatRelative } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { ROLE_OPTIONS, normalizeRole, roleLabel } from '../../core/rbac';
+import { ROLE_OPTIONS, assignableRoles, can, normalizeRole, roleLabel } from '../../core/rbac';
 import { Avatar, useAvatarPicker } from '../../components/Avatar';
 import { isPlanLimitMessage, planUsage, useCompany } from '../../core/tenant';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineNotice, LoadingState, Modal, Select, inputCls } from '../../components/ui';
@@ -245,15 +245,18 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
     }
   };
 
-  const roleOptions = ROLE_OPTIONS.map((r) => ({ value: r.id, label: r.label }));
+  // Admins give any company role; Managers only Agent (the server enforces the same rule).
+  const allowedRoles = assignableRoles(currentUser);
+  const roleOptions = allowedRoles.map((r) => ({ value: r.id, label: r.label }));
+  const manages = (u: UserAccount) => allowedRoles.some((r) => r.id === normalizeRole(u.role));
   const roleDescription = ROLE_OPTIONS.find((r) => r.id === form.role)?.description;
 
   return (
     <div className="space-y-5">
-      <LeadVisibilityCard />
+      {can(currentUser, 'settings.edit') && <LeadVisibilityCard />}
       <Card
-        title="Users & roles"
-        subtitle="Accounts that can sign in to the CRM. The backend enforces every permission."
+        title="Team"
+        subtitle={can(currentUser, 'users.manage') ? 'Everyone who can sign in. Add Managers (full access to all leads) and Agents (only their own leads).' : 'Add and manage Agents — they work only the leads assigned to them.'}
         actions={
           <>
             <Badge tone={usage.atLimit ? 'amber' : 'muted'}><Users size={10} className="mr-1" />{usage.label}</Badge>
@@ -319,9 +322,11 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
                         <td className="p-3 whitespace-nowrap"><Badge tone={u.status === 'Disabled' ? 'rust' : 'sage'}>{u.status || 'Active'}</Badge></td>
                         <td className="p-3 text-[#6B5F57] whitespace-nowrap" title={formatDateTime(u.lastLoginAt, '')}>{u.lastLoginAt ? formatRelative(u.lastLoginAt) : 'Never'}</td>
                         <td className="p-3 text-right whitespace-nowrap">
+                          {manages(u) && <>
                           <button onClick={() => openEdit(u)} className="p-1.5 rounded-md text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-[#EBE5DC]" title="Edit user"><Pencil size={13} /></button>
                           <button onClick={() => { setResetTarget(u); setResetPw(''); setResetError(null); }} className="p-1.5 rounded-md text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-[#EBE5DC]" title="Reset password"><KeyRound size={13} /></button>
                           <button onClick={() => setDeleteTarget(u)} disabled={me || lastAdmin} className="p-1.5 rounded-md text-[#6B5F57] hover:text-[#8A3E28] hover:bg-[#FAF0EC] disabled:opacity-30 disabled:cursor-not-allowed" title={me ? 'You cannot delete your own account' : lastAdmin ? 'The last administrator cannot be deleted' : 'Delete user'}><Trash2 size={13} /></button>
+                          </>}
                         </td>
                       </tr>
                     );

@@ -369,7 +369,8 @@ describe('claims', () => {
 /* ------------------------------ connect flow ----------------------------- */
 
 describe('connect flow', () => {
-  async function signIn(role: 'Admin' | 'Manager' = 'Admin', email = 'boss@meta.test') {
+  // Connecting Facebook is platform-support work (role Developer); company Admins no longer manage settings.
+  async function signIn(role: 'Developer' | 'Admin' | 'Manager' = 'Developer', email = 'boss@meta.test') {
     await createUser({ name: 'Boss ' + role, email, password: 'long-enough-pw', role, mustChangePassword: false }, null);
     const r = await login(email, 'long-enough-pw', { userAgent: 'vitest', ip: '10.2.2.2' });
     return { token: r.token, userId: r.user.id, cookie: `CMP-test.${r.token}` };
@@ -422,7 +423,7 @@ describe('connect flow', () => {
     calls = [];
     const noNonce = new URL((await cb(`code=good-code&state=${encodeURIComponent(state)}`, `amaya_session=${me.cookie}`)).headers.get('location')!);
     expect(noNonce.searchParams.get('metaError')).toMatch(/could not be verified/);
-    const other = await signIn('Admin', 'second@meta.test');
+    const other = await signIn('Developer', 'second@meta.test');
     const foreign = new URL((await cb(`code=good-code&state=${encodeURIComponent(state)}`, `amaya_session=${other.cookie}; meta_oauth_nonce=${nonce}`)).headers.get('location')!);
     expect(foreign.searchParams.get('metaError')).toMatch(/could not be verified/);
     expect(calls).toHaveLength(0);
@@ -567,7 +568,7 @@ describe('cron /api/cron/meta', () => {
 describe('plan gating and the inbound endpoint', () => {
   it('without metaLeads the Meta actions are FORBIDDEN but metaStatus answers', async () => {
     await t.company('test', { metaLeads: false, websiteApi: true });
-    await createUser({ name: 'Boss', email: 'boss@meta.test', password: 'long-enough-pw', role: 'Admin', mustChangePassword: false }, null);
+    await createUser({ name: 'Boss', email: 'boss@meta.test', password: 'long-enough-pw', role: 'Developer', mustChangePassword: false }, null); // platform support
     const token = (await login('boss@meta.test', 'long-enough-pw', { userAgent: 'vitest', ip: '10.2.2.2' })).token;
     const call = (action: string, data: any = {}) => dispatch(action, data, { token, userAgent: 'vitest', ip: '10.2.2.2', companyId: 'CMP-test' });
     for (const a of ['getMetaPendingConnection', 'connectMetaPages', 'checkMetaSource', 'backfillMetaSource', 'disconnectMetaSource']) {

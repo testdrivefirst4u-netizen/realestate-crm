@@ -566,7 +566,7 @@ describe('claims', () => {
 describe('plan gate (company router)', () => {
   async function session(features: Partial<typeof DEFAULT_FEATURES>) {
     await t.company('test', features);
-    await createUser({ name: 'Boss', email: 'boss@sheets.test', password: 'long-enough-pw', role: 'Admin', mustChangePassword: false }, null);
+    await createUser({ name: 'Boss', email: 'boss@sheets.test', password: 'long-enough-pw', role: 'Developer', mustChangePassword: false }, null); // platform support
     const token = (await login('boss@sheets.test', 'long-enough-pw', { userAgent: 'vitest', ip: '10.2.2.2' })).token;
     return (action: string, data: any = {}) => dispatch(action, data, { token, userAgent: 'vitest', ip: '10.2.2.2', companyId: 'CMP-test' });
   }

@@ -39,17 +39,17 @@ beforeEach(async () => {
 });
 
 describe('lead visibility', () => {
-  it('RMs see their own + unassigned leads by default; managers see everything', async () => {
-    expect(leadIds(await as('Asha', 'getAllLeads'))).toEqual(['ENQ-0001', 'ENQ-0003']);
-    expect(leadIds(await as('Ravi', 'getAllLeads'))).toEqual(['ENQ-0002', 'ENQ-0003']);
+  it('Agents see only their own leads by default; managers see everything', async () => {
+    expect(leadIds(await as('Asha', 'getAllLeads'))).toEqual(['ENQ-0001']);
+    expect(leadIds(await as('Ravi', 'getAllLeads'))).toEqual(['ENQ-0002']);
     expect(leadIds(await as('Meera', 'getAllLeads'))).toEqual(['ENQ-0001', 'ENQ-0002', 'ENQ-0003']);
     const boot = await as('Asha', 'getBootstrap');
-    expect(boot.data.leads.leads.map((l: any) => l['Prospect Name']).sort()).toEqual(['Asha Lead', 'Fresh Lead']);
+    expect(boot.data.leads.leads.map((l: any) => l['Prospect Name']).sort()).toEqual(['Asha Lead']);
   });
 
-  it("'own' hides unassigned leads; 'all' restores the old behaviour", async () => {
-    await settingSet('rmLeadVisibility', 'own', 'test');
-    expect(leadIds(await as('Asha', 'getAllLeads'))).toEqual(['ENQ-0001']);
+  it("'own_unassigned' adds unassigned leads; 'all' restores the old behaviour", async () => {
+    await settingSet('rmLeadVisibility', 'own_unassigned', 'test');
+    expect(leadIds(await as('Asha', 'getAllLeads'))).toEqual(['ENQ-0001', 'ENQ-0003']);
     await settingSet('rmLeadVisibility', 'all', 'test');
     expect(leadIds(await as('Asha', 'getAllLeads'))).toHaveLength(3);
   });

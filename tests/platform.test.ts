@@ -163,6 +163,24 @@ describe('route handler & cookie', () => {
     expect(after.headers.get('set-cookie') || '').toMatch(/platform_session=;/);
   });
 
+  it('"Open company settings" puts a support session into the CRM cookie, never into JSON', async () => {
+    const sa = await setupSa();
+    const co = await newCompany(sa, 'supp');
+    const res = await POST(req('openCompanySupport', { companyId: co.id }, { cookie: `platform_session=${sa}` }));
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get('set-cookie') || '';
+    const m = setCookie.match(new RegExp(`amaya_session=${co.id}\\.([0-9a-f]{64})`));
+    expect(m, setCookie).toBeTruthy();
+    const json = await res.json();
+    expect(json.data).toEqual({ companyId: co.id, expiresAt: expect.any(String), redirect: '/settings' });
+    expect(JSON.stringify(json)).not.toContain(m![1]);
+    // the session works in the CRM as the hidden support account, with settings access
+    const s = await dispatch('getSettings', {}, { token: m![1], companyId: co.id, userAgent: 'vitest', ip: IP });
+    expect(s.status).toBe(200);
+    // without a super admin session it is refused
+    expect((await POST(req('openCompanySupport', { companyId: co.id }))).status).toBe(401);
+  });
+
   it('rejects bodies over 1 MB and bad JSON', async () => {
     const big = new Request('http://localhost/api/platform/rpc', { method: 'POST', headers: { host: 'localhost' }, body: JSON.stringify({ action: 'saStatus', data: { x: 'a'.repeat(1100000) } }) });
     expect((await POST(big)).status).toBe(413);
@@ -296,7 +314,7 @@ describe('companies', () => {
     const s = await newCompany(sa, 'small', { plan: 'starter' });
     const token = body(await crmLogin('admin@small.io')).data.token;
     const ctx = { token, companyId: s.id, userAgent: 'vitest', ip: IP };
-    const ai = await dispatch('aiTest', {}, ctx);
+    const ai = await dispatch('aiReframe', { text: 'hello' }, ctx); // an AI action company Admins may use (aiTest is platform-support only)
     expect(ai.status).toBe(403);
     expect(body(ai).code).toBe('FORBIDDEN');
 
@@ -308,7 +326,7 @@ describe('companies', () => {
     expect(up.status).toBe(200);
     expect(body(up).data.features.aiCopilot).toBe(true);
     expect(body(up).data.features.chat360).toBe(false);
-    const ai2 = await dispatch('aiTest', {}, ctx);
+    const ai2 = await dispatch('aiReframe', { text: 'hello' }, ctx);
     expect(body(ai2).code).not.toBe('FORBIDDEN');
 
     // plans in use cannot be deleted

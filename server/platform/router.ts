@@ -33,6 +33,7 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   dashboard: { fn: () => CO.dashboard() },
   listCompanies: { fn: (d) => CO.listCompanies(d) },
   getCompany: { fn: (d) => CO.getCompany(d) },
+  openCompanySupport: { fn: (d, ctx) => CO.openCompanySupport(d, ctx) },
   createCompany: { fn: (d, ctx) => CO.createCompany(d, ctx) },
   updateCompany: { fn: (d, ctx) => CO.updateCompany(d, ctx) },
   setCompanyStatus: { fn: (d, ctx) => CO.setCompanyStatus(d, ctx) },

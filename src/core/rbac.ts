@@ -29,6 +29,8 @@ export type Permission =
   | 'settings.view'
   | 'settings.edit'
   | 'users.manage'
+  /** Add and manage Agents (Managers); Admins manage everyone (users.manage). */
+  | 'users.manageAgents'
   | 'secrets.manage'
   | 'developer.view'
   | 'developer.edit'
@@ -39,19 +41,16 @@ const ALL: Permission[] = [
   'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export',
   'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export',
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
-  'settings.view', 'settings.edit', 'users.manage', 'secrets.manage',
+  'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
   'developer.view', 'developer.edit', 'developer.deploy', 'audit.view',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  Admin: ALL.filter((p) => !p.startsWith('developer.edit') && p !== 'developer.deploy').concat(['developer.view']),
+  // Company settings, integrations and keys belong to the platform: only Developer (the Platform support account).
+  Admin: ALL.filter((p) => !p.startsWith('settings.') && p !== 'secrets.manage' && !p.startsWith('developer.')),
   Developer: ALL,
-  Manager: [
-    'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.import', 'leads.export',
-    'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export',
-    'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
-    'settings.view', 'audit.view',
-  ],
+  // Managers: full lead access and the audit log; may add and manage Agents.
+  Manager: ALL.filter((p) => !p.startsWith('settings.') && p !== 'secrets.manage' && !p.startsWith('developer.') && p !== 'users.manage'),
   RM: [
     'leads.view', 'leads.create', 'leads.edit', 'leads.export',
     'tasks.manage', 'inventory.view', 'reports.view',
@@ -81,15 +80,21 @@ export function roleLabel(role: UserRole | string): string {
     case 'Manager':
       return 'Sales Manager';
     case 'Developer':
-      return 'Developer';
+      return 'Platform support';
     default:
-      return 'Relationship Manager';
+      return 'Agent';
   }
 }
 
+/** Roles a company can give its people (Developer is the platform's support account — never offered). */
 export const ROLE_OPTIONS: Array<{ id: UserRole; label: string; description: string }> = [
-  { id: 'RM', label: 'RM / User', description: 'Works leads, follow-ups, tasks, calls and chats. Cannot delete or change settings.' },
-  { id: 'Manager', label: 'Manager', description: 'Everything an RM can do plus trash/import leads, edit inventory, view audit log.' },
-  { id: 'Admin', label: 'Admin', description: 'Full access to settings, users, integrations and API keys.' },
-  { id: 'Developer', label: 'Developer', description: 'Same access as Admin — for the technical owner of the deployment.' },
+  { id: 'RM', label: 'Agent', description: 'Works only the leads assigned to them: follow-ups, tasks, calls and chats.' },
+  { id: 'Manager', label: 'Manager', description: 'Full access to all leads, reports, inventory and the audit log. Can add and manage Agents.' },
+  { id: 'Admin', label: 'Admin', description: 'Everything a Manager can do, plus adding Managers and Admins.' },
 ];
+
+/** Roles `actor` may give: Admins any company role, Managers only Agent. */
+export function assignableRoles(actor: UserAccount | null | undefined): typeof ROLE_OPTIONS {
+  if (can(actor, 'users.manage')) return ROLE_OPTIONS;
+  return can(actor, 'users.manageAgents') ? ROLE_OPTIONS.filter((r) => r.id === 'RM') : [];
+}

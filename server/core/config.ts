@@ -118,14 +118,19 @@ export const CFG = {
 
   ROLES: ['Admin', 'Manager', 'RM', 'Developer'],
 
-  /** Mirrors src/core/rbac.ts. The server is the enforcer. */
+  /**
+   * Mirrors src/core/rbac.ts. The server is the enforcer.
+   * Company settings, integrations and API keys (settings.*, secrets.*) belong to the platform: only the
+   * Developer role has them — the hidden "Platform support" account a super admin opens from the console.
+   * Admins run the team (users.*); Managers have full lead access and may manage Agents (users.manageAgents);
+   * Agents (role RM) work their own leads.
+   */
   PERMISSIONS: {
     Developer: ['*'],
-    Admin: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*', 'settings.*',
-      'users.*', 'secrets.*', 'audit.*', 'developer.view', 'records.*', 'storage.*'],
-    Manager: ['leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.import', 'leads.export',
-      'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*', 'settings.view', 'audit.view',
-      'records.*', 'storage.*'],
+    Admin: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*',
+      'users.*', 'audit.*', 'records.*', 'storage.*'],
+    Manager: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*', 'audit.view',
+      'users.manageAgents', 'records.*', 'storage.*'],
     RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'tasks.*', 'inventory.view', 'reports.view',
       'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*'],
   } as Record<string, string[]>,
@@ -152,8 +157,8 @@ export const CFG = {
     features: '{"aiCopilot":true,"chat360":true,"calls":true,"inventorySync":true,"developerMode":false}',
     dailyDigestEmail: '',
     maxFollowups: '500',
-    /** What RMs see: 'own' | 'own_unassigned' | 'all' (server/core/scope.ts). */
-    rmLeadVisibility: 'own_unassigned',
+    /** What Agents (RMs) see: 'own' | 'own_unassigned' | 'all' (server/core/scope.ts). */
+    rmLeadVisibility: 'own',
   } as Record<string, string>,
 
   /** Hosts the server may fetch call recordings from (SSRF guard). Extend via settings if needed. */

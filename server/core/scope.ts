@@ -26,7 +26,7 @@ type UserLike = Pick<PublicUser, 'name' | 'role'> | null | undefined;
 
 export async function leadVisibility(): Promise<LeadVisibility> {
   const v = str((await settingsAll()).rmLeadVisibility) as LeadVisibility;
-  return LEAD_VISIBILITY.includes(v) ? v : 'own_unassigned';
+  return LEAD_VISIBILITY.includes(v) ? v : 'own';
 }
 
 /** The restriction for this user, or null when the user sees every lead. */

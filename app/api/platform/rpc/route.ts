@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { platformDispatch } from '@/server/platform/router';
 import { errEnvelope } from '@/server/core/errors';
+import { setSessionCookie } from '@/server/core/request';
 import { PLATFORM_COOKIE, clearPlatformSessionCookie, setPlatformSessionCookie } from '@/server/platform/cookie';
 
 export const runtime = 'nodejs';
@@ -66,7 +67,16 @@ export async function POST(req: Request) {
     ip: (fwd.split(',')[0] || req.headers.get('x-real-ip') || '').trim(),
   });
 
+  // "Open company settings": the support session token goes into the CRM session cookie, never into JSON.
+  let support: { companyId: string; token: string; expiresAt: string } | null = null;
+  const data: any = (result.body as any).data;
+  if (action === 'openCompanySupport' && result.status === 200 && data?.token) {
+    support = { companyId: data.companyId, token: data.token, expiresAt: data.expiresAt };
+    (result.body as any).data = { companyId: data.companyId, expiresAt: data.expiresAt, redirect: data.redirect };
+  }
+
   const res = json(result.body, result.status);
+  if (support) setSessionCookie(res, support.companyId, support.token, support.expiresAt);
   if (result.session && !result.clearSession) setPlatformSessionCookie(res, result.session);
   else if (result.clearSession) clearPlatformSessionCookie(res);
   return res;

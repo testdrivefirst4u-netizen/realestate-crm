@@ -142,7 +142,7 @@ export async function settingsPublic() {
     })(),
     aiPlatformKey: !!process.env.GEMINI_API_KEY?.trim(),
     maxFollowups: Number(s.maxFollowups || CFG.MAX_FOLLOWUPS), version: CFG.VERSION,
-    rmLeadVisibility: ['own', 'own_unassigned', 'all'].includes(s.rmLeadVisibility) ? s.rmLeadVisibility : 'own_unassigned',
+    rmLeadVisibility: ['own', 'own_unassigned', 'all'].includes(s.rmLeadVisibility) ? s.rmLeadVisibility : 'own',
   };
 }
 

@@ -43,6 +43,8 @@ export interface UserDoc {
   lastLoginAt?: Date | null;
   mustChangePassword: boolean;
   avatar?: string;
+  /** The hidden Platform support account (opened by a super admin); never listed or counted. */
+  support?: boolean;
 }
 
 interface SessionDoc {
@@ -116,8 +118,9 @@ export function publicUser(u: UserDoc): PublicUser {
 const users = () => col<UserDoc>(CFG.COLL.USERS);
 const sessions = () => col<SessionDoc>(CFG.COLL.SESSIONS);
 
+/** The company's team (the hidden Platform support account is never listed). */
 export async function listUsers(): Promise<PublicUser[]> {
-  const all = await (await users()).find({}).sort({ createdAt: 1 }).toArray();
+  const all = await (await users()).find({ support: { $ne: true } } as any).sort({ createdAt: 1 }).toArray();
   return all.map(publicUser);
 }
 
@@ -163,7 +166,7 @@ export async function createUser(data: any, actor: Ctx | null) {
   if (supplied) checkNewPassword(supplied);
   const tenant = currentTenant();
   if (tenant && tenant.maxUsers > 0 && data.status !== 'Disabled') {
-    const active = await (await users()).countDocuments({ status: { $ne: 'Disabled' } });
+    const active = await (await users()).countDocuments({ status: { $ne: 'Disabled' }, support: { $ne: true } } as any);
     if (active >= tenant.maxUsers) throw fail('VALIDATION', `Your plan allows ${tenant.maxUsers} active users. Disable a user or ask the platform administrator to raise the limit.`);
   }
   await claimEmail(email);
@@ -215,7 +218,7 @@ export async function updateUser(data: any, ctx: Ctx) {
   if (data.status !== undefined) set.status = data.status === 'Disabled' ? 'Disabled' : 'Active';
   const tenant = currentTenant();
   if (set.status === 'Active' && u.status === 'Disabled' && tenant && tenant.maxUsers > 0) {
-    const active = await (await users()).countDocuments({ status: { $ne: 'Disabled' } });
+    const active = await (await users()).countDocuments({ status: { $ne: 'Disabled' }, support: { $ne: true } } as any);
     if (active >= tenant.maxUsers) throw fail('VALIDATION', `Your plan allows ${tenant.maxUsers} active users.`);
   }
   if (data.password) {
@@ -368,11 +371,45 @@ export async function validateSession(token: string): Promise<{ user: PublicUser
     return null;
   }
   let expiresAt = s.expiresAt;
-  if (s.expiresAt.getTime() - Date.now() < CFG.SESSION_HOURS * 1800000) {
+  // sliding expiry — except the Platform support account, whose short session must really end
+  if (!u.support && s.expiresAt.getTime() - Date.now() < CFG.SESSION_HOURS * 1800000) {
     expiresAt = new Date(Date.now() + CFG.SESSION_HOURS * 3600000);
     await (await sessions()).updateOne({ _id: s._id }, { $set: { expiresAt, lastSeen: new Date() } });
   }
   return { user: publicUser(u), expiresAt: expiresAt.toISOString() };
+}
+
+/** Id and sign-in e-mail of the hidden Platform support account (not in the platform e-mail directory: no password login). */
+export const SUPPORT_USER_ID = 'USR-SUPPORT';
+const SUPPORT_EMAIL = 'support@platform.invalid';
+
+/**
+ * Super admin › "Open company settings": (re)activate the company's hidden Platform support account (role
+ * Developer — the only role with settings, integrations and API keys) and start a short session for it.
+ * Named after the super admin, so the company audit log shows who acted. Runs inside the company.
+ */
+export async function openSupportSession(sa: { name: string; email: string }, meta: { ip?: string; userAgent?: string }, hours = 2): Promise<{ token: string; expiresAt: string }> {
+  const c = await users();
+  const now = new Date();
+  const name = truncate(`Support · ${sa.name || sa.email}`, 120);
+  const existing = await c.findOne({ _id: SUPPORT_USER_ID });
+  if (existing) {
+    await c.updateOne({ _id: SUPPORT_USER_ID }, { $set: { name, role: 'Developer', status: 'Active', support: true, mustChangePassword: false } });
+  } else {
+    await c.insertOne({
+      _id: SUPPORT_USER_ID, name, email: SUPPORT_EMAIL, emailLower: SUPPORT_EMAIL, passwordHash: await hashPassword(randomToken(24)),
+      role: 'Developer', status: 'Active', createdAt: now, lastLoginAt: null, mustChangePassword: false, support: true,
+    });
+  }
+  const token = randomToken(32);
+  const expires = new Date(now.getTime() + hours * 3_600_000);
+  await (await sessions()).insertOne({
+    tokenHash: sha256Hex(token), userId: SUPPORT_USER_ID, createdAt: now, expiresAt: expires, lastSeen: now,
+    userAgent: truncate(meta.userAgent || '', 160), ip: truncate(meta.ip || '', 64),
+  });
+  const user = publicUser((await c.findOne({ _id: SUPPORT_USER_ID }))!);
+  await auditLog({ ...SYSTEM_CTX, user, ip: meta.ip || '' }, 'Support Session Opened', 'Auth', SUPPORT_USER_ID, sa.email);
+  return { token, expiresAt: expires.toISOString() };
 }
 
 export async function logout(token: string) {

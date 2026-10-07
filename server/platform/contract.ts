@@ -121,6 +121,8 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   };
   listCompanies: { req: { q?: string; status?: 'Active' | 'Suspended' | '' }; res: CompanySummary[] };
   getCompany: { req: { id: string }; res: CompanyDetail };
+  /** Sets the CRM session cookie (route handler) for a 2-hour Platform support session in that company. */
+  openCompanySupport: { req: { companyId: string }; res: { companyId: string; expiresAt: string; redirect: string } };
   createCompany: {
     req: {
       name: string;

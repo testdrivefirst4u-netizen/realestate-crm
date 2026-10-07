@@ -94,7 +94,13 @@ describe('auth', () => {
     expect(can({ role: 'RM' }, 'leads.delete')).toBe(false);
     expect(can({ role: 'Manager' }, 'tasks.anything')).toBe(true);
     expect(can({ role: 'Manager' }, 'users.manage')).toBe(false);
-    expect(can({ role: 'Admin' }, 'secrets.manage')).toBe(true);
+    // company settings and keys belong to platform support (Developer); Admins run the team, Managers add Agents
+    expect(can({ role: 'Admin' }, 'secrets.manage')).toBe(false);
+    expect(can({ role: 'Admin' }, 'settings.edit')).toBe(false);
+    expect(can({ role: 'Admin' }, 'users.manage')).toBe(true);
+    expect(can({ role: 'Manager' }, 'users.manageAgents')).toBe(true);
+    expect(can({ role: 'Manager' }, 'leads.delete')).toBe(true);
+    expect(can({ role: 'RM' }, 'users.manageAgents')).toBe(false);
     expect(can({ role: 'Developer' }, 'whatever')).toBe(true);
   });
 });
@@ -155,7 +161,7 @@ describe('settings & secrets', () => {
   });
 
   it('reveals webhook secrets only to roles that manage secrets', async () => {
-    const admin = await t.ctx('Admin');
+    const admin = await t.ctx('Developer'); // platform support
     const manager = await t.ctx('Manager');
     await setSecret('CHAT360_WEBHOOK_SECRET', 'hook-secret-abcdef', admin);
     expect((await getSettings(admin)).chat360WebhookUrl).toContain('hook-secret-abcdef');

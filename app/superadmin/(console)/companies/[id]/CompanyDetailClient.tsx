@@ -2,12 +2,12 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Settings2 } from 'lucide-react';
 import type { CompanyDetail, CompanyUser } from '@/server/platform/contract';
-import { call, useResource } from '../../../_lib/api';
+import { call, errorMessage, useResource } from '../../../_lib/api';
 import { initials, planName } from '../../../_lib/format';
 import { AuditTable } from '../../../_components/AuditTable';
-import { Card, ErrorBox, Pill, Skeleton, StatusBadge, cx, focusRing } from '../../../_components/ui';
+import { Button, Card, ErrorBox, Pill, Skeleton, StatusBadge, cx, focusRing } from '../../../_components/ui';
 import { DangerTab } from '../_components/DangerTab';
 import { FeaturesTab } from '../_components/FeaturesTab';
 import { IntegrationsTab } from '../_components/IntegrationsTab';
@@ -125,6 +125,7 @@ export function CompanyDetailClient() {
             )}
           </p>
         </div>
+        <OpenSettingsButton companyId={c.id} disabled={c.status !== 'Active'} />
       </header>
 
       {c.status === 'Suspended' && (
@@ -144,5 +145,38 @@ export function CompanyDetailClient() {
         {tab === 'danger' && <DangerTab company={c} onSaved={onSaved} />}
       </div>
     </>
+  );
+}
+
+/**
+ * Opens the company's CRM Settings (all sections) in a new tab as its hidden "Platform support" account —
+ * a 2-hour session; changes are recorded in the company audit log under your name.
+ */
+function OpenSettingsButton({ companyId, disabled }: { companyId: string; disabled: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const open = async () => {
+    setBusy(true);
+    setError('');
+    // open the tab first (a popup opened after an await is blocked), then point it at the CRM
+    const tab = window.open('about:blank', '_blank');
+    try {
+      const r = await call('openCompanySupport', { companyId });
+      if (tab) tab.location.href = r.redirect;
+      else window.location.assign(r.redirect);
+    } catch (e) {
+      tab?.close();
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button onClick={open} loading={busy} disabled={disabled} icon={<Settings2 className="h-4 w-4" aria-hidden />}>
+        Open company settings
+      </Button>
+      <span className="text-[12px] text-[#7A6F64]">{error || 'Integrations, lead sources, alerts, visit booking, keys'}</span>
+    </div>
   );
 }

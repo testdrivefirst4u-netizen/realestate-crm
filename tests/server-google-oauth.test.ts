@@ -133,7 +133,8 @@ const connect = (email: string, refreshToken = 'rt-' + email, id = 'CMP-test') =
   inCo(() => GC.upsertGoogleConnection({ email, refreshToken, scopes: ['openid', 'email', SHEETS_SCOPE], ctx: SYSTEM_CTX }), id);
 const sheetSource = (sheet: Record<string, unknown>) => inCo(() => LS.createLeadSource({ name: 'Sheet leads', type: 'google_sheet', config: { sheet } as any }, null));
 
-async function signIn(role: 'Admin' | 'RM' = 'Admin', email = 'boss@google.test') {
+// Connecting Google is platform-support work (role Developer); company Admins no longer manage settings.
+async function signIn(role: 'Developer' | 'Admin' | 'RM' = 'Developer', email = 'boss@google.test') {
   await createUser({ name: 'Boss ' + role, email, password: 'long-enough-pw', role, mustChangePassword: false }, null);
   const r = await login(email, 'long-enough-pw', { userAgent: 'vitest', ip: '10.2.2.2' });
   return { token: r.token, userId: r.user.id, cookie: `CMP-test.${r.token}` };
@@ -294,7 +295,7 @@ describe('connect flow', () => {
     const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body, 'base64url').toString()), c: 'CMP-other' })).toString('base64url');
     expect(await bad(`${forged}.${sig}`)).toBe(GC.NOT_VERIFIED_MSG);
     expect(await bad(state, `amaya_session=${me.cookie}`)).toBe(GC.NOT_VERIFIED_MSG); // no nonce cookie
-    const other = await signIn('Admin', 'second@google.test');
+    const other = await signIn('Developer', 'second@google.test');
     expect(await bad(state, `amaya_session=${other.cookie}; google_oauth_nonce=${nonce}`)).toBe(GC.NOT_VERIFIED_MSG);
     // a Facebook state is not a Google state
     const { signState } = await import('../server/core/oauthState');
