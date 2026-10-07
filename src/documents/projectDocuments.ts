@@ -1107,6 +1107,22 @@ PROJECT_DOCUMENTS.forEach((doc) => {
 
 export const ALL_DOC_VERSES: DocVerse[] = PROJECT_DOCUMENTS.flatMap((d) => d.verses);
 
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const escapeHtml = (s: string) => String(s).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+const MARK_OPEN = '<mark class="bg-[#C89D66]/30 text-[#1D2F3F] font-bold px-1 rounded-xs border-b border-[#A9825A]">';
+
+/**
+ * `text` as HTML with every term wrapped in <mark>. The text is escaped first and all terms are matched in one
+ * pass, so neither the document nor the (user-typed) terms can inject markup or match inside an earlier <mark>.
+ */
+export function highlightTerms(text: string, terms: string[]): string {
+  const safe = escapeHtml(text);
+  const parts = terms.map((t) => escapeHtml(String(t || '').trim())).filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!parts.length) return safe;
+  const re = new RegExp(`(${parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  return safe.replace(re, `${MARK_OPEN}$1</mark>`);
+}
+
 export interface SearchMatch {
   verse: DocVerse;
   score: number;
@@ -1186,24 +1202,13 @@ export function searchProjectConcordance(
     }
 
     if (isMatch) {
-      // Create highlighted text
-      let highlighted = verse.text;
+      // Create highlighted (HTML-escaped) text
       const termsToHighlight = matchMode === 'phrase' ? [cleanQ] : terms;
-
-      termsToHighlight.forEach((term) => {
-        if (term.length > 1) {
-          const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          highlighted = highlighted.replace(
-            new RegExp(`(${escaped})`, 'gi'),
-            '<mark class="bg-[#C89D66]/30 text-[#1D2F3F] font-bold px-1 rounded-xs border-b border-[#A9825A]">$1</mark>'
-          );
-        }
-      });
 
       results.push({
         verse,
         score,
-        highlightedText: highlighted,
+        highlightedText: highlightTerms(verse.text, termsToHighlight.filter((t) => t.length > 1)),
         matchedWords: Array.from(new Set(matchedTerms)),
       });
     }

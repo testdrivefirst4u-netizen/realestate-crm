@@ -23,8 +23,8 @@ import {
   DocVerse,
   searchProjectConcordance,
   SearchMatch,
+  highlightTerms,
 } from '../documents/projectDocuments';
-import { escapeRegExp } from '../core/format';
 
 interface LibraryModalProps {
   isOpen: boolean;
@@ -32,14 +32,8 @@ interface LibraryModalProps {
   initialQuery?: string;
 }
 
-const MARK_OPEN = '<mark class="bg-[#C89D66]/30 text-[#1D2F3F] font-bold px-1 rounded-xs border-b border-[#A9825A]">';
-const MARK_CLOSE = '</mark>';
-
-/** Wrap every occurrence of `q` in `text` with a <mark>. `q` is user input, so it is regex-escaped. */
-function highlightText(text: string, q: string): string {
-  if (!q) return text;
-  return text.replace(new RegExp(`(${escapeRegExp(q)})`, 'gi'), `${MARK_OPEN}$1${MARK_CLOSE}`);
-}
+/** Escaped HTML of `text` with `q` (user input) highlighted — see highlightTerms. */
+const highlightText = (text: string, q: string): string => highlightTerms(text, q ? [q] : []);
 
 /** ".md" — the extension of the file a download link actually serves. */
 function downloadExtension(url: string): string {
