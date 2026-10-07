@@ -10,6 +10,7 @@ import { useToast } from '../../_components/Toast';
 import { Button, Card, CardHeader, ErrorBox, PageHeader, Skeleton, TextAreaField } from '../../_components/ui';
 import { GoogleOAuthSection } from './GoogleOAuthSection';
 import { MetaSettingsCard } from './MetaSettingsCard';
+import { BrandingCard } from './BrandingCard';
 import { Field, Guide, StatusPill, TestResult } from './SettingsParts';
 
 type GoogleSettings = PlatformActions['getGoogleSettings']['res'];
@@ -192,6 +193,8 @@ export function SettingsClient() {
   return (
     <>
       <PageHeader title="Platform settings" description="Settings that apply to every company on the platform." />
+
+      <BrandingCard />
 
       <Card aria-labelledby={`${uid}-g`}>
         <CardHeader

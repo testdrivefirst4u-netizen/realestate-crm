@@ -1,10 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LEGAL } from '../legal';
+import { legalDetails } from '../legal';
 
-export const metadata: Metadata = { title: 'Terms of Service', description: `The terms for using ${LEGAL.product}.` };
+/** Details come from the database (Super admin › Settings › Branding & legal). */
+export const dynamic = 'force-dynamic';
 
-export default function TermsPage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const LEGAL = await legalDetails();
+  return { title: 'Terms of Service', description: `The terms for using ${LEGAL.product}.` };
+}
+
+export default async function TermsPage() {
+  const LEGAL = await legalDetails();
   const { company, product, email, address, jurisdiction, updated } = LEGAL;
   return (
     <>

@@ -1,10 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LEGAL } from '../legal';
+import { legalDetails } from '../legal';
 
-export const metadata: Metadata = { title: 'Data Deletion', description: `How to delete your data from ${LEGAL.product}, including data received from Facebook.` };
+/** Details come from the database (Super admin › Settings › Branding & legal). */
+export const dynamic = 'force-dynamic';
 
-export default function DataDeletionPage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const LEGAL = await legalDetails();
+  return { title: 'Data Deletion', description: `How to delete your data from ${LEGAL.product}, including data received from Facebook.` };
+}
+
+export default async function DataDeletionPage() {
+  const LEGAL = await legalDetails();
   const { company, product, email, updated } = LEGAL;
   return (
     <>

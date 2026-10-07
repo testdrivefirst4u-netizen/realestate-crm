@@ -9,6 +9,8 @@ import type { TenantFeatures } from '../core/tenant';
 import type { PlatformLeadSourceActions } from '../core/leadSourceTypes';
 import type { PlatformSheetActions } from '../core/sheetTypes';
 import type { PlatformMetaActions } from '../core/metaTypes';
+import type { Branding, BrandingInput } from './branding';
+export type { Branding, BrandingInput } from './branding';
 export type { MetaSourceConfig, MetaStatus } from '../core/metaTypes';
 export type { GoogleConnection, GoogleSettingsView, GoogleStatus, SheetAuth, SheetExport, SheetExportColumns, SheetImportConfig, SyncInterval } from '../core/sheetTypes';
 export type { LeadSource, LeadSourceConfig, LeadSourceType, InboundLogEntry, InboundStatus, AssignmentMode, DuplicateMode } from '../core/leadSourceTypes';
@@ -151,6 +153,9 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   resetSuperAdminPassword: { req: { id: string }; res: { temporaryPassword: string } };
   deleteSuperAdmin: { req: { id: string }; res: { ok: true } };
   auditLog: { req: { limit?: number; companyId?: string }; res: PlatformAuditEntry[] };
+  /* branding & legal details (public legal pages) */
+  getBranding: { req: {}; res: Branding };
+  saveBranding: { req: BrandingInput; res: Branding };
 }
 
 export type PlatformActionName = keyof PlatformActions;

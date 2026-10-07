@@ -1,10 +1,17 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LEGAL } from '../legal';
+import { legalDetails } from '../legal';
 
-export const metadata: Metadata = { title: 'Privacy Policy', description: `How ${LEGAL.product} collects, uses and protects personal data.` };
+/** Details come from the database (Super admin › Settings › Branding & legal). */
+export const dynamic = 'force-dynamic';
 
-export default function PrivacyPage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const LEGAL = await legalDetails();
+  return { title: 'Privacy Policy', description: `How ${LEGAL.product} collects, uses and protects personal data.` };
+}
+
+export default async function PrivacyPage() {
+  const LEGAL = await legalDetails();
   const { company, product, email, address, updated } = LEGAL;
   return (
     <>
