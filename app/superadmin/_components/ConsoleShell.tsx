@@ -56,11 +56,11 @@ function NavLinks({ onNavigate, vertical = false }: { onNavigate?: () => void; v
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#A9825A] text-[14px] font-bold text-white">A</div>
-      <span className="text-[15px] font-semibold text-white">Amaya Platform</span>
-      <span className="ml-1 hidden text-[11px] uppercase tracking-[0.14em] text-[#D4B28C] sm:inline">Super admin</span>
-    </div>
+    <Link href="/superadmin" className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/broaddcast_logo-white.svg" alt="Broaddcast" className="h-9 w-auto" />
+      <span className="hidden border-l border-white/20 pl-3 text-[11px] uppercase tracking-[0.14em] text-[#D4B28C] sm:inline">Super admin</span>
+    </Link>
   );
 }
 
