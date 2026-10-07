@@ -152,6 +152,11 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
           <p className="m-0 text-[11px] text-[#8A7F77]">
             v{APP.version} · <a href="/privacy" className="underline underline-offset-2 hover:text-[#3D3530]">Privacy</a> · <a href="/terms" className="underline underline-offset-2 hover:text-[#3D3530]">Terms</a> · <a href="/data-deletion" className="underline underline-offset-2 hover:text-[#3D3530]">Data deletion</a>
           </p>
+          <p className="m-0 flex items-center gap-2 text-[11px] text-[#8A7F77]">
+            Developed by
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/BroaddCast-Logo-blue.svg" alt="Broaddcast" className="h-6 w-auto" />
+          </p>
         </div>
       </main>
     </div>

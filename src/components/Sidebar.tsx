@@ -115,6 +115,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           </div>
         </Link>
       </div>
+
+      {/* Developer credit (white logo on the navy sidebar) */}
+      <div className={`flex items-center gap-2 px-4 pb-3 ${isCollapsed ? 'lg:justify-center lg:px-2' : ''}`} title="Developed by Broaddcast">
+        <span className={`text-[10px] text-[#E7D8C6]/55 whitespace-nowrap ${isCollapsed ? 'lg:hidden' : ''}`}>Developed by</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/broaddcast_logo-white.svg" alt="Broaddcast" className="h-6 w-auto opacity-90" />
+      </div>
     </aside>
   );
 
