@@ -175,6 +175,8 @@ export async function getSettings(ctx: Ctx) {
     driveRootFolderId: '', driveRootFolderUrl: '',
     deploymentId: '', devAutoDeploy: false,
     dailyDigestEmail: s.dailyDigestEmail,
+    leadAlerts: (await import('../modules/leadAlerts')).parseLeadAlerts(s.leadAlerts),
+    mailConfigured: !!(process.env.SMTP_URL?.trim() && process.env.MAIL_FROM?.trim()),
     scriptId: '', webAppUrl: appUrl(),
     storage: 'MongoDB GridFS',
   };
@@ -182,7 +184,7 @@ export async function getSettings(ctx: Ctx) {
 
 const EDITABLE = ['appName', 'timeZone', 'aiModel', 'aiFastModel', 'aiTranscribeModel', 'chat360BaseUrl', 'chat360SendPath', 'chat360TemplatePath',
   'chat360AuthHeader', 'chat360AuthPrefix', 'chat360AutoCreateLeads', 'chat360DefaultRM', 'chat360DefaultSource', 'telephonyFieldMap',
-  'features', 'dailyDigestEmail', 'rmLeadVisibility'];
+  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts'];
 
 /** Hosts the Chat360 base URL may point at — stops an admin from redirecting the stored API key. */
 const CHAT360_HOSTS = [/(^|\.)chat360\.io$/i];
@@ -223,6 +225,10 @@ export async function updateSettings(patch: any, ctx: Ctx) {
       }
     }
     if (k === 'rmLeadVisibility' && !['own', 'own_unassigned', 'all'].includes(v)) throw fail('VALIDATION', 'Lead visibility must be own, own_unassigned or all');
+    if (k === 'leadAlerts') {
+      const { validateLeadAlerts } = await import('../modules/leadAlerts'); // lazy: avoids a settings ↔ modules import cycle
+      v = await validateLeadAlerts(patch[k]);
+    }
     if (k === 'features') {
       const f = safeJsonParse<Record<string, boolean>>(v, {}) || {};
       f.developerMode = false;

@@ -19,6 +19,7 @@ import {
 import { settingsAll } from '../core/settings';
 import { assertLeadAccess, canSeeLead, leadFilter } from '../core/scope';
 import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, shortId, str, truncate } from '../core/utils';
+import { scheduleLeadAlerts } from './leadAlerts';
 
 /** A lead as the browser sees it: keys are the sheet header names ('Prospect Name', 'Follow-up 3' …). */
 export type UiLead = Record<string, string>;
@@ -263,6 +264,7 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   const lead = toUiLead(doc)!;
   await runEffects(createdEffects(lead, actor, options.eventSource || 'crm'));
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
+  scheduleLeadAlerts(lead, 'created'); // e-mail the RM / auto WhatsApp reply, after the response
   return { id, lead, version: await bumpVersion() };
 }
 
@@ -398,6 +400,7 @@ export async function updateLead(
     const after = toUiLead(plan.next)!;
     await runEffects(updateEffects(before._id, plan, after, actor));
     await auditLog(ctx, 'Lead Updated', 'Lead', before._id, plan.changes.map((c) => c.field).join(', '), auditDiff(plan.changes));
+    if (plan.rm) scheduleLeadAlerts(after, 'assigned'); // tell the newly assigned RM
     return { lead: after, version: await bumpVersion(), changes: plan.changes };
   }
   throw fail('CONFLICT', 'This lead is being edited by someone else right now. Please try again.');

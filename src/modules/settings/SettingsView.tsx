@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users } from 'lucide-react';
+import { Building2, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing } from 'lucide-react';
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -16,6 +16,7 @@ import { LeadSourcesSection } from './leadSources/LeadSourcesSection';
 import { GoogleSheetsSection } from './sheets/GoogleSheetsSection';
 import { ServerSettingsExt } from './types';
 import { SettingsLink, initialSettingsSection } from './meta/metaUtils';
+import { LeadAlertsSection } from './LeadAlertsSection';
 
 export interface SettingsViewProps {
   settings: CRMSettings;
@@ -47,7 +48,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'googleSheets', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'leadAlerts', 'googleSheets', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -64,6 +65,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'users', label: 'Users & roles', icon: <Users size={14} />, show: can('users.manage') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
+      { id: 'leadAlerts', label: 'Lead alerts', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
       { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('leads.trash') || can('leads.delete'), badge: trashedLeads.length || undefined },
     ];
@@ -129,6 +131,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'users' && can('users.manage') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}
+          {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}
           {active === 'recycle' && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
         </div>
