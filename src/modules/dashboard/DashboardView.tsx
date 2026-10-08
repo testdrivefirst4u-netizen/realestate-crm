@@ -93,7 +93,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">{greeting || 'Executive Sales Dashboard'}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">{greeting || 'Sales Dashboard'}</h2>
           <p className="text-xs text-[#6B5F57] mt-0.5 flex items-center gap-2 flex-wrap">
             <span>Live from the CRM server</span>
             <span className="text-[#9E948D]">·</span>

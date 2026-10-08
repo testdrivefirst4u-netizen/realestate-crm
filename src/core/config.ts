@@ -306,7 +306,7 @@ export const DEFAULT_CUSTOMIZATION = {
   siteAddress: '',
   contactPhone: '',
   contactEmail: '',
-  dashboardGreeting: 'Executive Sales Dashboard',
+  dashboardGreeting: 'Sales Dashboard',
   leadsViewTitle: 'All Customer Enquiries & Pipeline',
   zohoVoiceDesktopUri: 'zohovoice://call?phone=',
   defaultDialer: 'system' as const,
