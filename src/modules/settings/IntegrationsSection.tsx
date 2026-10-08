@@ -23,11 +23,9 @@ export interface IntegrationsSectionProps extends SectionBaseProps {
 
 /** Mirrors the server's setting defaults — the backend falls back to these when a field is blank. */
 const CHAT360_DEFAULTS = {
-  chat360BaseUrl: 'https://api.chat360.io',
-  chat360SendPath: '/api/v1/messages/send',
-  chat360TemplatePath: '/api/v1/messages/template',
-  chat360AuthHeader: 'Authorization',
-  chat360AuthPrefix: 'Bearer ',
+  chat360BaseUrl: 'https://app.chat360.io',
+  chat360SendPath: '/api/whatsapp/whatsapp-session-messages',
+  chat360TemplatePath: '/service/v1/task',
 } as const;
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -313,8 +311,8 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
     chat360BaseUrl: s.chat360BaseUrl || '',
     chat360SendPath: s.chat360SendPath || '',
     chat360TemplatePath: s.chat360TemplatePath || '',
-    chat360AuthHeader: s.chat360AuthHeader || '',
-    chat360AuthPrefix: s.chat360AuthPrefix || '',
+    chat360BusinessNumber: s.chat360BusinessNumber || '',
+    chat360LoginEmail: s.chat360LoginEmail || '',
     chat360DefaultRM: s.chat360DefaultRM || '',
     chat360DefaultSource: s.chat360DefaultSource || '',
   });
@@ -328,20 +326,20 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
       chat360BaseUrl: s.chat360BaseUrl || '',
       chat360SendPath: s.chat360SendPath || '',
       chat360TemplatePath: s.chat360TemplatePath || '',
-      chat360AuthHeader: s.chat360AuthHeader || '',
-      chat360AuthPrefix: s.chat360AuthPrefix || '',
+      chat360BusinessNumber: s.chat360BusinessNumber || '',
+      chat360LoginEmail: s.chat360LoginEmail || '',
       chat360DefaultRM: s.chat360DefaultRM || '',
       chat360DefaultSource: s.chat360DefaultSource || '',
     });
     setC360Auto(!!s.chat360AutoCreateLeads);
-  }, [s.chat360BaseUrl, s.chat360SendPath, s.chat360TemplatePath, s.chat360AuthHeader, s.chat360AuthPrefix, s.chat360DefaultRM, s.chat360DefaultSource, s.chat360AutoCreateLeads]);
+  }, [s.chat360BaseUrl, s.chat360SendPath, s.chat360TemplatePath, s.chat360BusinessNumber, s.chat360LoginEmail, s.chat360DefaultRM, s.chat360DefaultSource, s.chat360AutoCreateLeads]);
 
   const c360Dirty =
     c360.chat360BaseUrl !== (s.chat360BaseUrl || '') ||
     c360.chat360SendPath !== (s.chat360SendPath || '') ||
     c360.chat360TemplatePath !== (s.chat360TemplatePath || '') ||
-    c360.chat360AuthHeader !== (s.chat360AuthHeader || '') ||
-    c360.chat360AuthPrefix !== (s.chat360AuthPrefix || '') ||
+    c360.chat360BusinessNumber !== (s.chat360BusinessNumber || '') ||
+    c360.chat360LoginEmail !== (s.chat360LoginEmail || '') ||
     c360.chat360DefaultRM !== (s.chat360DefaultRM || '') ||
     c360.chat360DefaultSource !== (s.chat360DefaultSource || '') ||
     c360Auto !== !!s.chat360AutoCreateLeads;
@@ -507,14 +505,31 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="space-y-4">
-            <SecretField label="Chat360 API key" masked={s.chat360KeyMasked} canEdit={canSecrets} envVar="CHAT360_API_KEY" hint="Chat360 dashboard → Settings → API Key." onSave={(v) => setSecret('CHAT360_API_KEY', v, 'Chat360 key saved')} />
+            <SecretField label="Chat360 API key" masked={s.chat360KeyMasked} canEdit={canSecrets} envVar="CHAT360_API_KEY" hint="Chat360 dashboard → Settings → API Key. Used for template messages (e.g. the automatic first reply)." onSave={(v) => setSecret('CHAT360_API_KEY', v, 'Chat360 key saved')} />
+
+            <Field label="Business WhatsApp number" hint="Your company’s number as registered in Chat360, with country code, e.g. 91 98765 43210.">
+              <input className={inputCls} value={c360.chat360BusinessNumber} onChange={(e) => setC360({ ...c360, chat360BusinessNumber: e.target.value })} disabled={!canEdit} placeholder="91 98765 43210" inputMode="tel" />
+            </Field>
+
+            <div className="rounded-xl border border-[#E4DCD2] bg-[#FAF7F2] p-3.5 space-y-3">
+              <div>
+                <div className="text-[12px] font-bold text-[#1D2F3F]">Chat360 login for typed replies</div>
+                <p className="text-[11px] text-[#6B5F57] mt-0.5 leading-relaxed">Chat360 only accepts typed (non-template) replies from a signed-in user, so the CRM signs in with this login and renews the session itself. Best: create a separate Chat360 user for the CRM, so changing your own password never stops replies.</p>
+              </div>
+              <Field label="Login e-mail"><input className={inputCls} type="email" autoComplete="off" value={c360.chat360LoginEmail} onChange={(e) => setC360({ ...c360, chat360LoginEmail: e.target.value })} disabled={!canEdit} placeholder="crm@yourcompany.com" /></Field>
+              <SecretField label="Login password" masked={s.chat360LoginPasswordSet ? '••••••••' : ''} canEdit={canSecrets} envVar="CHAT360_LOGIN_PASSWORD" hint="Stored encrypted on the server and never shown again." onSave={(v) => setSecret('CHAT360_LOGIN_PASSWORD', v, 'Chat360 login password saved')} />
+            </div>
+
+            <details>
+              <summary className="cursor-pointer text-[11px] font-semibold text-[#7A5B37] select-none">Advanced: Chat360 addresses</summary>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <Field label="Base URL" className="sm:col-span-2" hint={`Leave blank for the default (${CHAT360_DEFAULTS.chat360BaseUrl}).`}><input className={inputCls} value={c360.chat360BaseUrl} onChange={(e) => setC360({ ...c360, chat360BaseUrl: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360BaseUrl} /></Field>
+                <Field label="Typed reply path"><input className={inputCls} value={c360.chat360SendPath} onChange={(e) => setC360({ ...c360, chat360SendPath: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360SendPath} /></Field>
+                <Field label="Template message path"><input className={inputCls} value={c360.chat360TemplatePath} onChange={(e) => setC360({ ...c360, chat360TemplatePath: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360TemplatePath} /></Field>
+              </div>
+            </details>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Base URL" className="sm:col-span-2" hint={`Leave blank for the default (${CHAT360_DEFAULTS.chat360BaseUrl}).`}><input className={inputCls} value={c360.chat360BaseUrl} onChange={(e) => setC360({ ...c360, chat360BaseUrl: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360BaseUrl} /></Field>
-              <Field label="Send message path"><input className={inputCls} value={c360.chat360SendPath} onChange={(e) => setC360({ ...c360, chat360SendPath: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360SendPath} /></Field>
-              <Field label="Template message path"><input className={inputCls} value={c360.chat360TemplatePath} onChange={(e) => setC360({ ...c360, chat360TemplatePath: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360TemplatePath} /></Field>
-              <Field label="Auth header"><input className={inputCls} value={c360.chat360AuthHeader} onChange={(e) => setC360({ ...c360, chat360AuthHeader: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360AuthHeader} /></Field>
-              <Field label="Auth prefix" hint="Sent before the key, e.g. “Bearer ” (with the trailing space)."><input className={inputCls} value={c360.chat360AuthPrefix} onChange={(e) => setC360({ ...c360, chat360AuthPrefix: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360AuthPrefix} /></Field>
               <Field label="Default RM for new WhatsApp leads"><Select value={c360.chat360DefaultRM} onChange={(e) => setC360({ ...c360, chat360DefaultRM: e.target.value })} options={rmOptions} placeholder="Unassigned" disabled={!canEdit} /></Field>
               <Field label="Default enquiry source"><input className={inputCls} value={c360.chat360DefaultSource} onChange={(e) => setC360({ ...c360, chat360DefaultSource: e.target.value })} disabled={!canEdit} placeholder="Chat360" /></Field>
             </div>
@@ -546,7 +561,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="secondary" onClick={testC360} loading={c360Busy} icon={<Wand2 size={13} />}>Test connection</Button>
             </div>
-            {c360Test && <InlineNotice tone={c360Test.ok ? 'success' : 'warning'}>{c360Test.message}</InlineNotice>}
+            {c360Test && <InlineNotice tone={c360Test.ok ? 'success' : 'warning'}><span className="whitespace-pre-line">{c360Test.message}</span></InlineNotice>}
           </div>
         </div>
       </Card>

@@ -5,17 +5,19 @@
  *           Events: message_received, session_message_sent, template_message_sent, sent_message_delivered,
  *           sent_message_read, lead capture. De-duplicated on event_response_id / m_id through the unique
  *           `dedupeKey` index (a duplicate insert = a Chat360 retry).
- * Outbound: fetch to the configured base URL + path (https on chat360.io, validated on save) with the API key.
+ * Outbound: Chat360's published API (https://api.chat360.io/) — templates with `Api-Key <key>`, typed replies
+ *           (session messages) with an access token from a CRM login, refreshed when it expires.
  * Mapping : contacts ↔ leads by the last 10 digits of the phone; new WhatsApp customers become enquiries
  *           when chat360AutoCreateLeads is on, never duplicating a known phone.
  */
+import { createHash } from 'node:crypto';
 import type { ActionMap } from '../core/actions';
 import { assertLeadAccess } from '../core/scope';
 import { assertPhoneAccess, filterContacts } from '../core/scopeGuards';
 import { auditLog, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { bumpVersion, col } from '../core/db';
-import { ApiErrorCode, fail } from '../core/errors';
+import { ApiError, ApiErrorCode, fail } from '../core/errors';
 import { tenantKey } from '../core/tenant';
 import { addEvent, addTimeline, logError } from '../core/events';
 import { getSecret, settingsAll } from '../core/settings';
@@ -29,16 +31,31 @@ const upstream = (message: string) => fail('SERVER', message);
 
 /* --------------------------------- config -------------------------------- */
 
+/**
+ * Values the CRM used to ship as defaults before it followed Chat360's published API (they never worked);
+ * a company that saved them gets today's defaults instead.
+ */
+const LEGACY_DEFAULTS = new Set(['https://api.chat360.io', '/api/v1/messages/send', '/api/v1/messages/template']);
+const orDefault = (v: string | undefined, d: string) => (v && !LEGACY_DEFAULTS.has(v.replace(/\/+$/, '')) ? v : d);
+
+/** Chat360 endpoints that are not configurable (documented at https://api.chat360.io/). */
+const LOGIN_PATH = '/api/auth/login';
+const TEMPLATE_LIST_PATH = '/service/template/data';
+
 async function chatCfg() {
   const s = await settingsAll();
   const D = CFG.SETTING_DEFAULTS;
   return {
+    /** Chat360 dashboard → Settings → API Key: sent as `Authorization: Api-Key <key>` (template messages). */
     apiKey: await getSecret('CHAT360_API_KEY'),
-    baseUrl: String(s.chat360BaseUrl || D.chat360BaseUrl).replace(/\/+$/, ''),
-    sendPath: s.chat360SendPath || D.chat360SendPath,
-    templatePath: s.chat360TemplatePath || D.chat360TemplatePath,
-    authHeader: s.chat360AuthHeader || D.chat360AuthHeader,
-    authPrefix: s.chat360AuthPrefix !== undefined ? s.chat360AuthPrefix : D.chat360AuthPrefix,
+    baseUrl: orDefault(s.chat360BaseUrl, D.chat360BaseUrl).replace(/\/+$/, ''),
+    sendPath: orDefault(s.chat360SendPath, D.chat360SendPath),
+    templatePath: orDefault(s.chat360TemplatePath, D.chat360TemplatePath),
+    /** The company's WhatsApp number in Chat360 (country code + number, digits only). */
+    businessNumber: s.chat360BusinessNumber ? e164(s.chat360BusinessNumber) : '',
+    /** A Chat360 login: typed replies need a short-lived access token, which only a login gives. */
+    loginEmail: String(s.chat360LoginEmail || '').trim(),
+    loginPassword: await getSecret('CHAT360_LOGIN_PASSWORD'),
     autoCreate: bool(s.chat360AutoCreateLeads === undefined || s.chat360AutoCreateLeads === '' ? D.chat360AutoCreateLeads : s.chat360AutoCreateLeads),
     defaultRM: s.chat360DefaultRM || '',
     defaultSource: s.chat360DefaultSource || 'Chat360',
@@ -49,14 +66,125 @@ type ChatCfg = Awaited<ReturnType<typeof chatCfg>>;
 /** Join base URL and a configured path, refusing anything that would leave the base host. */
 function joinUrl(base: string, path: string) {
   const p = String(path || '');
-  if (/^[a-z]+:\/\//i.test(p) || p.startsWith('//')) throw fail('VALIDATION', 'Chat360 endpoint paths must be relative (e.g. /api/v1/messages/send)');
+  if (/^[a-z]+:\/\//i.test(p) || p.startsWith('//')) throw fail('VALIDATION', 'Chat360 endpoint paths must be relative (e.g. /service/v1/task)');
   return base + (p.startsWith('/') ? p : '/' + p);
 }
 
-function headersFor(cfg: ChatCfg) {
-  const name = String(cfg.authHeader || 'Authorization').trim();
-  if (!/^[A-Za-z0-9-]+$/.test(name)) throw fail('VALIDATION', 'Invalid Chat360 auth header name');
-  return { 'Content-Type': 'application/json', [name]: (cfg.authPrefix || '') + cfg.apiKey } as Record<string, string>;
+const apiKeyHeaders = (cfg: ChatCfg): Record<string, string> => ({ 'Content-Type': 'application/json', Authorization: `Api-Key ${cfg.apiKey}` });
+const bearerHeaders = (token: string): Record<string, string> => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` });
+
+/* ------------------------------ access token ------------------------------ */
+
+/** Access tokens per company + login, reused until a minute before they expire. */
+const tokenCache = new Map<string, { token: string; exp: number }>();
+const TOKEN_FALLBACK_MS = 10 * 60_000;
+
+/** Expiry (ms) from a JWT's `exp`, or 0 when it cannot be read. */
+function jwtExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64url').toString('utf8'));
+    return typeof payload?.exp === 'number' ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+const tokenKey = (cfg: ChatCfg) =>
+  tenantKey(`${cfg.baseUrl}|${cfg.loginEmail.toLowerCase()}|${createHash('sha256').update(cfg.loginPassword).digest('hex').slice(0, 12)}`);
+
+/** Sign in to Chat360 (or reuse a live token). `fresh` forces a new sign-in, e.g. after Chat360 answered 401. */
+async function accessToken(cfg: ChatCfg, fresh = false): Promise<string> {
+  if (!cfg.loginEmail || !cfg.loginPassword) {
+    throw fail('NOT_CONFIGURED', 'Typed WhatsApp replies need a Chat360 login. Add the login e-mail and password under Settings → Integrations → Chat360.');
+  }
+  const key = tokenKey(cfg);
+  const hit = tokenCache.get(key);
+  if (!fresh && hit && hit.exp - 60_000 > Date.now()) return hit.token;
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(joinUrl(cfg.baseUrl, LOGIN_PATH), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: cfg.loginEmail, password: cfg.loginPassword }) });
+  } catch (e: any) {
+    throw upstream(e?.name === 'AbortError' ? 'Chat360 did not respond to the sign-in within 20 seconds.' : 'Could not reach Chat360 to sign in: ' + (e?.message || e));
+  }
+  const body = safeJsonParse<any>(await res.text(), {}) || {};
+  const token = str(body.access || body.access_token || body.token || body.data?.access);
+  if (!res.ok || !token) {
+    tokenCache.delete(key);
+    await logError('chat360.login', 'UPSTREAM_' + res.status, truncate(str(body.detail || body.message || ''), 300), '', '', { email: cfg.loginEmail });
+    throw fail('NOT_CONFIGURED', `Chat360 did not accept the CRM's login (HTTP ${res.status}). Check the Chat360 login e-mail and password under Settings → Integrations → Chat360.`);
+  }
+  tokenCache.set(key, { token, exp: jwtExpiry(token) || Date.now() + TOKEN_FALLBACK_MS });
+  return token;
+}
+
+/* -------------------------------- templates ------------------------------- */
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const templateIdCache = new Map<string, { id: string; at: number }>();
+
+/** The first object anywhere in `node` whose name is `name` and which carries a template id (UUID). */
+function findTemplateId(node: unknown, name: string, depth = 0): string {
+  if (!node || typeof node !== 'object' || depth > 6) return '';
+  if (Array.isArray(node)) {
+    for (const x of node) {
+      const id = findTemplateId(x, name, depth + 1);
+      if (id) return id;
+    }
+    return '';
+  }
+  const o = node as Record<string, unknown>;
+  const named = ['name', 'template_name', 'element_name'].some((k) => typeof o[k] === 'string' && (o[k] as string).toLowerCase() === name.toLowerCase());
+  if (named) {
+    const id = ['template_id', 'id', 'uuid'].map((k) => str(o[k])).find((v) => UUID_RE.test(v));
+    if (id) return id;
+  }
+  for (const v of Object.values(o)) {
+    const id = findTemplateId(v, name, depth + 1);
+    if (id) return id;
+  }
+  return '';
+}
+
+/** Chat360 sends templates by id; the CRM lets people type the template's name and looks the id up. */
+async function templateIdFor(cfg: ChatCfg, nameOrId: string): Promise<string> {
+  if (UUID_RE.test(nameOrId)) return nameOrId;
+  const key = tenantKey('tpl:' + nameOrId.toLowerCase());
+  const hit = templateIdCache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.id;
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers: apiKeyHeaders(cfg) });
+  } catch (e: any) {
+    throw upstream('Could not reach Chat360 to look up the template: ' + (e?.name === 'AbortError' ? 'timed out' : e?.message || e));
+  }
+  if (res.status === 401 || res.status === 403) throw fail('NOT_CONFIGURED', `Chat360 did not accept the API key (HTTP ${res.status}). Copy it again from Chat360 → Settings → API Key.`);
+  const id = findTemplateId(safeJsonParse<any>(await res.text(), null), nameOrId);
+  if (!id) throw fail('VALIDATION', `Chat360 has no approved template called “${nameOrId}”. Check the name, or paste the template ID from Chat360 → Campaigns → Templates.`);
+  templateIdCache.set(key, { id, at: Date.now() });
+  return id;
+}
+
+/**
+ * Template variables: Chat360 names them (`{"first_name": "Meera"}`). `name=value` entries keep their name;
+ * plain entries are numbered 1, 2, 3… in order.
+ */
+export function templateParamData(params: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  params.forEach((p, i) => {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]{0,63})\s*=(.*)$/s.exec(p);
+    if (m) out[m[1]] = m[2].trim();
+    else out[String(i + 1)] = p;
+  });
+  return out;
+}
+
+/** Chat360 sometimes answers 200 with an error in the body. */
+function bodyError(parsed: any): string {
+  if (!parsed || typeof parsed !== 'object') return '';
+  if (parsed.success === false || parsed.status === false || /^(error|fail(ed|ure)?)$/i.test(str(parsed.status))) {
+    return str(parsed.message || parsed.detail || parsed.error || 'Chat360 reported an error');
+  }
+  return parsed.error && typeof parsed.error === 'string' ? parsed.error : '';
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, ms = FETCH_TIMEOUT_MS) {
@@ -352,6 +480,7 @@ export async function handleWebhook(payload: any): Promise<unknown> {
 export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   const cfg = await chatCfg();
   if (!cfg.apiKey) throw fail('NOT_CONFIGURED', 'Chat360 API key is not configured. Add it under Settings → Integrations → Chat360.');
+  if (!cfg.businessNumber) throw fail('NOT_CONFIGURED', 'Add your business WhatsApp number (as registered in Chat360) under Settings → Integrations → Chat360.');
   d = d || {};
   const phone = e164(d.phone);
   if (!phone || phone.length < 11 || phone.length > 15) throw fail('VALIDATION', 'A valid phone number is required');
@@ -362,27 +491,42 @@ export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   if (text.length > 4096) throw fail('VALIDATION', 'Message is too long (max 4096 characters)');
   const params: string[] = Array.isArray(d.params) ? d.params.slice(0, 20).map((p: unknown) => truncate(String(p ?? ''), 1000)) : [];
 
-  const body = isTemplate
-    ? { to: phone, template_name: templateName, parameters: params, language: d.language || 'en' }
-    : { to: phone, type: 'text', text, message: text };
+  // Chat360's two send APIs (https://api.chat360.io/):
+  //  - template → /service/v1/task with `Authorization: Api-Key <key>` and the template's id;
+  //  - typed text (a "session message", only inside WhatsApp's 24-hour window after the customer's last
+  //    message) → /api/whatsapp/whatsapp-session-messages with a login access token.
   const url = joinUrl(cfg.baseUrl, isTemplate ? cfg.templatePath : cfg.sendPath);
+  const body = isTemplate
+    ? {
+        task_name: 'whatsapp_push_notification', extra: '',
+        task_body: [{ client_number: cfg.businessNumber, receiver_number: phone, template_data: { template_id: await templateIdFor(cfg, templateName), param_data: templateParamData(params), button_param_data: {} } }],
+      }
+    : { api_key: cfg.apiKey, from: cfg.businessNumber, recipient_type: 'individual', to: phone, type: 'text', text: { body: text } };
 
+  const post = async (headers: Record<string, string>) => {
+    const res = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    return { code: res.status, text: await res.text() };
+  };
   let code = 0;
   let bodyText = '';
   try {
-    const res = await fetchWithTimeout(url, { method: 'POST', headers: headersFor(cfg), body: JSON.stringify(body) });
-    code = res.status;
-    bodyText = await res.text();
+    let r = await post(isTemplate ? apiKeyHeaders(cfg) : bearerHeaders(await accessToken(cfg)));
+    if (!isTemplate && r.code === 401) r = await post(bearerHeaders(await accessToken(cfg, true))); // token expired early: sign in again once
+    ({ code, text: bodyText } = r);
   } catch (e: any) {
+    if (e instanceof ApiError) throw e; // a configuration or sign-in problem, already explained
     await logError('chat360.send', 'NETWORK', e?.message, e?.stack, ctx.user?.email || '', { url });
     throw upstream(e?.name === 'AbortError' ? 'Chat360 did not respond within 20 seconds. Please try again.' : 'Could not reach Chat360: ' + (e?.message || e));
   }
-  if (code < 200 || code >= 300) {
-    await logError('chat360.send', 'UPSTREAM_' + code, truncate(bodyText, 500), '', ctx.user?.email || '', { url });
-    throw upstream(`Chat360 rejected the message (HTTP ${code}). Check the endpoint path and API key in Settings. ${truncate(bodyText, 200)}`);
-  }
   const parsed = safeJsonParse<any>(bodyText, {}) || {};
-  const providerId = truncate(str(parsed.message_id || parsed.m_id || parsed.id || (parsed.data && (parsed.data.message_id || parsed.data.id)) || ''), 200);
+  const rejected = code < 200 || code >= 300 ? truncate(str(parsed.detail || parsed.message || parsed.error || bodyText), 200) : bodyError(parsed);
+  if (rejected) {
+    await logError('chat360.send', 'UPSTREAM_' + code, truncate(bodyText, 500), '', ctx.user?.email || '', { url });
+    if (isTemplate && (code === 401 || code === 403)) throw fail('NOT_CONFIGURED', `Chat360 did not accept the API key (HTTP ${code}). Copy it again from Chat360 → Settings → API Key.`);
+    const hint = isTemplate ? '' : ' Typed replies only reach customers who messaged you in the last 24 hours — after that, send an approved template.';
+    throw upstream(`Chat360 rejected the message (HTTP ${code}): ${rejected}.${hint}`);
+  }
+  const providerId = truncate(str(parsed.message_id || parsed.m_id || parsed.messages?.[0]?.id || parsed.id || (parsed.data && (parsed.data.message_id || parsed.data.id)) || ''), 200);
   const lead = d.leadId ? await getLead(String(d.leadId)) : await findLeadByPhone(phone);
   const msgText = isTemplate ? `[Template: ${templateName}] ${params.join(' | ')}` : text;
   let msg = await record({
@@ -402,19 +546,50 @@ export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   return { message: msg };
 }
 
+/** Checks everything outgoing messages need, for real: the API key, the business number and the login. */
 export async function test(): Promise<{ ok: boolean; message: string }> {
   const cfg = await chatCfg();
-  if (!cfg.apiKey) return { ok: false, message: 'No API key saved. Paste your Chat360 API key (Chat360 dashboard → Settings → API Key).' };
-  try {
-    // Chat360 publishes no public ping endpoint: a GET to the base URL with the auth header is what we can verify.
-    const res = await fetchWithTimeout(cfg.baseUrl, { method: 'GET', headers: headersFor(cfg) });
-    const code = res.status;
-    const webhook = (await getSecret('CHAT360_WEBHOOK_SECRET')) ? 'Webhook secret set.' : 'Webhook secret NOT set — generate one in Settings.';
-    if (code >= 200 && code < 500) return { ok: true, message: `Chat360 reachable (HTTP ${code}). API key stored (${maskSecret(cfg.apiKey)}). ${webhook}` };
-    return { ok: false, message: `Chat360 responded with HTTP ${code}. Check the Base URL.` };
-  } catch (e: any) {
-    return { ok: false, message: `Could not reach ${cfg.baseUrl}: ${e?.name === 'AbortError' ? 'timed out after 20 s' : e?.message || e}` };
+  const lines: string[] = [];
+  let ok = true;
+
+  if (!cfg.apiKey) {
+    ok = false;
+    lines.push('✗ API key: not saved (Chat360 dashboard → Settings → API Key).');
+  } else {
+    try {
+      const res = await fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers: apiKeyHeaders(cfg) });
+      if (res.ok) lines.push(`✓ API key accepted (${maskSecret(cfg.apiKey)}) — template messages can be sent.`);
+      else {
+        ok = false;
+        lines.push(res.status === 401 || res.status === 403 ? `✗ API key rejected by Chat360 (HTTP ${res.status}). Copy it again from Chat360 → Settings → API Key.` : `✗ Chat360 answered HTTP ${res.status} when checking the API key.`);
+      }
+    } catch (e: any) {
+      ok = false;
+      lines.push(`✗ Could not reach ${cfg.baseUrl}: ${e?.name === 'AbortError' ? 'timed out after 20 s' : e?.message || e}`);
+    }
   }
+
+  if (cfg.businessNumber) lines.push(`✓ Business number: +${cfg.businessNumber}.`);
+  else {
+    ok = false;
+    lines.push('✗ Business WhatsApp number: not set.');
+  }
+
+  if (!cfg.loginEmail || !cfg.loginPassword) {
+    ok = false;
+    lines.push('✗ Chat360 login: not set — typed replies need it.');
+  } else {
+    try {
+      await accessToken(cfg, true);
+      lines.push(`✓ Signed in to Chat360 as ${cfg.loginEmail} — typed replies can be sent.`);
+    } catch (e: any) {
+      ok = false;
+      lines.push('✗ ' + (e?.message || 'Chat360 sign-in failed.'));
+    }
+  }
+
+  lines.push((await getSecret('CHAT360_WEBHOOK_SECRET')) ? '✓ Webhook secret set (incoming messages).' : '• Webhook secret not set — generate one to receive messages.');
+  return { ok, message: lines.join('\n') };
 }
 
 export const actions: ActionMap = {

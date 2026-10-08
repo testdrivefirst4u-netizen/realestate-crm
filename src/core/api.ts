@@ -251,7 +251,7 @@ export const api = {
   settings: {
     get: () => request<ServerSettings>('getSettings'),
     update: (patch: Partial<ServerSettings>) => request<ServerSettings>('updateSettings', { data: patch }),
-    setSecret: (key: 'GEMINI_API_KEY' | 'CHAT360_API_KEY' | 'CHAT360_WEBHOOK_SECRET' | 'TELEPHONY_WEBHOOK_SECRET', value: string) =>
+    setSecret: (key: 'GEMINI_API_KEY' | 'CHAT360_API_KEY' | 'CHAT360_LOGIN_PASSWORD' | 'CHAT360_WEBHOOK_SECRET' | 'TELEPHONY_WEBHOOK_SECRET', value: string) =>
       request<ServerSettings>('setSecret', { key, value }),
     users: {
       list: () => request<UserAccount[]>('listUsers'),

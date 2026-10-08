@@ -152,8 +152,11 @@ export interface ServerSettings {
   chat360BaseUrl?: string;
   chat360SendPath?: string;
   chat360TemplatePath?: string;
-  chat360AuthHeader?: string;
-  chat360AuthPrefix?: string;
+  /** Company WhatsApp number in Chat360 (digits with country code). */
+  chat360BusinessNumber?: string;
+  /** Chat360 login the CRM signs in with to send typed replies. */
+  chat360LoginEmail?: string;
+  chat360LoginPasswordSet?: boolean;
   chat360AutoCreateLeads?: boolean;
   chat360DefaultRM?: string;
   chat360DefaultSource?: string;

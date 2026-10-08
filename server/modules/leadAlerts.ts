@@ -65,8 +65,9 @@ export async function validateLeadAlerts(raw: unknown): Promise<string> {
   for (const e of EMAIL_LIST(c.emailAlso)) {
     if (!active.has(e)) throw fail('VALIDATION', `Alert recipients must be active CRM users (${e} is not)`);
   }
-  if (c.whatsappAuto && !/^[a-z0-9_]{1,100}$/.test(c.whatsappTemplate)) {
-    throw fail('VALIDATION', 'Enter the approved WhatsApp template name (lower-case letters, digits and _)');
+  // Chat360 sends templates by id; the name works too (looked up when sending).
+  if (c.whatsappAuto && !/^([a-z0-9_]{1,100}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(c.whatsappTemplate)) {
+    throw fail('VALIDATION', 'Enter the approved WhatsApp template name (lower-case letters, digits and _) or its Chat360 template ID');
   }
   if (!/^[a-zA-Z]{2,3}([_-][a-zA-Z]{2})?$/.test(c.whatsappLanguage)) throw fail('VALIDATION', 'Template language must be a code such as en or en_US');
   const params = c.whatsappParams ? c.whatsappParams.split(',') : [];

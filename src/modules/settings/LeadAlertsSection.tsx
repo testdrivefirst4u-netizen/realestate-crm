@@ -119,14 +119,14 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
           {whatsappFeature && !s.chat360Configured && <InlineNotice tone="warning">Add your Chat360 API key under Settings › Integrations first.</InlineNotice>}
           <Toggle checked={cfg.whatsappAuto} disabled={!editable || !chatReady} onChange={(v) => set('whatsappAuto', v)} label="Send a WhatsApp template to every new lead" hint="WhatsApp only allows approved templates for the first message to a customer. Create and approve one in Chat360, then enter its name here." />
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Template name" className="sm:col-span-2">
+            <Field label="Template name or ID" className="sm:col-span-2" hint="As shown in Chat360 → Campaigns → Templates.">
               <input className={inputCls} value={cfg.whatsappTemplate} disabled={!editable || !chatReady} onChange={(e) => set('whatsappTemplate', e.target.value.trim())} placeholder="e.g. welcome_site_visit" maxLength={100} />
             </Field>
             <Field label="Language">
               <input className={inputCls} value={cfg.whatsappLanguage} disabled={!editable || !chatReady} onChange={(e) => set('whatsappLanguage', e.target.value.trim())} placeholder="en" maxLength={6} />
             </Field>
           </div>
-          <Field label="Template parameters" hint={<>In order, comma-separated: <code>{'{first_name}'}</code>, <code>{'{name}'}</code>, <code>{'{company}'}</code>, <code>{'{unit}'}</code>, <code>{'{rm}'}</code>, <code>{'{source}'}</code> or your own text. Example: <code>{'{first_name}, {unit}'}</code></>}>
+          <Field label="Template parameters" hint={<>Comma-separated, named as in your Chat360 template: <code>{'customer_name={first_name}, unit={unit}'}</code>. Values can use <code>{'{first_name}'}</code>, <code>{'{name}'}</code>, <code>{'{company}'}</code>, <code>{'{unit}'}</code>, <code>{'{rm}'}</code>, <code>{'{source}'}</code> or your own text. Without names they are sent as 1, 2, 3…</>}>
             <input className={inputCls} value={cfg.whatsappParams} disabled={!editable || !chatReady} onChange={(e) => set('whatsappParams', e.target.value)} placeholder="{first_name}" maxLength={600} />
           </Field>
         </div>

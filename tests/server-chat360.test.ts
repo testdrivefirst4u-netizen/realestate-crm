@@ -14,10 +14,10 @@ vi.mock('../server/modules/records', () => ({ saveRecord: vi.fn(), actions: {} }
 import { startTestDb } from './helpers/mongo';
 import { col } from '../server/core/db';
 import { CFG } from '../server/core/config';
-import { settingSet } from '../server/core/settings';
+import { settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { contacts, handleWebhook, mapContact, markRead, messages, send, test as chatTest } from '../server/modules/chat360';
+import { contacts, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -110,7 +110,10 @@ describe('webhook ingest', () => {
   });
 
   it('applies delivery/read status to messages we sent and logs console-sent messages', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ message_id: 'wamid.out1' }), { status: 200 }));
+    await settingSet('chat360BusinessNumber', '919000000001', 'test');
+    await settingSet('chat360LoginEmail', 'crm@amaya.test', 'test');
+    await t.secret('CHAT360_LOGIN_PASSWORD', 'pw-status');
+    fakeChat360({ session: () => new Response(JSON.stringify({ message_id: 'wamid.out1' }), { status: 200 }) });
     await send({ phone: '9876543210', text: 'Hi Meera' }, ctx);
     await handleWebhook({ event_type: 'sent_message_read', event_response_id: 'evt-r', m_id: 'wamid.out1', receiver_num: '919876543210' });
     expect((await messages('9876543210'))[0].status).toBe('read');
@@ -126,48 +129,160 @@ describe('webhook ingest', () => {
   });
 });
 
+/* ------------------------------- outbound -------------------------------- */
+
+/** A JWT whose expiry the CRM can read (signature irrelevant here). */
+const jwt = (secondsFromNow = 3600) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ token_type: 'access', exp: Math.floor(Date.now() / 1000) + secondsFromNow })).toString('base64url')}.sig`;
+const TEMPLATE_ID = '14d78939-1111-4222-8333-6bef933da888';
+
+/**
+ * A fake Chat360: answers by URL like the real API (https://api.chat360.io/). Override any endpoint;
+ * every call is kept in `calls`.
+ */
+function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templates', (init: RequestInit) => Response>> = {}) {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any, init: any = {}) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url.endsWith('/api/auth/login')) return over.login ? over.login(init) : json({ user: { id: 1 }, access: jwt(), refresh: jwt(86400) });
+    if (url.endsWith('/api/whatsapp/whatsapp-session-messages')) return over.session ? over.session(init) : json({ messages: [{ id: 'wamid.S1' }] });
+    if (url.endsWith('/service/v1/task')) return over.task ? over.task(init) : json({ message_id: 'wamid.T1' });
+    if (url.endsWith('/service/template/data')) return over.templates ? over.templates(init) : json({ data: [{ name: 'other', template_id: '00000000-0000-4000-8000-000000000000' }, { name: 'welcome', template_id: TEMPLATE_ID }] });
+    return json({ detail: 'not found' }, 404);
+  });
+  const to = (path: string) => calls.filter((c) => c.url.endsWith(path));
+  return { fetchMock, calls, to };
+}
+
 describe('outbound', () => {
-  it('sends text through the configured endpoint with the auth header and a timeout', async () => {
+  beforeEach(async () => {
+    await settingSet('chat360BusinessNumber', '919000000001', 'test');
+    await settingSet('chat360LoginEmail', 'crm@amaya.test', 'test');
+    // a fresh password per test → a fresh sign-in (tokens are cached per login)
+    await t.secret('CHAT360_LOGIN_PASSWORD', 'pw-' + Math.random().toString(36).slice(2));
+  });
+
+  it('sends typed replies as session messages with a login token, reusing the token', async () => {
     vi.mocked(leads.findLeadByPhone).mockResolvedValue(LEAD);
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ data: { message_id: 'wamid.X' } }), { status: 200 }));
+    const c = fakeChat360();
     const { message } = await send({ phone: '98765 43210', text: 'Hello' }, ctx);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.chat360.io/api/v1/messages/send');
-    expect((init.headers as any).Authorization).toBe('Bearer c360-key');
-    expect(JSON.parse(String(init.body))).toEqual({ to: '919876543210', type: 'text', text: 'Hello', message: 'Hello' });
-    expect(init.signal).toBeInstanceOf(AbortSignal);
-    expect(message).toMatchObject({ id: 'wamid.X', direction: 'Outbound', leadId: 'ENQ-0007', contactName: 'Meera Rao', agent: 'Ravi', status: 'sent' });
+    expect(c.to('/api/auth/login')).toHaveLength(1);
+    expect(JSON.parse(String(c.to('/api/auth/login')[0].init.body))).toMatchObject({ email: 'crm@amaya.test' });
+    const [sent] = c.to('/api/whatsapp/whatsapp-session-messages');
+    expect(sent.url).toBe('https://app.chat360.io/api/whatsapp/whatsapp-session-messages');
+    expect((sent.init.headers as any).Authorization).toMatch(/^Bearer eyJ/);
+    expect(JSON.parse(String(sent.init.body))).toEqual({ api_key: 'c360-key', from: '919000000001', recipient_type: 'individual', to: '919876543210', type: 'text', text: { body: 'Hello' } });
+    expect(sent.init.signal).toBeInstanceOf(AbortSignal);
+    expect(message).toMatchObject({ id: 'wamid.S1', direction: 'Outbound', leadId: 'ENQ-0007', contactName: 'Meera Rao', agent: 'Ravi', status: 'sent' });
     expect(await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: 'ENQ-0007', type: 'chat_sent' })).toBe(1);
     expect(await (await col(CFG.COLL.AUDIT_LOG)).countDocuments({ action: 'WhatsApp Sent' })).toBe(1);
     expect((await contacts())[0].lastMessage).toBe('Hello');
+
+    await send({ phone: '9876543210', text: 'Second' }, ctx);
+    expect(c.to('/api/auth/login')).toHaveLength(1); // token reused
   });
 
-  it('sends templates to the template path', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
-    const { message } = await send({ phone: '9876543210', templateName: 'welcome', params: ['Meera', 'Sat'] }, ctx);
-    expect(fetchMock.mock.calls[0][0]).toBe('https://api.chat360.io/api/v1/messages/template');
-    expect(message.text).toBe('[Template: welcome] Meera | Sat');
-    expect(message.messageType).toBe('template');
+  it('signs in again once when Chat360 says the token expired', async () => {
+    let first = true;
+    const c = fakeChat360({
+      session: () => {
+        if (first) { first = false; return new Response(JSON.stringify({ code: 'token_not_valid' }), { status: 401 }); }
+        return new Response(JSON.stringify({ message_id: 'wamid.S2' }), { status: 200 });
+      },
+    });
+    const { message } = await send({ phone: '9876543210', text: 'Hi' }, ctx);
+    expect(message.id).toBe('wamid.S2');
+    expect(c.to('/api/auth/login')).toHaveLength(2);
   });
 
-  it('validates input, requires a key and reports upstream rejection', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('bad token', { status: 401 }));
+  it('sends templates as tasks with the API key, looking the id up by name', async () => {
+    const c = fakeChat360();
+    const { message } = await send({ phone: '9876543210', templateName: 'welcome', params: ['customer_name=Meera', 'Sat'] }, ctx);
+    expect((c.to('/service/template/data')[0].init.headers as any).Authorization).toBe('Api-Key c360-key');
+    const [task] = c.to('/service/v1/task');
+    expect(task.url).toBe('https://app.chat360.io/service/v1/task');
+    expect((task.init.headers as any).Authorization).toBe('Api-Key c360-key');
+    expect(JSON.parse(String(task.init.body))).toEqual({
+      task_name: 'whatsapp_push_notification', extra: '',
+      task_body: [{ client_number: '919000000001', receiver_number: '919876543210', template_data: { template_id: TEMPLATE_ID, param_data: { customer_name: 'Meera', '2': 'Sat' }, button_param_data: {} } }],
+    });
+    expect(c.to('/api/auth/login')).toHaveLength(0); // templates need no login
+    expect(message).toMatchObject({ id: 'wamid.T1', text: '[Template: welcome] customer_name=Meera | Sat', messageType: 'template' });
+
+    // a template id is used as is; an unknown name is explained
+    await send({ phone: '9876543210', templateName: TEMPLATE_ID }, ctx);
+    expect(c.to('/service/template/data')).toHaveLength(1);
+    await expect(send({ phone: '9876543210', templateName: 'nope' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringContaining('no approved template called “nope”') });
+  });
+
+  it('explains what is missing or rejected', async () => {
+    const c = fakeChat360({ session: () => new Response(JSON.stringify({ detail: 'Session expired for this user' }), { status: 400 }) });
     await expect(send({ phone: '123', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
     await expect(send({ phone: '9876543210' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
-    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringContaining('HTTP 401') });
+    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringMatching(/HTTP 400\): Session expired for this user\..*24 hours/) });
     expect(await (await col(CFG.COLL.CHAT_MESSAGES)).countDocuments({})).toBe(0);
+
+    // 200 with an error in the body is still a rejection
+    c.fetchMock.mockRestore();
+    fakeChat360({ task: () => new Response(JSON.stringify({ success: false, message: 'Template paused' }), { status: 200 }) });
+    await expect(send({ phone: '9876543210', templateName: TEMPLATE_ID }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringContaining('Template paused') });
+
+    // a wrong login is reported as a settings problem
+    vi.restoreAllMocks();
+    await t.secret('CHAT360_LOGIN_PASSWORD', 'wrong-' + Math.random());
+    fakeChat360({ login: () => new Response(JSON.stringify({ detail: 'No active account found with the given credentials' }), { status: 401 }) });
+    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('login e-mail and password') });
+
+    // missing pieces: no call to Chat360 at all
+    vi.restoreAllMocks();
+    const none = fakeChat360();
+    await t.secret('CHAT360_LOGIN_PASSWORD', '');
+    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('Chat360 login') });
+    await settingSet('chat360BusinessNumber', '', 'test');
+    await expect(send({ phone: '9876543210', templateName: TEMPLATE_ID }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('business WhatsApp number') });
     await t.secret('CHAT360_API_KEY', '');
-    fetchMock.mockClear();
     await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect((await chatTest()).ok).toBe(false);
+    expect(none.calls).toHaveLength(0);
   });
 
-  it('test() reports reachability', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 404 }));
-    const r = await chatTest();
-    expect(r.ok).toBe(true);
-    expect(r.message).toContain('Webhook secret set');
+  it('ignores the old, never-working addresses a company may have saved', async () => {
+    await settingSet('chat360BaseUrl', 'https://api.chat360.io', 'test');
+    await settingSet('chat360SendPath', '/api/v1/messages/send', 'test');
+    const c = fakeChat360();
+    await send({ phone: '9876543210', text: 'Hi' }, ctx);
+    expect(c.to('/api/whatsapp/whatsapp-session-messages')[0].url).toBe('https://app.chat360.io/api/whatsapp/whatsapp-session-messages');
+  });
+
+  it('settings check the business number and login e-mail, and keep the password secret', async () => {
+    const support = await t.ctx('Developer', 'Support');
+    await expect(updateSettings({ chat360BusinessNumber: '12345' }, support)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(updateSettings({ chat360LoginEmail: 'not-an-email' }, support)).rejects.toMatchObject({ code: 'VALIDATION' });
+    const s: any = await updateSettings({ chat360BusinessNumber: '98765 00001', chat360LoginEmail: ' crm@amaya.test ' }, support);
+    expect(s).toMatchObject({ chat360BusinessNumber: '919876500001', chat360LoginEmail: 'crm@amaya.test', chat360LoginPasswordSet: true });
+    expect(JSON.stringify(s)).not.toContain('pw-');
+  });
+
+  it('templateParamData names or numbers the variables', () => {
+    expect(templateParamData(['first_name=Meera', 'Sat', ' unit = 2 BHK '])).toEqual({ first_name: 'Meera', '2': 'Sat', unit: '2 BHK' });
+  });
+
+  it('test() checks the key, the number and the login for real', async () => {
+    fakeChat360();
+    const good = await chatTest();
+    expect(good.ok).toBe(true);
+    expect(good.message).toContain('API key accepted');
+    expect(good.message).toContain('Signed in to Chat360 as crm@amaya.test');
+    expect(good.message).toContain('Webhook secret set');
+
+    vi.restoreAllMocks();
+    fakeChat360({ templates: () => new Response('{"detail":"Invalid API key"}', { status: 401 }) });
+    const bad = await chatTest();
+    expect(bad.ok).toBe(false);
+    expect(bad.message).toContain('API key rejected');
+
+    await t.secret('CHAT360_API_KEY', '');
+    expect((await chatTest()).ok).toBe(false);
   });
 });
 

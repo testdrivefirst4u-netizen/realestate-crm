@@ -136,7 +136,7 @@ export const CFG = {
   } as Record<string, string[]>,
 
   /** Secret keys (stored encrypted in the `secrets` collection; an env var of the same name wins). */
-  SECRETS: ['GEMINI_API_KEY', 'CHAT360_API_KEY', 'CHAT360_WEBHOOK_SECRET', 'TELEPHONY_WEBHOOK_SECRET'] as const,
+  SECRETS: ['GEMINI_API_KEY', 'CHAT360_API_KEY', 'CHAT360_LOGIN_PASSWORD', 'CHAT360_WEBHOOK_SECRET', 'TELEPHONY_WEBHOOK_SECRET'] as const,
 
   /** Non-secret settings (key → default), stored in the `settings` collection. */
   SETTING_DEFAULTS: {
@@ -145,11 +145,12 @@ export const CFG = {
     aiModel: 'gemini-3.8-flash',
     aiFastModel: 'gemini-3.5-flash-lite',
     aiTranscribeModel: 'gemini-3.5-transcribe',
-    chat360BaseUrl: 'https://api.chat360.io',
-    chat360SendPath: '/api/v1/messages/send',
-    chat360TemplatePath: '/api/v1/messages/template',
-    chat360AuthHeader: 'Authorization',
-    chat360AuthPrefix: 'Bearer ',
+    // Chat360's published API (https://api.chat360.io/): typed replies are "session messages", templates are "tasks".
+    chat360BaseUrl: 'https://app.chat360.io',
+    chat360SendPath: '/api/whatsapp/whatsapp-session-messages',
+    chat360TemplatePath: '/service/v1/task',
+    chat360BusinessNumber: '',
+    chat360LoginEmail: '',
     chat360AutoCreateLeads: 'true',
     chat360DefaultRM: '',
     chat360DefaultSource: 'Chat360',

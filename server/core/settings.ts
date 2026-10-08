@@ -165,7 +165,8 @@ export async function getSettings(ctx: Ctx) {
     geminiKeyMasked: maskSecret(await getSecret('GEMINI_API_KEY')),
     chat360KeyMasked: maskSecret(await getSecret('CHAT360_API_KEY')),
     chat360BaseUrl: s.chat360BaseUrl, chat360SendPath: s.chat360SendPath, chat360TemplatePath: s.chat360TemplatePath,
-    chat360AuthHeader: s.chat360AuthHeader, chat360AuthPrefix: s.chat360AuthPrefix, chat360DefaultSource: s.chat360DefaultSource,
+    chat360BusinessNumber: s.chat360BusinessNumber, chat360LoginEmail: s.chat360LoginEmail,
+    chat360LoginPasswordSet: !!(await getSecret('CHAT360_LOGIN_PASSWORD')), chat360DefaultSource: s.chat360DefaultSource,
     chat360WebhookUrl: webhookUrl('chat360', chatSecret, canSecrets),
     telephonyWebhookUrl: telSecret ? webhookUrl('telephony', telSecret, canSecrets) + '&provider=<name>' : '',
     chat360WebhookSecretSet: !!chatSecret,
@@ -185,7 +186,7 @@ export async function getSettings(ctx: Ctx) {
 }
 
 const EDITABLE = ['appName', 'timeZone', 'aiModel', 'aiFastModel', 'aiTranscribeModel', 'chat360BaseUrl', 'chat360SendPath', 'chat360TemplatePath',
-  'chat360AuthHeader', 'chat360AuthPrefix', 'chat360AutoCreateLeads', 'chat360DefaultRM', 'chat360DefaultSource', 'telephonyFieldMap',
+  'chat360BusinessNumber', 'chat360LoginEmail', 'chat360AutoCreateLeads', 'chat360DefaultRM', 'chat360DefaultSource', 'telephonyFieldMap',
   'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking'];
 
 /** Hosts the Chat360 base URL may point at — stops an admin from redirecting the stored API key. */
@@ -218,6 +219,15 @@ export async function updateSettings(patch: any, ctx: Ctx) {
       const extra = (process.env.CHAT360_ALLOWED_HOSTS || '').split(',').map((h) => h.trim()).filter(Boolean);
       const allowed = CHAT360_HOSTS.some((re) => re.test(u.hostname)) || extra.includes(u.hostname);
       if (u.protocol !== 'https:' || !allowed) throw fail('VALIDATION', `Chat360 base URL must be https on chat360.io (or a host listed in CHAT360_ALLOWED_HOSTS)`);
+    }
+    if (k === 'chat360BusinessNumber' && v) {
+      const d = v.replace(/\D/g, '');
+      if (d.length < 10 || d.length > 15) throw fail('VALIDATION', 'Enter the business WhatsApp number with its country code, e.g. 91 98765 43210');
+      v = d.length === 10 ? '91' + d : d;
+    }
+    if (k === 'chat360LoginEmail' && v) {
+      v = v.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) throw fail('VALIDATION', 'Enter the e-mail address of the Chat360 login');
     }
     if (k === 'dailyDigestEmail' && v) {
       const list = v.split(/[,;\s]+/).filter(Boolean);
