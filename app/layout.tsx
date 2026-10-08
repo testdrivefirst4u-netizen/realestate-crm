@@ -7,7 +7,6 @@ const description = 'Sales CRM for real-estate teams';
 export const metadata: Metadata = {
   title,
   description,
-  icons: { icon: '/favicon.png' },
   openGraph: { title, description, type: 'website' },
   twitter: { card: 'summary_large_image' },
 };
