@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, BookOpen, Plus, Bell, Sparkles, FileSpreadsheet, Menu } from 'lucide-react';
+import { Search, BookOpen, Plus, Bell, Sparkles, FileSpreadsheet, Menu, Users, MessageSquareQuote, CheckSquare, StickyNote, ListChecks, Building2, FileText, Layers, UserCircle2, ArrowRight } from 'lucide-react';
 import { Lead, SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
-import { F } from '../core/config';
-import { searchLeads } from '../core/analytics';
+import { globalSearch, highlightParts, queryTerms, type SearchData, type SearchGroup, type SearchHit, type SearchKind } from '../core/globalSearch';
 import { Permission } from '../core/rbac';
-import { StageBadge } from './ui';
-import { formatPhone } from '../core/phone';
 import { useCompany, useFeature } from '../core/tenant';
 import { VIEW_TITLES, type ViewId } from '../core/views';
 
@@ -32,13 +29,30 @@ interface TopbarProps {
   currentUser: UserAccount | null;
   can: (p: Permission) => boolean;
   aiEnabled: boolean;
+  /** Everything else the global search looks through (leads come from `leads`). */
+  searchData?: Omit<SearchData, 'leads'>;
+  /** Open a non-lead result: its screen, filtered to the query. Leads open with `onOpenLead`. */
+  onSearchSelect?: (hit: SearchHit, query: string) => void;
+  /** "Show all N" for a group: open that screen filtered to the query. */
+  onSearchShowAll?: (group: SearchGroup, query: string) => void;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, unreadCount, onToggleNotificationDrawer, onToggleSidebarMobile, currentUser, can, aiEnabled }) => {
+const KIND_ICON: Record<SearchKind, React.ReactNode> = {
+  lead: <Users size={14} />, template: <MessageSquareQuote size={14} />, task: <CheckSquare size={14} />, note: <StickyNote size={14} />,
+  checklist: <ListChecks size={14} />, unit: <Building2 size={14} />, document: <FileText size={14} />, segment: <Layers size={14} />, user: <UserCircle2 size={14} />,
+};
+
+/** Text with the query words highlighted. */
+const Marked: React.FC<{ text: string; terms: string[] }> = ({ text, terms }) => (
+  <>{highlightParts(text, terms).map((p, i) => (p.hit ? <mark key={i} className="bg-[#F3E4CF] text-inherit rounded-sm">{p.text}</mark> : <React.Fragment key={i}>{p.text}</React.Fragment>))}</>
+);
+
+export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, unreadCount, onToggleNotificationDrawer, onToggleSidebarMobile, currentUser, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll }) => {
   const company = useCompany();
   const libraryEnabled = useFeature('projectLibrary');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,8 +61,24 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const results = useMemo(() => (q.trim() ? searchLeads(leads, q, 8) : []), [leads, q]);
+  const groups = useMemo(() => (q.trim() ? globalSearch({ ...(searchData || {}), leads }, q, 5) : []), [leads, searchData, q]);
+  const terms = useMemo(() => queryTerms(q), [q]);
+  /** Every visible result in display order, for ↑ ↓ Enter. */
+  const flat = useMemo(() => groups.flatMap((g) => g.hits), [groups]);
   const isQuestion = q.trim().split(/\s+/).length >= 3 || /\?$/.test(q.trim());
+
+  const close = () => { setQ(''); setOpen(false); setActive(-1); };
+  const select = (hit: SearchHit) => {
+    const query = q.trim();
+    close();
+    if (hit.kind === 'lead') onOpenLead(hit.id);
+    else onSearchSelect?.(hit, query);
+  };
+  const showAll = (g: SearchGroup) => {
+    const query = q.trim();
+    close();
+    onSearchShowAll?.(g, query);
+  };
 
   return (
     <header className="h-16 px-3 sm:px-6 bg-[#FDFCFA] border-b border-[#D2C9BF] flex items-center justify-between gap-3 z-20 shadow-xs">
@@ -59,42 +89,65 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        <div ref={ref} className="relative w-36 sm:w-52 md:w-64">
+        <div ref={ref} className="relative w-36 sm:w-52 md:w-72">
           <div className="relative flex items-center">
             <Search size={15} className="absolute left-3 text-[#9E948D] pointer-events-none" />
             <input
               type="text" value={q}
-              onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+              onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(-1); }}
               onFocus={() => setOpen(true)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  if (results.length === 1 && !isQuestion) { onOpenLead(results[0][F.ID]); setQ(''); setOpen(false); }
-                  else if (aiEnabled && q.trim()) { onOpenChatbot(q.trim()); setQ(''); setOpen(false); }
+                if (e.key === 'ArrowDown' && flat.length) { e.preventDefault(); setOpen(true); setActive((i) => (i + 1) % flat.length); }
+                else if (e.key === 'ArrowUp' && flat.length) { e.preventDefault(); setActive((i) => (i <= 0 ? flat.length - 1 : i - 1)); }
+                else if (e.key === 'Enter' && q.trim()) {
+                  if (active >= 0 && flat[active]) select(flat[active]);
+                  else if (flat.length === 1 && !isQuestion) select(flat[0]);
+                  else if (aiEnabled) { onOpenChatbot(q.trim()); close(); }
+                  else if (flat.length) select(flat[0]);
                 }
-                if (e.key === 'Escape') setOpen(false);
+                else if (e.key === 'Escape') setOpen(false);
               }}
-              placeholder={aiEnabled ? 'Search or ask the Copilot…' : 'Search leads, phone, notes…'}
+              role="combobox" aria-expanded={open && !!q.trim()} aria-controls="global-search-results" aria-autocomplete="list" aria-label="Search the CRM"
+              placeholder={aiEnabled ? 'Search everything or ask the Copilot…' : 'Search leads, templates, tasks, units…'}
               className="w-full bg-[#F4F0EB] text-[#3D3530] text-xs pl-9 pr-3 py-2 rounded-full border border-[#D2C9BF] focus:outline-none focus:border-[#A9825A] focus:bg-white transition"
             />
           </div>
           {open && q.trim() && (
-            <div className="absolute top-full left-0 right-0 sm:w-96 mt-1.5 bg-white rounded-xl shadow-xl border border-[#D2C9BF] overflow-hidden z-50 max-h-96 overflow-y-auto">
+            <div id="global-search-results" role="listbox" aria-label="Search results" className="fixed left-3 right-3 top-15 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:w-md mt-1.5 bg-white rounded-xl shadow-xl border border-[#D2C9BF] overflow-hidden z-50 max-h-[70vh] overflow-y-auto">
               {aiEnabled && (
-                <button onClick={() => { onOpenChatbot(q.trim()); setQ(''); setOpen(false); }} className="w-full flex items-center gap-2 p-3 text-left text-xs bg-[#FAF7F2] hover:bg-[#F4F0EB] border-b border-[#ECE8E1]">
+                <button type="button" onClick={() => { onOpenChatbot(q.trim()); close(); }} className="w-full flex items-center gap-2 p-3 text-left text-xs bg-[#FAF7F2] hover:bg-[#F4F0EB] border-b border-[#ECE8E1]">
                   <Sparkles size={14} className="text-[#A9825A] flex-shrink-0" />
                   <span className="truncate">Ask Copilot: <strong className="text-[#1D2F3F]">“{q.trim()}”</strong></span>
                 </button>
               )}
-              {results.length > 0 ? results.map((lead) => (
-                <div key={lead[F.ID]} onClick={() => { setOpen(false); setQ(''); onOpenLead(lead[F.ID]); }} className="p-3 hover:bg-[#F4F0EB] cursor-pointer border-b border-[#ECE8E1] last:border-none flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[#1D2F3F] truncate">{lead[F.NAME]} <span className="text-[10px] font-mono text-[#A9825A] ml-1">{lead[F.ID]}</span></div>
-                    <div className="text-xs text-[#9E948D] mt-0.5 truncate">{formatPhone(lead[F.PHONE])}{lead[F.EMAIL] ? ` · ${lead[F.EMAIL]}` : ''}</div>
+              {groups.length > 0 ? groups.map((g) => (
+                <div key={g.kind} role="group" aria-label={g.label} className="border-b border-[#ECE8E1] last:border-none pb-1">
+                  <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8A6942]">{g.label} <span className="font-medium text-[#A39990]">{g.total}</span></span>
+                    {g.total > g.hits.length && onSearchShowAll && (
+                      <button type="button" onClick={() => showAll(g)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#7A5B37] hover:underline">
+                        Show all {g.total} <ArrowRight size={11} />
+                      </button>
+                    )}
                   </div>
-                  <div className="text-right flex-shrink-0"><StageBadge stage={lead[F.STAGE]} /><div className="text-[10px] text-[#6B5F57] mt-1">{lead[F.UNIT_TYPE] || ''}</div></div>
+                  {g.hits.map((hit) => {
+                    const idx = flat.indexOf(hit);
+                    const on = idx === active;
+                    return (
+                      <button key={hit.kind + hit.id} type="button" role="option" aria-selected={on} onMouseEnter={() => setActive(idx)} onClick={() => select(hit)}
+                        className={`w-full flex items-start gap-2.5 px-3 py-2 text-left ${on ? 'bg-[#F4F0EB]' : 'hover:bg-[#FAF7F2]'}`}>
+                        <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-[#F4F0EB] text-[#7A5B37]">{KIND_ICON[hit.kind]}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-semibold text-[#1D2F3F]"><Marked text={hit.title} terms={terms} /></span>
+                          {hit.subtitle && <span className="block truncate text-[11px] text-[#6B5F57]"><Marked text={hit.subtitle} terms={terms} /></span>}
+                          {hit.snippet && hit.snippet !== hit.title && <span className="mt-0.5 block text-[11px] leading-snug text-[#8A7F77] line-clamp-2"><Marked text={hit.snippet} terms={terms} /></span>}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )) : (
-                <div className="p-4 text-center text-xs text-[#9E948D]">No leads match “{q}”</div>
+                <div className="p-4 text-center text-xs text-[#9E948D]">Nothing in the CRM matches “{q.trim()}”</div>
               )}
             </div>
           )}

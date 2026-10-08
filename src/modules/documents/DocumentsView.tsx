@@ -15,6 +15,8 @@ export interface DocumentsViewProps {
   /** Opens the project Library — absent when the company's plan has no project library. */
   onOpenLibrary?: (query?: string) => void;
   onOpenLead: (id: string) => void;
+  /** Text search to start with (from the top-bar search, via `?q=`). */
+  initialQuery?: string;
 }
 
 const CATEGORIES = ['Brochure', 'Floor Plans', 'Legal & RERA', 'Pricing', 'Customer Document', 'General'];
@@ -29,8 +31,9 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, onAddDocument, onDeleteDocument, onOpenLibrary, onOpenLead }) => {
-  const [search, setSearch] = useState('');
+export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, onAddDocument, onDeleteDocument, onOpenLibrary, onOpenLead, initialQuery = '' }) => {
+  const [search, setSearch] = useState(initialQuery);
+  useEffect(() => setSearch(initialQuery), [initialQuery]);
   const [category, setCategory] = useState('');
   const [limit, setLimit] = useState(PAGE);
   const [addOpen, setAddOpen] = useState(false);

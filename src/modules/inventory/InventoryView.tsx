@@ -33,6 +33,8 @@ export interface InventoryViewProps {
   onImportInventory: (units: Partial<InventoryUnit>[]) => Promise<{ created: number; skipped: number } | null>;
   onRefresh: () => void;
   onOpenLead: (id: string) => void;
+  /** Text search to start with (from the top-bar search, via `?q=`). */
+  initialQuery?: string;
 }
 
 type SortKey = 'unit' | 'tower' | 'floor' | 'type' | 'carpet' | 'price' | 'status' | 'customer' | 'booked' | 'modified';
@@ -63,10 +65,11 @@ const LeadChip: React.FC<{ id: string; name?: string; onOpen: (id: string) => vo
   </button>
 );
 
-export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, sync, canEdit, onUpdateUnit, onAddUnit, onImportInventory, onRefresh, onOpenLead }) => {
+export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, sync, canEdit, onUpdateUnit, onAddUnit, onImportInventory, onRefresh, onOpenLead, initialQuery = '' }) => {
   /** The Unit Locator (3D tower view) is a plan feature. */
   const locatorEnabled = useFeature('unitLocator');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialQuery);
+  useEffect(() => setSearch(initialQuery), [initialQuery]);
   const [tower, setTower] = useState('');
   const [unitType, setUnitType] = useState('');
   const [floor, setFloor] = useState('');

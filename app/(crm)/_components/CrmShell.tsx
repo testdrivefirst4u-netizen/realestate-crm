@@ -29,6 +29,8 @@ import { TenantProvider, companyOf, hasFeature, resolveFeatures, type FeatureNam
 import { DEFAULT_VIEW, viewAllowed, viewFromPath, viewHref, type ViewId } from '@/src/core/views';
 import { initGlobalFontAutoScaler } from '@/src/utils/fontSizeAdjuster';
 import type { NotificationItem } from '@/src/types/crm';
+import { searchLeads } from '@/src/core/analytics';
+import type { SearchGroup, SearchHit } from '@/src/core/globalSearch';
 
 const CopilotDrawer = lazy(() => import('@/src/modules/ai/CopilotDrawer').then((m) => ({ default: m.CopilotDrawer })));
 const LibraryModal = lazy(() => import('@/src/components/LibraryModal').then((m) => ({ default: m.LibraryModal })));
@@ -206,6 +208,42 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goTo = useCallback((view: ViewId) => router.push(viewHref(view)), [router]);
+  /* ---------------------------- Global search ---------------------------- */
+
+  const canManageTeam = engine.can('users.manageAgents');
+  const searchData = useMemo(
+    () => ({
+      templates: data.templates, tasks: data.tasks, notes: data.notes, checklist: data.checklist, inventory: data.inventory,
+      documents: data.documents, segments: data.segments, users: canManageTeam ? data.users : undefined,
+    }),
+    [data.templates, data.tasks, data.notes, data.checklist, data.inventory, data.documents, data.segments, data.users, canManageTeam]
+  );
+  /** Open a screen with its own search box pre-filled (`?q=`). */
+  const goSearch = useCallback((view: ViewId, q: string) => router.push(q ? `${viewHref(view)}?q=${encodeURIComponent(q)}` : viewHref(view)), [router]);
+  const onSearchSelect = useCallback(
+    (hit: SearchHit, query: string) => {
+      if (hit.kind === 'template') goSearch('templates', hit.title);
+      else if (hit.kind === 'unit') goSearch('inventory', hit.id);
+      else if (hit.kind === 'document') goSearch('documents', hit.title);
+      else if (hit.kind === 'segment') goTo('segments');
+      else if (hit.kind === 'user') router.push('/settings?section=users');
+      else if (hit.kind === 'task' || hit.kind === 'note' || hit.kind === 'checklist') goTo('tasks');
+      else goSearch('leads', query);
+    },
+    [goSearch, goTo, router]
+  );
+  const onSearchShowAll = useCallback(
+    (g: SearchGroup, query: string) => {
+      if (g.kind === 'lead') showLeads(`Search: “${query}”`, searchLeads(data.leads, query, data.leads.length).map((l) => l[F.ID]));
+      else if (g.kind === 'template') goSearch('templates', query);
+      else if (g.kind === 'unit') goSearch('inventory', query);
+      else if (g.kind === 'document') goSearch('documents', query);
+      else if (g.kind === 'user') router.push('/settings?section=users');
+      else goTo(g.view as ViewId);
+    },
+    [data.leads, goSearch, goTo, router, showLeads]
+  );
+
   const openRecord = (recordType?: string, recordId?: string) => {
     if (!recordId) return;
     if (recordType === 'Lead') openLead(recordId);
@@ -261,6 +299,9 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               currentUser={currentUser}
               can={engine.can}
               aiEnabled={aiOn}
+              searchData={searchData}
+              onSearchSelect={onSearchSelect}
+              onSearchShowAll={onSearchShowAll}
             />
 
             <main className="flex-1 overflow-y-auto">

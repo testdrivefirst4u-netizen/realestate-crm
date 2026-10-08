@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Check, Copy, Edit, Eye, EyeOff, FileUp, MessageSquareQuote, Plus, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Check, Copy, Edit, Eye, EyeOff, FileUp, MessageSquareQuote, Plus, Search, Trash2, X } from 'lucide-react';
 import { MessageTemplate, UserAccount } from '../../types/crm';
 import { formatDateTime, formatRelative } from '../../core/dates';
 import { fillTemplate } from '../../core/phone';
@@ -8,6 +8,7 @@ import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, InlineNotice, Mo
 import { ImportTemplatesModal } from './ImportTemplatesModal';
 import { TEMPLATE_IMPORT_TIP } from './importTemplates';
 import { useCompany, useFeature } from '../../core/tenant';
+import { matchesAll, queryTerms } from '../../core/globalSearch';
 
 export interface TemplatesViewProps {
   templates: MessageTemplate[];
@@ -15,6 +16,8 @@ export interface TemplatesViewProps {
   onUpdateTemplate: (id: string, patch: Partial<MessageTemplate>) => Promise<boolean>;
   onDeleteTemplate: (id: string) => Promise<boolean>;
   currentUser: UserAccount | null;
+  /** Text search to start with (from the top-bar search, via `?q=`). */
+  initialQuery?: string;
 }
 
 const TYPES = ['WhatsApp', 'Email', 'Follow-up', 'Site Visit', 'General'];
@@ -25,10 +28,12 @@ const TOKENS: Array<{ token: string; label: string }> = [
   { token: '{time}', label: 'Date & time' },
 ];
 
-export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTemplate, onUpdateTemplate, onDeleteTemplate, currentUser }) => {
+export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTemplate, onUpdateTemplate, onDeleteTemplate, currentUser, initialQuery = '' }) => {
   const company = useCompany();
   const projectName = useFeature('projectLibrary') ? 'Amaya by Vera Vita' : company?.name || 'Your project';
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [search, setSearch] = useState(initialQuery);
+  useEffect(() => setSearch(initialQuery), [initialQuery]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewIds, setPreviewIds] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
@@ -54,9 +59,10 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
   }, [templates]);
 
   const filtered = useMemo(() => {
-    const list = typeFilter === 'all' ? templates : templates.filter((t) => t.type === typeFilter);
+    const terms = queryTerms(search);
+    const list = templates.filter((t) => (typeFilter === 'all' || t.type === typeFilter) && (!terms.length || matchesAll(`${t.name} ${t.type} ${t.message}`, terms)));
     return [...list].sort((a, b) => String(b.updated || '').localeCompare(String(a.updated || '')));
-  }, [templates, typeFilter]);
+  }, [templates, typeFilter, search]);
 
   const tabs = useMemo(
     () => [{ id: 'all', label: 'All', badge: templates.length }, ...types.map((t) => ({ id: t, label: t, badge: templates.filter((x) => x.type === t).length }))],
@@ -144,7 +150,16 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
         </div>
       </div>
 
-      {templates.length > 0 && <Tabs tabs={tabs} value={typeFilter} onChange={setTypeFilter} />}
+      {templates.length > 0 && (
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <div className="min-w-0 flex-1"><Tabs tabs={tabs} value={typeFilter} onChange={setTypeFilter} /></div>
+          <div className="relative w-full lg:w-72">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D] pointer-events-none" />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates…" aria-label="Search templates" className={`${inputCls} pl-8 pr-8`} />
+            {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-[#9E948D] hover:text-[#1D2F3F]" aria-label="Clear search"><X size={14} /></button>}
+          </div>
+        </div>
+      )}
 
       {templates.length === 0 ? (
         <Card>
@@ -158,6 +173,15 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
                 <Button variant="secondary" onClick={() => setImportOpen(true)} icon={<FileUp size={14} />}>Import from file</Button>
               </div>
             }
+          />
+        </Card>
+      ) : filtered.length === 0 && search.trim() ? (
+        <Card>
+          <EmptyState
+            icon={<Search size={22} />}
+            title={`No templates match “${search.trim()}”`}
+            description={typeFilter !== 'all' ? `Only ${typeFilter} templates were searched — try All.` : 'Try a different word, or check the spelling.'}
+            action={<Button variant="secondary" onClick={() => { setSearch(''); setTypeFilter('all'); }}>Clear search</Button>}
           />
         </Card>
       ) : filtered.length === 0 ? (
