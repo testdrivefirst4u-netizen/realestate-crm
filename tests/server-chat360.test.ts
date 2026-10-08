@@ -14,10 +14,10 @@ vi.mock('../server/modules/records', () => ({ saveRecord: vi.fn(), actions: {} }
 import { startTestDb } from './helpers/mongo';
 import { col } from '../server/core/db';
 import { CFG } from '../server/core/config';
-import { settingSet, updateSettings } from '../server/core/settings';
+import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, contacts, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
+import { apiKeyShapeProblem, businessNumberFrom, contacts, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -261,6 +261,31 @@ describe('outbound', () => {
     const s: any = await updateSettings({ chat360BusinessNumber: '98765 00001', chat360LoginEmail: ' crm@amaya.test ' }, support);
     expect(s).toMatchObject({ chat360BusinessNumber: '919876500001', chat360LoginEmail: 'crm@amaya.test', chat360LoginPasswordSet: true });
     expect(JSON.stringify(s)).not.toContain('pw-');
+  });
+
+  it('finds the business number in incoming messages when Settings has none', async () => {
+    await settingSet('chat360BusinessNumber', '', 'test');
+    // an older message already stored, before this feature
+    await handleWebhook(inbound({ event_response_id: 'evt-old', sender_num: '918888777766', receiver_num: '919000000777' }));
+    expect(businessNumberFrom({ sender_num: '919876543210', receiver_num: '919876543210' }, '919876543210')).toBe(''); // never the customer
+    fakeChat360();
+    await chatTest();
+    const s: any = await getSettings(await t.ctx('Developer', 'Support'));
+    expect(s.chat360BusinessNumber).toBe('919000000777');
+
+    // a set number is never overwritten by a webhook
+    await settingSet('chat360BusinessNumber', '919000000001', 'test');
+    await handleWebhook(inbound({ event_response_id: 'evt-new', sender_num: '917777666655', receiver_num: '919111111111' }));
+    expect((await getSettings(await t.ctx('Developer', 'Support2')) as any).chat360BusinessNumber).toBe('919000000001');
+  });
+
+  it('sends with a number learned from stored messages', async () => {
+    await settingSet('chat360BusinessNumber', '', 'test');
+    await handleWebhook(inbound({ event_response_id: 'evt-l', sender_num: '918888777766', receiver_num: '919000000555' }));
+    await settingSet('chat360BusinessNumber', '', 'test'); // pretend it was not learned at the time
+    const c = fakeChat360();
+    await send({ phone: '9876543210', text: 'Hi' }, ctx);
+    expect(JSON.parse(String(c.to('/api/whatsapp/whatsapp-session-messages')[0].init.body)).from).toBe('919000000555');
   });
 
   it('templateParamData names or numbers the variables', () => {

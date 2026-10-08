@@ -20,7 +20,7 @@ import { bumpVersion, col } from '../core/db';
 import { ApiError, ApiErrorCode, fail } from '../core/errors';
 import { tenantKey } from '../core/tenant';
 import { addEvent, addTimeline, logError } from '../core/events';
-import { getSecret, settingsAll } from '../core/settings';
+import { getSecret, settingSet, settingsAll } from '../core/settings';
 import { bool, digits, e164, last10, maskSecret, num, parseDate, safeJsonParse, shortId, str, toIso, truncate } from '../core/utils';
 import { addLead, findLeadByPhone, getLead, type UiLead } from './leads';
 
@@ -359,6 +359,30 @@ function extractPhone(p: any, inbound: boolean): string {
   return d.length >= 10 && d.length <= 15 ? d : '';
 }
 
+/**
+ * Find the company's WhatsApp number in the incoming messages already stored (their raw Chat360 payload),
+ * save it to Settings and return it; '' when none shows it.
+ */
+async function learnBusinessNumber(): Promise<string> {
+  const rows = await (await msgs()).find({ direction: 'Inbound', raw: { $type: 'string', $ne: '' } }).sort({ timestamp: -1 }).limit(25).project({ raw: 1, phone: 1 }).toArray();
+  for (const r of rows) {
+    const m = /"(?:receiver_num|client_number|business_number|display_phone_number)"\s*:\s*"?\+?(\d{10,15})/.exec(String(r.raw));
+    if (m && last10(m[1]) !== last10(r.phone)) {
+      const own = e164(m[1]);
+      await settingSet('chat360BusinessNumber', own, 'Chat360 messages');
+      return own;
+    }
+  }
+  return '';
+}
+
+/** On an incoming message Chat360's `receiver_num` is the company's WhatsApp number (never the customer's). */
+export function businessNumberFrom(p: any, customer: string): string {
+  const v = deepFind(p, ['receiver_num', 'client_number', 'business_number', 'display_phone_number']);
+  const d = digits(v === undefined || typeof v === 'object' ? '' : String(v));
+  return d.length >= 10 && d.length <= 15 && last10(d) !== last10(customer) ? e164(d) : '';
+}
+
 function extractName(p: any): string {
   const v = deepFind(p, ['profile_name', 'contact_name', 'name', 'customer_name', 'user_name']);
   return truncate(typeof v === 'string' ? v.trim() : v && v.name ? String(v.name) : '', 120);
@@ -451,6 +475,12 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   const name = extractName(payload);
   const text = extractText(payload) || (/lead/.test(type) ? '[Lead captured]' : '[Message]');
 
+  // The number that received this message is the company's own WhatsApp number: fill it in when Settings has none.
+  if (!cfg.businessNumber && type === 'message_received') {
+    const own = businessNumberFrom(payload, phone);
+    if (own) await settingSet('chat360BusinessNumber', own, 'Chat360 webhook').catch(() => undefined);
+  }
+
   // Claim the event first: a Chat360 retry stops here before touching leads or unread counts.
   const rec = await record({
     eventId, dedupeKey: providerKey || undefined, direction: 'Inbound', phone, contactName: name, text,
@@ -486,6 +516,7 @@ export async function handleWebhook(payload: any): Promise<unknown> {
 export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   const cfg = await chatCfg();
   if (!cfg.apiKey) throw fail('NOT_CONFIGURED', 'Chat360 API key is not configured. Add it under Settings → Integrations → Chat360.');
+  if (!cfg.businessNumber) cfg.businessNumber = await learnBusinessNumber();
   if (!cfg.businessNumber) throw fail('NOT_CONFIGURED', 'Add your business WhatsApp number (as registered in Chat360) under Settings → Integrations → Chat360.');
   d = d || {};
   const phone = e164(d.phone);
@@ -594,10 +625,16 @@ export async function test(): Promise<{ ok: boolean; message: string }> {
     }
   }
 
-  if (cfg.businessNumber) lines.push(`✓ Business number: +${cfg.businessNumber}.`);
-  else {
+  if (!cfg.businessNumber) {
+    const learned = await learnBusinessNumber();
+    if (learned) {
+      cfg.businessNumber = learned;
+      lines.push(`✓ Business number: +${learned} — found in your incoming WhatsApp messages and saved (change it in the field above if it is wrong).`);
+    }
+  } else lines.push(`✓ Business number: +${cfg.businessNumber}.`);
+  if (!cfg.businessNumber) {
     ok = false;
-    lines.push('✗ Business WhatsApp number: not set.');
+    lines.push('✗ Business WhatsApp number: not set, and no incoming message shows it yet. Type it in the field above.');
   }
 
   if (!cfg.loginEmail || !cfg.loginPassword) {
