@@ -132,7 +132,7 @@ export function AdminsClient() {
                         <Button variant="ghost" size="sm" icon={<Pencil className="h-3.5 w-3.5" aria-hidden />} onClick={() => setDialog({ admin: a })} aria-label={`Edit ${a.name}`}>
                           Edit
                         </Button>
-                        <Button variant="secondary" size="sm" icon={<KeyRound className="h-3.5 w-3.5" aria-hidden />} onClick={() => setPending({ kind: 'reset', admin: a })} disabled={self} title={self ? 'Use “Change password” in the top bar' : undefined} aria-label={`Reset password for ${a.name}`}>
+                        <Button variant="secondary" size="sm" icon={<KeyRound className="h-3.5 w-3.5" aria-hidden />} onClick={() => setPending({ kind: 'reset', admin: a })} disabled={self} title={self ? 'Another super admin can reset your password' : undefined} aria-label={`Reset password for ${a.name}`}>
                           Reset password
                         </Button>
                         <Button variant={a.status === 'Active' ? 'danger-outline' : 'secondary'} size="sm" onClick={() => setPending({ kind: 'status', admin: a })} disabled={self} aria-label={`${a.status === 'Active' ? 'Disable' : 'Enable'} ${a.name}`}>

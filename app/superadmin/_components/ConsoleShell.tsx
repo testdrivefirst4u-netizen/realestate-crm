@@ -2,11 +2,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Building2, KeyRound, LayoutDashboard, Layers, LogOut, Menu, ScrollText, Settings2, ShieldCheck, X } from 'lucide-react';
+import { Building2, LayoutDashboard, Layers, LogOut, Menu, ScrollText, Settings2, ShieldCheck, X } from 'lucide-react';
 import type { SuperAdmin } from '@/server/platform/contract';
 import { LOGIN_PATH, call, errorMessage, isAuthError } from '../_lib/api';
 import { initials } from '../_lib/format';
-import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { ToastProvider } from './Toast';
 import { ErrorBox, Spinner, cx } from './ui';
 
@@ -69,8 +68,6 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [drawer, setDrawer] = useState(false);
-  const [pwOpen, setPwOpen] = useState(false);
-  const [mustChange, setMustChange] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
   /** The dashboard draws its own full-width summary strip under the top bar. */
@@ -81,13 +78,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
     setError('');
     call('saMe', {}).then(
       (r) => {
-        if (!alive) return;
-        setAdmin(r.user);
-        // The backend may flag accounts that still use a temporary password (not part of the contract type).
-        if ((r.user as SuperAdmin & { mustChangePassword?: boolean }).mustChangePassword) {
-          setMustChange(true);
-          setPwOpen(true);
-        }
+        if (alive) setAdmin(r.user);
       },
       (e) => {
         if (!alive || isAuthError(e)) return; // call() already redirects to the login page
@@ -165,15 +156,6 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPwOpen(true)}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg px-2.5 text-[13.5px] font-medium text-[#C9D3DC] hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]"
-                >
-                  <KeyRound className="h-4 w-4" aria-hidden />
-                  <span className="hidden xl:inline">Change password</span>
-                  <span className="sr-only xl:hidden">Change password</span>
-                </button>
-                <button
-                  type="button"
                   onClick={signOut}
                   disabled={signingOut}
                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#3A5266] px-3 text-[13.5px] font-medium text-[#C9D3DC] hover:bg-white/10 hover:text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]"
@@ -209,12 +191,6 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
             {fullBleed ? children : <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-8 lg:py-8">{children}</div>}
           </main>
         </div>
-        <ChangePasswordDialog
-          open={pwOpen}
-          forced={mustChange}
-          onClose={() => setPwOpen(false)}
-          onChanged={() => setMustChange(false)}
-        />
       </ToastProvider>
     </AdminCtx.Provider>
   );

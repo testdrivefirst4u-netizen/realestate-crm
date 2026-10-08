@@ -275,7 +275,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
             <div className="flex items-start gap-2 flex-wrap">
               <div className="flex-1 min-w-0">
                 <div><strong>{tempPassword.name}</strong> ({tempPassword.email}) was created with a temporary password: <code className="font-mono font-bold select-all">{tempPassword.password}</code></div>
-                <div className="text-[11px] mt-0.5">Share this with the user; it is not stored. They are asked to change it on first sign-in.</div>
+                <div className="text-[11px] mt-0.5">Share this with the user; it is not shown again.</div>
               </div>
               <Button variant="secondary" size="xs" onClick={copyTempPassword} icon={tempCopied ? <Check size={11} /> : <Copy size={11} />}>{tempCopied ? 'Copied' : 'Copy'}</Button>
               <button type="button" onClick={() => setTempPassword(null)} className="p-1 rounded-md text-emerald-800 hover:bg-emerald-100" aria-label="Dismiss"><X size={12} /></button>
@@ -384,7 +384,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
               <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'Active' | 'Disabled' })} options={['Active', 'Disabled']} disabled={form.id === currentUser?.id} />
             </Field>
           </div>
-          <Field label={form.id ? 'New password (optional)' : 'Initial password (optional)'} hint={form.id ? 'Leave blank to keep the current password. Setting one signs the user out everywhere.' : `Leave blank to generate a temporary password — it is shown once after the user is created. If you set one, use at least ${MIN_PW} characters. Either way the user is asked to change it on first sign-in.`}>
+          <Field label={form.id ? 'New password (optional)' : 'Initial password (optional)'} hint={form.id ? 'Leave blank to keep the current password. Setting one signs the user out everywhere.' : `Leave blank to generate a temporary password — it is shown once after the user is created. If you set one, use at least ${MIN_PW} characters. Share it with the user — they sign in with it.`}>
             <div className="relative">
               <input type={showPw ? 'text' : 'password'} className={`${inputCls} !pr-9`} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" minLength={MIN_PW} />
               <button type="button" onClick={() => setShowPw((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9E948D] hover:text-[#1D2F3F]" aria-label={showPw ? 'Hide password' : 'Show password'}>{showPw ? <EyeOff size={14} /> : <Eye size={14} />}</button>
