@@ -151,13 +151,19 @@ async function templateIdFor(cfg: ChatCfg, nameOrId: string): Promise<string> {
   const key = tenantKey('tpl:' + nameOrId.toLowerCase());
   const hit = templateIdCache.get(key);
   if (hit && Date.now() - hit.at < 10 * 60_000) return hit.id;
+  const list = (headers: Record<string, string>) => fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers });
   let res: Response;
   try {
-    res = await fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers: apiKeyHeaders(cfg) });
+    res = await list(apiKeyHeaders(cfg));
+    // The template list may only take a signed-in user: use the CRM's login when there is one.
+    if ((res.status === 401 || res.status === 403) && cfg.loginEmail && cfg.loginPassword) res = await list(bearerHeaders(await accessToken(cfg)));
   } catch (e: any) {
+    if (e instanceof ApiError) throw e;
     throw upstream('Could not reach Chat360 to look up the template: ' + (e?.name === 'AbortError' ? 'timed out' : e?.message || e));
   }
-  if (res.status === 401 || res.status === 403) throw fail('NOT_CONFIGURED', `Chat360 did not accept the API key (HTTP ${res.status}). Copy it again from Chat360 → Settings → API Key.`);
+  if (res.status === 401 || res.status === 403) {
+    throw fail('NOT_CONFIGURED', `Chat360 would not list your templates (HTTP ${res.status}). Paste the template ID instead (Chat360 → Campaigns → Templates), or check the API key.`);
+  }
   const id = findTemplateId(safeJsonParse<any>(await res.text(), null), nameOrId);
   if (!id) throw fail('VALIDATION', `Chat360 has no approved template called “${nameOrId}”. Check the name, or paste the template ID from Chat360 → Campaigns → Templates.`);
   templateIdCache.set(key, { id, at: Date.now() });
@@ -546,22 +552,41 @@ export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   return { message: msg };
 }
 
+/**
+ * What is visibly wrong with a saved API key, if anything. Chat360 API keys look like `AbCd1234.xxxxxxxx`
+ * (a short prefix, a dot, a long secret); a login token (`eyJ…`) is a common wrong paste.
+ */
+export function apiKeyShapeProblem(key: string): string {
+  const k = String(key || '');
+  if (!k) return '';
+  if (/^(bearer|api-key|token)\s/i.test(k)) return 'The saved key starts with a word such as “Bearer” — save only the key itself.';
+  if (/^eyJ/.test(k)) return 'The saved value is a login token (it starts with “eyJ”), not Chat360’s API key.';
+  if (/\s/.test(k)) return 'The saved key contains spaces or line breaks.';
+  if (!k.includes('.')) return 'It does not look like a Chat360 API key, which has a dot in it (like AbCd1234.xxxxxxxx).';
+  return '';
+}
+
 /** Checks everything outgoing messages need, for real: the API key, the business number and the login. */
 export async function test(): Promise<{ ok: boolean; message: string }> {
   const cfg = await chatCfg();
   const lines: string[] = [];
   let ok = true;
 
+  const shape = apiKeyShapeProblem(cfg.apiKey);
   if (!cfg.apiKey) {
     ok = false;
     lines.push('✗ API key: not saved (Chat360 dashboard → Settings → API Key).');
   } else {
     try {
-      const res = await fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers: apiKeyHeaders(cfg) });
-      if (res.ok) lines.push(`✓ API key accepted (${maskSecret(cfg.apiKey)}) — template messages can be sent.`);
+      // Ask the template-send endpoint with an empty task list: nothing is sent, but Chat360 checks the key
+      // first (401 = not accepted; anything else = the key got through).
+      const res = await fetchWithTimeout(joinUrl(cfg.baseUrl, cfg.templatePath), {
+        method: 'POST', headers: apiKeyHeaders(cfg), body: JSON.stringify({ task_name: 'whatsapp_push_notification', extra: '', task_body: [] }),
+      });
+      if (res.status !== 401 && res.status !== 403) lines.push(`✓ API key accepted (${maskSecret(cfg.apiKey)}) — template messages can be sent.`);
       else {
         ok = false;
-        lines.push(res.status === 401 || res.status === 403 ? `✗ API key rejected by Chat360 (HTTP ${res.status}). Copy it again from Chat360 → Settings → API Key.` : `✗ Chat360 answered HTTP ${res.status} when checking the API key.`);
+        lines.push(`✗ API key rejected by Chat360 (HTTP ${res.status}).${shape ? ' ' + shape : ''} Copy the key again from Chat360 → Settings → API Key and save it here.`);
       }
     } catch (e: any) {
       ok = false;

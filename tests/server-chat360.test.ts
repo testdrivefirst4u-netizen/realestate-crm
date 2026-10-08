@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { contacts, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
+import { apiKeyShapeProblem, contacts, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -267,22 +267,47 @@ describe('outbound', () => {
     expect(templateParamData(['first_name=Meera', 'Sat', ' unit = 2 BHK '])).toEqual({ first_name: 'Meera', '2': 'Sat', unit: '2 BHK' });
   });
 
-  it('test() checks the key, the number and the login for real', async () => {
-    fakeChat360();
+  it('test() checks the key (sending nothing), the number and the login for real', async () => {
+    // Chat360 checks the key before the body: a 400 for the empty task list means the key got through
+    const c = fakeChat360({ task: () => new Response('{"detail":"task_body is empty"}', { status: 400 }) });
     const good = await chatTest();
     expect(good.ok).toBe(true);
     expect(good.message).toContain('API key accepted');
     expect(good.message).toContain('Signed in to Chat360 as crm@amaya.test');
     expect(good.message).toContain('Webhook secret set');
+    const [probe] = c.to('/service/v1/task');
+    expect((probe.init.headers as any).Authorization).toBe('Api-Key c360-key');
+    expect(JSON.parse(String(probe.init.body)).task_body).toEqual([]); // nothing to send
 
     vi.restoreAllMocks();
-    fakeChat360({ templates: () => new Response('{"detail":"Invalid API key"}', { status: 401 }) });
+    await t.secret('CHAT360_API_KEY', 'eyJhbGciOiJIUzI1NiJ9.e30.x');
+    fakeChat360({ task: () => new Response('{"detail":"Authentication credentials were not provided."}', { status: 401 }) });
     const bad = await chatTest();
     expect(bad.ok).toBe(false);
     expect(bad.message).toContain('API key rejected');
+    expect(bad.message).toContain('login token');
 
     await t.secret('CHAT360_API_KEY', '');
     expect((await chatTest()).ok).toBe(false);
+  });
+
+  it('spots API keys that were pasted wrongly', () => {
+    expect(apiKeyShapeProblem('PNBcxRB2.abcdefghijklmnop')).toBe('');
+    expect(apiKeyShapeProblem('eyJhbGciOiJIUzI1NiJ9.e30.x')).toContain('login token');
+    expect(apiKeyShapeProblem('Api-Key PNBcxRB2.abc')).toContain('only the key itself');
+    expect(apiKeyShapeProblem('PNBcxRB2 abc')).toContain('spaces');
+    expect(apiKeyShapeProblem('abcdefghijklmnop')).toContain('dot');
+  });
+
+  it('looks templates up with the login when the API key is not enough for the list', async () => {
+    const c = fakeChat360({
+      templates: (init) => ((init.headers as any).Authorization.startsWith('Bearer')
+        ? new Response(JSON.stringify([{ template_name: 'welcome_v2', id: TEMPLATE_ID }]), { status: 200 })
+        : new Response('{"detail":"Authentication credentials were not provided."}', { status: 401 })),
+    });
+    await send({ phone: '9876543210', templateName: 'welcome_v2' }, ctx);
+    expect(c.to('/service/template/data')).toHaveLength(2);
+    expect(JSON.parse(String(c.to('/service/v1/task')[0].init.body)).task_body[0].template_data.template_id).toBe(TEMPLATE_ID);
   });
 });
 
