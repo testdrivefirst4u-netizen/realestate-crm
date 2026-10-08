@@ -516,8 +516,8 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
                 <div className="text-[12px] font-bold text-[#1D2F3F]">Chat360 login for typed replies</div>
                 <p className="text-[11px] text-[#6B5F57] mt-0.5 leading-relaxed">Chat360 only accepts typed (non-template) replies from a signed-in user, so the CRM signs in with this login and renews the session itself. Best: create a separate Chat360 user for the CRM, so changing your own password never stops replies.</p>
               </div>
-              <Field label="Login e-mail"><input className={inputCls} type="email" autoComplete="off" value={c360.chat360LoginEmail} onChange={(e) => setC360({ ...c360, chat360LoginEmail: e.target.value })} disabled={!canEdit} placeholder="crm@yourcompany.com" /></Field>
-              <SecretField label="Login password" masked={s.chat360LoginPasswordSet ? '••••••••' : ''} canEdit={canSecrets} envVar="CHAT360_LOGIN_PASSWORD" hint="Stored encrypted on the server and never shown again." onSave={(v) => setSecret('CHAT360_LOGIN_PASSWORD', v, 'Chat360 login password saved')} />
+              <Field label="Login e-mail" hint="The e-mail you sign in to app.chat360.io with. Saved with “Save Chat360 settings” below."><input className={inputCls} type="email" autoComplete="off" value={c360.chat360LoginEmail} onChange={(e) => setC360({ ...c360, chat360LoginEmail: e.target.value })} disabled={!canEdit} placeholder="crm@yourcompany.com" /></Field>
+              <SecretField label="Login password" masked={s.chat360LoginPasswordSet ? '••••••••' : ''} canEdit={canSecrets} envVar="CHAT360_LOGIN_PASSWORD" placeholder={s.chat360LoginPasswordSet ? 'Type a new password to replace the saved one' : 'The Chat360 password for that e-mail'} hint="Click Save next to it. Stored encrypted on the server and never shown again." onSave={(v) => setSecret('CHAT360_LOGIN_PASSWORD', v, 'Chat360 login password saved')} />
             </div>
 
             <details>
