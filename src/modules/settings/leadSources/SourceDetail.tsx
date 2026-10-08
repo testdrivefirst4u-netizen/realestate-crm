@@ -6,13 +6,14 @@ import { api } from '../../../core/api';
 import { formatDateTime, formatDistance } from '../../../core/dates';
 import { reportError, toAppError } from '../../../core/errors';
 import { toast } from '../../../core/notifications';
-import { Badge, Button, ConfirmDialog, ErrorState, InlineNotice, LoadingState, Modal, Select, Tabs, cx, inputCls, labelCls } from '../../../components/ui';
+import { Badge, Button, ConfirmDialog, ErrorState, InlineNotice, Modal, Select, Tabs, cx, inputCls, labelCls } from '../../../components/ui';
 import { ApiKeyPanel, CodeBlock, IntegrationGuide } from './IntegrationGuide';
 import { SourceForm, SourceFormState, formStateFromSource, formToRequest } from './SourceForm';
 import { SAMPLE_PAYLOAD, STATUS_OPTIONS, TYPE_LABEL, canRetry, parseSamplePayload, statusTone, usesApiKey } from './leadSourceUtils';
 import { SheetSummary, syncSheetSource } from '../sheets/sheetSource';
 import { FormFilterPicker, MetaLastError, MetaSourceActions, MetaSummary } from '../meta/MetaLeads';
 import { formFilterFrom, formFilterToIds } from '../meta/metaUtils';
+import { ListSkeleton } from '../../../components/Skeletons';
 
 type DetailTab = 'settings' | 'test' | 'log' | 'guide';
 
@@ -405,7 +406,7 @@ export const IntakeLog: React.FC<{ sourceId?: string; canManage: boolean; onOpen
         <Button size="sm" icon={<RefreshCw size={12} />} loading={loading} onClick={load}>Refresh</Button>
       </div>
       {error && <ErrorState compact message={error} onRetry={load} />}
-      {!rows && loading && <LoadingState label="Loading the intake log…" />}
+      {!rows && loading && <ListSkeleton rows={4} label="Loading the intake log…" />}
       {rows && (
         <div className="overflow-x-auto rounded-lg border border-[#D2C9BF] bg-white">
           <table className="w-full text-left border-collapse text-xs">

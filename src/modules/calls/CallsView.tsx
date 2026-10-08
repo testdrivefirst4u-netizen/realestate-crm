@@ -23,11 +23,12 @@ import { formatPhone, telLink } from '../../core/phone';
 import { reportError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { can } from '../../core/rbac';
-import { Badge, Button, Card, DateFilterValue, DateRangeFilter, EmptyState, ErrorState, Field, InlineNotice, KpiTile, LoadingState, Select, StageBadge, cx, inputCls, resolveDateFilter } from '../../components/ui';
+import { Badge, Button, Card, DateFilterValue, DateRangeFilter, EmptyState, ErrorState, Field, InlineNotice, KpiTile, Select, StageBadge, cx, inputCls, resolveDateFilter } from '../../components/ui';
 import { LogCallModal } from './LogCallModal';
 import {
   CALL_STATUSES, CallMatch, DIRECTIONS, MAX_RECORDING_BYTES, OUTCOMES, RECORDING_ACCEPT, callTime, fileToBase64, guessMime, hasRecording, hasSummary, hasTranscript, leadsByPhone, linkPatch, matchForCall, outcomeTone, replaceCall, sortCalls, statusTone, summarizeCalls,
 } from './callsUtils';
+import { PageSkeleton } from '../../components/Skeletons';
 
 export interface CallsViewProps {
   leads: Lead[];
@@ -177,7 +178,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
 
   /* -------------------------------- states ------------------------------ */
 
-  if (loading && calls === null) return <LoadingState label="Loading call history…" />;
+  if (loading && calls === null) return <PageSkeleton variant="table" label="Loading call history…" />;
   if (error && calls === null) {
     return (
       <div className="p-6 max-w-3xl mx-auto">

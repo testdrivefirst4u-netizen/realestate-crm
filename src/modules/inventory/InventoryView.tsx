@@ -22,6 +22,7 @@ import {
 } from './inventoryUtils';
 import { useFeature } from '../../core/tenant';
 import { UnitLocator } from './UnitLocator'; // explicit extension: unitLocator.ts sits next to it (case-only difference)
+import { PageSkeleton } from '../../components/Skeletons';
 
 export interface InventoryViewProps {
   inventory: InventoryUnit[];
@@ -156,7 +157,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
 
   /* ------------------------------ states -------------------------------- */
   const empty = inventory.length === 0;
-  if (empty && (sync.status === 'loading' || (!sync.hasLoadedOnce && sync.status === 'syncing'))) return <LoadingState label="Loading inventory…" />;
+  if (empty && (sync.status === 'loading' || (!sync.hasLoadedOnce && sync.status === 'syncing'))) return <PageSkeleton variant="table" label="Loading inventory…" />;
   if (empty && !sync.hasLoadedOnce && (sync.status === 'error' || sync.status === 'offline' || sync.status === 'auth')) {
     return (
       <div className="p-6 max-w-3xl mx-auto">

@@ -25,10 +25,11 @@ import { digitsOnly, fillTemplate, formatPhone, last10, samePhone, toE164Digits 
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { can } from '../../core/rbac';
-import { Badge, Button, Card, EmptyState, ErrorState, Field, InlineNotice, LoadingState, Select, StageBadge, cx, inputCls, labelCls } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Field, InlineNotice, Select, StageBadge, cx, inputCls, labelCls } from '../../components/ui';
 import { AMAYA_KNOWLEDGE } from '../ai/amayaKnowledge';
 import { useCompany, useFeature } from '../../core/tenant';
 import type { OpenCopilot } from '../ai/copilotContext';
+import { ListSkeleton, ChatSkeleton } from '../../components/Skeletons';
 
 export interface Chat360ViewProps {
   leads: Lead[];
@@ -784,7 +785,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
               </div>
               <div className="flex-1 overflow-y-auto">
                 {contactsLoading && !contacts ? (
-                  <LoadingState label="Loading conversations…" />
+                  <ListSkeleton rows={8} className="px-3" label="Loading conversations…" />
                 ) : contactsError && !contacts ? (
                   <div className="p-3"><ErrorState compact title="Could not load conversations" message={contactsError} onRetry={() => loadContacts()} /></div>
                 ) : !contacts || contacts.length === 0 ? (
@@ -1059,7 +1060,7 @@ const MessageList: React.FC<{ groups: Array<{ key: string; label: string; items:
     if (!el) return;
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
-  if (loading) return <div className="flex-1"><LoadingState label="Loading conversation…" /></div>;
+  if (loading) return <div className="flex-1"><ChatSkeleton className="p-4" /></div>;
   if (error && count === 0) return <div className="flex-1 p-4"><ErrorState title="Could not load messages" message={error} onRetry={onRetry} /></div>;
   if (count === 0) return <div className="flex-1 flex"><EmptyState icon={<MessageSquare size={20} />} title="No messages yet" description="Say hello — the first message starts the conversation history for this contact." className="m-auto" /></div>;
   return (

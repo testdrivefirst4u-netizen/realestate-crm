@@ -10,8 +10,9 @@ import { api } from '../../../core/api';
 import { compareDates, formatDateTime } from '../../../core/dates';
 import { reportError } from '../../../core/errors';
 import { toast } from '../../../core/notifications';
-import { Badge, Button, EmptyState, ErrorState, Field, InlineNotice, LoadingState, Select, cx, inputCls } from '../../../components/ui';
+import { Badge, Button, EmptyState, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
 import { MAX_UPLOAD_BYTES, fileToBase64, formatBytes, useLazyResource } from '../shared';
+import { ListSkeleton } from '../../../components/Skeletons';
 
 const CATEGORIES = ['Documents', 'Other Files'];
 
@@ -92,7 +93,7 @@ export const FilesTab: React.FC<{ lead: Lead; active: boolean; onChanged?: () =>
           Refresh
         </Button>
       </div>
-      {files.loading && !files.data && <LoadingState label="Loading files…" className="py-6" />}
+      {files.loading && !files.data && <ListSkeleton rows={3} label="Loading files…" />}
       {files.error && !files.data && <ErrorState compact title="Files could not load" message={files.error} onRetry={() => void files.reload()} />}
       {files.data && list.length === 0 && <EmptyState icon={<Paperclip size={20} />} title="No files yet" description="Documents, call recordings and transcripts for this enquiry are stored with it on the CRM server and listed here." className="py-6" />}
 

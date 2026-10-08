@@ -7,7 +7,8 @@ import { F } from '../../core/config';
 import { computeKpis, monthlySeries, availableMonths } from '../../core/analytics';
 import { formatDateTime, formatRelative, formatTime, getPresetRange, listMonths, currentMonthKey, previousMonthKey, monthLabel } from '../../core/dates';
 import { formatHours, formatPercent, pctChange } from '../../core/format';
-import { Bar, Button, Card, DateFilterValue, DateRangeFilter, EmptyState, ErrorState, KpiTile, LoadingState, Select, resolveDateFilter, StageBadge } from '../../components/ui';
+import { Bar, Button, Card, DateFilterValue, DateRangeFilter, EmptyState, ErrorState, KpiTile, Select, resolveDateFilter, StageBadge } from '../../components/ui';
+import { PageSkeleton } from '../../components/Skeletons';
 
 interface Props {
   leads: Lead[];
@@ -67,7 +68,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
 
   /* ----------------------------- states --------------------------------- */
   const noData = leads.length === 0 && tasks.length === 0;
-  if (noData && (sync.status === 'loading' || (!sync.hasLoadedOnce && sync.status === 'syncing'))) return <LoadingState label="Loading live CRM data…" />;
+  if (noData && (sync.status === 'loading' || (!sync.hasLoadedOnce && sync.status === 'syncing'))) return <PageSkeleton variant="dashboard" label="Loading live CRM data…" />;
   if (noData && (sync.status === 'error' || sync.status === 'offline' || sync.status === 'auth')) {
     return (
       <div className="p-6 max-w-3xl mx-auto">

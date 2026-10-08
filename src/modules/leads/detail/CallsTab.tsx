@@ -12,8 +12,9 @@ import { formatDuration } from '../../../core/format';
 import { reportError } from '../../../core/errors';
 import { toast } from '../../../core/notifications';
 import { telLink } from '../../../core/phone';
-import { Badge, Button, EmptyState, ErrorState, Field, InlineNotice, LoadingState, Select, cx, inputCls } from '../../../components/ui';
+import { Badge, Button, EmptyState, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
 import { CALL_OUTCOMES, MAX_UPLOAD_BYTES, callStatusForOutcome, fileToBase64, formatBytes, useLazyResource } from '../shared';
+import { ListSkeleton } from '../../../components/Skeletons';
 
 interface Props {
   lead: Lead;
@@ -212,7 +213,7 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
           Refresh
         </Button>
       </div>
-      {calls.loading && !calls.data && <LoadingState label="Loading calls…" className="py-6" />}
+      {calls.loading && !calls.data && <ListSkeleton rows={4} label="Loading calls…" />}
       {calls.error && !calls.data && <ErrorState compact title="Calls could not load" message={calls.error} onRetry={() => void calls.reload()} />}
       {calls.data && list.length === 0 && <EmptyState icon={<Phone size={20} />} title="No calls logged" description="Log the first call above. Calls from a connected telephony provider also appear here automatically." className="py-6" />}
 

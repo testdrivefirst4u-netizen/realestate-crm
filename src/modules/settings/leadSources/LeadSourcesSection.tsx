@@ -13,7 +13,7 @@ import { formatDateTime, formatDistance } from '../../../core/dates';
 import { reportError, toAppError } from '../../../core/errors';
 import { toast } from '../../../core/notifications';
 import { useFeature } from '../../../core/tenant';
-import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Modal } from '../../../components/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Modal } from '../../../components/ui';
 import type { CanFn } from '../types';
 import { ApiKeyPanel, IntegrationGuide } from './IntegrationGuide';
 import { SourceDetail } from './SourceDetail';
@@ -25,6 +25,7 @@ import { SheetSummary, syncSheetSource } from '../sheets/sheetSource';
 import { useGoogleConnections, useGoogleStatus } from '../sheets/useGoogleStatus';
 import { MetaConnectDialog, MetaConnectPanel, MetaErrorNotice, MetaLastError, MetaSourceActions, MetaStatusWithUrl, MetaSummary, useMetaStatus } from '../meta/MetaLeads';
 import { metaErrorText } from '../meta/metaUtils';
+import { ListSkeleton } from '../../../components/Skeletons';
 
 export interface LeadSourcesSectionProps {
   can: CanFn;
@@ -147,7 +148,7 @@ const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions
           {metaNotice && <MetaErrorNotice message={metaNotice} connectUrl={connectUrl} onDismiss={() => setMetaNotice('')} />}
           {metaEnabled && canManage && <MetaConnectPanel status={meta.status} loading={meta.loading} error={meta.error} onRetry={meta.reload} />}
           {error && <ErrorState compact title="Could not load the lead sources" message={error} onRetry={load} />}
-          {!sources && loading && <LoadingState label="Loading lead sources…" />}
+          {!sources && loading && <ListSkeleton rows={4} label="Loading lead sources…" />}
           {sources && sources.length === 0 && (
             <EmptyState
               icon={<Globe size={22} />}

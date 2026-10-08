@@ -13,10 +13,11 @@ import { compareDates, dateKey, formatDate, formatDateTime, formatTime } from '.
 import { fillTemplate, formatPhone, toE164Digits, whatsappLink } from '../../../core/phone';
 import { reportError } from '../../../core/errors';
 import { truncate } from '../../../core/format';
-import { Button, EmptyState, ErrorState, InlineNotice, LoadingState, cx, inputCls } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, InlineNotice, cx, inputCls } from '../../../components/ui';
 import type { OpenCopilot } from '../../ai/copilotContext';
 import { useLazyResource } from '../shared';
 import { useCompany, useFeature } from '../../../core/tenant';
+import { ChatSkeleton } from '../../../components/Skeletons';
 
 interface Props {
   lead: Lead;
@@ -139,7 +140,7 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
       </div>
 
       <div ref={listRef} className="flex-1 bg-[#EFE9E1] rounded-xl border border-[#D2C9BF] p-3 overflow-y-auto max-h-[52vh] space-y-2">
-        {chat.loading && !chat.data && <LoadingState label="Loading conversation…" className="py-8" />}
+        {chat.loading && !chat.data && <ChatSkeleton className="py-4" />}
         {chat.error && !chat.data && <ErrorState compact title="Messages could not load" message={chat.error} onRetry={() => void chat.reload()} />}
         {chat.data && messages.length === 0 && <EmptyState icon={<MessageCircle size={20} />} title="No messages yet" description="Send the first message below. Replies arrive here automatically through the Chat360 webhook." className="py-8" />}
         {messages.map((m, i) => {

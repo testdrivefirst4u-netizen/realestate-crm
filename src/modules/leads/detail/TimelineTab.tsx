@@ -30,8 +30,9 @@ import {
 import { TimelineEntry } from '../../../types/crm';
 import { api } from '../../../core/api';
 import { compareDates, formatDateTime } from '../../../core/dates';
-import { Button, EmptyState, ErrorState, LoadingState, cx } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, cx } from '../../../components/ui';
 import { useLazyResource } from '../shared';
+import { ListSkeleton } from '../../../components/Skeletons';
 
 const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
   lead_created: { icon: <UserPlus size={13} />, cls: 'bg-[#A9825A]/15 text-[#86633E]' },
@@ -99,7 +100,7 @@ export const TimelineTab: React.FC<{ leadId: string; active: boolean; version?: 
         </div>
       </div>
 
-      {timeline.loading && !timeline.data && <LoadingState label="Loading timeline…" className="py-8" />}
+      {timeline.loading && !timeline.data && <ListSkeleton rows={5} label="Loading timeline…" />}
       {timeline.error && !timeline.data && <ErrorState compact title="Timeline could not load" message={timeline.error} onRetry={() => void timeline.reload()} />}
       {timeline.data && entries.length === 0 && (
         <EmptyState icon={<History size={20} />} title="No history yet" description="Stage changes, follow-ups, calls, WhatsApp messages, tasks and uploads will appear here as they happen." className="py-8" />

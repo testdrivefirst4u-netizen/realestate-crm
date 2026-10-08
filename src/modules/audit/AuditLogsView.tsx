@@ -3,7 +3,8 @@ import { Clock, History, RefreshCw, Search } from 'lucide-react';
 import { api } from '../../core/api';
 import { formatDateTime } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
-import { Button, Card, EmptyState, ErrorState, LoadingState, Select, inputCls } from '../../components/ui';
+import { Button, Card, EmptyState, ErrorState, Select, inputCls } from '../../components/ui';
+import { TableSkeleton } from '../../components/Skeletons';
 
 /** Row shape returned by `getAuditLog`. */
 export interface AuditRow {
@@ -118,7 +119,7 @@ export const AuditLogsView: React.FC = () => {
       </div>
 
       {rows === null && loading ? (
-        <LoadingState label="Loading the audit log…" />
+        <TableSkeleton rows={8} cols={4} toolbar={false} label="Loading the audit log…" />
       ) : error && !rows ? (
         <ErrorState title="Could not load the audit log" message={error} onRetry={load} />
       ) : rows && rows.length === 0 ? (

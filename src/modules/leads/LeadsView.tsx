@@ -22,7 +22,6 @@ import {
   DateRangeFilter,
   EmptyState,
   ErrorState,
-  LoadingState,
   Select,
   StageBadge,
   cx,
@@ -30,6 +29,7 @@ import {
 } from '../../components/ui';
 import { LeadStars } from './shared';
 import { LeadSortKey, sortLeads } from './sorting';
+import { PageSkeleton } from '../../components/Skeletons';
 
 export interface LeadsViewProps {
   leads: Lead[];
@@ -153,7 +153,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   /* ------------------------------- states -------------------------------- */
 
   if (leads.length === 0 && (sync.status === 'loading' || (!sync.hasLoadedOnce && sync.status === 'syncing'))) {
-    return <LoadingState label="Loading enquiries…" />;
+    return <PageSkeleton variant="table" label="Loading enquiries…" />;
   }
 
   const filterBanner = activeFilterLabel ? (

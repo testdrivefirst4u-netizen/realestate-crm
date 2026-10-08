@@ -14,7 +14,7 @@ import { Sidebar } from '@/src/components/Sidebar';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { Toasts } from '@/src/components/Toasts';
-import { LoadingState } from '@/src/components/ui';
+import { PageSkeleton, VIEW_SKELETON } from '@/src/components/Skeletons';
 import { AppLogo } from '@/src/components/AppLogo';
 import { LeadDetailModal } from '@/src/modules/leads/LeadDetailModal';
 import { AddLeadModal } from '@/src/modules/leads/AddLeadModal';
@@ -306,7 +306,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
 
             <main className="flex-1 overflow-y-auto">
               <ErrorBoundary scope={`view:${currentView || pathname}`} inline resetKey={pathname}>
-                {mounted ? children : <LoadingState label="Loading…" />}
+                {mounted ? children : <PageSkeleton variant={currentView ? VIEW_SKELETON[currentView] : undefined} />}
               </ErrorBoundary>
             </main>
           </div>
