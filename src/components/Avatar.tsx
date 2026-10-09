@@ -63,13 +63,13 @@ export const Avatar: React.FC<AvatarProps> = ({ user, size = 'sm', className, ti
 
   if (valid && broken !== photo) {
     return (
-      <span className={join(base, 'bg-[#ECE8E1]')} title={title}>
+      <span className={join(base, 'bg-[#E6EFF6]')} title={title}>
         <img src={photo} alt={name || 'Profile photo'} className="w-full h-full object-cover" draggable={false} onError={() => setBroken(photo)} />
       </span>
     );
   }
   return (
-    <span className={join(base, 'bg-[#A9825A] text-white font-bold leading-none')} title={title} role="img" aria-label={name || 'User'}>
+    <span className={join(base, 'bg-[#0B6BB0] text-white font-bold leading-none')} title={title} role="img" aria-label={name || 'User'}>
       {initials(name)}
     </span>
   );

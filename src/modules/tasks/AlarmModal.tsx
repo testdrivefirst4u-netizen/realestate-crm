@@ -28,7 +28,7 @@ function minutesUntilTomorrowTen(now = new Date()): { minutes: number; at: Date 
 
 function fireConfetti() {
   try {
-    confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 }, colors: ['#1D2F3F', '#A9825A', '#7C8B78', '#E7D8C6'] });
+    confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 }, colors: ['#0B2A44', '#0B6BB0', '#0E8A86', '#C4D8EA'] });
   } catch {
     /* canvas not available (tests / SSR) */
   }
@@ -104,8 +104,8 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ task, onSnooze, onComple
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-labelledby="alarm-title">
-      <div className="absolute inset-0 bg-[#1D2F3F]/60 backdrop-blur-xs" onClick={dismiss} />
-      <div className="relative bg-[#FDFCFA] rounded-2xl shadow-2xl border border-[#D2C9BF] max-w-md w-full overflow-hidden text-center animate-in zoom-in-95 duration-150">
+      <div className="absolute inset-0 bg-[#0B2A44]/60 backdrop-blur-xs" onClick={dismiss} />
+      <div className="relative bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#D3E3F0] max-w-md w-full overflow-hidden text-center animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="bg-[#F5EDE8] border-b border-[#B06A55]/30 p-5 flex flex-col items-center relative">
           <button onClick={dismiss} className="absolute top-3 right-3 p-1.5 rounded-md text-[#B06A55] hover:text-[#8A3E28] hover:bg-white/60" aria-label="Dismiss alarm"><X size={16} /></button>
@@ -118,36 +118,36 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ task, onSnooze, onComple
 
         {/* Body */}
         <div className="p-6">
-          <h3 className="text-lg font-bold text-[#1D2F3F] leading-snug break-words">{task.name}</h3>
+          <h3 className="text-lg font-bold text-[#0B2A44] leading-snug break-words">{task.name}</h3>
 
           <div className="mt-2 flex flex-col items-center gap-2">
             {task.leadId ? (
-              <button onClick={openLead} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#86633E] hover:text-[#1D2F3F] px-3 py-1 rounded-lg hover:bg-[#F4F0EB]">
+              <button onClick={openLead} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0B5E9C] hover:text-[#0B2A44] px-3 py-1 rounded-lg hover:bg-[#F2F7FB]">
                 <User size={14} />
                 <span>{task.lead || task.leadId}</span>
                 <ExternalLink size={12} className="opacity-70" />
               </button>
             ) : task.lead && task.lead !== 'General' ? (
-              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#6B5F57]"><User size={14} />{task.lead}</span>
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#5E778C]"><User size={14} />{task.lead}</span>
             ) : null}
-            <span className="inline-flex items-center gap-1.5 text-xs text-[#6B5F57] bg-[#F4F0EB] px-3 py-1.5 rounded-full border border-[#D2C9BF]">
+            <span className="inline-flex items-center gap-1.5 text-xs text-[#5E778C] bg-[#F2F7FB] px-3 py-1.5 rounded-full border border-[#D3E3F0]">
               <Clock size={13} />
               <span>Scheduled {formatDateTime(task.datetime, '—')}</span>
             </span>
-            {task.assignedTo && <span className="text-[11px] text-[#9E948D]">Assigned to {task.assignedTo}</span>}
+            {task.assignedTo && <span className="text-[11px] text-[#7E93A6]">Assigned to {task.assignedTo}</span>}
           </div>
 
           {task.checklist && task.checklist.length > 0 && (
-            <div className="mt-4 text-left bg-[#F4F0EB] p-3 rounded-lg border border-[#D2C9BF] max-h-36 overflow-y-auto">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] block mb-1.5">
+            <div className="mt-4 text-left bg-[#F2F7FB] p-3 rounded-lg border border-[#D3E3F0] max-h-36 overflow-y-auto">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] block mb-1.5">
                 Checklist · {pendingChecks} pending
               </span>
               {task.checklist.map((item, idx) => (
-                <div key={idx} className="text-xs text-[#3D3530] flex items-start gap-2 py-0.5">
-                  <span className={cx('mt-0.5 w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0', item.checked ? 'bg-[#7C8B78] border-[#7C8B78] text-white' : 'border-[#B8AFA7] bg-white')}>
+                <div key={idx} className="text-xs text-[#0F2233] flex items-start gap-2 py-0.5">
+                  <span className={cx('mt-0.5 w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0', item.checked ? 'bg-[#0E8A86] border-[#0E8A86] text-white' : 'border-[#A9BDCD] bg-white')}>
                     {item.checked && <Check size={10} />}
                   </span>
-                  <span className={item.checked ? 'line-through text-[#9E948D]' : 'font-medium'}>{item.text}</span>
+                  <span className={item.checked ? 'line-through text-[#7E93A6]' : 'font-medium'}>{item.text}</span>
                 </div>
               ))}
             </div>
@@ -155,9 +155,9 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ task, onSnooze, onComple
         </div>
 
         {/* Actions */}
-        <div className="p-5 border-t border-[#D2C9BF] bg-[#F4F0EB] space-y-3">
+        <div className="p-5 border-t border-[#D3E3F0] bg-[#F2F7FB] space-y-3">
           <div>
-            <div className="text-[10px] uppercase tracking-wider font-bold text-[#6B5F57] mb-2 inline-flex items-center gap-1"><Moon size={11} />Snooze for</div>
+            <div className="text-[10px] uppercase tracking-wider font-bold text-[#5E778C] mb-2 inline-flex items-center gap-1"><Moon size={11} />Snooze for</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {snoozeOptions.map((o) => (
                 <Button key={o.label} variant="secondary" size="sm" disabled={busy !== null} onClick={() => snooze(o.minutes)} title={o.hint} className="w-full">

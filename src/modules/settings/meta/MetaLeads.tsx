@@ -61,13 +61,13 @@ export function useMetaStatus(enabled: boolean): { status: MetaStatusWithUrl | n
 export const MetaConnectPanel: React.FC<{ status: MetaStatusWithUrl | null; loading: boolean; error: string; onRetry: () => void }> = ({ status, loading, error, onRetry }) => {
   const notSetUp = !!status && (!status.configured || !status.connectUrl);
   return (
-    <section aria-labelledby="meta-connect-title" className="rounded-xl border border-[#D2C9BF] bg-white p-4 space-y-3">
+    <section aria-labelledby="meta-connect-title" className="rounded-xl border border-[#D3E3F0] bg-white p-4 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <div className="flex items-start gap-3 min-w-0">
           <span className="flex-shrink-0 w-9 h-9 rounded-lg bg-[#1877F2] text-white flex items-center justify-center" aria-hidden="true"><Facebook size={18} /></span>
           <div className="min-w-0">
-            <h4 id="meta-connect-title" className="text-sm font-bold text-[#1D2F3F]">Facebook & Instagram lead ads</h4>
-            <p className="text-xs text-[#6B5F57]">Connect a Facebook Page and every lead from its Instant Forms — on Facebook or Instagram — arrives here within seconds.</p>
+            <h4 id="meta-connect-title" className="text-sm font-bold text-[#0B2A44]">Facebook & Instagram lead ads</h4>
+            <p className="text-xs text-[#5E778C]">Connect a Facebook Page and every lead from its Instant Forms — on Facebook or Instagram — arrives here within seconds.</p>
           </div>
         </div>
         <div className="flex-shrink-0">
@@ -94,16 +94,16 @@ export const MetaHelp: React.FC = () => {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
-    <div className="rounded-lg border border-[#ECE8E1] bg-[#FDFCFA]">
-      <button type="button" className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#6B5F57] hover:text-[#1D2F3F]" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+    <div className="rounded-lg border border-[#E6EFF6] bg-[#FFFFFF]">
+      <button type="button" className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#5E778C] hover:text-[#0B2A44]" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} aria-hidden="true" />}
         <HelpCircle size={13} aria-hidden="true" /> Help: testing and lead access
       </button>
       {open && (
-        <ul id={id} className="px-3 pb-3 pl-8 list-disc space-y-1.5 text-xs text-[#3D3530]">
+        <ul id={id} className="px-3 pb-3 pl-8 list-disc space-y-1.5 text-xs text-[#0F2233]">
           <li>
             Test it with Meta’s{' '}
-            <a href={LEADS_TESTING_TOOL_URL} target="_blank" rel="noopener noreferrer" className="text-[#A9825A] font-semibold hover:underline inline-flex items-center gap-0.5">
+            <a href={LEADS_TESTING_TOOL_URL} target="_blank" rel="noopener noreferrer" className="text-[#0B6BB0] font-semibold hover:underline inline-flex items-center gap-0.5">
               Lead Ads Testing Tool <ExternalLink size={10} aria-hidden="true" /><span className="sr-only">(opens in a new tab)</span>
             </a>{' '}
             (developers.facebook.com/tools/lead-ads-testing): choose the Page and form, submit a test lead and it appears in the intake log here.
@@ -150,24 +150,24 @@ export const FormFilterPicker: React.FC<{
       <legend className="sr-only">{label}</legend>
       <div className="flex flex-wrap gap-3 text-xs" role="radiogroup" aria-label={label}>
         <label className="inline-flex items-center gap-1.5 cursor-pointer">
-          <input type="radio" name={`${idPrefix}-forms`} className="accent-[#A9825A]" checked={value.allForms} onChange={() => onChange({ ...value, allForms: true })} />
+          <input type="radio" name={`${idPrefix}-forms`} className="accent-[#0B6BB0]" checked={value.allForms} onChange={() => onChange({ ...value, allForms: true })} />
           All forms
         </label>
         <label className={cx('inline-flex items-center gap-1.5', all.length ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed')}>
-          <input type="radio" name={`${idPrefix}-forms`} className="accent-[#A9825A]" checked={!value.allForms} disabled={!all.length} onChange={() => onChange({ ...value, allForms: false })} />
+          <input type="radio" name={`${idPrefix}-forms`} className="accent-[#0B6BB0]" checked={!value.allForms} disabled={!all.length} onChange={() => onChange({ ...value, allForms: false })} />
           Only these forms
         </label>
       </div>
-      {!all.length && <p className="text-[10px] text-[#9E948D] mt-1">No lead forms found on this Page yet — new forms are included automatically.</p>}
+      {!all.length && <p className="text-[10px] text-[#7E93A6] mt-1">No lead forms found on this Page yet — new forms are included automatically.</p>}
       {!value.allForms && all.length > 0 && (
         <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
           {all.map((f) => {
             const on = value.formIds.includes(f.id);
             const st = formStatusLabel(f.status);
             return (
-              <label key={f.id} className={cx('flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer', on ? 'border-[#A9825A] bg-[#FBF6EF]' : 'border-[#D2C9BF] bg-white')}>
-                <input type="checkbox" className="accent-[#A9825A]" checked={on} onChange={() => onChange({ ...value, formIds: on ? value.formIds.filter((x) => x !== f.id) : [...value.formIds, f.id] })} />
-                <span className="min-w-0 flex-1 truncate text-[#1D2F3F]">{f.name || f.id}</span>
+              <label key={f.id} className={cx('flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer', on ? 'border-[#0B6BB0] bg-[#F5F9FC]' : 'border-[#D3E3F0] bg-white')}>
+                <input type="checkbox" className="accent-[#0B6BB0]" checked={on} onChange={() => onChange({ ...value, formIds: on ? value.formIds.filter((x) => x !== f.id) : [...value.formIds, f.id] })} />
+                <span className="min-w-0 flex-1 truncate text-[#0B2A44]">{f.name || f.id}</span>
                 {st && <Badge tone="muted">{st}</Badge>}
               </label>
             );
@@ -265,10 +265,10 @@ export const MetaConnectDialog: React.FC<{
       {state.kind === 'error' && <ErrorState title="Could not load your Facebook Pages" message={state.message} onRetry={load} />}
       {state.kind === 'gone' && (
         <div className="text-center py-6 space-y-3">
-          <p className="text-sm text-[#3D3530]">This Facebook login has expired or was already used — logins are kept for 30 minutes.</p>
+          <p className="text-sm text-[#0F2233]">This Facebook login has expired or was already used — logins are kept for 30 minutes.</p>
           {connectUrl
             ? <Button variant="primary" icon={<Facebook size={14} />} onClick={() => goToMetaConnect(connectUrl)}>Connect again</Button>
-            : <p className="text-xs text-[#6B5F57]">Close this window and click “Connect Facebook / Instagram” again.</p>}
+            : <p className="text-xs text-[#5E778C]">Close this window and click “Connect Facebook / Instagram” again.</p>}
         </div>
       )}
       {state.kind === 'ready' && (
@@ -291,12 +291,12 @@ export const MetaConnectDialog: React.FC<{
                 const c = choices[p.id] || { checked: false, allForms: true, formIds: [] };
                 const cbId = `meta-page-${p.id}`;
                 return (
-                  <div key={p.id} className={cx('rounded-lg border p-3', c.checked && sel.selectable ? 'border-[#A9825A] bg-[#FBF6EF]' : 'border-[#D2C9BF] bg-white', !sel.selectable && 'opacity-70')}>
+                  <div key={p.id} className={cx('rounded-lg border p-3', c.checked && sel.selectable ? 'border-[#0B6BB0] bg-[#F5F9FC]' : 'border-[#D3E3F0] bg-white', !sel.selectable && 'opacity-70')}>
                     <div className="flex items-start gap-2">
-                      <input id={cbId} type="checkbox" className="mt-0.5 accent-[#A9825A]" checked={c.checked && sel.selectable} disabled={!sel.selectable} aria-describedby={sel.reason ? `${cbId}-why` : undefined} onChange={(e) => setChoice(p.id, { checked: e.target.checked })} />
+                      <input id={cbId} type="checkbox" className="mt-0.5 accent-[#0B6BB0]" checked={c.checked && sel.selectable} disabled={!sel.selectable} aria-describedby={sel.reason ? `${cbId}-why` : undefined} onChange={(e) => setChoice(p.id, { checked: e.target.checked })} />
                       <div className="min-w-0 flex-1">
-                        <label htmlFor={cbId} className={cx('text-sm font-bold text-[#1D2F3F]', sel.selectable && 'cursor-pointer')}>{p.name || p.id}</label>
-                        <div className="text-[10px] text-[#9E948D]">
+                        <label htmlFor={cbId} className={cx('text-sm font-bold text-[#0B2A44]', sel.selectable && 'cursor-pointer')}>{p.name || p.id}</label>
+                        <div className="text-[10px] text-[#7E93A6]">
                           Page ID {p.id} · {p.forms?.length ? `${p.forms.length} lead form${p.forms.length === 1 ? '' : 's'}` : 'no lead forms yet'}
                         </div>
                         {sel.reason && <div id={`${cbId}-why`} className="text-[11px] text-[#8A3E28] mt-0.5">{sel.reason}</div>}
@@ -314,17 +314,17 @@ export const MetaConnectDialog: React.FC<{
             </fieldset>
           )}
           {pages.length > 0 && (
-            <fieldset disabled={busy} className="space-y-3 min-w-0 border-t border-[#ECE8E1] pt-4">
-              <legend className="text-xs font-bold text-[#1D2F3F]">Settings for the new sources <span className="font-normal text-[#6B5F57]">(you can change them per Page later)</span></legend>
+            <fieldset disabled={busy} className="space-y-3 min-w-0 border-t border-[#E6EFF6] pt-4">
+              <legend className="text-xs font-bold text-[#0B2A44]">Settings for the new sources <span className="font-normal text-[#5E778C]">(you can change them per Page later)</span></legend>
               <div>
                 <label htmlFor="meta-defaults-label" className={labelCls}>Enquiry Source label</label>
                 <input id="meta-defaults-label" className={inputCls} value={defaults.sourceLabel} maxLength={60} placeholder="Facebook" onChange={(e) => setDefaults({ ...defaults, sourceLabel: e.target.value })} />
-                <div className="text-[10px] text-[#9E948D] mt-1">Written to “Enquiry Source” on each new lead.</div>
+                <div className="text-[10px] text-[#7E93A6] mt-1">Written to “Enquiry Source” on each new lead.</div>
               </div>
               <RoutingFields value={defaults} onChange={(patch) => setDefaults((d) => ({ ...d, ...patch }))} stageOptions={stageOptions} rmOptions={rmOptions} idPrefix="meta-defaults" />
             </fieldset>
           )}
-          {state.expiresAt && <p className="text-[10px] text-[#9E948D]">This Facebook login can be used until {formatDateTime(state.expiresAt)}.</p>}
+          {state.expiresAt && <p className="text-[10px] text-[#7E93A6]">This Facebook login can be used until {formatDateTime(state.expiresAt)}.</p>}
         </div>
       )}
     </Modal>
@@ -337,25 +337,25 @@ export const MetaConnectDialog: React.FC<{
 export const MetaSummary: React.FC<{ meta: MetaSourceConfig | null | undefined; lastReceivedAt?: string }> = ({ meta, lastReceivedAt }) => {
   const last = meta?.lastLeadAt || lastReceivedAt || '';
   return (
-    <dl className="text-[11px] text-[#3D3530] grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
-      <dt className="text-[#9E948D]">Page</dt>
+    <dl className="text-[11px] text-[#0F2233] grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+      <dt className="text-[#7E93A6]">Page</dt>
       <dd className="min-w-0 truncate">
         {meta?.pageId ? (
-          <a href={facebookPageUrl(meta.pageId)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#A9825A] hover:underline font-semibold">
+          <a href={facebookPageUrl(meta.pageId)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#0B6BB0] hover:underline font-semibold">
             {meta.pageName || meta.pageId} <ExternalLink size={11} aria-hidden="true" /><span className="sr-only">(opens Facebook in a new tab)</span>
           </a>
-        ) : <span className="text-[#9E948D]">not set</span>}
+        ) : <span className="text-[#7E93A6]">not set</span>}
       </dd>
-      <dt className="text-[#9E948D]">Forms</dt>
+      <dt className="text-[#7E93A6]">Forms</dt>
       <dd className="truncate" title={meta?.formIds?.length ? (meta.formIds.map((id) => meta.forms?.find((f) => f.id === id)?.name || id).join(', ')) : undefined}>{formsSummary(meta)}</dd>
-      <dt className="text-[#9E948D]">Webhook</dt>
+      <dt className="text-[#7E93A6]">Webhook</dt>
       <dd>
         {meta?.subscribed
           ? <Badge tone="sage"><span className="inline-flex items-center gap-1"><ShieldCheck size={10} aria-hidden="true" />Subscribed</span></Badge>
           : <Badge tone="amber" title="Facebook is not sending this Page’s leads — click “Check connection”">Not subscribed</Badge>}
       </dd>
-      <dt className="text-[#9E948D]">Last lead</dt>
-      <dd>{last ? <span title={formatDateTime(last)}>{formatDistance(last)}</span> : <span className="text-[#9E948D]">none yet</span>}</dd>
+      <dt className="text-[#7E93A6]">Last lead</dt>
+      <dd>{last ? <span title={formatDateTime(last)}>{formatDistance(last)}</span> : <span className="text-[#7E93A6]">none yet</span>}</dd>
     </dl>
   );
 };
@@ -371,7 +371,7 @@ export const MetaLastError: React.FC<{ message: string; connectUrl?: string; can
         <span className="break-words">Last error: {message}</span>
         {reconnect && (
           <div className="mt-1 flex items-center gap-2 flex-wrap">
-            <span className="text-[#6B5F57]">The Facebook connection has expired — log in with Facebook again to renew it.</span>
+            <span className="text-[#5E778C]">The Facebook connection has expired — log in with Facebook again to renew it.</span>
             {canManage && connectUrl && <Button size="xs" icon={<Facebook size={11} />} onClick={() => goToMetaConnect(connectUrl)}>Reconnect</Button>}
           </div>
         )}
@@ -444,7 +444,7 @@ const BackfillDialog: React.FC<{ source: LeadSource; onClose: () => void; onDone
       subtitle={source.config?.meta?.pageName || source.name}
       footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" icon={<CloudDownload size={13} />} loading={busy} onClick={run}>Fetch leads</Button></>}
     >
-      <div className="space-y-3 text-sm text-[#3D3530]">
+      <div className="space-y-3 text-sm text-[#0F2233]">
         <p className="text-xs">Reads the Page’s lead forms from Facebook and adds any leads the CRM missed. Leads already in the CRM are not duplicated.</p>
         <div>
           <label htmlFor={`meta-backfill-${source.id}`} className={labelCls}>Period</label>
@@ -478,7 +478,7 @@ const DisconnectDialog: React.FC<{ source: LeadSource; onCancel: () => void; onD
       title="Disconnect this Facebook Page?"
       footer={<><Button variant="ghost" onClick={onCancel} disabled={busy}>Cancel</Button><Button variant="danger" icon={<Link2Off size={13} />} loading={busy} onClick={run}>Disconnect</Button></>}
     >
-      <div className="space-y-2 text-sm text-[#3D3530] leading-relaxed">
+      <div className="space-y-2 text-sm text-[#0F2233] leading-relaxed">
         <p><b>{pageName}</b> stops sending new leads to the CRM, and the lead source and its saved Facebook access are removed.</p>
         <p className="flex items-start gap-1.5 text-xs text-[#3C573A]"><CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" aria-hidden="true" />Leads it already created stay in the CRM. You can connect the Page again at any time.</p>
       </div>

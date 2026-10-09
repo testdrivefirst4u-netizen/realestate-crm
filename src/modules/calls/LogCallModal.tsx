@@ -293,13 +293,13 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Who */}
           <section className="space-y-3">
-            <h4 className="text-xs font-bold text-[#1D2F3F] uppercase tracking-wider">Who</h4>
-            <div className="rounded-xl border border-[#D2C9BF] bg-white p-3">
+            <h4 className="text-xs font-bold text-[#0B2A44] uppercase tracking-wider">Who</h4>
+            <div className="rounded-xl border border-[#D3E3F0] bg-white p-3">
               {lead ? (
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[#1D2F3F] truncate">{lead[F.NAME]} <span className="font-mono text-[10px] text-[#A9825A] ml-1">{lead[F.ID]}</span></div>
-                    <div className="text-[11px] text-[#6B5F57] mt-0.5 flex items-center gap-2 flex-wrap">
+                    <div className="text-sm font-semibold text-[#0B2A44] truncate">{lead[F.NAME]} <span className="font-mono text-[10px] text-[#0B6BB0] ml-1">{lead[F.ID]}</span></div>
+                    <div className="text-[11px] text-[#5E778C] mt-0.5 flex items-center gap-2 flex-wrap">
                       <StageBadge stage={lead[F.STAGE]} />
                       <span>{lead[F.UNIT_TYPE] || '—'}</span>
                       <span>· RM {lead[F.RM] || '—'}</span>
@@ -314,24 +314,24 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
                 <div>
                   <label className={labelCls}>Enquiry</label>
                   <div className="relative">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
                     <input autoFocus value={leadQuery} onChange={(e) => setLeadQuery(e.target.value)} placeholder="Search by name, phone or enquiry ID…" className={cx(inputCls, 'pl-8')} disabled={saving} />
                   </div>
                   {leadQuery.trim().length >= 2 && (
-                    <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-[#ECE8E1] divide-y divide-[#ECE8E1]">
-                      {results.length === 0 && <div className="p-2.5 text-xs text-[#9E948D]">No matching enquiries — you can still log the call by phone number.</div>}
+                    <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-[#E6EFF6] divide-y divide-[#E6EFF6]">
+                      {results.length === 0 && <div className="p-2.5 text-xs text-[#7E93A6]">No matching enquiries — you can still log the call by phone number.</div>}
                       {results.map((l) => (
-                        <button key={l[F.ID]} type="button" onClick={() => pickLead(l)} className="w-full text-left p-2.5 hover:bg-[#F4F0EB] flex items-center justify-between gap-2">
+                        <button key={l[F.ID]} type="button" onClick={() => pickLead(l)} className="w-full text-left p-2.5 hover:bg-[#F2F7FB] flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="text-xs font-semibold text-[#1D2F3F] truncate">{l[F.NAME]} <span className="font-mono text-[10px] text-[#A9825A] ml-1">{l[F.ID]}</span></div>
-                            <div className="text-[10px] text-[#6B5F57]">{formatPhone(l[F.PHONE]) || '—'} · {l[F.UNIT_TYPE] || '—'}</div>
+                            <div className="text-xs font-semibold text-[#0B2A44] truncate">{l[F.NAME]} <span className="font-mono text-[10px] text-[#0B6BB0] ml-1">{l[F.ID]}</span></div>
+                            <div className="text-[10px] text-[#5E778C]">{formatPhone(l[F.PHONE]) || '—'} · {l[F.UNIT_TYPE] || '—'}</div>
                           </div>
                           <StageBadge stage={l[F.STAGE]} />
                         </button>
                       ))}
                     </div>
                   )}
-                  <div className="text-[10px] text-[#9E948D] mt-1">Optional — the backend also matches the phone number to an existing enquiry.</div>
+                  <div className="text-[10px] text-[#7E93A6] mt-1">Optional — the backend also matches the phone number to an existing enquiry.</div>
                 </div>
               )}
             </div>
@@ -344,9 +344,9 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
               </Field>
             </div>
             <Field label="Direction">
-              <div className="inline-flex p-1 rounded-xl bg-[#EBE5DC] border border-[#D2C9BF]">
+              <div className="inline-flex p-1 rounded-xl bg-[#E3EDF5] border border-[#D3E3F0]">
                 {DIRECTIONS.map((d) => (
-                  <button key={d} type="button" onClick={() => setDirection(d)} className={cx('flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition', direction === d ? 'bg-white text-[#1D2F3F] shadow-sm' : 'text-[#6B5F57] hover:text-[#1D2F3F]')}>
+                  <button key={d} type="button" onClick={() => setDirection(d)} className={cx('flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition', direction === d ? 'bg-white text-[#0B2A44] shadow-sm' : 'text-[#5E778C] hover:text-[#0B2A44]')}>
                     {d === 'Outbound' ? <PhoneOutgoing size={12} /> : <PhoneIncoming size={12} />} {d}
                   </button>
                 ))}
@@ -354,10 +354,10 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
             </Field>
 
             {/* Timer */}
-            <div className="rounded-xl border border-[#D2C9BF] bg-[#F4F0EB] p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="rounded-xl border border-[#D3E3F0] bg-[#F2F7FB] p-3 flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Call timer</div>
-                <div className={cx('text-2xl font-bold tabular-nums', callState === 'active' ? 'text-[#B06A55]' : 'text-[#1D2F3F]')}>{formatDuration(callState === 'idle' ? Number(durationSec) || 0 : elapsed)}</div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Call timer</div>
+                <div className={cx('text-2xl font-bold tabular-nums', callState === 'active' ? 'text-[#B06A55]' : 'text-[#0B2A44]')}>{formatDuration(callState === 'idle' ? Number(durationSec) || 0 : elapsed)}</div>
                 {callState === 'active' && <div className="text-[10px] text-[#B06A55] font-semibold">● Call in progress</div>}
               </div>
               <div className="flex items-center gap-2">
@@ -375,7 +375,7 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
                 </Field>
                 <Field label="Calling app" hint={dialerIsCustom ? 'Custom link — change it in Settings → Integrations → Telephony.' : preset === 'zoho' ? ZOHO_VOICE_SHORT_HINT : 'Saved on this device.'}>
                   {dialerIsCustom ? (
-                    <div className="text-xs text-[#3D3530] pt-2 truncate" title={dialHref}>{dialerSummary(preset, settings.dialerTemplate)}</div>
+                    <div className="text-xs text-[#0F2233] pt-2 truncate" title={dialHref}>{dialerSummary(preset, settings.dialerTemplate)}</div>
                   ) : (
                     <Select
                       value={preset === 'zoho' ? 'zoho' : 'system'}
@@ -392,7 +392,7 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
 
           {/* Outcome */}
           <section className="space-y-3">
-            <h4 className="text-xs font-bold text-[#1D2F3F] uppercase tracking-wider">Outcome</h4>
+            <h4 className="text-xs font-bold text-[#0B2A44] uppercase tracking-wider">Outcome</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Status">
                 <Select value={status} onChange={(e) => setStatus(e.target.value as CallRecord['status'])} options={MANUAL_STATUSES} disabled={saving} />
@@ -405,27 +405,27 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
               <textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} className={inputCls} placeholder="What was discussed, objections, next step…" disabled={saving} />
             </Field>
 
-            <div className="rounded-xl border border-[#D2C9BF] bg-white p-3 space-y-3">
+            <div className="rounded-xl border border-[#D3E3F0] bg-white p-3 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Recording</div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Recording</div>
                 {recState === 'recording' && <span className="text-[10px] font-bold text-[#B06A55]">● Recording {formatDuration(recElapsed)}</span>}
               </div>
               <InlineNotice>
-                <div className="flex items-start gap-2"><AlertTriangle size={14} className="flex-shrink-0 mt-0.5 text-[#A9825A]" /><span>Browsers cannot record phone-line audio. Recordings come from your telephony provider (webhook) or an uploaded file. The voice note below records your microphone only — useful for a quick spoken summary right after the call.</span></div>
+                <div className="flex items-start gap-2"><AlertTriangle size={14} className="flex-shrink-0 mt-0.5 text-[#0B6BB0]" /><span>Browsers cannot record phone-line audio. Recordings come from your telephony provider (webhook) or an uploaded file. The voice note below records your microphone only — useful for a quick spoken summary right after the call.</span></div>
               </InlineNotice>
               {recError && <InlineNotice tone="warning">{recError}</InlineNotice>}
 
               {recording ? (
                 <div className="flex items-center gap-2 flex-wrap">
                   <audio controls src={recUrl} className="h-8 flex-1 min-w-[180px]" />
-                  <span className="text-[10px] text-[#6B5F57]">{formatDuration(Math.round(recording.durationMs / 1000))} · {Math.round(recording.blob.size / 1024)} KB</span>
+                  <span className="text-[10px] text-[#5E778C]">{formatDuration(Math.round(recording.durationMs / 1000))} · {Math.round(recording.blob.size / 1024)} KB</span>
                   <Button size="xs" variant="ghost" icon={<Trash2 size={11} />} onClick={discardRec} disabled={saving}>Discard</Button>
                 </div>
               ) : attached ? (
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <FileAudio size={14} className="text-[#A9825A]" />
-                  <span className="font-semibold text-[#1D2F3F] truncate max-w-[220px]">{attached.name}</span>
-                  <span className="text-[10px] text-[#6B5F57]">{Math.round(attached.size / 1024)} KB</span>
+                  <FileAudio size={14} className="text-[#0B6BB0]" />
+                  <span className="font-semibold text-[#0B2A44] truncate max-w-[220px]">{attached.name}</span>
+                  <span className="text-[10px] text-[#5E778C]">{Math.round(attached.size / 1024)} KB</span>
                   <Button size="xs" variant="ghost" icon={<Trash2 size={11} />} onClick={() => setAttached(null)} disabled={saving}>Remove</Button>
                 </div>
               ) : (
@@ -441,7 +441,7 @@ export const LogCallModal: React.FC<LogCallModalProps> = ({ open, leads, setting
                   <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={saving || recState !== 'idle'} icon={<FileAudio size={13} />}>Attach recording file</Button>
                 </div>
               )}
-              <div className="text-[10px] text-[#9E948D]">Stored with the lead's files (Call Recordings) after the call is saved; you can then transcribe and summarise it with AI. Requires the call to be linked to an enquiry.</div>
+              <div className="text-[10px] text-[#7E93A6]">Stored with the lead's files (Call Recordings) after the call is saved; you can then transcribe and summarise it with AI. Requires the call to be linked to an enquiry.</div>
             </div>
           </section>
         </div>

@@ -111,7 +111,7 @@ export const DEFAULT_SEGMENTS: ClientSegment[] = [
     id: 'SEG-0001',
     name: '🔥 Hot & Warm Pipeline',
     description: 'High-intent prospects in active evaluation or negotiating offers',
-    color: '#A9825A',
+    color: '#0B6BB0',
     matchType: 'ANY',
     rules: [
       { field: F.STAGE, operator: 'equals', value: STAGES.HOT },
@@ -124,7 +124,7 @@ export const DEFAULT_SEGMENTS: ClientSegment[] = [
     id: 'SEG-0002',
     name: '🏢 Luxury 3 BHK & 3.5 BHK Seekers',
     description: 'Clients interested in the larger residences',
-    color: '#1D2F3F',
+    color: '#0B2A44',
     matchType: 'ANY',
     rules: [
       { field: F.UNIT_TYPE, operator: 'equals', value: '3 BHK' },
@@ -137,7 +137,7 @@ export const DEFAULT_SEGMENTS: ClientSegment[] = [
     id: 'SEG-0003',
     name: '🚶 Site Visit Prospects & Walk-ins',
     description: 'Prospects scheduled for a site tour or who have already visited',
-    color: '#7C8B78',
+    color: '#0E8A86',
     matchType: 'ANY',
     rules: [
       { field: F.SITE_VISIT_STATUS, operator: 'contains', value: 'Scheduled' },
@@ -151,7 +151,7 @@ export const DEFAULT_SEGMENTS: ClientSegment[] = [
     id: 'SEG-0004',
     name: '👨‍👩‍👦 Enquiries for Elderly Parents',
     description: 'Sons and daughters looking for a residence for their parents',
-    color: '#6B5F57',
+    color: '#5E778C',
     matchType: 'ANY',
     rules: [
       { field: F.ENQUIRED_FOR, operator: 'contains', value: 'Parents' },

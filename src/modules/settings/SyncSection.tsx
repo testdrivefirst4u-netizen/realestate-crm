@@ -98,25 +98,25 @@ export const SyncSection: React.FC<SyncSectionProps> = ({ settings, serverSettin
       >
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-[#F4F0EB] border border-[#D2C9BF]">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Last sync</div>
-              <div className="font-semibold text-[#1D2F3F] mt-1">{sync.lastSyncAt ? formatRelative(sync.lastSyncAt) : 'Not synced yet'}</div>
+            <div className="p-3 rounded-xl bg-[#F2F7FB] border border-[#D3E3F0]">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Last sync</div>
+              <div className="font-semibold text-[#0B2A44] mt-1">{sync.lastSyncAt ? formatRelative(sync.lastSyncAt) : 'Not synced yet'}</div>
             </div>
-            <div className="p-3 rounded-xl bg-[#F4F0EB] border border-[#D2C9BF]">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Data version</div>
-              <div className="font-mono text-[11px] text-[#1D2F3F] mt-1 truncate" title={sync.version}>{sync.version || '—'}</div>
+            <div className="p-3 rounded-xl bg-[#F2F7FB] border border-[#D3E3F0]">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Data version</div>
+              <div className="font-mono text-[11px] text-[#0B2A44] mt-1 truncate" title={sync.version}>{sync.version || '—'}</div>
             </div>
-            <div className="p-3 rounded-xl bg-[#F4F0EB] border border-[#D2C9BF]">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Backend</div>
-              <div className="font-semibold text-[#1D2F3F] mt-1 truncate">{serverSettings?.company?.name || serverSettings?.appName || 'CRM'}{serverSettings?.version ? ` · v${serverSettings.version}` : ''}</div>
+            <div className="p-3 rounded-xl bg-[#F2F7FB] border border-[#D3E3F0]">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Backend</div>
+              <div className="font-semibold text-[#0B2A44] mt-1 truncate">{serverSettings?.company?.name || serverSettings?.appName || 'CRM'}{serverSettings?.version ? ` · v${serverSettings.version}` : ''}</div>
             </div>
           </div>
           {sync.lastError && sync.status === 'error' && <InlineNotice tone="warning">Last sync error: {sync.lastError}</InlineNotice>}
 
-          <div className="p-3 sm:p-4 rounded-xl bg-[#F4F0EB] border border-[#D2C9BF] flex flex-wrap items-center justify-between gap-3">
+          <div className="p-3 sm:p-4 rounded-xl bg-[#F2F7FB] border border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-bold text-[#1D2F3F]">Auto-sync interval</div>
-              <div className="text-[11px] text-[#6B5F57]">Background polling picks up colleagues’ changes. Minimum {SYNC.minIntervalSec}s.</div>
+              <div className="text-xs font-bold text-[#0B2A44]">Auto-sync interval</div>
+              <div className="text-[11px] text-[#5E778C]">Background polling picks up colleagues’ changes. Minimum {SYNC.minIntervalSec}s.</div>
             </div>
             <Select value={String(settings.autoSyncIntervalSec ?? SYNC.defaultIntervalSec)} onChange={(e) => onUpdateLocalSettings({ autoSyncIntervalSec: Number(e.target.value) })} options={INTERVALS} className="!w-auto font-semibold" />
           </div>
@@ -129,7 +129,7 @@ export const SyncSection: React.FC<SyncSectionProps> = ({ settings, serverSettin
             <Field label="WhatsApp opening message">
               <textarea rows={3} className={inputCls} value={wa} onChange={(e) => setWa(e.target.value)} />
             </Field>
-            <div className="text-[11px] text-[#6B5F57] p-2.5 rounded-lg bg-[#F4F0EB] border border-[#D2C9BF] inline-flex items-start gap-2"><MessageSquare size={12} className="mt-0.5 text-[#3C573A] flex-shrink-0" /><span>Preview: {fillTemplate(wa, SAMPLE) || '—'}</span></div>
+            <div className="text-[11px] text-[#5E778C] p-2.5 rounded-lg bg-[#F2F7FB] border border-[#D3E3F0] inline-flex items-start gap-2"><MessageSquare size={12} className="mt-0.5 text-[#3C573A] flex-shrink-0" /><span>Preview: {fillTemplate(wa, SAMPLE) || '—'}</span></div>
           </div>
           <div className="space-y-3">
             <Field label="Email subject">
@@ -145,7 +145,7 @@ export const SyncSection: React.FC<SyncSectionProps> = ({ settings, serverSettin
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card title="Time zone" subtitle="All dates and “today” calculations use the CRM time zone, not the browser’s">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs"><Globe size={14} className="text-[#A9825A]" /><span className="text-[#6B5F57]">Current:</span><strong className="text-[#1D2F3F]">{serverSettings?.timeZone || settings.timeZone}</strong></div>
+            <div className="flex items-center gap-2 text-xs"><Globe size={14} className="text-[#0B6BB0]" /><span className="text-[#5E778C]">Current:</span><strong className="text-[#0B2A44]">{serverSettings?.timeZone || settings.timeZone}</strong></div>
             {can('settings.edit') ? (
               <>
                 <div className="flex gap-2">
@@ -156,14 +156,14 @@ export const SyncSection: React.FC<SyncSectionProps> = ({ settings, serverSettin
                 {tzMsg && <InlineNotice tone={tzMsg.ok ? 'success' : 'warning'}>{tzMsg.message}</InlineNotice>}
               </>
             ) : (
-              <div className="text-[11px] text-[#9E948D]">Only an administrator can change the time zone.</div>
+              <div className="text-[11px] text-[#7E93A6]">Only an administrator can change the time zone.</div>
             )}
           </div>
         </Card>
 
         <Card title="Desktop notifications" subtitle="Alerts for new enquiries, due follow-ups and chats, even when the tab is in the background">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-xs"><Bell size={14} className="text-[#A9825A]" /><span className="text-[#6B5F57]">Browser permission:</span><Badge tone={perm === 'granted' ? 'sage' : perm === 'denied' ? 'rust' : 'amber'}>{perm}</Badge></div>
+            <div className="flex items-center gap-2 text-xs"><Bell size={14} className="text-[#0B6BB0]" /><span className="text-[#5E778C]">Browser permission:</span><Badge tone={perm === 'granted' ? 'sage' : perm === 'denied' ? 'rust' : 'amber'}>{perm}</Badge></div>
             {perm === 'denied' && <InlineNotice tone="warning">Notifications are blocked for this site. Allow them from the browser’s site settings (the lock icon in the address bar) and reload.</InlineNotice>}
             <div className="flex items-center gap-2 flex-wrap">
               {perm !== 'granted' && perm !== 'denied' && <Button variant="primary" onClick={requestPermission}>Enable desktop alerts</Button>}

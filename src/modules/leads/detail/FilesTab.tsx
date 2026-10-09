@@ -55,9 +55,9 @@ export const FilesTab: React.FC<{ lead: Lead; active: boolean; onChanged?: () =>
 
   return (
     <div className="space-y-4">
-      <div className="bg-[#F4F0EB] p-4 rounded-xl border border-[#D2C9BF] space-y-3">
-        <div className="flex items-center gap-2 text-xs font-bold text-[#1D2F3F]">
-          <Upload size={14} className="text-[#A9825A]" />
+      <div className="bg-[#F2F7FB] p-4 rounded-xl border border-[#D3E3F0] space-y-3">
+        <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44]">
+          <Upload size={14} className="text-[#0B6BB0]" />
           Upload a file to this enquiry
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -69,7 +69,7 @@ export const FilesTab: React.FC<{ lead: Lead; active: boolean; onChanged?: () =>
                 setFile(e.target.files?.[0] || null);
                 setError(null);
               }}
-              className={cx(inputCls, 'file:mr-3 file:px-2.5 file:py-1 file:rounded-md file:border-0 file:bg-[#1D2F3F] file:text-white file:text-[11px] file:font-semibold')}
+              className={cx(inputCls, 'file:mr-3 file:px-2.5 file:py-1 file:rounded-md file:border-0 file:bg-[#0B2A44] file:text-white file:text-[11px] file:font-semibold')}
             />
           </Field>
           <Field label="Folder">
@@ -88,7 +88,7 @@ export const FilesTab: React.FC<{ lead: Lead; active: boolean; onChanged?: () =>
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase font-bold tracking-wider text-[#6B5F57]">Files{files.data ? ` · ${list.length}` : ''}</div>
+        <div className="text-[11px] uppercase font-bold tracking-wider text-[#5E778C]">Files{files.data ? ` · ${list.length}` : ''}</div>
         <Button variant="ghost" size="xs" onClick={() => void files.reload()} loading={files.loading} icon={<RefreshCw size={11} />}>
           Refresh
         </Button>
@@ -99,20 +99,20 @@ export const FilesTab: React.FC<{ lead: Lead; active: boolean; onChanged?: () =>
 
       <div className="space-y-2">
         {list.map((d) => (
-          <div key={d.id} className="bg-white rounded-xl border border-[#D2C9BF] p-3 shadow-2xs flex items-start justify-between gap-3">
+          <div key={d.id} className="bg-white rounded-xl border border-[#D3E3F0] p-3 shadow-2xs flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5 min-w-0">
-              <span className="mt-0.5 w-7 h-7 rounded-lg bg-[#1D2F3F]/10 text-[#1D2F3F] flex items-center justify-center flex-shrink-0">
+              <span className="mt-0.5 w-7 h-7 rounded-lg bg-[#0B2A44]/10 text-[#0B2A44] flex items-center justify-center flex-shrink-0">
                 <FileText size={13} />
               </span>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#1D2F3F] hover:text-[#A9825A] inline-flex items-center gap-1 break-all">
+                  <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#0B2A44] hover:text-[#0B6BB0] inline-flex items-center gap-1 break-all">
                     {d.name} <ExternalLink size={10} className="flex-shrink-0" />
                   </a>
                   {d.category && <Badge tone="muted">{d.category}</Badge>}
                 </div>
-                {d.description && <div className="text-xs text-[#3D3530] mt-0.5 leading-relaxed">{d.description}</div>}
-                <div className="text-[10px] text-[#9E948D] mt-1">
+                {d.description && <div className="text-xs text-[#0F2233] mt-0.5 leading-relaxed">{d.description}</div>}
+                <div className="text-[10px] text-[#7E93A6] mt-1">
                   {formatDateTime(d.uploadedDate, '—')}
                   {d.uploadedBy && ` · ${d.uploadedBy}`}
                 </div>

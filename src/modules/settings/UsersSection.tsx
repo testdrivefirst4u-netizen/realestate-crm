@@ -46,7 +46,7 @@ function LeadVisibilityCard() {
       <Field label="RMs can see">
         <Select value={value} disabled={!value || saving} onChange={(e) => save(e.target.value as Visibility)} options={VISIBILITY_OPTIONS} />
       </Field>
-      <p className="mt-2 text-xs text-[#6B5F57]">Earlier follow-up remarks are append-only for RMs: they can add new remarks, and only managers can correct or remove old ones.</p>
+      <p className="mt-2 text-xs text-[#5E778C]">Earlier follow-up remarks are append-only for RMs: they can add new remarks, and only managers can correct or remove old ones.</p>
     </Card>
   );
 }
@@ -294,7 +294,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
             <div className="overflow-x-auto -mx-5 px-5">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#EDE8E0] border-b border-[#D2C9BF] text-[10px] uppercase tracking-wider text-[#6B5F57] font-bold">
+                  <tr className="bg-[#E6EFF6] border-b border-[#D3E3F0] text-[10px] uppercase tracking-wider text-[#5E778C] font-bold">
                     <th className="p-3">Name</th>
                     <th className="p-3">Email</th>
                     <th className="p-3">Role</th>
@@ -303,29 +303,29 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#ECE8E1]">
+                <tbody className="divide-y divide-[#E6EFF6]">
                   {sorted.map((u) => {
                     const me = currentUser?.id === u.id;
                     const lastAdmin = (normalizeRole(u.role) === 'Admin' || normalizeRole(u.role) === 'Developer') && u.status !== 'Disabled' && activeAdmins <= 1;
                     return (
-                      <tr key={u.id} className="hover:bg-[#F4F0EB] transition">
-                        <td className="p-3 font-bold text-[#1D2F3F] whitespace-nowrap">
+                      <tr key={u.id} className="hover:bg-[#F2F7FB] transition">
+                        <td className="p-3 font-bold text-[#0B2A44] whitespace-nowrap">
                           <div className="flex items-center gap-2.5">
                             <Avatar user={u} size="sm" />
                             <span>{u.name}</span>
                             {me && <Badge tone="gold">You</Badge>}
-                            {u.mustChangePassword && <span className="text-[10px] text-[#A9825A] font-medium" title="Temporary password">temp pw</span>}
+                            {u.mustChangePassword && <span className="text-[10px] text-[#0B6BB0] font-medium" title="Temporary password">temp pw</span>}
                           </div>
                         </td>
-                        <td className="p-3 text-[#3D3530]">{u.email}</td>
+                        <td className="p-3 text-[#0F2233]">{u.email}</td>
                         <td className="p-3 whitespace-nowrap"><Badge tone={normalizeRole(u.role) === 'Admin' || normalizeRole(u.role) === 'Developer' ? 'navy' : normalizeRole(u.role) === 'Manager' ? 'gold' : 'muted'}>{roleLabel(u.role)}</Badge></td>
                         <td className="p-3 whitespace-nowrap"><Badge tone={u.status === 'Disabled' ? 'rust' : 'sage'}>{u.status || 'Active'}</Badge></td>
-                        <td className="p-3 text-[#6B5F57] whitespace-nowrap" title={formatDateTime(u.lastLoginAt, '')}>{u.lastLoginAt ? formatRelative(u.lastLoginAt) : 'Never'}</td>
+                        <td className="p-3 text-[#5E778C] whitespace-nowrap" title={formatDateTime(u.lastLoginAt, '')}>{u.lastLoginAt ? formatRelative(u.lastLoginAt) : 'Never'}</td>
                         <td className="p-3 text-right whitespace-nowrap">
                           {manages(u) && <>
-                          <button onClick={() => openEdit(u)} className="p-1.5 rounded-md text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-[#EBE5DC]" title="Edit user"><Pencil size={13} /></button>
-                          <button onClick={() => { setResetTarget(u); setResetPw(''); setResetError(null); }} className="p-1.5 rounded-md text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-[#EBE5DC]" title="Reset password"><KeyRound size={13} /></button>
-                          <button onClick={() => setDeleteTarget(u)} disabled={me || lastAdmin} className="p-1.5 rounded-md text-[#6B5F57] hover:text-[#8A3E28] hover:bg-[#FAF0EC] disabled:opacity-30 disabled:cursor-not-allowed" title={me ? 'You cannot delete your own account' : lastAdmin ? 'The last administrator cannot be deleted' : 'Delete user'}><Trash2 size={13} /></button>
+                          <button onClick={() => openEdit(u)} className="p-1.5 rounded-md text-[#5E778C] hover:text-[#0B2A44] hover:bg-[#E3EDF5]" title="Edit user"><Pencil size={13} /></button>
+                          <button onClick={() => { setResetTarget(u); setResetPw(''); setResetError(null); }} className="p-1.5 rounded-md text-[#5E778C] hover:text-[#0B2A44] hover:bg-[#E3EDF5]" title="Reset password"><KeyRound size={13} /></button>
+                          <button onClick={() => setDeleteTarget(u)} disabled={me || lastAdmin} className="p-1.5 rounded-md text-[#5E778C] hover:text-[#8A3E28] hover:bg-[#FAF0EC] disabled:opacity-30 disabled:cursor-not-allowed" title={me ? 'You cannot delete your own account' : lastAdmin ? 'The last administrator cannot be deleted' : 'Delete user'}><Trash2 size={13} /></button>
                           </>}
                         </td>
                       </tr>
@@ -341,9 +341,9 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
       <Card title="Roles explained">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {ROLE_OPTIONS.map((r) => (
-            <div key={r.id} className="p-3 rounded-xl bg-[#F4F0EB] border border-[#D2C9BF]">
-              <div className="font-bold text-[#1D2F3F]">{r.label}</div>
-              <div className="text-[11px] text-[#6B5F57] mt-0.5 leading-relaxed">{r.description}</div>
+            <div key={r.id} className="p-3 rounded-xl bg-[#F2F7FB] border border-[#D3E3F0]">
+              <div className="font-bold text-[#0B2A44]">{r.label}</div>
+              <div className="text-[11px] text-[#5E778C] mt-0.5 leading-relaxed">{r.description}</div>
             </div>
           ))}
         </div>
@@ -361,7 +361,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
         <form onSubmit={submit} className="space-y-3">
           <Field label="Photo" hint={form.avatar !== form.initialAvatar ? (form.id ? 'Not saved yet — click Save changes.' : 'Added when you create the user.') : 'Optional. JPEG, PNG or WebP up to 8 MB — cropped to a square.'}>
             <div className="flex items-center gap-3">
-              <Avatar user={{ name: form.name || form.email, avatar: form.avatar }} size="lg" className="ring-2 ring-[#ECE8E1]" />
+              <Avatar user={{ name: form.name || form.email, avatar: form.avatar }} size="lg" className="ring-2 ring-[#E6EFF6]" />
               {photoPicker.input}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <Button type="button" variant="secondary" size="xs" onClick={photoPicker.open} loading={photoPicker.busy} disabled={saving} icon={<Camera size={12} />}>{form.avatar ? 'Change photo' : 'Upload photo'}</Button>
@@ -387,7 +387,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
           <Field label={form.id ? 'New password (optional)' : 'Initial password (optional)'} hint={form.id ? 'Leave blank to keep the current password. Setting one signs the user out everywhere.' : `Leave blank to generate a temporary password — it is shown once after the user is created. If you set one, use at least ${MIN_PW} characters. Share it with the user — they sign in with it.`}>
             <div className="relative">
               <input type={showPw ? 'text' : 'password'} className={`${inputCls} !pr-9`} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" minLength={MIN_PW} />
-              <button type="button" onClick={() => setShowPw((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9E948D] hover:text-[#1D2F3F]" aria-label={showPw ? 'Hide password' : 'Show password'}>{showPw ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+              <button type="button" onClick={() => setShowPw((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#7E93A6] hover:text-[#0B2A44]" aria-label={showPw ? 'Hide password' : 'Show password'}>{showPw ? <EyeOff size={14} /> : <Eye size={14} />}</button>
             </div>
           </Field>
           {formError && <InlineNotice tone="warning">{formError}</InlineNotice>}

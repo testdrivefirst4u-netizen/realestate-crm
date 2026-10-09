@@ -185,12 +185,12 @@ export const SourceDetail: React.FC<SourceDetailProps> = ({ source, canManage, s
           )}
           {source.status === 'Paused' && <InlineNotice tone="warning">This source is paused — {pausedText.charAt(0).toLowerCase()}{pausedText.slice(1)}</InlineNotice>}
           {isSheet && source.config?.sheet && (
-            <div className="rounded-lg border border-[#D2C9BF] bg-white p-3">
+            <div className="rounded-lg border border-[#D3E3F0] bg-white p-3">
               <SheetSummary sheet={source.config.sheet} connections={connections} />
             </div>
           )}
           {isMeta && (
-            <div className="rounded-lg border border-[#D2C9BF] bg-white p-3 space-y-2">
+            <div className="rounded-lg border border-[#D3E3F0] bg-white p-3 space-y-2">
               <MetaSummary meta={meta} lastReceivedAt={source.stats?.lastReceivedAt} />
               <MetaLastError message={metaError} connectUrl={metaConnectUrl} canManage={canManage} />
             </div>
@@ -210,11 +210,11 @@ export const SourceDetail: React.FC<SourceDetailProps> = ({ source, canManage, s
               {isMeta && (
                 <div>
                   <div className={labelCls}>Lead forms</div>
-                  <p className="text-[10px] text-[#9E948D] mb-2">Which of the Page’s lead forms create leads. “All forms” includes forms you create later. Click “Check connection” to refresh the list.</p>
+                  <p className="text-[10px] text-[#7E93A6] mb-2">Which of the Page’s lead forms create leads. “All forms” includes forms you create later. Click “Check connection” to refresh the list.</p>
                   <FormFilterPicker forms={meta?.forms || []} value={formFilter} onChange={setFormFilter} idPrefix={`ls-edit-${source.id}-forms`} disabled={!canManage || saving} label="Lead forms" />
                 </div>
               )}
-              <div className="text-[10px] text-[#9E948D]">
+              <div className="text-[10px] text-[#7E93A6]">
                 {isMeta && meta?.connectedAt
                   ? <>Connected {formatDateTime(meta.connectedAt, '—')}{meta.connectedBy ? ` by ${meta.connectedBy}` : ''}</>
                   : <>Created {formatDateTime(source.createdAt, '—')}{source.createdBy ? ` by ${source.createdBy}` : ''}</>}
@@ -278,14 +278,14 @@ const DeleteDialog: React.FC<{ source: LeadSource; onCancel: () => void; onDelet
       title="Delete lead source?"
       footer={<><Button variant="ghost" onClick={onCancel}>Cancel</Button><Button variant="danger" disabled={!match} loading={busy} onClick={del} icon={<Trash2 size={13} />}>Delete source</Button></>}
     >
-      <div className="space-y-3 text-sm text-[#3D3530]">
+      <div className="space-y-3 text-sm text-[#0F2233]">
         <p>
           {source.type === 'google_sheet'
             ? 'The sheet is no longer read. The sheet itself is not changed, and leads it already created stay in the CRM.'
             : 'Its API key stops working at once and submissions to it are refused. Leads it already created stay in the CRM.'}
         </p>
         <div>
-          <label htmlFor="ls-delete-confirm" className={labelCls}>Type <span className="normal-case font-mono text-[#1D2F3F]">{source.name}</span> to confirm</label>
+          <label htmlFor="ls-delete-confirm" className={labelCls}>Type <span className="normal-case font-mono text-[#0B2A44]">{source.name}</span> to confirm</label>
           <input id="ls-delete-confirm" className={inputCls} value={typed} autoComplete="off" onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') del(); }} />
         </div>
       </div>
@@ -321,7 +321,7 @@ const TestMapping: React.FC<{ sourceId: string }> = ({ sourceId }) => {
   const entries = result ? Object.entries(result.lead).filter(([, v]) => String(v ?? '') !== '') : [];
   return (
     <div className="space-y-3">
-      <p className="text-xs text-[#6B5F57]">Paste a sample of what your form or service sends (JSON). Nothing is saved — this only shows how it would become a lead with the <b>saved</b> settings.</p>
+      <p className="text-xs text-[#5E778C]">Paste a sample of what your form or service sends (JSON). Nothing is saved — this only shows how it would become a lead with the <b>saved</b> settings.</p>
       <div>
         <label htmlFor={`ls-test-${sourceId}`} className={labelCls}>Sample payload (JSON)</label>
         <textarea id={`ls-test-${sourceId}`} className={cx(inputCls, 'font-mono h-44')} value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
@@ -335,16 +335,16 @@ const TestMapping: React.FC<{ sourceId: string }> = ({ sourceId }) => {
               <ul className="list-disc pl-4 space-y-0.5">{result.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
             </InlineNotice>
           )}
-          <div className="rounded-lg border border-[#D2C9BF] bg-white overflow-hidden">
-            <div className="px-3 py-2 bg-[#EDE8E0] text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Lead fields</div>
+          <div className="rounded-lg border border-[#D3E3F0] bg-white overflow-hidden">
+            <div className="px-3 py-2 bg-[#E6EFF6] text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Lead fields</div>
             {entries.length === 0 ? (
-              <div className="p-3 text-xs text-[#9E948D]">No lead fields were recognised.</div>
+              <div className="p-3 text-xs text-[#7E93A6]">No lead fields were recognised.</div>
             ) : (
-              <dl className="divide-y divide-[#ECE8E1] text-xs">
+              <dl className="divide-y divide-[#E6EFF6] text-xs">
                 {entries.map(([k, v]) => (
                   <div key={k} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 px-3 py-2">
-                    <dt className="font-semibold text-[#6B5F57]">{k}</dt>
-                    <dd className="text-[#1D2F3F] break-words whitespace-pre-wrap">{v}</dd>
+                    <dt className="font-semibold text-[#5E778C]">{k}</dt>
+                    <dd className="text-[#0B2A44] break-words whitespace-pre-wrap">{v}</dd>
                   </div>
                 ))}
               </dl>
@@ -408,10 +408,10 @@ export const IntakeLog: React.FC<{ sourceId?: string; canManage: boolean; onOpen
       {error && <ErrorState compact message={error} onRetry={load} />}
       {!rows && loading && <ListSkeleton rows={4} label="Loading the intake log…" />}
       {rows && (
-        <div className="overflow-x-auto rounded-lg border border-[#D2C9BF] bg-white">
+        <div className="overflow-x-auto rounded-lg border border-[#D3E3F0] bg-white">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-[#EDE8E0] border-b border-[#D2C9BF] text-[#6B5F57] uppercase font-bold tracking-wider text-[10px]">
+              <tr className="bg-[#E6EFF6] border-b border-[#D3E3F0] text-[#5E778C] uppercase font-bold tracking-wider text-[10px]">
                 <th className="p-2.5 w-6"><span className="sr-only">Details</span></th>
                 <th className="p-2.5">Time</th>
                 <th className="p-2.5">Status</th>
@@ -421,28 +421,28 @@ export const IntakeLog: React.FC<{ sourceId?: string; canManage: boolean; onOpen
                 <th className="p-2.5"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#ECE8E1]">
+            <tbody className="divide-y divide-[#E6EFF6]">
               {rows.length === 0 ? (
-                <tr><td colSpan={7} className="p-6 text-center text-[#9E948D]">{status ? 'No submissions with this status.' : 'No submissions received yet.'}</td></tr>
+                <tr><td colSpan={7} className="p-6 text-center text-[#7E93A6]">{status ? 'No submissions with this status.' : 'No submissions received yet.'}</td></tr>
               ) : rows.map((r) => {
                 const expanded = open === r.id;
                 return (
                   <React.Fragment key={r.id}>
                     <tr className="align-top">
                       <td className="p-2.5">
-                        <button className="text-[#6B5F57] hover:text-[#1D2F3F]" aria-expanded={expanded} aria-label={expanded ? 'Hide payload' : 'Show payload'} onClick={() => setOpen(expanded ? null : r.id)}>
+                        <button className="text-[#5E778C] hover:text-[#0B2A44]" aria-expanded={expanded} aria-label={expanded ? 'Hide payload' : 'Show payload'} onClick={() => setOpen(expanded ? null : r.id)}>
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
                       </td>
-                      <td className="p-2.5 whitespace-nowrap text-[#3D3530]" title={formatDateTime(r.receivedAt)}>{formatDateTime(r.receivedAt, '—')}</td>
+                      <td className="p-2.5 whitespace-nowrap text-[#0F2233]" title={formatDateTime(r.receivedAt)}>{formatDateTime(r.receivedAt, '—')}</td>
                       <td className="p-2.5"><Badge tone={statusTone(r.status)}>{r.status}</Badge></td>
                       <td className="p-2.5 whitespace-nowrap">
                         {r.leadId ? (
-                          onOpenLead ? <button className="font-mono text-[#A9825A] hover:underline font-semibold" onClick={() => onOpenLead(r.leadId)}>{r.leadId}</button> : <span className="font-mono">{r.leadId}</span>
-                        ) : <span className="text-[#9E948D]">—</span>}
+                          onOpenLead ? <button className="font-mono text-[#0B6BB0] hover:underline font-semibold" onClick={() => onOpenLead(r.leadId)}>{r.leadId}</button> : <span className="font-mono">{r.leadId}</span>
+                        ) : <span className="text-[#7E93A6]">—</span>}
                       </td>
-                      <td className="p-2.5 text-[#3D3530] max-w-[220px] break-words">{r.message || <span className="text-[#9E948D]">—</span>}{!sourceId && r.sourceName ? <div className="text-[10px] text-[#9E948D]">{r.sourceName}</div> : null}</td>
-                      <td className="p-2.5 text-[#6B5F57] break-all max-w-[160px]">{r.origin || <span className="text-[#9E948D]">server</span>}</td>
+                      <td className="p-2.5 text-[#0F2233] max-w-[220px] break-words">{r.message || <span className="text-[#7E93A6]">—</span>}{!sourceId && r.sourceName ? <div className="text-[10px] text-[#7E93A6]">{r.sourceName}</div> : null}</td>
+                      <td className="p-2.5 text-[#5E778C] break-all max-w-[160px]">{r.origin || <span className="text-[#7E93A6]">server</span>}</td>
                       <td className="p-2.5 text-right">
                         {canManage && canRetry(r.status) && (
                           <Button size="xs" icon={<RotateCcw size={11} />} loading={retrying === r.id} onClick={() => retry(r)}>Retry</Button>
@@ -450,9 +450,9 @@ export const IntakeLog: React.FC<{ sourceId?: string; canManage: boolean; onOpen
                       </td>
                     </tr>
                     {expanded && (
-                      <tr className="bg-[#FDFCFA]">
+                      <tr className="bg-[#FFFFFF]">
                         <td colSpan={7} className="p-3">
-                          <div className="text-[10px] text-[#9E948D] mb-1.5">ID {r.id}{r.ip ? ` · IP ${r.ip}` : ''} · {formatDistance(r.receivedAt)}</div>
+                          <div className="text-[10px] text-[#7E93A6] mb-1.5">ID {r.id}{r.ip ? ` · IP ${r.ip}` : ''} · {formatDistance(r.receivedAt)}</div>
                           <CodeBlock code={JSON.stringify(r.payload || {}, null, 2)} label="Received payload" />
                         </td>
                       </tr>

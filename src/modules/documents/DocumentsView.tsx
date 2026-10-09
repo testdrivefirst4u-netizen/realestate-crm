@@ -120,8 +120,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, 
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Documents & Collateral</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">Brochures, floor plans, legal papers and customer files — uploaded to the CRM or linked from cloud storage.{onOpenLibrary ? ' Project knowledge lives in the Library.' : ''}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Documents & Collateral</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">Brochures, floor plans, legal papers and customer files — uploaded to the CRM or linked from cloud storage.{onOpenLibrary ? ' Project knowledge lives in the Library.' : ''}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {onOpenLibrary && <Button variant="gold" onClick={() => onOpenLibrary()} icon={<BookOpen size={14} />}>Open Library</Button>}
@@ -129,15 +129,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, 
         </div>
       </div>
 
-      <div className="bg-[#EDE8E0] p-3 sm:p-4 rounded-xl border border-[#D2C9BF] flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-[#E6EFF6] p-3 sm:p-4 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-1 min-w-[260px] max-w-xl">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
             <input type="text" placeholder="Search title, description, category or customer…" value={search} onChange={(e) => setSearch(e.target.value)} className={`${inputCls} !pl-8`} />
           </div>
           <Select value={category} onChange={(e) => setCategory(e.target.value)} options={categories} placeholder="All categories" className="!w-auto" />
         </div>
-        <span className="text-xs text-[#6B5F57] font-medium">{filtered.length} file{filtered.length === 1 ? '' : 's'}</span>
+        <span className="text-xs text-[#5E778C] font-medium">{filtered.length} file{filtered.length === 1 ? '' : 's'}</span>
       </div>
 
       {documents.length === 0 ? (
@@ -158,7 +158,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, 
               const lead = doc.leadId ? leadById.get(doc.leadId) : undefined;
               const confirming = deleteId === doc.id;
               return (
-                <div key={doc.id} className="bg-white rounded-xl p-5 border border-[#D2C9BF] shadow-xs flex flex-col justify-between hover:border-[#A9825A] transition">
+                <div key={doc.id} className="bg-white rounded-xl p-5 border border-[#D3E3F0] shadow-xs flex flex-col justify-between hover:border-[#0B6BB0] transition">
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <Badge tone="gold">{doc.category || 'General'}</Badge>
@@ -166,30 +166,30 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, 
                         <div className="flex items-center gap-1.5 text-xs">
                           <span className="text-[#8A3E28] font-medium">Delete?</span>
                           <Button variant="danger" size="xs" loading={deleting} onClick={() => confirmDelete(doc.id)}>Yes</Button>
-                          <button onClick={() => setDeleteId(null)} className="p-1 text-[#9E948D] hover:text-[#1D2F3F]" aria-label="Cancel"><X size={12} /></button>
+                          <button onClick={() => setDeleteId(null)} className="p-1 text-[#7E93A6] hover:text-[#0B2A44]" aria-label="Cancel"><X size={12} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => setDeleteId(doc.id)} className="p-1 text-[#9E948D] hover:text-[#8A3E28] transition" title="Delete document"><Trash2 size={13} /></button>
+                        <button onClick={() => setDeleteId(doc.id)} className="p-1 text-[#7E93A6] hover:text-[#8A3E28] transition" title="Delete document"><Trash2 size={13} /></button>
                       )}
                     </div>
-                    <h4 className="text-sm font-bold text-[#1D2F3F] mb-1.5 leading-snug break-words">{doc.name}</h4>
-                    <p className="text-xs text-[#6B5F57] leading-relaxed mb-3 break-words">{doc.description || 'No description provided.'}</p>
+                    <h4 className="text-sm font-bold text-[#0B2A44] mb-1.5 leading-snug break-words">{doc.name}</h4>
+                    <p className="text-xs text-[#5E778C] leading-relaxed mb-3 break-words">{doc.description || 'No description provided.'}</p>
                     {(lead || doc.leadId) && (
-                      <button onClick={() => doc.leadId && onOpenLead(doc.leadId)} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-[#1D2F3F]/10 text-[#1D2F3F] hover:bg-[#1D2F3F]/15 font-semibold mb-3" title="Open the enquiry">
+                      <button onClick={() => doc.leadId && onOpenLead(doc.leadId)} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-[#0B2A44]/10 text-[#0B2A44] hover:bg-[#0B2A44]/15 font-semibold mb-3" title="Open the enquiry">
                         <User size={11} />{lead ? lead[F.NAME] : doc.leadId}<span className="font-mono opacity-60">· {doc.leadId}</span>
                       </button>
                     )}
                   </div>
-                  <div className="pt-3 border-t border-[#ECE8E1] flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[10px] text-[#9E948D] inline-flex items-center gap-1" title={doc.uploadedBy ? `Added by ${doc.uploadedBy}` : undefined}>
+                  <div className="pt-3 border-t border-[#E6EFF6] flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] text-[#7E93A6] inline-flex items-center gap-1" title={doc.uploadedBy ? `Added by ${doc.uploadedBy}` : undefined}>
                       <Calendar size={11} />{formatDate(doc.uploadedDate, '—')}{doc.uploadedBy ? ` · ${doc.uploadedBy}` : ''}
                     </span>
                     <div className="flex items-center gap-1.5">
                       {onOpenLibrary && <Button variant="secondary" size="xs" onClick={() => onOpenLibrary(doc.name)} icon={<BookOpen size={11} />} title="Search the Library for this document">Library</Button>}
                       {doc.fileUrl && isHttpUrl(doc.fileUrl) ? (
-                        <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold bg-[#1D2F3F] text-white hover:brightness-110 transition">Open <ExternalLink size={11} /></a>
+                        <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition">Open <ExternalLink size={11} /></a>
                       ) : (
-                        <span className="text-[10px] text-[#9E948D] italic">No link</span>
+                        <span className="text-[10px] text-[#7E93A6] italic">No link</span>
                       )}
                     </div>
                   </div>
@@ -228,19 +228,19 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, 
           </Field>
           <Field label="Linked enquiry (optional)" hint="Search by name, phone or enquiry ID to attach this document to a customer.">
             {selectedLead ? (
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-[#D2C9BF] bg-[#F4F0EB] text-xs">
-                <span className="font-semibold text-[#1D2F3F] truncate">{selectedLead[F.NAME]} <span className="font-mono text-[#9E948D]">· {selectedLead[F.ID]}</span></span>
-                <button type="button" onClick={() => { setLeadId(''); setLeadQuery(''); }} className="text-[#9E948D] hover:text-[#1D2F3F]" aria-label="Remove link"><X size={13} /></button>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-[#D3E3F0] bg-[#F2F7FB] text-xs">
+                <span className="font-semibold text-[#0B2A44] truncate">{selectedLead[F.NAME]} <span className="font-mono text-[#7E93A6]">· {selectedLead[F.ID]}</span></span>
+                <button type="button" onClick={() => { setLeadId(''); setLeadQuery(''); }} className="text-[#7E93A6] hover:text-[#0B2A44]" aria-label="Remove link"><X size={13} /></button>
               </div>
             ) : (
               <div className="relative">
                 <input className={inputCls} value={leadQuery} onChange={(e) => setLeadQuery(e.target.value)} placeholder="Start typing a name or phone…" />
                 {leadMatches.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-[#D2C9BF] rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs">
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-[#D3E3F0] rounded-lg shadow-lg max-h-48 overflow-y-auto text-xs">
                     {leadMatches.map((l) => (
-                      <button type="button" key={l[F.ID]} onClick={() => { setLeadId(l[F.ID]); setLeadQuery(''); }} className="w-full text-left px-3 py-2 hover:bg-[#F4F0EB] flex items-center justify-between gap-2">
-                        <span className="font-semibold text-[#1D2F3F] truncate">{l[F.NAME]}</span>
-                        <span className="font-mono text-[10px] text-[#9E948D]">{l[F.ID]}</span>
+                      <button type="button" key={l[F.ID]} onClick={() => { setLeadId(l[F.ID]); setLeadQuery(''); }} className="w-full text-left px-3 py-2 hover:bg-[#F2F7FB] flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#0B2A44] truncate">{l[F.NAME]}</span>
+                        <span className="font-mono text-[10px] text-[#7E93A6]">{l[F.ID]}</span>
                       </button>
                     ))}
                   </div>

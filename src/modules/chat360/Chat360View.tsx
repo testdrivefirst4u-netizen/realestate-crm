@@ -707,11 +707,11 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight flex items-center gap-2">
             Chat360 · WhatsApp
             {totalUnread > 0 && <Badge tone="gold">{totalUnread} unread</Badge>}
           </h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">
+          <p className="text-xs text-[#5E778C] mt-0.5">
             {configured ? 'Connected — inbound messages arrive through the Chat360 webhook; the open conversation refreshes every 20 seconds.' : 'Not connected — showing conversations already stored in the CRM (if any).'}
           </p>
         </div>
@@ -738,7 +738,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
               canOpenSettings ? (
                 <Button variant="primary" onClick={onGoToSettings} icon={<Settings size={13} />}>Open Settings</Button>
               ) : (
-                <span className="text-xs text-[#6B5F57]">Ask an administrator to connect Chat360.</span>
+                <span className="text-xs text-[#5E778C]">Ask an administrator to connect Chat360.</span>
               )
             }
           />
@@ -751,10 +751,10 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
         <Card padded={false} className="overflow-hidden">
           <div className="flex h-[calc(100vh-13rem)] min-h-[520px]">
             {/* Contacts */}
-            <aside className={cx('w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-[#D2C9BF] flex flex-col bg-[#FDFCFA]', selectedPhone && 'hidden md:flex')}>
-              <div className="p-3 border-b border-[#ECE8E1] space-y-2">
+            <aside className={cx('w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-[#D3E3F0] flex flex-col bg-[#FFFFFF]', selectedPhone && 'hidden md:flex')}>
+              <div className="p-3 border-b border-[#E6EFF6] space-y-2">
                 <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
                   <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, enquiry ID…" className={cx(inputCls, 'pl-8')} />
                 </div>
                 {contacts && contacts.length > 0 && (
@@ -772,11 +772,11 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                           title={f.title}
                           className={cx(
                             'inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-bold border transition',
-                            active ? 'bg-[#1D2F3F] text-white border-[#1D2F3F]' : 'bg-white text-[#6B5F57] border-[#D2C9BF] hover:border-[#A9825A] hover:text-[#1D2F3F]'
+                            active ? 'bg-[#0B2A44] text-white border-[#0B2A44]' : 'bg-white text-[#5E778C] border-[#D3E3F0] hover:border-[#0B6BB0] hover:text-[#0B2A44]'
                           )}
                         >
                           {f.label}
-                          <span className={cx('tabular-nums rounded-full px-1 min-w-[16px] text-center', active ? 'bg-white/20 text-white' : attention ? 'bg-[#A9825A] text-white' : 'bg-[#ECE8E1] text-[#3D3530]')}>{n}</span>
+                          <span className={cx('tabular-nums rounded-full px-1 min-w-[16px] text-center', active ? 'bg-white/20 text-white' : attention ? 'bg-[#0B6BB0] text-white' : 'bg-[#E6EFF6] text-[#0F2233]')}>{n}</span>
                         </button>
                       );
                     })}
@@ -807,7 +807,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                     />
                   )
                 ) : (
-                  <ul className="divide-y divide-[#ECE8E1]">
+                  <ul className="divide-y divide-[#E6EFF6]">
                     {filteredContacts.map((c) => {
                       const lead = c.leadId ? leadById.get(c.leadId) : undefined;
                       const name = c.contactName || (lead ? lead[F.NAME] : '') || formatPhone(c.phone);
@@ -816,21 +816,21 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                       const awaitingReply = !unread && flagsOf(c).unreplied;
                       return (
                         <li key={c.phone}>
-                          <button type="button" onClick={() => selectContact(c.phone)} className={cx('w-full text-left px-3 py-2.5 flex items-start gap-3 hover:bg-[#F4F0EB] transition', active && 'bg-[#EDE8E0]')}>
-                            <div className={cx('w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', unread ? 'bg-[#A9825A] text-white' : 'bg-[#1D2F3F]/10 text-[#1D2F3F]')}>{initials(name)}</div>
+                          <button type="button" onClick={() => selectContact(c.phone)} className={cx('w-full text-left px-3 py-2.5 flex items-start gap-3 hover:bg-[#F2F7FB] transition', active && 'bg-[#E6EFF6]')}>
+                            <div className={cx('w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', unread ? 'bg-[#0B6BB0] text-white' : 'bg-[#0B2A44]/10 text-[#0B2A44]')}>{initials(name)}</div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
-                                <span className={cx('text-sm truncate', unread ? 'font-bold text-[#1D2F3F]' : 'font-semibold text-[#1D2F3F]')}>{name}</span>
-                                <span className="text-[10px] text-[#9E948D] flex-shrink-0 whitespace-nowrap">{formatRelative(c.lastMessageAt, '')}</span>
+                                <span className={cx('text-sm truncate', unread ? 'font-bold text-[#0B2A44]' : 'font-semibold text-[#0B2A44]')}>{name}</span>
+                                <span className="text-[10px] text-[#7E93A6] flex-shrink-0 whitespace-nowrap">{formatRelative(c.lastMessageAt, '')}</span>
                               </div>
                               <div className="flex items-center justify-between gap-2 mt-0.5">
-                                <span className={cx('text-[11px] truncate', unread ? 'text-[#3D3530] font-medium' : 'text-[#6B5F57]')}>{c.lastMessage || formatPhone(c.phone)}</span>
-                                {unread > 0 && <span className="text-[10px] font-bold bg-[#A9825A] text-white rounded-full px-1.5 min-w-[18px] text-center flex-shrink-0">{unread}</span>}
+                                <span className={cx('text-[11px] truncate', unread ? 'text-[#0F2233] font-medium' : 'text-[#5E778C]')}>{c.lastMessage || formatPhone(c.phone)}</span>
+                                {unread > 0 && <span className="text-[10px] font-bold bg-[#0B6BB0] text-white rounded-full px-1.5 min-w-[18px] text-center flex-shrink-0">{unread}</span>}
                               </div>
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                {c.leadId ? <span className="text-[10px] font-mono text-[#A9825A]">{c.leadId}</span> : <Badge tone="muted">Unlinked</Badge>}
+                                {c.leadId ? <span className="text-[10px] font-mono text-[#0B6BB0]">{c.leadId}</span> : <Badge tone="muted">Unlinked</Badge>}
                                 {lead && <StageBadge stage={lead[F.STAGE]} />}
-                                {c.assignedRM && <span className="text-[10px] text-[#9E948D] truncate">RM {c.assignedRM}</span>}
+                                {c.assignedRM && <span className="text-[10px] text-[#7E93A6] truncate">RM {c.assignedRM}</span>}
                                 {awaitingReply && <span className="text-[10px] font-semibold text-[#B06A55]" title="The customer wrote last">Awaiting reply</span>}
                               </div>
                             </div>
@@ -844,31 +844,31 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
             </aside>
 
             {/* Conversation */}
-            <section className={cx('flex-1 min-w-0 flex flex-col bg-[#F7F3EE]', !selectedPhone && 'hidden md:flex')}>
+            <section className={cx('flex-1 min-w-0 flex flex-col bg-[#F5F9FC]', !selectedPhone && 'hidden md:flex')}>
               {!selectedPhone ? (
                 <EmptyState icon={<MessageSquare size={22} />} title="Select a conversation" description="Pick a contact on the left to read the conversation, reply, link it to an enquiry or schedule the next step." className="my-auto" />
               ) : (
                 <>
                   {/* Conversation header */}
-                  <header className="bg-white border-b border-[#D2C9BF] p-3 space-y-2">
+                  <header className="bg-white border-b border-[#D3E3F0] p-3 space-y-2">
                     <div className="flex items-start gap-3">
-                      <button type="button" onClick={() => setSelectedPhone(null)} className="md:hidden p-1.5 -ml-1 rounded-md text-[#6B5F57] hover:bg-[#F4F0EB]" aria-label="Back to conversations"><ArrowLeft size={16} /></button>
+                      <button type="button" onClick={() => setSelectedPhone(null)} className="md:hidden p-1.5 -ml-1 rounded-md text-[#5E778C] hover:bg-[#F2F7FB]" aria-label="Back to conversations"><ArrowLeft size={16} /></button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-sm font-bold text-[#1D2F3F] truncate">{selectedContact?.contactName || (linkedLead ? linkedLead[F.NAME] : '') || formatPhone(selectedPhone)}</h3>
-                          <span className="text-xs text-[#6B5F57]">{formatPhone(selectedPhone)}</span>
+                          <h3 className="text-sm font-bold text-[#0B2A44] truncate">{selectedContact?.contactName || (linkedLead ? linkedLead[F.NAME] : '') || formatPhone(selectedPhone)}</h3>
+                          <span className="text-xs text-[#5E778C]">{formatPhone(selectedPhone)}</span>
                           {linkedLead ? (
-                            <button type="button" onClick={() => onOpenLead(linkedLead[F.ID])} className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#A9825A] hover:underline">
+                            <button type="button" onClick={() => onOpenLead(linkedLead[F.ID])} className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#0B6BB0] hover:underline">
                               <ExternalLink size={10} /><span className="font-mono">{linkedLead[F.ID]}</span>
                             </button>
                           ) : selectedContact?.leadId ? (
-                            <span className="text-[10px] font-mono text-[#9E948D]" title="This enquiry is not in the current lead list">{selectedContact.leadId}</span>
+                            <span className="text-[10px] font-mono text-[#7E93A6]" title="This enquiry is not in the current lead list">{selectedContact.leadId}</span>
                           ) : (
                             <Badge tone="muted">Unlinked</Badge>
                           )}
                         </div>
                         {linkedLead && (
-                          <div className="text-[11px] text-[#6B5F57] mt-1 flex items-center gap-2 flex-wrap">
+                          <div className="text-[11px] text-[#5E778C] mt-1 flex items-center gap-2 flex-wrap">
                             <StageBadge stage={linkedLead[F.STAGE]} />
                             <span>{linkedLead[F.UNIT_TYPE] || '—'}</span>
                             <span>· RM {linkedLead[F.RM] || '—'}</span>
@@ -881,7 +881,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                           type="button"
                           onClick={askCopilot}
                           disabled={!conversationReady}
-                          className="p-1.5 rounded-lg border border-[#D2C9BF] bg-white text-[#A9825A] hover:text-[#1D2F3F] hover:border-[#A9825A] flex-shrink-0 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="p-1.5 rounded-lg border border-[#D3E3F0] bg-white text-[#0B6BB0] hover:text-[#0B2A44] hover:border-[#0B6BB0] flex-shrink-0 transition disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Ask Copilot about this conversation"
                           aria-label="Ask Copilot about this conversation"
                         >
@@ -941,7 +941,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                   <MessageList groups={groups} loading={messagesLoading && messages.length === 0} error={messagesError} onRetry={() => loadMessages(selectedPhone)} />
 
                   {/* Compose */}
-                  <footer className="bg-white border-t border-[#D2C9BF] p-3 space-y-2">
+                  <footer className="bg-white border-t border-[#D3E3F0] p-3 space-y-2">
                     {sendError && (
                       <InlineNotice tone="warning">
                         <div className="flex items-start gap-2"><AlertTriangle size={14} className="flex-shrink-0 mt-0.5" /><span>{sendError}</span><button type="button" className="ml-auto" onClick={() => setSendError(null)} aria-label="Dismiss"><X size={12} /></button></div>
@@ -966,7 +966,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                             />
                           ) : (
                             QUICK_PHRASES.map((p) => (
-                              <button key={p} type="button" disabled={sending || suggesting} onClick={() => setDraft((d) => (d ? `${d.trimEnd()} ${p}` : p))} className="text-[10px] px-2 py-1 rounded-md border border-[#D2C9BF] bg-[#F4F0EB] text-[#3D3530] hover:border-[#A9825A] truncate max-w-[260px] disabled:opacity-50" title={p}>
+                              <button key={p} type="button" disabled={sending || suggesting} onClick={() => setDraft((d) => (d ? `${d.trimEnd()} ${p}` : p))} className="text-[10px] px-2 py-1 rounded-md border border-[#D3E3F0] bg-[#F2F7FB] text-[#0F2233] hover:border-[#0B6BB0] truncate max-w-[260px] disabled:opacity-50" title={p}>
                                 {truncate(p, 42)}
                               </button>
                             ))
@@ -979,7 +979,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                               onClick={suggestReply}
                               loading={suggesting}
                               disabled={sending || !conversationReady}
-                              icon={<Wand2 size={11} className="text-[#A9825A]" />}
+                              icon={<Wand2 size={11} className="text-[#0B6BB0]" />}
                               title={conversationReady ? 'Draft a reply from the latest messages with AI — it goes into the box below for you to review; nothing is sent' : 'Available once the conversation has loaded'}
                             >
                               Suggest reply
@@ -1001,26 +1001,26 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                             }}
                             rows={aiDraft !== null ? 4 : 2}
                             placeholder={suggesting ? 'Drafting a reply…' : 'Type a WhatsApp message… (Enter to send, Shift+Enter for a new line)'}
-                            className={cx(inputCls, 'resize-none', aiDraftUntouched && 'border-[#A9825A] bg-[#FFFDF9]')}
+                            className={cx(inputCls, 'resize-none', aiDraftUntouched && 'border-[#0B6BB0] bg-[#FFFFFF]')}
                             disabled={sending || suggesting}
                             aria-busy={suggesting || undefined}
                           />
                           <Button variant="primary" size="md" onClick={() => send()} loading={sending} disabled={!draft.trim() || suggesting} icon={<Send size={14} />}>Send</Button>
                         </div>
                         {aiDraftUntouched && (
-                          <div className="flex items-center gap-2 text-[10px] font-semibold text-[#86633E] bg-[#A9825A]/10 border border-[#A9825A]/30 rounded-md px-2 py-1">
+                          <div className="flex items-center gap-2 text-[10px] font-semibold text-[#0B5E9C] bg-[#0B6BB0]/10 border border-[#0B6BB0]/30 rounded-md px-2 py-1">
                             <Sparkles size={11} className="flex-shrink-0" />
                             <span>Drafted by AI — review before sending.</span>
-                            <button type="button" onClick={discardAiDraft} className="ml-auto underline hover:text-[#1D2F3F]">Discard</button>
+                            <button type="button" onClick={discardAiDraft} className="ml-auto underline hover:text-[#0B2A44]">Discard</button>
                           </div>
                         )}
                         {suggestFailed && (
-                          <div className="flex items-center gap-2 text-[10px] text-[#6B5F57] bg-[#F4F0EB] border border-[#D2C9BF] rounded-md px-2 py-1" role="status">
+                          <div className="flex items-center gap-2 text-[10px] text-[#5E778C] bg-[#F2F7FB] border border-[#D3E3F0] rounded-md px-2 py-1" role="status">
                             <span>Couldn't draft a reply just now.</span>
-                            <button type="button" onClick={() => setSuggestFailed(false)} className="ml-auto p-0.5 rounded hover:text-[#1D2F3F]" aria-label="Dismiss"><X size={11} /></button>
+                            <button type="button" onClick={() => setSuggestFailed(false)} className="ml-auto p-0.5 rounded hover:text-[#0B2A44]" aria-label="Dismiss"><X size={11} /></button>
                           </div>
                         )}
-                        <div className="text-[10px] text-[#9E948D]">Sent as {currentUser?.name || 'you'} via Chat360. Outside the 24-hour customer window WhatsApp only delivers approved templates.</div>
+                        <div className="text-[10px] text-[#7E93A6]">Sent as {currentUser?.name || 'you'} via Chat360. Outside the 24-hour customer window WhatsApp only delivers approved templates.</div>
                       </>
                     )}
                   </footer>
@@ -1068,21 +1068,21 @@ const MessageList: React.FC<{ groups: Array<{ key: string; label: string; items:
       {error && <ErrorState compact title="Live refresh failed" message={error} onRetry={onRetry} />}
       {groups.map((g) => (
         <div key={g.key} className="space-y-2">
-          <div className="flex items-center justify-center"><span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F57] bg-white border border-[#ECE8E1] rounded-full px-2.5 py-0.5">{g.label}</span></div>
+          <div className="flex items-center justify-center"><span className="text-[10px] font-bold uppercase tracking-wider text-[#5E778C] bg-white border border-[#E6EFF6] rounded-full px-2.5 py-0.5">{g.label}</span></div>
           {g.items.map((m) => {
             const out = m.direction === 'Outbound';
             const type = String(m.messageType || 'text').toLowerCase();
             return (
               <div key={m.id} className={cx('flex', out ? 'justify-end' : 'justify-start')}>
-                <div className={cx('max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-2xs', out ? 'bg-[#1D2F3F] text-white rounded-br-md' : 'bg-white text-[#1D2F3F] border border-[#ECE8E1] rounded-bl-md')}>
-                  {type !== 'text' && type !== 'template' && <div className={cx('text-[10px] uppercase font-bold tracking-wider mb-1', out ? 'text-[#E7D8C6]' : 'text-[#A9825A]')}>{type}</div>}
+                <div className={cx('max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-2xs', out ? 'bg-[#0B2A44] text-white rounded-br-md' : 'bg-white text-[#0B2A44] border border-[#E6EFF6] rounded-bl-md')}>
+                  {type !== 'text' && type !== 'template' && <div className={cx('text-[10px] uppercase font-bold tracking-wider mb-1', out ? 'text-[#C4D8EA]' : 'text-[#0B6BB0]')}>{type}</div>}
                   {m.text && <div className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</div>}
                   {m.mediaUrl && (
-                    <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" className={cx('inline-flex items-center gap-1 text-xs underline mt-1', out ? 'text-[#E7D8C6]' : 'text-[#A9825A]')}>
+                    <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" className={cx('inline-flex items-center gap-1 text-xs underline mt-1', out ? 'text-[#C4D8EA]' : 'text-[#0B6BB0]')}>
                       <Paperclip size={11} /> Open attachment
                     </a>
                   )}
-                  <div className={cx('flex items-center justify-end gap-1.5 mt-1 text-[10px]', out ? 'text-[#E7D8C6]/80' : 'text-[#9E948D]')}>
+                  <div className={cx('flex items-center justify-end gap-1.5 mt-1 text-[10px]', out ? 'text-[#C4D8EA]/80' : 'text-[#7E93A6]')}>
                     {out && m.agent && <span className="truncate max-w-[120px]">{m.agent}</span>}
                     <span>{formatTime(m.timestamp, '')}</span>
                     {out && <StatusTicks status={m.status} />}
@@ -1118,15 +1118,15 @@ const NewContactBanner: React.FC<{
   const matchName = phoneMatch ? String(phoneMatch[F.NAME] || '').trim() || String(phoneMatch[F.ID] || '') : '';
   const firstName = matchName.split(/\s+/)[0] || matchName;
   return (
-    <div className="rounded-xl border border-[#A9825A]/50 bg-[#FBF6EF] p-3 flex flex-col lg:flex-row lg:items-center gap-2.5">
+    <div className="rounded-xl border border-[#0B6BB0]/50 bg-[#F5F9FC] p-3 flex flex-col lg:flex-row lg:items-center gap-2.5">
       <div className="flex items-start gap-2.5 min-w-0 flex-1">
-        <div className="w-8 h-8 rounded-full bg-[#A9825A]/15 text-[#A9825A] flex items-center justify-center flex-shrink-0"><UserPlus size={15} /></div>
+        <div className="w-8 h-8 rounded-full bg-[#0B6BB0]/15 text-[#0B6BB0] flex items-center justify-center flex-shrink-0"><UserPlus size={15} /></div>
         <div className="min-w-0">
-          <div className="text-xs font-bold text-[#1D2F3F]">New contact — not in the CRM yet</div>
-          <div className="text-[11px] text-[#6B5F57] mt-0.5 leading-relaxed">
+          <div className="text-xs font-bold text-[#0B2A44]">New contact — not in the CRM yet</div>
+          <div className="text-[11px] text-[#5E778C] mt-0.5 leading-relaxed">
             {phoneMatch ? (
               <>
-                Same phone number as <strong className="text-[#1D2F3F]">{matchName}</strong> <span className="font-mono text-[10px] text-[#A9825A]">{phoneMatch[F.ID]}</span>
+                Same phone number as <strong className="text-[#0B2A44]">{matchName}</strong> <span className="font-mono text-[10px] text-[#0B6BB0]">{phoneMatch[F.ID]}</span>
                 {phoneMatch[F.STAGE] ? ` · ${phoneMatch[F.STAGE]}` : ''} — link this conversation to it, or create a separate enquiry.
               </>
             ) : (
@@ -1213,9 +1213,9 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ panel, onClose, phone, contac
   const leadId = lead ? String(lead[F.ID] || '') : '';
 
   return (
-    <div className="rounded-xl border border-[#D2C9BF] bg-[#FDFCFA] p-3 space-y-3">
+    <div className="rounded-xl border border-[#D3E3F0] bg-[#FFFFFF] p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold text-[#1D2F3F] uppercase tracking-wider">
+        <h4 className="text-xs font-bold text-[#0B2A44] uppercase tracking-wider">
           {panel === 'link' && 'Link this WhatsApp contact to an enquiry'}
           {panel === 'create' && 'Create an enquiry for this contact'}
           {panel === 'rm' && 'Assign relationship manager'}
@@ -1223,7 +1223,7 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ panel, onClose, phone, contac
           {panel === 'followup' && 'Schedule the next follow-up'}
           {panel === 'task' && 'Create a task'}
         </h4>
-        <button type="button" onClick={onClose} className="p-1 rounded-md text-[#9E948D] hover:text-[#1D2F3F] hover:bg-[#F4F0EB]" aria-label="Close"><X size={14} /></button>
+        <button type="button" onClick={onClose} className="p-1 rounded-md text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB]" aria-label="Close"><X size={14} /></button>
       </div>
       {error && <InlineNotice tone="warning">{error}</InlineNotice>}
 
@@ -1238,24 +1238,24 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ panel, onClose, phone, contac
             </InlineNotice>
           )}
           <div className="relative">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
             <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search enquiries by name, phone or ID…" className={cx(inputCls, 'pl-8')} disabled={busy} />
           </div>
           {query.trim().length >= 2 && (
-            <div className="max-h-48 overflow-y-auto rounded-lg border border-[#ECE8E1] divide-y divide-[#ECE8E1] bg-white">
-              {results.length === 0 && <div className="p-2.5 text-xs text-[#9E948D]">No matching enquiries</div>}
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-[#E6EFF6] divide-y divide-[#E6EFF6] bg-white">
+              {results.length === 0 && <div className="p-2.5 text-xs text-[#7E93A6]">No matching enquiries</div>}
               {results.map((l) => (
-                <button key={l[F.ID]} type="button" disabled={busy} onClick={() => run(() => onLink(l), 'chat360.link')} className="w-full text-left p-2.5 hover:bg-[#F4F0EB] flex items-center justify-between gap-2">
+                <button key={l[F.ID]} type="button" disabled={busy} onClick={() => run(() => onLink(l), 'chat360.link')} className="w-full text-left p-2.5 hover:bg-[#F2F7FB] flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-[#1D2F3F] truncate">{l[F.NAME]} <span className="font-mono text-[10px] text-[#A9825A] ml-1">{l[F.ID]}</span></div>
-                    <div className="text-[10px] text-[#6B5F57]">{formatPhone(l[F.PHONE]) || '—'} · {l[F.UNIT_TYPE] || '—'} · RM {l[F.RM] || '—'}</div>
+                    <div className="text-xs font-semibold text-[#0B2A44] truncate">{l[F.NAME]} <span className="font-mono text-[10px] text-[#0B6BB0] ml-1">{l[F.ID]}</span></div>
+                    <div className="text-[10px] text-[#5E778C]">{formatPhone(l[F.PHONE]) || '—'} · {l[F.UNIT_TYPE] || '—'} · RM {l[F.RM] || '—'}</div>
                   </div>
                   <StageBadge stage={l[F.STAGE]} />
                 </button>
               ))}
             </div>
           )}
-          <div className="text-[10px] text-[#9E948D]">Linking back-fills the enquiry ID on every stored message from this number and records it on the lead's timeline.</div>
+          <div className="text-[10px] text-[#7E93A6]">Linking back-fills the enquiry ID on every stored message from this number and records it on the lead's timeline.</div>
         </div>
       )}
 

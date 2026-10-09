@@ -135,8 +135,8 @@ export const ExportDialog: React.FC<{
           <label htmlFor={`${idp}-url`} className={labelCls}>Spreadsheet link</label>
           {existing ? (
             <div className="flex items-center gap-2 text-xs">
-              <code id={`${idp}-url`} className="flex-1 min-w-0 break-all font-mono bg-[#F4F0EB] border border-[#D2C9BF] rounded-lg px-3 py-2 text-[#1D2F3F]">{form.spreadsheetUrl}</code>
-              {href && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#A9825A] hover:underline whitespace-nowrap">Open <ExternalLink size={11} /></a>}
+              <code id={`${idp}-url`} className="flex-1 min-w-0 break-all font-mono bg-[#F2F7FB] border border-[#D3E3F0] rounded-lg px-3 py-2 text-[#0B2A44]">{form.spreadsheetUrl}</code>
+              {href && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#0B6BB0] hover:underline whitespace-nowrap">Open <ExternalLink size={11} /></a>}
             </div>
           ) : (
             <>
@@ -156,10 +156,10 @@ export const ExportDialog: React.FC<{
                 <Button size="sm" variant="primary" loading={checking} disabled={!url?.ok || notConfigured} onClick={runCheck}>Check access</Button>
               </div>
               {url && !url.ok && <div id={`${idp}-url-err`} className="text-[10px] text-[#8A3E28] mt-0.5">{url.error}</div>}
-              {href && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#A9825A] hover:underline mt-1">Open the sheet <ExternalLink size={11} /></a>}
+              {href && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#0B6BB0] hover:underline mt-1">Open the sheet <ExternalLink size={11} /></a>}
             </>
           )}
-          {existing && <div className="text-[10px] text-[#9E948D] mt-1">To write to another spreadsheet, create a new export.</div>}
+          {existing && <div className="text-[10px] text-[#7E93A6] mt-1">To write to another spreadsheet, create a new export.</div>}
         </div>
         {checkError && <div role="alert" className="text-xs text-[#8A3E28] bg-[#FAF0EC] border border-[#B06A55]/40 rounded-lg p-2.5">{checkError}</div>}
         {check && <CheckResult result={check} needWrite />}
@@ -169,28 +169,28 @@ export const ExportDialog: React.FC<{
             <label htmlFor={`${idp}-tab`} className={labelCls}>Tab</label>
             <input id={`${idp}-tab`} className={inputCls} value={form.tab} maxLength={100} placeholder={DEFAULT_EXPORT_TAB} list={check?.ok && check.tabs.length ? `${idp}-tabs` : undefined} onChange={(e) => set({ tab: e.target.value })} />
             {check?.ok && check.tabs.length > 0 && <datalist id={`${idp}-tabs`}>{check.tabs.map((t) => <option key={t} value={t} />)}</datalist>}
-            <div className="text-[10px] text-[#9E948D] mt-1">
+            <div className="text-[10px] text-[#7E93A6] mt-1">
               Created if it doesn’t exist.{check?.ok && check.tabs.includes(form.tab.trim() || DEFAULT_EXPORT_TAB) ? ' This tab exists — its contents will be replaced.' : ''}
             </div>
           </div>
           <div>
             <label htmlFor={`${idp}-interval`} className={labelCls}>Export</label>
             <Select id={`${idp}-interval`} value={String(form.intervalMinutes)} options={INTERVAL_SELECT_OPTIONS} onChange={(e) => set({ intervalMinutes: toSyncInterval(e.target.value) })} />
-            <div className="text-[10px] text-[#9E948D] mt-1">Only rewritten when leads changed. “Run now” works at any time.</div>
+            <div className="text-[10px] text-[#7E93A6] mt-1">Only rewritten when leads changed. “Run now” works at any time.</div>
           </div>
         </div>
 
         <div role="group" aria-labelledby={`${idp}-cols-label`}>
           <div className="flex items-end justify-between gap-2 mb-1">
-            <div id={`${idp}-cols-label`} className={cx(labelCls, 'mb-0')}>Columns <span className="normal-case font-semibold text-[#9E948D]">({form.headers.length} chosen)</span></div>
+            <div id={`${idp}-cols-label`} className={cx(labelCls, 'mb-0')}>Columns <span className="normal-case font-semibold text-[#7E93A6]">({form.headers.length} chosen)</span></div>
             <Button size="xs" variant="ghost" onClick={() => set({ headers: [...DEFAULT_EXPORT_HEADERS] })}>Reset to defaults</Button>
           </div>
-          <ul className="rounded-lg border border-[#D2C9BF] bg-white divide-y divide-[#ECE8E1] max-h-72 overflow-y-auto">
+          <ul className="rounded-lg border border-[#D3E3F0] bg-white divide-y divide-[#E6EFF6] max-h-72 overflow-y-auto">
             {rows.map((r) => {
               const cbId = `${idp}-col-${r.header.replace(/[^A-Za-z0-9]+/g, '-')}`;
               return (
-                <li key={r.header} className={cx('flex items-center gap-2 px-2.5 py-1.5 text-xs', r.checked ? 'text-[#1D2F3F]' : 'text-[#6B5F57]')}>
-                  <input id={cbId} type="checkbox" className="accent-[#A9825A]" checked={r.checked} onChange={() => set({ headers: toggleHeader(form.headers, r.header) })} />
+                <li key={r.header} className={cx('flex items-center gap-2 px-2.5 py-1.5 text-xs', r.checked ? 'text-[#0B2A44]' : 'text-[#5E778C]')}>
+                  <input id={cbId} type="checkbox" className="accent-[#0B6BB0]" checked={r.checked} onChange={() => set({ headers: toggleHeader(form.headers, r.header) })} />
                   <label htmlFor={cbId} className={cx('flex-1 min-w-0 truncate cursor-pointer', r.checked && 'font-semibold')}>{r.header}</label>
                   {r.checked && (
                     <span className="flex items-center gap-0.5">
@@ -202,16 +202,16 @@ export const ExportDialog: React.FC<{
               );
             })}
           </ul>
-          <div className="text-[10px] text-[#9E948D] mt-1">Ticked columns are written in this order, left to right.</div>
+          <div className="text-[10px] text-[#7E93A6] mt-1">Ticked columns are written in this order, left to right.</div>
         </div>
 
         <div className="space-y-2">
-          <label className="flex items-start gap-2 text-xs text-[#3D3530] cursor-pointer">
-            <input type="checkbox" className="accent-[#A9825A] mt-0.5" checked={form.includeFollowups} onChange={(e) => set({ includeFollowups: e.target.checked })} />
+          <label className="flex items-start gap-2 text-xs text-[#0F2233] cursor-pointer">
+            <input type="checkbox" className="accent-[#0B6BB0] mt-0.5" checked={form.includeFollowups} onChange={(e) => set({ includeFollowups: e.target.checked })} />
             <span><b>Include follow-ups</b> — adds a “Follow-ups” column with all remarks of each lead.</span>
           </label>
-          <label className="flex items-start gap-2 text-xs text-[#3D3530] cursor-pointer">
-            <input type="checkbox" className="accent-[#A9825A] mt-0.5" checked={form.includeTrash} onChange={(e) => set({ includeTrash: e.target.checked })} />
+          <label className="flex items-start gap-2 text-xs text-[#0F2233] cursor-pointer">
+            <input type="checkbox" className="accent-[#0B6BB0] mt-0.5" checked={form.includeTrash} onChange={(e) => set({ includeTrash: e.target.checked })} />
             <span><b>Include leads in Trash</b></span>
           </label>
         </div>

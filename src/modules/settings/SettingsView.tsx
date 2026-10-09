@@ -108,8 +108,8 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Settings</h2>
-        <p className="text-xs text-[#6B5F57] mt-0.5">Sync, integrations, users and this device’s display preferences</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Settings</h2>
+        <p className="text-xs text-[#5E778C] mt-0.5">Sync, integrations, users and this device’s display preferences</p>
       </div>
 
       {settingsError && (active === 'integrations' || active === 'sync') && (

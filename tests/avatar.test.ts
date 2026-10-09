@@ -53,12 +53,12 @@ describe('Avatar', () => {
     expect(html).toContain('w-20 h-20');
     expect(html).not.toContain('>RM<');
   });
-  it('falls back to the gold initials circle without a usable photo', () => {
+  it('falls back to the blue initials circle without a usable photo', () => {
     for (const avatar of [undefined, '', 'javascript:alert(1)', 'https://example.com/me.jpg']) {
       const html = render({ user: { name: 'Rahul Mehta', avatar }, size: 'sm' });
       expect(html).not.toContain('<img');
       expect(html).toContain('>RM</span>');
-      expect(html).toContain('bg-[#A9825A]');
+      expect(html).toContain('bg-[#0B6BB0]');
       expect(html).toContain('w-7 h-7');
       expect(html).toContain('aria-label="Rahul Mehta"');
     }

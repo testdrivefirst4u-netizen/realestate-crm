@@ -5,7 +5,7 @@ import { useCrm } from '../_components/CrmShell';
 
 export function DashboardClient() {
   const { engine, openLead, showLeads, rmOptions } = useCrm();
-  const { data, sync } = engine;
+  const { data, sync, currentUser } = engine;
   return (
     <DashboardView
       leads={data.leads}
@@ -13,6 +13,7 @@ export function DashboardClient() {
       rmOptions={rmOptions}
       sync={sync}
       greeting={data.customization?.dashboardGreeting}
+      userName={currentUser?.name}
       onRefresh={() => engine.refresh({ silent: false, force: true })}
       onFilterClick={showLeads}
       onOpenLead={openLead}

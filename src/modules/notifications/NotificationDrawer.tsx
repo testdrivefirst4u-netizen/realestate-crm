@@ -27,13 +27,13 @@ const isAlert = (n: NotificationItem) => n.type === 'alert' || n.type === 'warni
 function TypeIcon({ type }: { type: NotificationType }) {
   switch (type) {
     case 'success':
-      return <CheckCircle2 size={16} className="text-[#7C8B78]" />;
+      return <CheckCircle2 size={16} className="text-[#0E8A86]" />;
     case 'alert':
       return <BellRing size={16} className="text-[#B06A55]" />;
     case 'warning':
-      return <AlertTriangle size={16} className="text-[#A9825A]" />;
+      return <AlertTriangle size={16} className="text-[#0B6BB0]" />;
     default:
-      return <Info size={16} className="text-[#1D2F3F]" />;
+      return <Info size={16} className="text-[#0B2A44]" />;
   }
 }
 
@@ -114,22 +114,22 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
 
   return (
     <>
-      <div className="fixed inset-0 bg-[#1D2F3F]/40 backdrop-blur-xs z-50" onClick={onClose} />
-      <aside className="fixed top-0 right-0 bottom-0 w-[420px] max-w-full bg-[#FDFCFA] z-50 shadow-2xl flex flex-col border-l border-[#D2C9BF] animate-in slide-in-from-right duration-200" role="dialog" aria-modal="true" aria-label="Notifications">
+      <div className="fixed inset-0 bg-[#0B2A44]/40 backdrop-blur-xs z-50" onClick={onClose} />
+      <aside className="fixed top-0 right-0 bottom-0 w-[420px] max-w-full bg-[#FFFFFF] z-50 shadow-2xl flex flex-col border-l border-[#D3E3F0] animate-in slide-in-from-right duration-200" role="dialog" aria-modal="true" aria-label="Notifications">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[#D2C9BF] bg-white flex items-start justify-between gap-3">
+        <div className="p-4 sm:p-5 border-b border-[#D3E3F0] bg-white flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-[#1D2F3F] inline-flex items-center gap-2"><BellRing size={18} className="text-[#A9825A]" />Notifications</h3>
-            <div className="text-xs text-[#6B5F57] mt-0.5">{unread > 0 ? `${unread} unread · ${items.length} total` : `${items.length} total`}</div>
+            <h3 className="text-lg font-bold text-[#0B2A44] inline-flex items-center gap-2"><BellRing size={18} className="text-[#0B6BB0]" />Notifications</h3>
+            <div className="text-xs text-[#5E778C] mt-0.5">{unread > 0 ? `${unread} unread · ${items.length} total` : `${items.length} total`}</div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-md text-[#9E948D] hover:text-[#1D2F3F] hover:bg-[#F4F0EB]" aria-label="Close"><X size={18} /></button>
+          <button onClick={onClose} className="p-1.5 rounded-md text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB]" aria-label="Close"><X size={18} /></button>
         </div>
 
         {/* Desktop alerts */}
-        <div className="px-4 py-3 bg-[#F4F0EB] border-b border-[#D2C9BF] text-xs">
+        <div className="px-4 py-3 bg-[#F2F7FB] border-b border-[#D3E3F0] text-xs">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-[#3D3530] min-w-0">
-              {browserPermission === 'granted' ? <Bell size={14} className="text-[#7C8B78] flex-shrink-0" /> : <BellOff size={14} className="text-[#A9825A] flex-shrink-0" />}
+            <div className="flex items-center gap-2 text-[#0F2233] min-w-0">
+              {browserPermission === 'granted' ? <Bell size={14} className="text-[#0E8A86] flex-shrink-0" /> : <BellOff size={14} className="text-[#0B6BB0] flex-shrink-0" />}
               <span className="truncate">{browserPermission === 'granted' ? 'Desktop alerts are on' : 'Desktop alerts are off'}</span>
             </div>
             {browserPermission !== 'granted' && (
@@ -142,7 +142,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
         </div>
 
         {/* Filters & actions */}
-        <div className="px-4 py-2.5 border-b border-[#ECE8E1] flex items-center justify-between gap-2 flex-wrap bg-[#FDFCFA]">
+        <div className="px-4 py-2.5 border-b border-[#E6EFF6] flex items-center justify-between gap-2 flex-wrap bg-[#FFFFFF]">
           <Tabs<Filter> tabs={tabs} value={filter} onChange={setFilter} />
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="xs" onClick={() => notificationBus.markAllAsRead()} disabled={unread === 0} icon={<CheckCheck size={12} />}>Mark all read</Button>
@@ -158,7 +158,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
             <div className="space-y-4">
               {groups.map((g) => (
                 <section key={g.key}>
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] px-1 mb-1.5 sticky top-0 bg-[#FDFCFA]/95 py-1">{g.label}</div>
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] px-1 mb-1.5 sticky top-0 bg-[#FFFFFF]/95 py-1">{g.label}</div>
                   <div className="space-y-2">
                     {g.items.map((n) => (
                       <button
@@ -166,21 +166,21 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
                         onClick={() => open(n)}
                         className={cx(
                           'w-full text-left p-3 rounded-lg border transition flex items-start gap-2.5',
-                          n.read ? 'bg-white border-[#ECE8E1] hover:bg-[#FAF7F2]' : 'bg-[#F4F0EB] border-[#A9825A]/40 shadow-xs hover:border-[#A9825A]'
+                          n.read ? 'bg-white border-[#E6EFF6] hover:bg-[#F7FAFD]' : 'bg-[#F2F7FB] border-[#0B6BB0]/40 shadow-xs hover:border-[#0B6BB0]'
                         )}
                       >
                         <div className="mt-0.5 flex-shrink-0"><TypeIcon type={n.type} /></div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className={cx('text-xs truncate', n.read ? 'font-semibold text-[#3D3530]' : 'font-bold text-[#1D2F3F]')}>{n.title}</span>
-                            <span className="text-[10px] text-[#9E948D] flex-shrink-0 inline-flex items-center gap-1.5">
+                            <span className={cx('text-xs truncate', n.read ? 'font-semibold text-[#0F2233]' : 'font-bold text-[#0B2A44]')}>{n.title}</span>
+                            <span className="text-[10px] text-[#7E93A6] flex-shrink-0 inline-flex items-center gap-1.5">
                               {formatTime(n.timestamp, '')}
-                              {!n.read && <span className="w-2 h-2 rounded-full bg-[#A9825A]" aria-label="Unread" />}
+                              {!n.read && <span className="w-2 h-2 rounded-full bg-[#0B6BB0]" aria-label="Unread" />}
                             </span>
                           </div>
-                          {n.message && <p className="text-xs text-[#3D3530] mt-1 leading-relaxed break-words">{n.message}</p>}
+                          {n.message && <p className="text-xs text-[#0F2233] mt-1 leading-relaxed break-words">{n.message}</p>}
                           {n.recordId && (
-                            <div className="text-[10px] font-bold text-[#A9825A] mt-1.5 inline-flex items-center gap-1">
+                            <div className="text-[10px] font-bold text-[#0B6BB0] mt-1.5 inline-flex items-center gap-1">
                               {RECORD_LABEL[n.recordType || ''] || 'Open'} <ExternalLink size={10} />
                             </div>
                           )}

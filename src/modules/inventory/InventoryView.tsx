@@ -58,11 +58,11 @@ const LeadChip: React.FC<{ id: string; name?: string; onOpen: (id: string) => vo
       onOpen(id);
     }}
     title={`Open ${id}`}
-    className={cx('inline-flex items-center gap-1 max-w-full text-[10px] font-semibold text-[#A9825A] hover:text-[#1D2F3F] hover:underline', className)}
+    className={cx('inline-flex items-center gap-1 max-w-full text-[10px] font-semibold text-[#0B6BB0] hover:text-[#0B2A44] hover:underline', className)}
   >
     <ExternalLink size={10} className="flex-shrink-0" />
     <span className="font-mono">{id}</span>
-    {name && <span className="truncate text-[#6B5F57] font-normal">· {name}</span>}
+    {name && <span className="truncate text-[#5E778C] font-normal">· {name}</span>}
   </button>
 );
 
@@ -173,18 +173,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       key: 'unit', label: 'Unit', onSort: () => toggleSort('unit'), sortIndicator: indicator('unit'),
       render: (u: InventoryUnit) => (
         <div>
-          <div className="font-bold text-[#1D2F3F] text-sm">{u.unitId || '—'}</div>
-          {u.inventoryId && <div className="text-[10px] font-mono text-[#9E948D]">{u.inventoryId}</div>}
+          <div className="font-bold text-[#0B2A44] text-sm">{u.unitId || '—'}</div>
+          {u.inventoryId && <div className="text-[10px] font-mono text-[#7E93A6]">{u.inventoryId}</div>}
         </div>
       ),
     },
     { key: 'tower', label: 'Tower', onSort: () => toggleSort('tower'), sortIndicator: indicator('tower'), render: (u: InventoryUnit) => u.tower || '—' },
     { key: 'floor', label: 'Floor', onSort: () => toggleSort('floor'), sortIndicator: indicator('floor'), render: (u: InventoryUnit) => (u.floor === '' || u.floor === undefined || u.floor === null ? '—' : String(u.floor)) },
-    { key: 'type', label: 'Type', onSort: () => toggleSort('type'), sortIndicator: indicator('type'), render: (u: InventoryUnit) => <span className="font-semibold text-[#A9825A]">{u.unitType || '—'}</span> },
+    { key: 'type', label: 'Type', onSort: () => toggleSort('type'), sortIndicator: indicator('type'), render: (u: InventoryUnit) => <span className="font-semibold text-[#0B6BB0]">{u.unitType || '—'}</span> },
     {
       key: 'area', label: <span>Carpet / Built-up <span className="normal-case font-medium">(sq.ft)</span></span>, onSort: () => toggleSort('carpet'), sortIndicator: indicator('carpet'), align: 'right' as const,
       render: (u: InventoryUnit) => (
-        <span className="tabular-nums">{u.carpetArea ? formatNumber(u.carpetArea) : '—'} <span className="text-[#9E948D]">/</span> {u.totalArea ? formatNumber(u.totalArea) : '—'}</span>
+        <span className="tabular-nums">{u.carpetArea ? formatNumber(u.carpetArea) : '—'} <span className="text-[#7E93A6]">/</span> {u.totalArea ? formatNumber(u.totalArea) : '—'}</span>
       ),
     },
     { key: 'uds', label: 'UDS', align: 'right' as const, render: (u: InventoryUnit) => <span className="tabular-nums">{u.uds ? formatNumber(u.uds) : '—'}</span> },
@@ -195,11 +195,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       key: 'customer', label: 'Customer', onSort: () => toggleSort('customer'), sortIndicator: indicator('customer'), className: 'min-w-[160px]',
       render: (u: InventoryUnit) => {
         const lead = u.leadId ? leadById.get(u.leadId) : undefined;
-        if (!u.customerName && !u.contact && !u.leadId) return <span className="text-[#9E948D]">—</span>;
+        if (!u.customerName && !u.contact && !u.leadId) return <span className="text-[#7E93A6]">—</span>;
         return (
           <div className="min-w-0">
-            {u.customerName && <div className="font-semibold text-[#1D2F3F] truncate">{u.customerName}</div>}
-            {u.contact && <div className="text-[10px] text-[#6B5F57]">{formatPhone(u.contact)}</div>}
+            {u.customerName && <div className="font-semibold text-[#0B2A44] truncate">{u.customerName}</div>}
+            {u.contact && <div className="text-[10px] text-[#5E778C]">{formatPhone(u.contact)}</div>}
             {u.leadId && <LeadChip id={u.leadId} name={lead ? lead[F.NAME] : undefined} onOpen={onOpenLead} />}
           </div>
         );
@@ -211,7 +211,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       render: (u: InventoryUnit) => (
         <div className="min-w-0">
           <div className="whitespace-nowrap">{formatRelative(u.lastModified, '—')}</div>
-          {u.modifiedBy && <div className="text-[10px] text-[#9E948D] truncate">{modifiedByLabel(u.modifiedBy)}</div>}
+          {u.modifiedBy && <div className="text-[10px] text-[#7E93A6] truncate">{modifiedByLabel(u.modifiedBy)}</div>}
         </div>
       ),
     },
@@ -261,10 +261,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Residence & Unit Inventory</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5 flex items-center gap-2 flex-wrap">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Residence & Unit Inventory</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5 flex items-center gap-2 flex-wrap">
             <span>Live inventory — edits here are saved to the CRM server at once; colleagues’ edits appear after the next sync.</span>
-            <span className="text-[#9E948D]">·</span>
+            <span className="text-[#7E93A6]">·</span>
             <span className={stale ? 'text-[#B06A55] font-semibold' : ''}>
               {sync.status === 'syncing' ? 'Syncing…' : sync.lastSyncAt ? `Synced ${formatRelative(sync.lastSyncAt)}` : 'Not synced yet'}
               {stale && ' (showing last known data)'}
@@ -315,16 +315,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
           </div>
 
           {/* Filters */}
-          <div className="bg-[#EDE8E0] p-3 rounded-xl border border-[#D2C9BF] flex flex-wrap items-center gap-2.5">
+          <div className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center gap-2.5">
             <div className="relative flex-1 min-w-[200px]">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search unit, customer, lead ID, phone…" className={cx(inputCls, 'pl-8')} />
             </div>
             <Select value={tower} onChange={(e) => setTower(e.target.value)} options={towers} placeholder="All towers" className="!w-auto" />
             <Select value={floor} onChange={(e) => setFloor(e.target.value)} options={floors} placeholder="All floors" className="!w-auto" />
             <Select value={unitType} onChange={(e) => setUnitType(e.target.value)} options={types} placeholder="All types" className="!w-auto" />
             <Select value={status} onChange={(e) => setStatus(e.target.value)} options={statuses} placeholder="All statuses" className="!w-auto" />
-            <span className="text-xs text-[#6B5F57] font-medium ml-auto">
+            <span className="text-xs text-[#5E778C] font-medium ml-auto">
               {filtered.length === inventory.length ? pluralize(inventory.length, 'unit') : `${filtered.length} of ${inventory.length} units`}
             </span>
             {anyFilter && <Button size="xs" variant="ghost" onClick={clearFilters} icon={<X size={12} />}>Clear</Button>}
@@ -346,7 +346,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
               }
             />
             {filtered.length > visible && (
-              <div className="p-3 border-t border-[#ECE8E1] flex items-center justify-center gap-3 text-xs text-[#6B5F57]">
+              <div className="p-3 border-t border-[#E6EFF6] flex items-center justify-center gap-3 text-xs text-[#5E778C]">
                 <span>Showing {visible} of {filtered.length}</span>
                 <Button size="xs" variant="secondary" onClick={() => setVisible((v) => v + PAGE_SIZE)}>Show more</Button>
               </div>
@@ -516,10 +516,10 @@ const UnitDrawer: React.FC<{
       title={`${canEdit ? 'Edit' : 'Unit'} ${unit.unitId}`}
       subtitle={
         <span className="flex items-center gap-2 flex-wrap">
-          {unit.unitType && <span className="font-semibold text-[#A9825A]">{unit.unitType}</span>}
+          {unit.unitType && <span className="font-semibold text-[#0B6BB0]">{unit.unitType}</span>}
           {unit.tower && <span>· {unit.tower}</span>}
           {unit.floor !== '' && unit.floor !== undefined && <span>· Floor {String(unit.floor)}</span>}
-          {unit.inventoryId && <span className="font-mono text-[#9E948D]">· {unit.inventoryId}</span>}
+          {unit.inventoryId && <span className="font-mono text-[#7E93A6]">· {unit.inventoryId}</span>}
         </span>
       }
       footer={
@@ -570,7 +570,7 @@ const UnitDrawer: React.FC<{
         </div>
 
         <section className="space-y-3">
-          <h4 className="text-xs font-bold text-[#1D2F3F] uppercase tracking-wider">Status & pricing</h4>
+          <h4 className="text-xs font-bold text-[#0B2A44] uppercase tracking-wider">Status & pricing</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Status" hint={form.status === 'Available' && (unit.customerName || unit.leadId) ? 'Releasing a unit clears the customer link.' : undefined}>
               <Select value={form.status} onChange={(e) => onStatusChange(e.target.value)} options={statusOptions} disabled={disabled} />
@@ -594,17 +594,17 @@ const UnitDrawer: React.FC<{
         </section>
 
         <section className="space-y-3">
-          <h4 className="text-xs font-bold text-[#1D2F3F] uppercase tracking-wider">Customer</h4>
-          <div className="rounded-xl border border-[#D2C9BF] bg-white p-3 space-y-2">
+          <h4 className="text-xs font-bold text-[#0B2A44] uppercase tracking-wider">Customer</h4>
+          <div className="rounded-xl border border-[#D3E3F0] bg-white p-3 space-y-2">
             {form.leadId ? (
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Linked enquiry</div>
-                  <div className="text-sm font-semibold text-[#1D2F3F] truncate">
-                    {linkedLead ? linkedLead[F.NAME] : form.customerName || 'Lead'} <span className="font-mono text-[10px] text-[#A9825A] ml-1">{form.leadId}</span>
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Linked enquiry</div>
+                  <div className="text-sm font-semibold text-[#0B2A44] truncate">
+                    {linkedLead ? linkedLead[F.NAME] : form.customerName || 'Lead'} <span className="font-mono text-[10px] text-[#0B6BB0] ml-1">{form.leadId}</span>
                   </div>
                   {linkedLead && (
-                    <div className="text-[11px] text-[#6B5F57] mt-0.5 flex items-center gap-2 flex-wrap">
+                    <div className="text-[11px] text-[#5E778C] mt-0.5 flex items-center gap-2 flex-wrap">
                       <StageBadge stage={linkedLead[F.STAGE]} />
                       <span>{linkedLead[F.UNIT_TYPE] || '—'}</span>
                       <span>· RM {linkedLead[F.RM] || '—'}</span>
@@ -619,29 +619,29 @@ const UnitDrawer: React.FC<{
               </div>
             ) : canEdit ? (
               <div>
-                <label className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] flex items-center gap-1 mb-1"><Link2 size={11} /> Link to an enquiry</label>
+                <label className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] flex items-center gap-1 mb-1"><Link2 size={11} /> Link to an enquiry</label>
                 <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
                   <input value={leadQuery} onChange={(e) => setLeadQuery(e.target.value)} placeholder="Search by name, phone or enquiry ID…" className={cx(inputCls, 'pl-8')} disabled={disabled} />
                 </div>
                 {leadQuery.trim().length >= 2 && (
-                  <div className="mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-[#ECE8E1] divide-y divide-[#ECE8E1]">
-                    {leadResults.length === 0 && <div className="p-2.5 text-xs text-[#9E948D]">No matching enquiries</div>}
+                  <div className="mt-1.5 max-h-48 overflow-y-auto rounded-lg border border-[#E6EFF6] divide-y divide-[#E6EFF6]">
+                    {leadResults.length === 0 && <div className="p-2.5 text-xs text-[#7E93A6]">No matching enquiries</div>}
                     {leadResults.map((l) => (
-                      <button key={l[F.ID]} type="button" onClick={() => linkLead(l)} className="w-full text-left p-2.5 hover:bg-[#F4F0EB] flex items-center justify-between gap-2">
+                      <button key={l[F.ID]} type="button" onClick={() => linkLead(l)} className="w-full text-left p-2.5 hover:bg-[#F2F7FB] flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="text-xs font-semibold text-[#1D2F3F] truncate">{l[F.NAME]} <span className="font-mono text-[10px] text-[#A9825A] ml-1">{l[F.ID]}</span></div>
-                          <div className="text-[10px] text-[#6B5F57]">{formatPhone(l[F.PHONE]) || '—'} · {l[F.UNIT_TYPE] || '—'}</div>
+                          <div className="text-xs font-semibold text-[#0B2A44] truncate">{l[F.NAME]} <span className="font-mono text-[10px] text-[#0B6BB0] ml-1">{l[F.ID]}</span></div>
+                          <div className="text-[10px] text-[#5E778C]">{formatPhone(l[F.PHONE]) || '—'} · {l[F.UNIT_TYPE] || '—'}</div>
                         </div>
                         <StageBadge stage={l[F.STAGE]} />
                       </button>
                     ))}
                   </div>
                 )}
-                <div className="text-[10px] text-[#9E948D] mt-1">Linking fills the customer name and contact from the enquiry and records the booking on the lead's timeline.</div>
+                <div className="text-[10px] text-[#7E93A6] mt-1">Linking fills the customer name and contact from the enquiry and records the booking on the lead's timeline.</div>
               </div>
             ) : (
-              <div className="text-xs text-[#9E948D]">No enquiry linked.</div>
+              <div className="text-xs text-[#7E93A6]">No enquiry linked.</div>
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -662,9 +662,9 @@ const UnitDrawer: React.FC<{
 };
 
 const Fact: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div className="rounded-lg bg-[#F4F0EB] border border-[#ECE8E1] p-2.5 min-w-0">
-    <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">{label}</div>
-    <div className="text-xs font-semibold text-[#1D2F3F] mt-0.5 truncate">{value}</div>
+  <div className="rounded-lg bg-[#F2F7FB] border border-[#E6EFF6] p-2.5 min-w-0">
+    <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">{label}</div>
+    <div className="text-xs font-semibold text-[#0B2A44] mt-0.5 truncate">{value}</div>
   </div>
 );
 
@@ -866,7 +866,7 @@ const ImportModal: React.FC<{
         </InlineNotice>
 
         <div
-          className="rounded-xl border-2 border-dashed border-[#D2C9BF] bg-white p-5 text-center hover:border-[#A9825A] transition cursor-pointer"
+          className="rounded-xl border-2 border-dashed border-[#D3E3F0] bg-white p-5 text-center hover:border-[#0B6BB0] transition cursor-pointer"
           onClick={() => fileRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
@@ -875,9 +875,9 @@ const ImportModal: React.FC<{
           }}
         >
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
-          <Upload size={20} className="mx-auto text-[#A9825A]" />
-          <div className="text-xs font-semibold text-[#1D2F3F] mt-2">{fileName || 'Choose a CSV file or drop it here'}</div>
-          <div className="text-[10px] text-[#9E948D] mt-0.5">Exported from Excel / Google Sheets as CSV (UTF-8)</div>
+          <Upload size={20} className="mx-auto text-[#0B6BB0]" />
+          <div className="text-xs font-semibold text-[#0B2A44] mt-2">{fileName || 'Choose a CSV file or drop it here'}</div>
+          <div className="text-[10px] text-[#7E93A6] mt-0.5">Exported from Excel / Google Sheets as CSV (UTF-8)</div>
         </div>
 
         {reading && <LoadingState label="Reading file…" className="py-6" />}
@@ -894,17 +894,17 @@ const ImportModal: React.FC<{
                   <Fact label="Already exist" value={analysis.duplicates.length} />
                   <Fact label="Blank / repeated" value={analysis.skippedRows.length + analysis.repeatedInFile.length} />
                 </div>
-                <div className="text-[11px] text-[#6B5F57]">
+                <div className="text-[11px] text-[#5E778C]">
                   Mapped columns:{' '}
                   {Object.entries(analysis.mapped).map(([field, header]) => (
-                    <span key={field} className="inline-block mr-1.5 mb-1 px-1.5 py-0.5 rounded bg-[#F4F0EB] border border-[#ECE8E1]"><span className="font-mono">{header}</span> → {field}</span>
+                    <span key={field} className="inline-block mr-1.5 mb-1 px-1.5 py-0.5 rounded bg-[#F2F7FB] border border-[#E6EFF6]"><span className="font-mono">{header}</span> → {field}</span>
                   ))}
-                  {analysis.unmappedHeaders.length > 0 && <span className="block mt-1 text-[#9E948D]">Ignored: {analysis.unmappedHeaders.join(', ')}</span>}
+                  {analysis.unmappedHeaders.length > 0 && <span className="block mt-1 text-[#7E93A6]">Ignored: {analysis.unmappedHeaders.join(', ')}</span>}
                 </div>
                 {analysis.duplicates.length > 0 && (
                   <InlineNotice tone="warning">Skipped as they already exist: {analysis.duplicates.slice(0, 12).join(', ')}{analysis.duplicates.length > 12 ? ` and ${analysis.duplicates.length - 12} more` : ''}</InlineNotice>
                 )}
-                <div className="rounded-lg border border-[#ECE8E1] overflow-hidden">
+                <div className="rounded-lg border border-[#E6EFF6] overflow-hidden">
                   <DataTable<Partial<InventoryUnit>>
                     dense
                     rows={analysis.units.slice(0, 8)}
@@ -920,7 +920,7 @@ const ImportModal: React.FC<{
                       { key: 'status', label: 'Status', render: (u) => <Badge tone={statusTone(u.status)}>{u.status}</Badge> },
                     ]}
                   />
-                  {analysis.units.length > 8 && <div className="p-2 text-center text-[10px] text-[#9E948D] border-t border-[#ECE8E1]">…and {analysis.units.length - 8} more rows</div>}
+                  {analysis.units.length > 8 && <div className="p-2 text-center text-[10px] text-[#7E93A6] border-t border-[#E6EFF6]">…and {analysis.units.length - 8} more rows</div>}
                 </div>
               </>
             )}

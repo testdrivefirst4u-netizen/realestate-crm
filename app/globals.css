@@ -92,3 +92,9 @@ code, pre, .font-mono {
 .legal-doc li { margin: 0.3rem 0; }
 .legal-doc a { color: #7A5B37; text-decoration: underline; text-underline-offset: 2px; }
 .legal-doc strong { color: #14202B; font-weight: 600; }
+
+/* The CRM screens (Ocean design): Figtree, navy headings. Login, super admin and public pages keep Jost. */
+@layer base {
+  .crm-ocean { font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif; }
+  .crm-ocean h1, .crm-ocean h2, .crm-ocean h3, .crm-ocean h4 { color: #0B2A44; }
+}

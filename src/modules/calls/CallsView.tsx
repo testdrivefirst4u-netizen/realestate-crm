@@ -194,8 +194,8 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Calls</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">Calls logged from the CRM, uploaded recordings and your telephony provider's webhook — with AI transcripts and summaries.</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Calls</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">Calls logged from the CRM, uploaded recordings and your telephony provider's webhook — with AI transcripts and summaries.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="secondary" onClick={() => load()} loading={loading} icon={<RefreshCw size={13} />}>Refresh</Button>
@@ -232,15 +232,15 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
           </div>
 
           {/* Filters */}
-          <div className="bg-[#EDE8E0] p-3 rounded-xl border border-[#D2C9BF] flex flex-wrap items-center gap-2.5">
+          <div className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center gap-2.5">
             <div className="relative flex-1 min-w-[200px]">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customer, phone, enquiry ID, outcome…" className={cx(inputCls, 'pl-8')} />
             </div>
             <Select value={direction} onChange={(e) => setDirection(e.target.value)} options={[...DIRECTIONS]} placeholder="All directions" className="!w-auto" />
             <Select value={status} onChange={(e) => setStatus(e.target.value)} options={statusOptions} placeholder="All statuses" className="!w-auto" />
             <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
-            <span className="text-xs text-[#6B5F57] font-medium ml-auto">{filtered.length === list.length ? pluralize(list.length, 'call') : `${filtered.length} of ${list.length} calls`}</span>
+            <span className="text-xs text-[#5E778C] font-medium ml-auto">{filtered.length === list.length ? pluralize(list.length, 'call') : `${filtered.length} of ${list.length} calls`}</span>
             {anyFilter && <Button size="xs" variant="ghost" onClick={clearFilters} icon={<X size={12} />}>Clear</Button>}
           </div>
 
@@ -249,7 +249,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-[#EDE8E0] border-b border-[#D2C9BF] text-[#6B5F57] uppercase font-bold tracking-wider text-[10px]">
+                  <tr className="bg-[#E6EFF6] border-b border-[#D3E3F0] text-[#5E778C] uppercase font-bold tracking-wider text-[10px]">
                     <th className="p-2.5 w-6" />
                     <th className="p-2.5">When</th>
                     <th className="p-2.5">Customer</th>
@@ -264,10 +264,10 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
                     <th className="p-2.5 text-center" title="AI summary">AI</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#ECE8E1]">
+                <tbody className="divide-y divide-[#E6EFF6]">
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={12} className="p-6 text-center text-[#9E948D]">
+                      <td colSpan={12} className="p-6 text-center text-[#7E93A6]">
                         <div className="flex flex-col items-center gap-2">
                           <span>No calls match these filters.</span>
                           {anyFilter && <Button size="xs" variant="secondary" onClick={clearFilters}>Clear filters</Button>}
@@ -281,23 +281,23 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
                     const open = expanded === c.id;
                     return (
                       <React.Fragment key={c.id}>
-                        <tr onClick={() => setExpanded(open ? null : c.id)} className={cx('cursor-pointer transition hover:bg-[#F4F0EB]', open && 'bg-[#FAF7F2]')}>
-                          <td className="p-2.5 text-[#9E948D] align-top">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
-                          <td className="p-2.5 align-top whitespace-nowrap text-[#3D3530]">
+                        <tr onClick={() => setExpanded(open ? null : c.id)} className={cx('cursor-pointer transition hover:bg-[#F2F7FB]', open && 'bg-[#F7FAFD]')}>
+                          <td className="p-2.5 text-[#7E93A6] align-top">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
+                          <td className="p-2.5 align-top whitespace-nowrap text-[#0F2233]">
                             <div>{formatDateTime(callTime(c), '—')}</div>
-                            <div className="text-[10px] font-mono text-[#9E948D]">{c.id}</div>
+                            <div className="text-[10px] font-mono text-[#7E93A6]">{c.id}</div>
                           </td>
                           <td className="p-2.5 align-top min-w-[190px] max-w-[280px]">
                             {c.leadId ? (
                               <>
-                                <div className="font-semibold text-[#1D2F3F] truncate">{c.customerName || (lead ? lead[F.NAME] : '') || <span className="text-[#9E948D] font-normal">Unknown caller</span>}</div>
+                                <div className="font-semibold text-[#0B2A44] truncate">{c.customerName || (lead ? lead[F.NAME] : '') || <span className="text-[#7E93A6] font-normal">Unknown caller</span>}</div>
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onOpenLead(c.leadId);
                                   }}
-                                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#A9825A] hover:text-[#1D2F3F] hover:underline"
+                                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#0B6BB0] hover:text-[#0B2A44] hover:underline"
                                 >
                                   <ExternalLink size={10} /><span className="font-mono">{c.leadId}</span>{lead && <StageBadge stage={lead[F.STAGE]} />}
                                 </button>
@@ -305,7 +305,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
                               </>
                             ) : match ? (
                               <>
-                                <div className="font-semibold text-[#1D2F3F] truncate">{c.customerName || match.name || formatPhone(c.phone) || 'Unknown caller'}</div>
+                                <div className="font-semibold text-[#0B2A44] truncate">{c.customerName || match.name || formatPhone(c.phone) || 'Unknown caller'}</div>
                                 <MatchSuggestion
                                   match={match}
                                   canLink={canLog}
@@ -317,40 +317,40 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
                               </>
                             ) : (
                               <>
-                                <div className="font-semibold text-[#1D2F3F] truncate">{c.customerName || <span className="text-[#9E948D] font-normal">Unknown caller</span>}</div>
+                                <div className="font-semibold text-[#0B2A44] truncate">{c.customerName || <span className="text-[#7E93A6] font-normal">Unknown caller</span>}</div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <Badge tone="muted">Unlinked</Badge>
-                                  <span className="text-[10px] text-[#9E948D]">No matching enquiry</span>
+                                  <span className="text-[10px] text-[#7E93A6]">No matching enquiry</span>
                                 </div>
                               </>
                             )}
                           </td>
                           <td className="p-2.5 align-top whitespace-nowrap">
                             {c.phone ? (
-                              <a href={telLink(c.phone)} onClick={(e) => e.stopPropagation()} className="text-[#1D2F3F] hover:text-[#A9825A] inline-flex items-center gap-1"><Phone size={10} />{formatPhone(c.phone)}</a>
+                              <a href={telLink(c.phone)} onClick={(e) => e.stopPropagation()} className="text-[#0B2A44] hover:text-[#0B6BB0] inline-flex items-center gap-1"><Phone size={10} />{formatPhone(c.phone)}</a>
                             ) : '—'}
                           </td>
                           <td className="p-2.5 align-top whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1.5 text-[#3D3530]">{c.direction === 'Inbound' ? <PhoneIncoming size={12} className="text-[#7C8B78]" /> : <PhoneOutgoing size={12} className="text-[#A9825A]" />}{c.direction}</span>
+                            <span className="inline-flex items-center gap-1.5 text-[#0F2233]">{c.direction === 'Inbound' ? <PhoneIncoming size={12} className="text-[#0E8A86]" /> : <PhoneOutgoing size={12} className="text-[#0B6BB0]" />}{c.direction}</span>
                           </td>
                           <td className="p-2.5 align-top text-right tabular-nums">{c.durationSec ? formatDuration(c.durationSec) : '—'}</td>
                           <td className="p-2.5 align-top"><Badge tone={statusTone(c.status)}>{c.status || '—'}</Badge></td>
-                          <td className="p-2.5 align-top">{c.outcome ? <Badge tone={outcomeTone(c.outcome)}>{c.outcome}</Badge> : <span className="text-[#9E948D]">—</span>}</td>
-                          <td className="p-2.5 align-top text-[#6B5F57]">{c.provider || '—'}</td>
+                          <td className="p-2.5 align-top">{c.outcome ? <Badge tone={outcomeTone(c.outcome)}>{c.outcome}</Badge> : <span className="text-[#7E93A6]">—</span>}</td>
+                          <td className="p-2.5 align-top text-[#5E778C]">{c.provider || '—'}</td>
                           <td className="p-2.5 align-top text-center">
                             {c.recordingUrl ? (
-                              <a href={c.recordingUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex text-[#A9825A] hover:text-[#1D2F3F]" title="Open recording"><Headphones size={14} /></a>
+                              <a href={c.recordingUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex text-[#0B6BB0] hover:text-[#0B2A44]" title="Open recording"><Headphones size={14} /></a>
                             ) : hasRecording(c) ? (
-                              <Headphones size={14} className="inline text-[#9E948D]" />
+                              <Headphones size={14} className="inline text-[#7E93A6]" />
                             ) : (
-                              <span className="text-[#D2C9BF]">—</span>
+                              <span className="text-[#D3E3F0]">—</span>
                             )}
                           </td>
-                          <td className="p-2.5 align-top text-center">{hasTranscript(c) ? <Check size={14} className="inline text-[#2E7D32]" /> : <span className="text-[#D2C9BF]">—</span>}</td>
-                          <td className="p-2.5 align-top text-center">{hasSummary(c) ? <Sparkles size={14} className="inline text-[#A9825A]" /> : <span className="text-[#D2C9BF]">—</span>}</td>
+                          <td className="p-2.5 align-top text-center">{hasTranscript(c) ? <Check size={14} className="inline text-[#2E7D32]" /> : <span className="text-[#D3E3F0]">—</span>}</td>
+                          <td className="p-2.5 align-top text-center">{hasSummary(c) ? <Sparkles size={14} className="inline text-[#0B6BB0]" /> : <span className="text-[#D3E3F0]">—</span>}</td>
                         </tr>
                         {open && (
-                          <tr className="bg-[#FAF7F2]">
+                          <tr className="bg-[#F7FAFD]">
                             <td colSpan={12} className="p-0">
                               <CallDetails
                                 call={c}
@@ -388,7 +388,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
               </table>
             </div>
             {filtered.length > visible && (
-              <div className="p-3 border-t border-[#ECE8E1] flex items-center justify-center gap-3 text-xs text-[#6B5F57]">
+              <div className="p-3 border-t border-[#E6EFF6] flex items-center justify-center gap-3 text-xs text-[#5E778C]">
                 <span>Showing {visible} of {filtered.length}</span>
                 <Button size="xs" variant="secondary" onClick={() => setVisible((v) => v + PAGE_SIZE)}>Show more</Button>
               </div>
@@ -410,7 +410,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
 
 /** RM and unit type of the linked enquiry, under the customer name. */
 const ClientFacts: React.FC<{ rm?: string; unit?: string }> = ({ rm, unit }) => (
-  <div className="text-[10px] text-[#6B5F57] mt-0.5 truncate" title={`RM ${rm || '—'}${unit ? ` · ${unit}` : ''}`}>
+  <div className="text-[10px] text-[#5E778C] mt-0.5 truncate" title={`RM ${rm || '—'}${unit ? ` · ${unit}` : ''}`}>
     RM {String(rm || '').trim() || '—'}
     {String(unit || '').trim() ? ` · ${unit}` : ''}
   </div>
@@ -418,13 +418,13 @@ const ClientFacts: React.FC<{ rm?: string; unit?: string }> = ({ rm, unit }) => 
 
 /** Unlinked call whose number matches an enquiry: who it is, plus a one-click link. */
 const MatchSuggestion: React.FC<{ match: CallMatch; canLink: boolean; busy?: RowAction; error?: string; onLink: () => void; onOpenLead: (id: string) => void }> = ({ match, canLink, busy, error, onLink, onOpenLead }) => (
-  <div className="mt-1 rounded-lg border border-dashed border-[#A9825A]/60 bg-[#FBF6EF] p-1.5 space-y-1 cursor-default" onClick={(e) => e.stopPropagation()}>
-    <div className="text-[10px] uppercase font-bold tracking-wider text-[#A9825A]">Matching enquiry</div>
+  <div className="mt-1 rounded-lg border border-dashed border-[#0B6BB0]/60 bg-[#F5F9FC] p-1.5 space-y-1 cursor-default" onClick={(e) => e.stopPropagation()}>
+    <div className="text-[10px] uppercase font-bold tracking-wider text-[#0B6BB0]">Matching enquiry</div>
     <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-      <button type="button" onClick={() => onOpenLead(match.leadId)} className="font-semibold text-[#1D2F3F] hover:text-[#A9825A] hover:underline truncate max-w-[150px]" title="Open the enquiry">
+      <button type="button" onClick={() => onOpenLead(match.leadId)} className="font-semibold text-[#0B2A44] hover:text-[#0B6BB0] hover:underline truncate max-w-[150px]" title="Open the enquiry">
         {match.name || match.leadId}
       </button>
-      <span className="font-mono text-[10px] text-[#A9825A]">{match.leadId}</span>
+      <span className="font-mono text-[10px] text-[#0B6BB0]">{match.leadId}</span>
       {match.stage && <StageBadge stage={match.stage} />}
     </div>
     <ClientFacts rm={match.rm} unit={match.unitType} />
@@ -477,7 +477,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
   const followupIso = followup ? fromDatetimeLocalInput(followup) : '';
 
   return (
-    <div className="p-4 border-t border-[#ECE8E1] space-y-4 text-xs" onClick={(e) => e.stopPropagation()}>
+    <div className="p-4 border-t border-[#E6EFF6] space-y-4 text-xs" onClick={(e) => e.stopPropagation()}>
       {error && (
         <InlineNotice tone="warning">
           <div className="flex items-start gap-2"><span className="flex-1">{error}</span><button type="button" onClick={onDismissError} aria-label="Dismiss"><X size={12} /></button></div>
@@ -497,11 +497,11 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <h5 className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Notes & outcome</h5>
+              <h5 className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Notes & outcome</h5>
               {canLog && !editing && <Button size="xs" variant="ghost" onClick={() => setEditing(true)} icon={<NotebookPen size={11} />}>Edit</Button>}
             </div>
             {editing ? (
-              <div className="space-y-2 rounded-lg border border-[#D2C9BF] bg-white p-2.5">
+              <div className="space-y-2 rounded-lg border border-[#D3E3F0] bg-white p-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Status"><Select value={edit.status} onChange={(e) => setEdit((s) => ({ ...s, status: e.target.value as CallRecord['status'] }))} options={[...CALL_STATUSES]} /></Field>
                   <Field label="Outcome"><Select value={edit.outcome} onChange={(e) => setEdit((s) => ({ ...s, outcome: e.target.value }))} options={OUTCOMES} placeholder="—" /></Field>
@@ -523,14 +523,14 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-[#ECE8E1] bg-white p-2.5 text-[#3D3530] whitespace-pre-wrap leading-relaxed">{call.notes ? call.notes : <span className="text-[#9E948D]">No notes.</span>}</div>
+              <div className="rounded-lg border border-[#E6EFF6] bg-white p-2.5 text-[#0F2233] whitespace-pre-wrap leading-relaxed">{call.notes ? call.notes : <span className="text-[#7E93A6]">No notes.</span>}</div>
             )}
           </div>
 
           {/* Link to lead */}
           {!call.leadId && canLog && (
-            <div className="rounded-lg border border-dashed border-[#D2C9BF] bg-white p-2.5 space-y-1.5">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] flex items-center gap-1"><Link2 size={11} /> Link to an enquiry</div>
+            <div className="rounded-lg border border-dashed border-[#D3E3F0] bg-white p-2.5 space-y-1.5">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] flex items-center gap-1"><Link2 size={11} /> Link to an enquiry</div>
               {match && (
                 <InlineNotice tone="success">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -545,21 +545,21 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
                 </InlineNotice>
               )}
               <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
                 <input value={linkQuery} onChange={(e) => setLinkQuery(e.target.value)} placeholder={match ? 'Or search another enquiry by name, phone or ID…' : 'Search by name, phone or ID…'} className={cx(inputCls, 'pl-7')} disabled={anyBusy} />
               </div>
               {linkQuery.trim().length >= 2 && (
-                <div className="max-h-40 overflow-y-auto rounded-lg border border-[#ECE8E1] divide-y divide-[#ECE8E1]">
-                  {linkResults.length === 0 && <div className="p-2 text-[#9E948D]">No matching enquiries</div>}
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-[#E6EFF6] divide-y divide-[#E6EFF6]">
+                  {linkResults.length === 0 && <div className="p-2 text-[#7E93A6]">No matching enquiries</div>}
                   {linkResults.map((l) => (
-                    <button key={l[F.ID]} type="button" disabled={anyBusy} onClick={() => onLinkLead(l)} className="w-full text-left p-2 hover:bg-[#F4F0EB] flex items-center justify-between gap-2">
-                      <span className="truncate"><strong className="text-[#1D2F3F]">{l[F.NAME]}</strong> <span className="font-mono text-[10px] text-[#A9825A]">{l[F.ID]}</span> <span className="text-[#6B5F57]">· {formatPhone(l[F.PHONE]) || '—'}</span></span>
+                    <button key={l[F.ID]} type="button" disabled={anyBusy} onClick={() => onLinkLead(l)} className="w-full text-left p-2 hover:bg-[#F2F7FB] flex items-center justify-between gap-2">
+                      <span className="truncate"><strong className="text-[#0B2A44]">{l[F.NAME]}</strong> <span className="font-mono text-[10px] text-[#0B6BB0]">{l[F.ID]}</span> <span className="text-[#5E778C]">· {formatPhone(l[F.PHONE]) || '—'}</span></span>
                       <StageBadge stage={l[F.STAGE]} />
                     </button>
                   ))}
                 </div>
               )}
-              <div className="text-[10px] text-[#9E948D]">Recordings, transcripts and follow-ups need a linked enquiry.</div>
+              <div className="text-[10px] text-[#7E93A6]">Recordings, transcripts and follow-ups need a linked enquiry.</div>
             </div>
           )}
         </div>
@@ -567,9 +567,9 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
         {/* AI */}
         <div className="space-y-3 lg:col-span-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <h5 className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] inline-flex items-center gap-1"><Brain size={12} /> Recording & AI</h5>
+            <h5 className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] inline-flex items-center gap-1"><Brain size={12} /> Recording & AI</h5>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {call.recordingUrl && <a href={call.recordingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#A9825A] hover:underline font-semibold"><Headphones size={12} /> Open recording</a>}
+              {call.recordingUrl && <a href={call.recordingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#0B6BB0] hover:underline font-semibold"><Headphones size={12} /> Open recording</a>}
               {canLog && (
                 <>
                   <input ref={fileRef} type="file" accept={RECORDING_ACCEPT} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.currentTarget.value = ''; }} />
@@ -590,30 +590,30 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
           </div>
           {!aiConfigured && recording && <InlineNotice>AI is not configured. Add a Gemini API key in Settings → AI to transcribe and summarise recordings.</InlineNotice>}
           {!recording && !transcript && (
-            <div className="rounded-lg border border-[#ECE8E1] bg-white p-3 text-[#6B5F57] flex items-start gap-2">
-              <FileAudio size={14} className="text-[#A9825A] flex-shrink-0 mt-0.5" />
+            <div className="rounded-lg border border-[#E6EFF6] bg-white p-3 text-[#5E778C] flex items-start gap-2">
+              <FileAudio size={14} className="text-[#0B6BB0] flex-shrink-0 mt-0.5" />
               <span>No recording for this call. Browsers cannot record phone-line audio — recordings arrive from your telephony provider's webhook, or upload the file your provider or phone saved.</span>
             </div>
           )}
 
           {summary && (
-            <div className="rounded-lg border border-[#ECE8E1] bg-white p-3 space-y-2">
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#A9825A] inline-flex items-center gap-1"><Sparkles size={11} /> AI summary</div>
-              <p className="text-[#3D3530] leading-relaxed whitespace-pre-wrap">{call.aiSummary}</p>
+            <div className="rounded-lg border border-[#E6EFF6] bg-white p-3 space-y-2">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#0B6BB0] inline-flex items-center gap-1"><Sparkles size={11} /> AI summary</div>
+              <p className="text-[#0F2233] leading-relaxed whitespace-pre-wrap">{call.aiSummary}</p>
               {(call.keyPoints?.length || 0) > 0 && (
                 <div>
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] mb-1">Key points</div>
-                  <ul className="list-disc pl-4 space-y-0.5 text-[#3D3530]">{call.keyPoints!.map((k, i) => <li key={i}>{k}</li>)}</ul>
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] mb-1">Key points</div>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[#0F2233]">{call.keyPoints!.map((k, i) => <li key={i}>{k}</li>)}</ul>
                 </div>
               )}
               {(call.followupActions?.length || 0) > 0 && (
                 <div>
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57] mb-1">Follow-up actions</div>
-                  <ul className="list-disc pl-4 space-y-0.5 text-[#3D3530]">{call.followupActions!.map((k, i) => <li key={i}>{k}</li>)}</ul>
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] mb-1">Follow-up actions</div>
+                  <ul className="list-disc pl-4 space-y-0.5 text-[#0F2233]">{call.followupActions!.map((k, i) => <li key={i}>{k}</li>)}</ul>
                 </div>
               )}
               {call.leadId && (
-                <div className="flex items-end gap-2 flex-wrap pt-1 border-t border-[#ECE8E1]">
+                <div className="flex items-end gap-2 flex-wrap pt-1 border-t border-[#E6EFF6]">
                   <Button size="xs" variant="secondary" icon={<NotebookPen size={11} />} loading={busy === 'remark'} disabled={anyBusy} onClick={onAddRemark}>Add summary as follow-up remark</Button>
                   <div className="flex items-end gap-1.5">
                     <Field label="Set follow-up from AI" hint={lead && lead[F.NEXT_FOLLOWUP] ? `Current: ${formatRelative(lead[F.NEXT_FOLLOWUP])}` : undefined}>
@@ -628,12 +628,12 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
           )}
 
           {transcript && (
-            <div className="rounded-lg border border-[#ECE8E1] bg-white">
-              <button type="button" onClick={() => setShowTranscript((s) => !s)} className="w-full flex items-center justify-between p-2.5 text-left hover:bg-[#F4F0EB] rounded-lg">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Transcript · {String(call.transcript || '').length.toLocaleString('en-IN')} characters</span>
-                {showTranscript ? <ChevronDown size={14} className="text-[#9E948D]" /> : <ChevronRight size={14} className="text-[#9E948D]" />}
+            <div className="rounded-lg border border-[#E6EFF6] bg-white">
+              <button type="button" onClick={() => setShowTranscript((s) => !s)} className="w-full flex items-center justify-between p-2.5 text-left hover:bg-[#F2F7FB] rounded-lg">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Transcript · {String(call.transcript || '').length.toLocaleString('en-IN')} characters</span>
+                {showTranscript ? <ChevronDown size={14} className="text-[#7E93A6]" /> : <ChevronRight size={14} className="text-[#7E93A6]" />}
               </button>
-              {showTranscript && <pre className="p-3 pt-0 text-[11px] text-[#3D3530] whitespace-pre-wrap font-sans leading-relaxed max-h-80 overflow-y-auto">{call.transcript}</pre>}
+              {showTranscript && <pre className="p-3 pt-0 text-[11px] text-[#0F2233] whitespace-pre-wrap font-sans leading-relaxed max-h-80 overflow-y-auto">{call.transcript}</pre>}
             </div>
           )}
         </div>
@@ -643,9 +643,9 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
 };
 
 const Fact: React.FC<{ label: string; value: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
-  <div className="rounded-lg bg-white border border-[#ECE8E1] p-2 min-w-0">
-    <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">{label}</div>
-    <div className={cx('text-xs font-semibold text-[#1D2F3F] mt-0.5 truncate', mono && 'font-mono font-normal')}>{value}</div>
+  <div className="rounded-lg bg-white border border-[#E6EFF6] p-2 min-w-0">
+    <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">{label}</div>
+    <div className={cx('text-xs font-semibold text-[#0B2A44] mt-0.5 truncate', mono && 'font-mono font-normal')}>{value}</div>
   </div>
 );
 

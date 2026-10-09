@@ -225,12 +225,12 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
 
   const footer = readyToImport ? (
     <>
-      <div className="mr-auto text-xs text-[#3D3530] min-w-0">
-        <div className="font-bold text-[#1D2F3F] flex items-center gap-1.5">
-          <CheckCircle2 size={14} className="text-[#7C8B78]" />
+      <div className="mr-auto text-xs text-[#0F2233] min-w-0">
+        <div className="font-bold text-[#0B2A44] flex items-center gap-1.5">
+          <CheckCircle2 size={14} className="text-[#0E8A86]" />
           <span>{parseResult!.validLeads.length} record{parseResult!.validLeads.length === 1 ? '' : 's'} ready</span>
         </div>
-        <div className="text-[11px] text-[#6B5F57] mt-0.5">
+        <div className="text-[11px] text-[#5E778C] mt-0.5">
           {parseResult!.brandNewLeads.length} to create
           {parseResult!.conflicts.length > 0 && ` · ${parseResult!.conflicts.length} matching existing → ${conflictVerb}`}
           {parseResult!.inFileDuplicates.length > 0 && ` · ${parseResult!.inFileDuplicates.length} in-file duplicate${parseResult!.inFileDuplicates.length === 1 ? '' : 's'} left out`}
@@ -252,7 +252,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
       width="xl"
       title={
         <span className="inline-flex items-center gap-2">
-          <FileSpreadsheet size={18} className="text-[#A9825A]" />
+          <FileSpreadsheet size={18} className="text-[#0B6BB0]" />
           CSV Import & Export
         </span>
       }
@@ -275,12 +275,12 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
         {/* ------------------------------ EXPORT ------------------------------ */}
         {activeTab === 'export' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <section className="bg-white p-5 rounded-xl border border-[#D2C9BF] shadow-xs space-y-3">
+            <section className="bg-white p-5 rounded-xl border border-[#D3E3F0] shadow-xs space-y-3">
               <div>
                 <span className={labelCls}>Full database export</span>
-                <h4 className="text-base font-bold text-[#1D2F3F]">All leads as CSV</h4>
+                <h4 className="text-base font-bold text-[#0B2A44]">All leads as CSV</h4>
               </div>
-              <p className="text-[#6B5F57] leading-relaxed">
+              <p className="text-[#5E778C] leading-relaxed">
                 Exports every lead with all {exportHeaders.length} columns present in the data
                 {exportFollowupCount > 0 && <> — including {exportFollowupCount} Follow-up column{exportFollowupCount === 1 ? '' : 's'}</>}.
                 Dates are written as “01 Oct 2026, 05:30 PM” and the file is UTF-8 with BOM so Excel opens it correctly.
@@ -289,16 +289,16 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                 <Button variant="primary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => exportLeadsToCSV(leads)}>
                   Download {leads.length} lead{leads.length === 1 ? '' : 's'}
                 </Button>
-                {!leads.length && <span className="text-[#9E948D]">No leads to export yet.</span>}
+                {!leads.length && <span className="text-[#7E93A6]">No leads to export yet.</span>}
               </div>
             </section>
 
-            <section className="bg-white p-5 rounded-xl border border-[#D2C9BF] shadow-xs space-y-3">
+            <section className="bg-white p-5 rounded-xl border border-[#D3E3F0] shadow-xs space-y-3">
               <div>
                 <span className={labelCls}>Import template</span>
-                <h4 className="text-base font-bold text-[#1D2F3F]">Sample CSV with the expected columns</h4>
+                <h4 className="text-base font-bold text-[#0B2A44]">Sample CSV with the expected columns</h4>
               </div>
-              <p className="text-[#6B5F57] leading-relaxed">
+              <p className="text-[#5E778C] leading-relaxed">
                 Three sample rows using the configured stages, sources and unit types. Leave <strong>{F.ID}</strong> blank — the CRM assigns it. Only <strong>{F.NAME}</strong> is required; dates may be dd/MM/yyyy, yyyy-MM-dd HH:mm or the CRM display format.
               </p>
               <div className="pt-1">
@@ -315,12 +315,12 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
 
             {/* Result of the last import */}
             {outcome && (
-              <section className="bg-white p-5 rounded-xl border border-[#7C8B78]/50 shadow-xs space-y-3">
+              <section className="bg-white p-5 rounded-xl border border-[#0E8A86]/50 shadow-xs space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#7C8B78]/15 text-[#3C573A] flex items-center justify-center shrink-0"><CheckCircle2 size={20} /></div>
+                  <div className="w-10 h-10 rounded-xl bg-[#0E8A86]/15 text-[#3C573A] flex items-center justify-center shrink-0"><CheckCircle2 size={20} /></div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-base font-bold text-[#1D2F3F]">Import complete</h4>
-                    <p className="text-[#6B5F57] mt-0.5 truncate">{outcome.fileName} · {outcome.sent} record{outcome.sent === 1 ? '' : 's'} sent · {IMPORT_STRATEGIES.find((s) => s.id === outcome.strategy)?.label}</p>
+                    <h4 className="text-base font-bold text-[#0B2A44]">Import complete</h4>
+                    <p className="text-[#5E778C] mt-0.5 truncate">{outcome.fileName} · {outcome.sent} record{outcome.sent === 1 ? '' : 's'} sent · {IMPORT_STRATEGIES.find((s) => s.id === outcome.strategy)?.label}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -345,22 +345,22 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
-                className={cx('block border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer focus:outline-none focus:border-[#A9825A]', dragging ? 'border-[#A9825A] bg-[#F4F0EB]' : 'border-[#B8AFA7] bg-[#F4F0EB]/50 hover:bg-[#F4F0EB]')}
+                className={cx('block border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer focus:outline-none focus:border-[#0B6BB0]', dragging ? 'border-[#0B6BB0] bg-[#F2F7FB]' : 'border-[#A9BDCD] bg-[#F2F7FB]/50 hover:bg-[#F2F7FB]')}
               >
-                <Upload size={28} className="mx-auto text-[#A9825A] mb-2.5" />
-                <span className="text-base font-bold text-[#1D2F3F] block mb-1.5">Choose a CSV file, or drop it here</span>
-                <p className="text-[#6B5F57] max-w-md mx-auto mb-4 leading-relaxed">
+                <Upload size={28} className="mx-auto text-[#0B6BB0] mb-2.5" />
+                <span className="text-base font-bold text-[#0B2A44] block mb-1.5">Choose a CSV file, or drop it here</span>
+                <p className="text-[#5E778C] max-w-md mx-auto mb-4 leading-relaxed">
                   We parse the headers, map them to CRM fields, normalise dates and stages, and flag duplicates — nothing is written until you confirm.
                 </p>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-[#D2C9BF] text-[#1D2F3F] text-[11px] font-semibold">
-                  <FileDown size={13} className="text-[#A9825A]" />
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-[#D3E3F0] text-[#0B2A44] text-[11px] font-semibold">
+                  <FileDown size={13} className="text-[#0B6BB0]" />
                   Need the format? Use the template on the Export tab
                 </span>
               </div>
             )}
 
             {isParsing && (
-              <div className="flex items-center justify-center gap-3 py-10 text-[#A9825A] font-semibold">
+              <div className="flex items-center justify-center gap-3 py-10 text-[#0B6BB0] font-semibold">
                 <Loader2 size={18} className="animate-spin" />
                 <span>Reading columns, matching CRM fields and checking for duplicates…</span>
               </div>
@@ -369,12 +369,12 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
             {parseResult && !isParsing && (
               <div className="space-y-4">
                 {/* File bar */}
-                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-[#D2C9BF]">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-[#D3E3F0]">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-[#F4F0EB] text-[#1D2F3F] flex items-center justify-center font-mono font-bold text-[10px] shrink-0">CSV</div>
+                    <div className="w-8 h-8 rounded-lg bg-[#F2F7FB] text-[#0B2A44] flex items-center justify-center font-mono font-bold text-[10px] shrink-0">CSV</div>
                     <div className="min-w-0">
-                      <div className="font-bold text-[#1D2F3F] truncate">{fileName || 'Uploaded file'}</div>
-                      <div className="text-[11px] text-[#6B5F57]">
+                      <div className="font-bold text-[#0B2A44] truncate">{fileName || 'Uploaded file'}</div>
+                      <div className="text-[11px] text-[#5E778C]">
                         {parseResult.totalRowsParsed} data row{parseResult.totalRowsParsed === 1 ? '' : 's'} · {parseResult.detectedHeaders.length} columns · {fileSize ? `${Math.max(1, Math.round(fileSize / 1024))} KB` : '—'}
                       </div>
                     </div>
@@ -415,52 +415,52 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                 )}
 
                 {/* Column mapping */}
-                <div className="bg-white rounded-xl border border-[#D2C9BF] overflow-hidden">
-                  <button onClick={() => setShowMapping(!showMapping)} className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-[#F4F0EB]/50 transition">
+                <div className="bg-white rounded-xl border border-[#D3E3F0] overflow-hidden">
+                  <button onClick={() => setShowMapping(!showMapping)} className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-[#F2F7FB]/50 transition">
                     <span className="flex items-center gap-2">
-                      <SlidersHorizontal size={14} className="text-[#A9825A]" />
-                      <span className="font-semibold text-[#1D2F3F]">Column mapping</span>
-                      <span className="text-[11px] text-[#6B5F57]">
+                      <SlidersHorizontal size={14} className="text-[#0B6BB0]" />
+                      <span className="font-semibold text-[#0B2A44]">Column mapping</span>
+                      <span className="text-[11px] text-[#5E778C]">
                         {mappedCount} of {parseResult.columnMappings.length} CRM fields found
                         {parseResult.followupColumns.length > 0 && ` · ${parseResult.followupColumns.length} follow-up column${parseResult.followupColumns.length === 1 ? '' : 's'}`}
                         {parseResult.unmappedHeaders.length > 0 && ` · ${parseResult.unmappedHeaders.length} ignored`}
                       </span>
                     </span>
-                    <span className="flex items-center gap-1 text-[#A9825A] font-semibold">{showMapping ? 'Hide' : 'Show'}{showMapping ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
+                    <span className="flex items-center gap-1 text-[#0B6BB0] font-semibold">{showMapping ? 'Hide' : 'Show'}{showMapping ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
                   </button>
                   {showMapping && (
-                    <div className="p-4 border-t border-[#D2C9BF] bg-[#FDFCFA] space-y-3">
-                      <p className="text-[11px] text-[#6B5F57]">
+                    <div className="p-4 border-t border-[#D3E3F0] bg-[#FFFFFF] space-y-3">
+                      <p className="text-[11px] text-[#5E778C]">
                         Each CSV column feeds at most one CRM field. Fields that are not in the file stay blank — no defaults are invented, so an overwrite never erases existing data.
                       </p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {parseResult.columnMappings.map((m) => (
-                          <div key={m.crmField} className={cx('p-2 rounded-lg border text-[11px]', m.confidence === 'NONE' ? 'bg-[#F4F0EB]/60 border-[#ECE8E1]' : 'bg-white border-[#D2C9BF]/80')}>
-                            <span className="font-semibold text-[#1D2F3F] block truncate">{m.crmField}</span>
+                          <div key={m.crmField} className={cx('p-2 rounded-lg border text-[11px]', m.confidence === 'NONE' ? 'bg-[#F2F7FB]/60 border-[#E6EFF6]' : 'bg-white border-[#D3E3F0]/80')}>
+                            <span className="font-semibold text-[#0B2A44] block truncate">{m.crmField}</span>
                             <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
-                              <span className="font-mono text-[#6B5F57] truncate">{m.csvHeader ? `← ${m.csvHeader}` : '—'}</span>
-                              <span className={cx('font-semibold shrink-0', m.confidence === 'EXACT' ? 'text-[#3C573A]' : m.confidence === 'FUZZY' ? 'text-[#86633E]' : 'text-[#9E948D]')}>{confidenceLabel[m.confidence]}</span>
+                              <span className="font-mono text-[#5E778C] truncate">{m.csvHeader ? `← ${m.csvHeader}` : '—'}</span>
+                              <span className={cx('font-semibold shrink-0', m.confidence === 'EXACT' ? 'text-[#3C573A]' : m.confidence === 'FUZZY' ? 'text-[#0B5E9C]' : 'text-[#7E93A6]')}>{confidenceLabel[m.confidence]}</span>
                             </div>
                           </div>
                         ))}
                       </div>
                       {parseResult.followupColumns.length > 0 && (
-                        <div className="text-[11px] text-[#6B5F57]"><span className="font-semibold text-[#3D3530]">Follow-up columns: </span><span className="font-mono text-[10px]">{parseResult.followupColumns.join(', ')}</span></div>
+                        <div className="text-[11px] text-[#5E778C]"><span className="font-semibold text-[#0F2233]">Follow-up columns: </span><span className="font-mono text-[10px]">{parseResult.followupColumns.join(', ')}</span></div>
                       )}
                       {parseResult.unmappedHeaders.length > 0 && (
-                        <div className="text-[11px] text-[#6B5F57]"><span className="font-semibold text-[#3D3530]">Ignored columns: </span><span className="font-mono text-[10px]">{parseResult.unmappedHeaders.join(', ')}</span></div>
+                        <div className="text-[11px] text-[#5E778C]"><span className="font-semibold text-[#0F2233]">Ignored columns: </span><span className="font-mono text-[10px]">{parseResult.unmappedHeaders.join(', ')}</span></div>
                       )}
                     </div>
                   )}
                 </div>
 
                 {/* Preview table */}
-                <div className="bg-white rounded-xl border border-[#D2C9BF] shadow-xs overflow-hidden">
-                  <div className="p-3 border-b border-[#D2C9BF] bg-[#FDFCFA] flex flex-wrap items-center justify-between gap-3">
+                <div className="bg-white rounded-xl border border-[#D3E3F0] shadow-xs overflow-hidden">
+                  <div className="p-3 border-b border-[#D3E3F0] bg-[#FFFFFF] flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-1.5 overflow-x-auto">
                       <FilterChip active={previewFilter === 'ALL'} onClick={() => setPreviewFilter('ALL')}>All ({parseResult.previewRows.length})</FilterChip>
-                      <FilterChip active={previewFilter === 'NEW'} onClick={() => setPreviewFilter('NEW')} activeCls="bg-[#7C8B78] text-white">New ({parseResult.brandNewLeads.length})</FilterChip>
-                      <FilterChip active={previewFilter === 'UPDATE'} onClick={() => setPreviewFilter('UPDATE')} activeCls="bg-[#A9825A] text-white">Matches ({parseResult.conflicts.length})</FilterChip>
+                      <FilterChip active={previewFilter === 'NEW'} onClick={() => setPreviewFilter('NEW')} activeCls="bg-[#0E8A86] text-white">New ({parseResult.brandNewLeads.length})</FilterChip>
+                      <FilterChip active={previewFilter === 'UPDATE'} onClick={() => setPreviewFilter('UPDATE')} activeCls="bg-[#0B6BB0] text-white">Matches ({parseResult.conflicts.length})</FilterChip>
                       {parseResult.inFileDuplicates.length > 0 && (
                         <FilterChip active={previewFilter === 'DUPLICATE'} onClick={() => setPreviewFilter('DUPLICATE')} activeCls="bg-[#B06A55] text-white">Duplicates ({parseResult.inFileDuplicates.length})</FilterChip>
                       )}
@@ -470,7 +470,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="relative">
-                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9E948D]" />
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
                         <input type="text" value={previewSearch} onChange={(e) => setPreviewSearch(e.target.value)} placeholder="Search rows…" className={cx(inputCls, 'pl-7 py-1.5 w-40 sm:w-48')} />
                       </div>
                       <select value={sampleLimit} onChange={(e) => setSampleLimit(Number(e.target.value))} className={cx(inputCls, 'py-1.5 w-auto')}>
@@ -484,7 +484,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
 
                   <div className="overflow-x-auto max-h-80">
                     <table className="w-full text-left border-collapse">
-                      <thead className="bg-[#EDE8E0] text-[#6B5F57] text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-[#D2C9BF]">
+                      <thead className="bg-[#E6EFF6] text-[#5E778C] text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-[#D3E3F0]">
                         <tr>
                           <th className="py-2.5 px-3 w-12 text-center">Row</th>
                           <th className="py-2.5 px-3">Action</th>
@@ -499,19 +499,19 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                           <th className="py-2.5 px-3 text-right">Raw</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#ECE8E1]">
+                      <tbody className="divide-y divide-[#E6EFF6]">
                         {displayedRows.length === 0 ? (
-                          <tr><td colSpan={11} className="py-8 text-center text-[#9E948D]">No rows match this filter.</td></tr>
+                          <tr><td colSpan={11} className="py-8 text-center text-[#7E93A6]">No rows match this filter.</td></tr>
                         ) : (
                           displayedRows.map((row) => {
                             const selected = selectedRowIndex === row.rowIndex;
                             return (
-                              <tr key={row.rowIndex} className={cx('transition hover:bg-[#F4F0EB]/60', selected && 'bg-[#F4F0EB]', row.status === 'DUPLICATE' && 'opacity-70')}>
-                                <td className="py-2 px-3 font-mono text-[11px] text-[#6B5F57] text-center">#{row.rowIndex}</td>
+                              <tr key={row.rowIndex} className={cx('transition hover:bg-[#F2F7FB]/60', selected && 'bg-[#F2F7FB]', row.status === 'DUPLICATE' && 'opacity-70')}>
+                                <td className="py-2 px-3 font-mono text-[11px] text-[#5E778C] text-center">#{row.rowIndex}</td>
                                 <td className="py-2 px-3 whitespace-nowrap"><Badge tone={statusTone(row.status)}>{statusLabel(row)}</Badge></td>
-                                <td className="py-2 px-3 font-semibold text-[#1D2F3F] whitespace-nowrap">{row.lead[F.NAME]}</td>
-                                <td className="py-2 px-3 font-mono text-[11px] text-[#3D3530] whitespace-nowrap">{row.lead[F.PHONE] || <span className="text-[#B06A55] italic">missing</span>}</td>
-                                <td className="py-2 px-3 text-[#6B5F57] truncate max-w-[160px]">{row.lead[F.EMAIL] || <span className="text-[#9E948D]">—</span>}</td>
+                                <td className="py-2 px-3 font-semibold text-[#0B2A44] whitespace-nowrap">{row.lead[F.NAME]}</td>
+                                <td className="py-2 px-3 font-mono text-[11px] text-[#0F2233] whitespace-nowrap">{row.lead[F.PHONE] || <span className="text-[#B06A55] italic">missing</span>}</td>
+                                <td className="py-2 px-3 text-[#5E778C] truncate max-w-[160px]">{row.lead[F.EMAIL] || <span className="text-[#7E93A6]">—</span>}</td>
                                 <td className="py-2 px-3 whitespace-nowrap">
                                   {row.lead[F.STAGE] ? (
                                     <span className={cx('inline-flex items-center gap-1.5', row.unknownStage && 'text-amber-800')} title={row.unknownStage ? 'Not a configured stage' : undefined}>
@@ -519,12 +519,12 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                                       {row.lead[F.STAGE]}
                                     </span>
                                   ) : (
-                                    <span className="text-[#9E948D]">{row.status === 'UPDATE' ? 'unchanged' : `${STAGES.NEW} (default)`}</span>
+                                    <span className="text-[#7E93A6]">{row.status === 'UPDATE' ? 'unchanged' : `${STAGES.NEW} (default)`}</span>
                                   )}
                                 </td>
-                                <td className="py-2 px-3 text-[#3D3530] whitespace-nowrap">{row.lead[F.UNIT_TYPE] || <span className="text-[#9E948D]">—</span>}</td>
-                                <td className="py-2 px-3 text-[#6B5F57] whitespace-nowrap">{row.lead[F.SOURCE] || <span className="text-[#9E948D]">—</span>}</td>
-                                <td className="py-2 px-3 text-[#6B5F57] whitespace-nowrap">{formatDateTime(row.lead[F.ENQUIRY_DATE]) || <span className="text-[#9E948D]">{row.status === 'NEW' ? 'now (server)' : '—'}</span>}</td>
+                                <td className="py-2 px-3 text-[#0F2233] whitespace-nowrap">{row.lead[F.UNIT_TYPE] || <span className="text-[#7E93A6]">—</span>}</td>
+                                <td className="py-2 px-3 text-[#5E778C] whitespace-nowrap">{row.lead[F.SOURCE] || <span className="text-[#7E93A6]">—</span>}</td>
+                                <td className="py-2 px-3 text-[#5E778C] whitespace-nowrap">{formatDateTime(row.lead[F.ENQUIRY_DATE]) || <span className="text-[#7E93A6]">{row.status === 'NEW' ? 'now (server)' : '—'}</span>}</td>
                                 <td className="py-2 px-3 text-center whitespace-nowrap">
                                   {row.warnings.length === 0 ? (
                                     <span className="inline-flex items-center gap-1 text-[11px] text-[#3C573A] font-semibold" title="All checks passed"><CheckCircle2 size={13} />Ready</span>
@@ -533,7 +533,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                                   )}
                                 </td>
                                 <td className="py-2 px-3 text-right whitespace-nowrap">
-                                  <button onClick={() => setSelectedRowIndex(selected ? null : row.rowIndex)} className="p-1 rounded-md hover:bg-[#EDE8E0] text-[#A9825A] hover:text-[#1D2F3F] transition" title="Inspect raw values vs mapped fields"><Eye size={14} /></button>
+                                  <button onClick={() => setSelectedRowIndex(selected ? null : row.rowIndex)} className="p-1 rounded-md hover:bg-[#E6EFF6] text-[#0B6BB0] hover:text-[#0B2A44] transition" title="Inspect raw values vs mapped fields"><Eye size={14} /></button>
                                 </td>
                               </tr>
                             );
@@ -542,22 +542,22 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                       </tbody>
                     </table>
                   </div>
-                  <div className="p-2.5 border-t border-[#D2C9BF] bg-[#FDFCFA] text-[11px] text-[#6B5F57] flex items-center justify-between gap-2">
+                  <div className="p-2.5 border-t border-[#D3E3F0] bg-[#FFFFFF] text-[11px] text-[#5E778C] flex items-center justify-between gap-2">
                     <span>Showing {displayedRows.length} of {filteredRows.length} rows{previewSearch && ` matching “${previewSearch}”`}</span>
-                    <span className="text-[10px] text-[#9E948D] hidden sm:inline">Use the eye icon to compare a row with the original CSV values</span>
+                    <span className="text-[10px] text-[#7E93A6] hidden sm:inline">Use the eye icon to compare a row with the original CSV values</span>
                   </div>
                 </div>
 
                 {/* Inspector */}
                 {selectedRow && (
-                  <div className="bg-[#EDE8E0]/70 p-4 rounded-xl border border-[#D2C9BF] space-y-3">
+                  <div className="bg-[#E6EFF6]/70 p-4 rounded-xl border border-[#D3E3F0] space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-[#1D2F3F] text-sm">Row #{selectedRow.rowIndex}</span>
-                        <span className="font-semibold text-[#1D2F3F]">{selectedRow.lead[F.NAME]}</span>
+                        <span className="font-bold text-[#0B2A44] text-sm">Row #{selectedRow.rowIndex}</span>
+                        <span className="font-semibold text-[#0B2A44]">{selectedRow.lead[F.NAME]}</span>
                         <Badge tone={statusTone(selectedRow.status)}>{statusLabel(selectedRow)}{selectedRow.conflictReason ? ` · ${selectedRow.conflictReason === 'ID_MATCH' ? 'same Enquiry ID' : 'same phone'}` : ''}</Badge>
                       </div>
-                      <button onClick={() => setSelectedRowIndex(null)} className="text-[#6B5F57] hover:text-[#1D2F3F]" aria-label="Close inspector"><X size={15} /></button>
+                      <button onClick={() => setSelectedRowIndex(null)} className="text-[#5E778C] hover:text-[#0B2A44]" aria-label="Close inspector"><X size={15} /></button>
                     </div>
                     {selectedRow.warnings.length > 0 && (
                       <InlineNotice tone="warning">
@@ -565,8 +565,8 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                       </InlineNotice>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="bg-white p-3 rounded-lg border border-[#D2C9BF]">
-                        <span className={cx(labelCls, 'border-b border-[#D2C9BF] pb-1 mb-2')}>Mapped CRM record</span>
+                      <div className="bg-white p-3 rounded-lg border border-[#D3E3F0]">
+                        <span className={cx(labelCls, 'border-b border-[#D3E3F0] pb-1 mb-2')}>Mapped CRM record</span>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
                           {[
                             [F.ID, selectedRow.lead[F.ID] || (selectedRow.status === 'UPDATE' ? selectedRow.matchedExisting?.[F.ID] : 'assigned on import')],
@@ -585,28 +585,28 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                             [F.NOTES, selectedRow.lead[F.NOTES]],
                           ].map(([k, v]) => (
                             <React.Fragment key={k as string}>
-                              <dt className="text-[#6B5F57]">{k}</dt>
-                              <dd className="text-[#1D2F3F] font-medium break-words whitespace-pre-wrap">{v || <span className="text-[#9E948D] italic">blank</span>}</dd>
+                              <dt className="text-[#5E778C]">{k}</dt>
+                              <dd className="text-[#0B2A44] font-medium break-words whitespace-pre-wrap">{v || <span className="text-[#7E93A6] italic">blank</span>}</dd>
                             </React.Fragment>
                           ))}
                         </dl>
                       </div>
-                      <div className="bg-white p-3 rounded-lg border border-[#D2C9BF] max-h-64 overflow-y-auto">
-                        <span className={cx(labelCls, 'border-b border-[#D2C9BF] pb-1 mb-2')}>Original CSV values</span>
+                      <div className="bg-white p-3 rounded-lg border border-[#D3E3F0] max-h-64 overflow-y-auto">
+                        <span className={cx(labelCls, 'border-b border-[#D3E3F0] pb-1 mb-2')}>Original CSV values</span>
                         <div className="space-y-1 font-mono text-[10px]">
                           {Object.entries(selectedRow.raw).map(([key, val]) => (
-                            <div key={key} className="flex items-start justify-between gap-2 border-b border-[#F4F0EB] py-0.5">
-                              <span className="text-[#6B5F57] truncate max-w-[45%]">{key}</span>
-                              <span className="text-[#1D2F3F] text-right font-medium break-all whitespace-pre-wrap">{val || <span className="text-[#9E948D] italic">empty</span>}</span>
+                            <div key={key} className="flex items-start justify-between gap-2 border-b border-[#F2F7FB] py-0.5">
+                              <span className="text-[#5E778C] truncate max-w-[45%]">{key}</span>
+                              <span className="text-[#0B2A44] text-right font-medium break-all whitespace-pre-wrap">{val || <span className="text-[#7E93A6] italic">empty</span>}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     </div>
                     {selectedRow.matchedExisting && (
-                      <div className="bg-white p-3 rounded-lg border border-[#D2C9BF] text-[11px]">
+                      <div className="bg-white p-3 rounded-lg border border-[#D3E3F0] text-[11px]">
                         <span className={cx(labelCls, 'mb-1')}>Existing CRM record it matches</span>
-                        <span className="text-[#1D2F3F] font-semibold">{selectedRow.matchedExisting[F.ID]}</span> · {selectedRow.matchedExisting[F.NAME]} · {selectedRow.matchedExisting[F.PHONE]} · {selectedRow.matchedExisting[F.STAGE]}
+                        <span className="text-[#0B2A44] font-semibold">{selectedRow.matchedExisting[F.ID]}</span> · {selectedRow.matchedExisting[F.NAME]} · {selectedRow.matchedExisting[F.PHONE]} · {selectedRow.matchedExisting[F.STAGE]}
                         {selectedRow.matchedExisting[F.RM] && <> · RM {selectedRow.matchedExisting[F.RM]}</>}
                       </div>
                     )}
@@ -615,19 +615,19 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
 
                 {/* Strategy */}
                 {parseResult.conflicts.length > 0 ? (
-                  <div className="bg-white p-4 rounded-xl border border-[#D2C9BF] space-y-2.5">
+                  <div className="bg-white p-4 rounded-xl border border-[#D3E3F0] space-y-2.5">
                     <div className="flex items-center gap-2">
-                      <Copy size={14} className="text-[#A9825A]" />
-                      <span className="font-bold text-[#1D2F3F] text-sm">{parseResult.conflicts.length} row{parseResult.conflicts.length === 1 ? '' : 's'} match existing leads — what should happen?</span>
+                      <Copy size={14} className="text-[#0B6BB0]" />
+                      <span className="font-bold text-[#0B2A44] text-sm">{parseResult.conflicts.length} row{parseResult.conflicts.length === 1 ? '' : 's'} match existing leads — what should happen?</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                       {IMPORT_STRATEGIES.map((s) => (
-                        <label key={s.id} className={cx('p-3 rounded-xl border cursor-pointer transition', strategy === s.id ? 'border-[#A9825A] bg-[#F4F0EB]/60 shadow-xs' : 'border-[#D2C9BF] hover:bg-[#F4F0EB]/30')}>
+                        <label key={s.id} className={cx('p-3 rounded-xl border cursor-pointer transition', strategy === s.id ? 'border-[#0B6BB0] bg-[#F2F7FB]/60 shadow-xs' : 'border-[#D3E3F0] hover:bg-[#F2F7FB]/30')}>
                           <div className="flex items-start gap-2.5">
-                            <input type="radio" name="conflictStrategy" value={s.id} checked={strategy === s.id} onChange={() => setStrategy(s.id)} className="mt-0.5 accent-[#1D2F3F]" disabled={isImporting} />
+                            <input type="radio" name="conflictStrategy" value={s.id} checked={strategy === s.id} onChange={() => setStrategy(s.id)} className="mt-0.5 accent-[#0B2A44]" disabled={isImporting} />
                             <div>
-                              <div className="font-bold text-[#1D2F3F]">{s.label}</div>
-                              <div className="text-[11px] text-[#6B5F57] mt-0.5 leading-relaxed">{s.description}</div>
+                              <div className="font-bold text-[#0B2A44]">{s.label}</div>
+                              <div className="text-[11px] text-[#5E778C] mt-0.5 leading-relaxed">{s.description}</div>
                             </div>
                           </div>
                         </label>
@@ -650,13 +650,13 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
 
 const Metric: React.FC<{ label: string; value: number; hint?: string; tone?: 'sage' | 'gold' | 'rust' | 'amber' }> = ({ label, value, hint, tone }) => {
   const tones = {
-    sage: 'bg-[#7C8B78]/10 border-[#7C8B78]/40 text-[#3C573A]',
-    gold: 'bg-[#A9825A]/10 border-[#A9825A]/40 text-[#86633E]',
+    sage: 'bg-[#0E8A86]/10 border-[#0E8A86]/40 text-[#3C573A]',
+    gold: 'bg-[#0B6BB0]/10 border-[#0B6BB0]/40 text-[#0B5E9C]',
     rust: 'bg-[#FAF0EC] border-[#B06A55]/40 text-[#8A3E28]',
     amber: 'bg-[#FFF8E1] border-amber-300 text-[#92400E]',
   };
   return (
-    <div className={cx('p-3 rounded-xl border', tone ? tones[tone] : 'bg-white border-[#D2C9BF] text-[#1D2F3F]')}>
+    <div className={cx('p-3 rounded-xl border', tone ? tones[tone] : 'bg-white border-[#D3E3F0] text-[#0B2A44]')}>
       <span className="text-[10px] uppercase tracking-wider font-bold opacity-80 block">{label}</span>
       <div className="text-xl font-bold mt-0.5">{value}</div>
       {hint && <span className="text-[10px] opacity-80 block mt-0.5 truncate">{hint}</span>}
@@ -664,6 +664,6 @@ const Metric: React.FC<{ label: string; value: number; hint?: string; tone?: 'sa
   );
 };
 
-const FilterChip: React.FC<{ active: boolean; onClick: () => void; activeCls?: string; children: React.ReactNode }> = ({ active, onClick, activeCls = 'bg-[#1D2F3F] text-white', children }) => (
-  <button onClick={onClick} className={cx('px-2.5 py-1 rounded-md text-xs font-semibold transition whitespace-nowrap', active ? activeCls : 'text-[#6B5F57] hover:bg-[#EDE8E0]')}>{children}</button>
+const FilterChip: React.FC<{ active: boolean; onClick: () => void; activeCls?: string; children: React.ReactNode }> = ({ active, onClick, activeCls = 'bg-[#0B2A44] text-white', children }) => (
+  <button onClick={onClick} className={cx('px-2.5 py-1 rounded-md text-xs font-semibold transition whitespace-nowrap', active ? activeCls : 'text-[#5E778C] hover:bg-[#E6EFF6]')}>{children}</button>
 );

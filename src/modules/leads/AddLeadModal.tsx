@@ -169,7 +169,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
       width="lg"
       title={
         <span className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-[#1D2F3F] text-white flex items-center justify-center">
+          <span className="w-7 h-7 rounded-lg bg-[#0B2A44] text-white flex items-center justify-center">
             <UserPlus size={15} />
           </span>
           New Enquiry
@@ -190,7 +190,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
       <form id="add-lead-form" onSubmit={(e) => void submit(e)} className="space-y-5" noValidate>
         {/* Prospect */}
         <section className="space-y-3">
-          <h4 className="text-sm font-bold text-[#1D2F3F] pb-1 border-b border-[#ECE8E1]">Prospect</h4>
+          <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6]">Prospect</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Prospect name *">
               <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ramesh Verma" className={inputCls} autoFocus required />
@@ -219,10 +219,10 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
                 <div className="space-y-2">
                   <div>
                     This phone number already belongs to <strong className="font-mono">{duplicate[F.ID]}</strong> · <strong>{duplicate[F.NAME] || 'Unnamed'}</strong> <StageBadge stage={String(duplicate[F.STAGE] || '')} />
-                    {duplicate[F.RM] && <span className="text-[#6B5F57]"> · RM {duplicate[F.RM]}</span>}
+                    {duplicate[F.RM] && <span className="text-[#5E778C]"> · RM {duplicate[F.RM]}</span>}
                   </div>
                   <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={form.forceCreate} onChange={(e) => set('forceCreate', e.target.checked)} className="accent-[#A9825A]" />
+                    <input type="checkbox" checked={form.forceCreate} onChange={(e) => set('forceCreate', e.target.checked)} className="accent-[#0B6BB0]" />
                     <span className="font-semibold">Create anyway — this is a separate enquiry from the same number</span>
                   </label>
                 </div>
@@ -233,7 +233,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
 
         {/* Enquiry */}
         <section className="space-y-3">
-          <h4 className="text-sm font-bold text-[#1D2F3F] pb-1 border-b border-[#ECE8E1]">Enquiry</h4>
+          <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6]">Enquiry</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Enquiry date & time">
               <input type="datetime-local" value={form.enquiryDate} onChange={(e) => set('enquiryDate', e.target.value)} className={inputCls} />

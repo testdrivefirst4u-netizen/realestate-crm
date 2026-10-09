@@ -25,7 +25,7 @@ export const SortControl: React.FC<SortControlProps> = ({ sortKey, asc, onChange
   return (
     <div className={cx('inline-flex items-stretch', className)} role="group" aria-label="Sort order">
       <div className="relative flex">
-        <ArrowUpDown size={13} aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A9825A] pointer-events-none z-20" />
+        <ArrowUpDown size={13} aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#0B6BB0] pointer-events-none z-20" />
         <Select
           value={sortKey}
           onChange={(e) => {

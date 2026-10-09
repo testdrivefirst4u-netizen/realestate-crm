@@ -114,7 +114,7 @@ export const SourceForm: React.FC<{
         <div>
           <label htmlFor={id('label')} className={labelCls}>Enquiry Source label</label>
           <input id={id('label')} className={inputCls} value={f.sourceLabel} maxLength={60} placeholder={defaultSourceLabel(f.type)} onChange={(e) => set({ sourceLabel: e.target.value })} />
-          <div className="text-[10px] text-[#9E948D] mt-1">Written to “Enquiry Source” on each new lead.</div>
+          <div className="text-[10px] text-[#7E93A6] mt-1">Written to “Enquiry Source” on each new lead.</div>
         </div>
       </div>
 
@@ -123,11 +123,11 @@ export const SourceForm: React.FC<{
         <div className={labelCls}>Type</div>
         <div className={cx('grid gap-2', typeOptions.length > 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
           {typeOptions.map((t) => (
-            <label key={t.value} className={cx('flex items-start gap-2 p-3 rounded-lg border text-xs cursor-pointer', f.type === t.value ? 'border-[#A9825A] bg-[#FBF6EF]' : 'border-[#D2C9BF] bg-white', typeLocked && f.type !== t.value && 'opacity-50 cursor-not-allowed')}>
-              <input type="radio" name={id('type')} value={t.value} checked={f.type === t.value} disabled={typeLocked} onChange={() => setType(t.value)} className="mt-0.5 accent-[#A9825A]" />
+            <label key={t.value} className={cx('flex items-start gap-2 p-3 rounded-lg border text-xs cursor-pointer', f.type === t.value ? 'border-[#0B6BB0] bg-[#F5F9FC]' : 'border-[#D3E3F0] bg-white', typeLocked && f.type !== t.value && 'opacity-50 cursor-not-allowed')}>
+              <input type="radio" name={id('type')} value={t.value} checked={f.type === t.value} disabled={typeLocked} onChange={() => setType(t.value)} className="mt-0.5 accent-[#0B6BB0]" />
               <span>
-                <span className="font-bold text-[#1D2F3F] block">{t.label}</span>
-                <span className="text-[#6B5F57]">{t.hint}</span>
+                <span className="font-bold text-[#0B2A44] block">{t.label}</span>
+                <span className="text-[#5E778C]">{t.hint}</span>
               </span>
             </label>
           ))}
@@ -150,7 +150,7 @@ export const SourceForm: React.FC<{
 const OriginsEditor: React.FC<{ origins: string[]; onChange: (o: string[]) => void; idPrefix: string }> = ({ origins, onChange, idPrefix }) => (
   <div>
     <div className={labelCls}>Allowed websites</div>
-    <p className="text-[10px] text-[#9E948D] mb-2">Browsers may post to this source only from these sites. Leave empty to accept any website (servers such as Zapier are not affected).</p>
+    <p className="text-[10px] text-[#7E93A6] mb-2">Browsers may post to this source only from these sites. Leave empty to accept any website (servers such as Zapier are not affected).</p>
     <div className="space-y-1.5">
       {origins.map((o, i) => {
         const check = o.trim() ? normalizeOrigin(o) : null;
@@ -187,7 +187,7 @@ const OriginsEditor: React.FC<{ origins: string[]; onChange: (o: string[]) => vo
 const FieldMapEditor: React.FC<{ rows: FieldMapRow[]; onChange: (r: FieldMapRow[]) => void; idPrefix: string; suggestions?: string[] }> = ({ rows, onChange, idPrefix, suggestions }) => (
   <div>
     <div className={labelCls}>{suggestions ? 'Column mapping' : 'Custom field mapping'}</div>
-    <p className="text-[10px] text-[#9E948D] mb-2">
+    <p className="text-[10px] text-[#7E93A6] mb-2">
       {suggestions
         ? <>Columns named like Name, Phone, Email or Message are recognised automatically. Add a row for other sheet columns.{suggestions.length ? ' The detected column headers are offered as you type.' : ' Check access above to pick from the sheet’s columns.'}</>
         : 'Common names (name, phone, email, message, utm_source …) are recognised automatically. Add a row only for other field names your form or service sends.'}
@@ -202,7 +202,7 @@ const FieldMapEditor: React.FC<{ rows: FieldMapRow[]; onChange: (r: FieldMapRow[
         <div key={i} className="flex items-center gap-1.5">
           <label htmlFor={`${idPrefix}-map-from-${i}`} className="sr-only">Incoming field name, row {i + 1}</label>
           <input id={`${idPrefix}-map-from-${i}`} className={inputCls} value={r.from} list={suggestions && suggestions.length ? `${idPrefix}-map-suggestions` : undefined} placeholder={suggestions ? 'Sheet column, e.g. Mobile' : 'Incoming field, e.g. your-phone'} onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} />
-          <span className="text-[#9E948D] text-xs" aria-hidden="true">→</span>
+          <span className="text-[#7E93A6] text-xs" aria-hidden="true">→</span>
           <label htmlFor={`${idPrefix}-map-to-${i}`} className="sr-only">CRM field, row {i + 1}</label>
           <Select id={`${idPrefix}-map-to-${i}`} value={r.to} options={[...MAPPABLE_FIELDS]} placeholder="CRM field…" onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} />
           <Button variant="ghost" size="xs" aria-label={`Remove mapping row ${i + 1}`} onClick={() => onChange(rows.filter((_, j) => j !== i))} icon={<X size={12} />} />
@@ -238,7 +238,7 @@ export const RoutingFields: React.FC<{
         <div>
           <label htmlFor={id('dup')} className={labelCls}>If the lead already exists</label>
           <Select id={id('dup')} value={f.duplicates} options={DUPLICATE_OPTIONS} onChange={(e) => set({ duplicates: e.target.value as DuplicateMode })} />
-          <div className="text-[10px] text-[#9E948D] mt-1">Matched on phone number (or e-mail).</div>
+          <div className="text-[10px] text-[#7E93A6] mt-1">Matched on phone number (or e-mail).</div>
         </div>
       </div>
 
@@ -259,21 +259,21 @@ export const RoutingFields: React.FC<{
           <div role="group" aria-label="Round-robin RMs">
             <div className={labelCls}>RMs in the rotation</div>
             {rmOptions.length === 0 ? (
-              <p className="text-[11px] text-[#9E948D]">No RMs are set up yet (Settings › Users & roles).</p>
+              <p className="text-[11px] text-[#7E93A6]">No RMs are set up yet (Settings › Users & roles).</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {rmList.map((rm) => {
                   const on = f.rms.includes(rm);
                   return (
-                    <label key={rm} className={cx('inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer', on ? 'border-[#A9825A] bg-[#FBF6EF] text-[#1D2F3F] font-semibold' : 'border-[#D2C9BF] bg-white text-[#6B5F57]')}>
-                      <input type="checkbox" className="accent-[#A9825A]" checked={on} onChange={() => set({ rms: on ? f.rms.filter((x) => x !== rm) : [...f.rms, rm] })} />
+                    <label key={rm} className={cx('inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer', on ? 'border-[#0B6BB0] bg-[#F5F9FC] text-[#0B2A44] font-semibold' : 'border-[#D3E3F0] bg-white text-[#5E778C]')}>
+                      <input type="checkbox" className="accent-[#0B6BB0]" checked={on} onChange={() => set({ rms: on ? f.rms.filter((x) => x !== rm) : [...f.rms, rm] })} />
                       {rm}
                     </label>
                   );
                 })}
               </div>
             )}
-            <div className="text-[10px] text-[#9E948D] mt-1">New leads go to these RMs in turn.</div>
+            <div className="text-[10px] text-[#7E93A6] mt-1">New leads go to these RMs in turn.</div>
           </div>
         )}
       </div>

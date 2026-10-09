@@ -277,31 +277,31 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#1D2F3F]/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-[#FDFCFA] rounded-2xl shadow-2xl border border-[#D2C9BF] max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-[#0B2A44]/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#D3E3F0] max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[#D2C9BF] flex items-center justify-between bg-white shrink-0">
+        <div className="p-4 sm:p-5 border-b border-[#D3E3F0] flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-[#A9825A]/15 text-[#A9825A] shadow-xs">
+            <div className="p-2.5 rounded-xl bg-[#0B6BB0]/15 text-[#0B6BB0] shadow-xs">
               <BookOpen size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-serif text-lg sm:text-xl font-bold text-[#1D2F3F]">
+                <h2 className="font-serif text-lg sm:text-xl font-bold text-[#0B2A44]">
                   Amaya Project Library & Document Concordance
                 </h2>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#A9825A]/15 text-[#885A28] border border-[#A9825A]/30">
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#0B6BB0]/15 text-[#0B5E9C] border border-[#0B6BB0]/30">
                   Bible-Style Search
                 </span>
               </div>
-              <p className="text-xs text-[#6B5F57] line-clamp-1">
+              <p className="text-xs text-[#5E778C] line-clamp-1">
                 Verse-by-verse indexing across Brochure, Floor Plans, Packages, Payment Milestones & Legal Documents
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-[#9E948D] hover:text-[#1D2F3F] hover:bg-[#F4F0EB] transition"
+            className="p-2 rounded-lg text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB] transition"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -309,20 +309,20 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
         </div>
 
         {/* Tab switcher */}
-        <div className="bg-[#F4F0EB] px-4 pt-2.5 border-b border-[#D2C9BF] flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="bg-[#F2F7FB] px-4 pt-2.5 border-b border-[#D3E3F0] flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto pb-2 scrollbar-none">
             <button
               onClick={() => setActiveTab('search')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                 activeTab === 'search'
-                  ? 'bg-white text-[#1D2F3F] shadow-xs border border-[#D2C9BF]'
-                  : 'text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-white/60'
+                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
+                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
               }`}
             >
               <Search size={14} />
               <span>Concordance Search</span>
               {q && concordanceMatches.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[#A9825A] text-white">
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[#0B6BB0] text-white">
                   {concordanceMatches.length}
                 </span>
               )}
@@ -332,8 +332,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               onClick={() => setActiveTab('reader')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                 activeTab === 'reader'
-                  ? 'bg-white text-[#1D2F3F] shadow-xs border border-[#D2C9BF]'
-                  : 'text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-white/60'
+                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
+                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
               }`}
             >
               <BookMarked size={14} />
@@ -344,8 +344,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               onClick={() => setActiveTab('quickSpecs')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                 activeTab === 'quickSpecs'
-                  ? 'bg-white text-[#1D2F3F] shadow-xs border border-[#D2C9BF]'
-                  : 'text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-white/60'
+                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
+                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
               }`}
             >
               <Building size={14} />
@@ -356,8 +356,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               onClick={() => setActiveTab('repository')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                 activeTab === 'repository'
-                  ? 'bg-white text-[#1D2F3F] shadow-xs border border-[#D2C9BF]'
-                  : 'text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-white/60'
+                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
+                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
               }`}
             >
               <FileText size={14} />
@@ -365,16 +365,16 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
             </button>
           </div>
 
-          <span className="text-[11px] text-[#88786F] hidden md:inline-block pb-2">
-            Storage: <code className="bg-white/80 px-1.5 py-0.5 rounded border border-[#D2C9BF]">/documents</code>
+          <span className="text-[11px] text-[#6F8698] hidden md:inline-block pb-2">
+            Storage: <code className="bg-white/80 px-1.5 py-0.5 rounded border border-[#D3E3F0]">/documents</code>
           </span>
         </div>
 
         {/* Global Search Toolbar (available in all tabs) */}
-        <div className="p-3.5 sm:p-4 bg-[#EDE8E0] border-b border-[#D2C9BF] space-y-2.5 shrink-0">
+        <div className="p-3.5 sm:p-4 bg-[#E6EFF6] border-b border-[#D3E3F0] space-y-2.5 shrink-0">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-3 text-[#9E948D]" />
+              <Search size={16} className="absolute left-3.5 top-3 text-[#7E93A6]" />
               <input
                 type="text"
                 value={searchTerm}
@@ -385,12 +385,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                   }
                 }}
                 placeholder="Search any word or phrase: MediCiti, 1,533 sq.ft, Vaastu, 2.5 BHK, food package, RERA, 8,999..."
-                className="w-full bg-white text-xs sm:text-sm pl-10 pr-9 py-2.5 rounded-xl border border-[#C5BCB2] focus:outline-none focus:border-[#A9825A] focus:ring-1 focus:ring-[#A9825A] text-[#1D2F3F] placeholder-[#9E948D] shadow-2xs"
+                className="w-full bg-white text-xs sm:text-sm pl-10 pr-9 py-2.5 rounded-xl border border-[#B9CCDB] focus:outline-none focus:border-[#0B6BB0] focus:ring-1 focus:ring-[#0B6BB0] text-[#0B2A44] placeholder-[#7E93A6] shadow-2xs"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-3 text-[#9E948D] hover:text-[#1D2F3F]"
+                  className="absolute right-3 top-3 text-[#7E93A6] hover:text-[#0B2A44]"
                 >
                   <X size={15} />
                 </button>
@@ -403,7 +403,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                 <select
                   value={selectedDocFilter}
                   onChange={(e) => setSelectedDocFilter(e.target.value)}
-                  className="text-xs px-3 py-2.5 rounded-xl border border-[#C5BCB2] bg-white text-[#1D2F3F] focus:outline-none focus:border-[#A9825A] shadow-2xs"
+                  className="text-xs px-3 py-2.5 rounded-xl border border-[#B9CCDB] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0] shadow-2xs"
                 >
                   <option value="all">All Documents (Full Canon)</option>
                   <option value="brochure">📖 Master Brochure</option>
@@ -415,12 +415,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               </div>
 
               {/* Match Mode */}
-              <div className="flex rounded-xl border border-[#C5BCB2] bg-white p-0.5 shadow-2xs text-[11px]">
+              <div className="flex rounded-xl border border-[#B9CCDB] bg-white p-0.5 shadow-2xs text-[11px]">
                 <button
                   type="button"
                   onClick={() => setMatchMode('any')}
                   className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-                    matchMode === 'any' ? 'bg-[#1D2F3F] text-white shadow-2xs' : 'text-[#6B5F57] hover:text-[#1D2F3F]'
+                    matchMode === 'any' ? 'bg-[#0B2A44] text-white shadow-2xs' : 'text-[#5E778C] hover:text-[#0B2A44]'
                   }`}
                   title="Matches any of the search words"
                 >
@@ -430,7 +430,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                   type="button"
                   onClick={() => setMatchMode('phrase')}
                   className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-                    matchMode === 'phrase' ? 'bg-[#1D2F3F] text-white shadow-2xs' : 'text-[#6B5F57] hover:text-[#1D2F3F]'
+                    matchMode === 'phrase' ? 'bg-[#0B2A44] text-white shadow-2xs' : 'text-[#5E778C] hover:text-[#0B2A44]'
                   }`}
                   title="Matches exact consecutive phrase"
                 >
@@ -440,7 +440,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                   type="button"
                   onClick={() => setMatchMode('all')}
                   className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-                    matchMode === 'all' ? 'bg-[#1D2F3F] text-white shadow-2xs' : 'text-[#6B5F57] hover:text-[#1D2F3F]'
+                    matchMode === 'all' ? 'bg-[#0B2A44] text-white shadow-2xs' : 'text-[#5E778C] hover:text-[#0B2A44]'
                   }`}
                   title="Matches all words anywhere in the passage"
                 >
@@ -452,8 +452,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
 
           {/* Quick search chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-[11px]">
-            <span className="text-[#88786F] font-medium shrink-0 flex items-center gap-1">
-              <Sparkles size={11} className="text-[#A9825A]" />
+            <span className="text-[#6F8698] font-medium shrink-0 flex items-center gap-1">
+              <Sparkles size={11} className="text-[#0B6BB0]" />
               Quick lookup:
             </span>
             {popularKeywords.map((kw) => (
@@ -465,8 +465,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                 }}
                 className={`px-2 py-0.5 rounded-full border transition shrink-0 ${
                   searchTerm.toLowerCase() === kw.toLowerCase()
-                    ? 'bg-[#A9825A] text-white border-[#A9825A]'
-                    : 'bg-white text-[#6B5F57] border-[#D2C9BF] hover:border-[#A9825A] hover:text-[#1D2F3F]'
+                    ? 'bg-[#0B6BB0] text-white border-[#0B6BB0]'
+                    : 'bg-white text-[#5E778C] border-[#D3E3F0] hover:border-[#0B6BB0] hover:text-[#0B2A44]'
                 }`}
               >
                 {kw}
@@ -480,22 +480,22 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             {/* Search Summary Header */}
             {q ? (
-              <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#D2C9BF] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3 shadow-xs">
                 <div>
-                  <h3 className="font-serif text-sm sm:text-base font-bold text-[#1D2F3F] flex items-center gap-2">
+                  <h3 className="font-serif text-sm sm:text-base font-bold text-[#0B2A44] flex items-center gap-2">
                     <span>Search Results for:</span>
-                    <span className="text-[#A9825A] font-sans font-semibold bg-white px-2.5 py-0.5 rounded-lg border border-[#D2C9BF]">
+                    <span className="text-[#0B6BB0] font-sans font-semibold bg-white px-2.5 py-0.5 rounded-lg border border-[#D3E3F0]">
                       "{searchTerm}"
                     </span>
                   </h3>
-                  <p className="text-xs text-[#6B5F57] mt-0.5">
+                  <p className="text-xs text-[#5E778C] mt-0.5">
                     Found{' '}
-                    <strong className="text-[#1D2F3F]">{concordanceMatches.length}</strong> matching passages across{' '}
-                    <strong className="text-[#1D2F3F]">
+                    <strong className="text-[#0B2A44]">{concordanceMatches.length}</strong> matching passages across{' '}
+                    <strong className="text-[#0B2A44]">
                       {new Set(concordanceMatches.map((m) => m.verse.docId)).size}
                     </strong>{' '}
                     project documents &{' '}
-                    <strong className="text-[#1D2F3F]">{matchingQuickSections.length}</strong> quick spec categories.
+                    <strong className="text-[#0B2A44]">{matchingQuickSections.length}</strong> quick spec categories.
                   </p>
                 </div>
 
@@ -507,7 +507,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                       }
                     }}
                     disabled={concordanceMatches.length === 0}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1D2F3F] text-white hover:brightness-110 disabled:opacity-40 transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 disabled:opacity-40 transition"
                   >
                     <BookMarked size={13} />
                     <span>Read in Book Mode</span>
@@ -515,12 +515,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#D2C9BF] text-center space-y-2">
-                <BookOpen size={28} className="mx-auto text-[#A9825A]/60" />
-                <h3 className="font-serif text-base font-bold text-[#1D2F3F]">
+              <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] text-center space-y-2">
+                <BookOpen size={28} className="mx-auto text-[#0B6BB0]/60" />
+                <h3 className="font-serif text-base font-bold text-[#0B2A44]">
                   Search Full Project Documentation Like a Bible Concordance
                 </h3>
-                <p className="text-xs text-[#6B5F57] max-w-xl mx-auto leading-relaxed">
+                <p className="text-xs text-[#5E778C] max-w-xl mx-auto leading-relaxed">
                   Enter any word, unit size, amenity, distance, clause, or financial term to instantly discover every cited verse across the Brochure, Floor Plans, Monthly Care Packages, Payment Schedule, and Legal Sanctions.
                 </p>
               </div>
@@ -529,12 +529,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
             {/* Document Verses Section (Concordance Results) */}
             {concordanceMatches.length > 0 && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-[#D2C9BF]">
-                  <h4 className="font-serif text-sm font-bold text-[#1D2F3F] flex items-center gap-2">
-                    <FileText size={16} className="text-[#A9825A]" />
+                <div className="flex items-center justify-between pb-1 border-b border-[#D3E3F0]">
+                  <h4 className="font-serif text-sm font-bold text-[#0B2A44] flex items-center gap-2">
+                    <FileText size={16} className="text-[#0B6BB0]" />
                     <span>Project Document Passages ({concordanceMatches.length})</span>
                   </h4>
-                  <span className="text-[11px] text-[#88786F]">
+                  <span className="text-[11px] text-[#6F8698]">
                     Click "Read in Context" to open full chapter
                   </span>
                 </div>
@@ -546,34 +546,34 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                     return (
                       <div
                         key={verse.id}
-                        className="bg-white rounded-xl p-4 sm:p-5 border border-[#D2C9BF] hover:border-[#A9825A] shadow-xs transition group flex flex-col justify-between"
+                        className="bg-white rounded-xl p-4 sm:p-5 border border-[#D3E3F0] hover:border-[#0B6BB0] shadow-xs transition group flex flex-col justify-between"
                       >
                         {/* Reference citation header */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-[#F4F0EB]">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-[#F2F7FB]">
                           <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-md text-xs font-bold font-mono bg-[#1D2F3F] text-white tracking-wide">
+                            <span className="px-2.5 py-0.5 rounded-md text-xs font-bold font-mono bg-[#0B2A44] text-white tracking-wide">
                               [{verse.reference}]
                             </span>
-                            <span className="text-xs font-semibold text-[#1D2F3F]">
+                            <span className="text-xs font-semibold text-[#0B2A44]">
                               {verse.docShortName} — Chapter {verse.chapterNumber}: {verse.chapterTitle}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-1.5">
                             {verse.pageNumber && (
-                              <span className="text-[10px] text-[#9E948D] px-2 py-0.5 rounded bg-[#F4F0EB] font-medium">
+                              <span className="text-[10px] text-[#7E93A6] px-2 py-0.5 rounded bg-[#F2F7FB] font-medium">
                                 Page {verse.pageNumber}
                               </span>
                             )}
-                            <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-[#A9825A]/10 text-[#885A28]">
+                            <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-[#0B6BB0]/10 text-[#0B5E9C]">
                               {verse.category}
                             </span>
                           </div>
                         </div>
 
                         {/* Verse Text with Bible-style typography */}
-                        <div className="text-sm font-serif text-[#2B231D] leading-relaxed mb-4 pl-3 border-l-2 border-[#A9825A]/40">
-                          <span className="font-sans font-bold text-xs text-[#A9825A] mr-2">
+                        <div className="text-sm font-serif text-[#0A1F33] leading-relaxed mb-4 pl-3 border-l-2 border-[#0B6BB0]/40">
+                          <span className="font-sans font-bold text-xs text-[#0B6BB0] mr-2">
                             § {verse.chapterNumber}.{verse.verseNumber}
                           </span>
                           <span
@@ -584,12 +584,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                         </div>
 
                         {/* Tags & Action Buttons */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#F4F0EB]">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#F2F7FB]">
                           <div className="flex flex-wrap gap-1">
                             {verse.tags.slice(0, 4).map((tag, tIdx) => (
                               <span
                                 key={tIdx}
-                                className="text-[10px] bg-[#F4F0EB] text-[#6B5F57] px-2 py-0.5 rounded-full"
+                                className="text-[10px] bg-[#F2F7FB] text-[#5E778C] px-2 py-0.5 rounded-full"
                               >
                                 #{tag}
                               </span>
@@ -599,7 +599,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleCopyPassage(verse)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-[#6B5F57] hover:text-[#1D2F3F] hover:bg-[#F4F0EB] transition border border-[#D2C9BF]/80"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-[#5E778C] hover:text-[#0B2A44] hover:bg-[#F2F7FB] transition border border-[#D3E3F0]/80"
                               title="Copy verse text with citation"
                             >
                               {isCopied ? (
@@ -626,7 +626,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
 
                             <button
                               onClick={() => handleJumpToReader(verse)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#1D2F3F] text-white hover:brightness-110 transition shadow-2xs"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition shadow-2xs"
                             >
                               <span>Read in Context</span>
                               <ArrowRight size={12} />
@@ -642,9 +642,9 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
 
             {/* Quick Reference Summary Cards (Always accessible) */}
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between pb-1 border-b border-[#D2C9BF]">
-                <h4 className="font-serif text-sm font-bold text-[#1D2F3F] flex items-center gap-2">
-                  <Building size={16} className="text-[#A9825A]" />
+              <div className="flex items-center justify-between pb-1 border-b border-[#D3E3F0]">
+                <h4 className="font-serif text-sm font-bold text-[#0B2A44] flex items-center gap-2">
+                  <Building size={16} className="text-[#0B6BB0]" />
                   <span>
                     Quick Reference Summary Cards{' '}
                     {q && `(${matchingQuickSections.length} matching sections)`}
@@ -652,7 +652,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                 </h4>
                 <button
                   onClick={() => setActiveTab('quickSpecs')}
-                  className="text-xs text-[#A9825A] hover:underline font-semibold"
+                  className="text-xs text-[#0B6BB0] hover:underline font-semibold"
                 >
                   View All Specs →
                 </button>
@@ -665,17 +665,17 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                   return (
                     <div
                       key={sIdx}
-                      className="bg-white rounded-xl p-4 border border-[#D2C9BF] shadow-xs flex flex-col justify-between"
+                      className="bg-white rounded-xl p-4 border border-[#D3E3F0] shadow-xs flex flex-col justify-between"
                     >
                       <div>
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#ECE8E1]">
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E6EFF6]">
                           <div className="flex items-center gap-2">
-                            <SectionIcon size={16} className="text-[#A9825A]" />
-                            <h5 className="font-serif text-sm font-bold text-[#1D2F3F]">
+                            <SectionIcon size={16} className="text-[#0B6BB0]" />
+                            <h5 className="font-serif text-sm font-bold text-[#0B2A44]">
                               {section.category}
                             </h5>
                           </div>
-                          <span className="text-[10px] font-mono bg-[#F4F0EB] text-[#6B5F57] px-2 py-0.5 rounded">
+                          <span className="text-[10px] font-mono bg-[#F2F7FB] text-[#5E778C] px-2 py-0.5 rounded">
                             {section.docRef}
                           </span>
                         </div>
@@ -684,9 +684,9 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                           {section.items.map((item, iIdx) => (
                             <div
                               key={iIdx}
-                              className="text-xs text-[#3D3530] leading-relaxed flex items-start gap-2 py-0.5"
+                              className="text-xs text-[#0F2233] leading-relaxed flex items-start gap-2 py-0.5"
                             >
-                              <span className="text-[#A9825A] font-bold mt-0.5">•</span>
+                              <span className="text-[#0B6BB0] font-bold mt-0.5">•</span>
                               <span className="flex-1">
                                 {q ? (
                                   <span
@@ -710,12 +710,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
 
             {/* Zero results state */}
             {q && concordanceMatches.length === 0 && matchingQuickSections.length === 0 && (
-              <div className="bg-white p-8 rounded-xl border border-[#D2C9BF] text-center space-y-3">
-                <Search size={32} className="mx-auto text-[#9E948D]" />
-                <h4 className="font-serif text-base font-bold text-[#1D2F3F]">
+              <div className="bg-white p-8 rounded-xl border border-[#D3E3F0] text-center space-y-3">
+                <Search size={32} className="mx-auto text-[#7E93A6]" />
+                <h4 className="font-serif text-base font-bold text-[#0B2A44]">
                   No direct verses found for "{searchTerm}"
                 </h4>
-                <p className="text-xs text-[#6B5F57] max-w-md mx-auto">
+                <p className="text-xs text-[#5E778C] max-w-md mx-auto">
                   Try switching the match mode to <strong>"Any Word"</strong> or search for broader keywords like <em>"BHK"</em>, <em>"Medchal"</em>, <em>"Amenities"</em>, <em>"RERA"</em>, or <em>"Hospital"</em>.
                 </p>
                 <div className="pt-2">
@@ -724,7 +724,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                       setMatchMode('any');
                       setSelectedDocFilter('all');
                     }}
-                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#1D2F3F] text-white hover:brightness-110"
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110"
                   >
                     Reset Filters & Try Again
                   </button>
@@ -738,9 +738,9 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
         {activeTab === 'reader' && (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* Left Sidebar: Document / Chapter Index */}
-            <div className="w-full md:w-72 bg-[#F7F4EF] border-b md:border-b-0 md:border-r border-[#D2C9BF] p-3 sm:p-4 overflow-y-auto shrink-0 space-y-3">
+            <div className="w-full md:w-72 bg-[#F5F9FC] border-b md:border-b-0 md:border-r border-[#D3E3F0] p-3 sm:p-4 overflow-y-auto shrink-0 space-y-3">
               <div>
-                <label className="text-[11px] font-bold text-[#6B5F57] uppercase tracking-wider block mb-1.5">
+                <label className="text-[11px] font-bold text-[#5E778C] uppercase tracking-wider block mb-1.5">
                   Select Book / Document
                 </label>
                 <select
@@ -750,7 +750,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                     setReaderChapterNum(1);
                     setHighlightVerseId(null);
                   }}
-                  className="w-full text-xs font-semibold p-2.5 rounded-xl border border-[#C5BCB2] bg-white text-[#1D2F3F] focus:outline-none focus:border-[#A9825A]"
+                  className="w-full text-xs font-semibold p-2.5 rounded-xl border border-[#B9CCDB] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0]"
                 >
                   {PROJECT_DOCUMENTS.map((doc) => (
                     <option key={doc.id} value={doc.id}>
@@ -761,7 +761,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-[#6B5F57] uppercase tracking-wider block mb-1.5">
+                <label className="text-[11px] font-bold text-[#5E778C] uppercase tracking-wider block mb-1.5">
                   Chapters in this Document
                 </label>
                 <div className="space-y-1">
@@ -774,8 +774,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                       }}
                       className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between ${
                         readerChapterNum === ch.chapterNumber
-                          ? 'bg-[#1D2F3F] text-white shadow-2xs'
-                          : 'bg-white/70 hover:bg-white text-[#3D3530] border border-transparent hover:border-[#D2C9BF]'
+                          ? 'bg-[#0B2A44] text-white shadow-2xs'
+                          : 'bg-white/70 hover:bg-white text-[#0F2233] border border-transparent hover:border-[#D3E3F0]'
                       }`}
                     >
                       <span className="truncate">
@@ -785,7 +785,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                         className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                           readerChapterNum === ch.chapterNumber
                             ? 'bg-white/20 text-white'
-                            : 'bg-[#EDE8E0] text-[#6B5F57]'
+                            : 'bg-[#E6EFF6] text-[#5E778C]'
                         }`}
                       >
                         {ch.verses.length}v
@@ -796,19 +796,19 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               </div>
 
               {/* Document Metadata card */}
-              <div className="p-3 bg-white rounded-xl border border-[#D2C9BF] text-xs space-y-2">
+              <div className="p-3 bg-white rounded-xl border border-[#D3E3F0] text-xs space-y-2">
                 <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${currentReaderDoc.badgeColor}`}>
                   {currentReaderDoc.category}
                 </span>
-                <p className="text-[11px] text-[#6B5F57] leading-relaxed">
+                <p className="text-[11px] text-[#5E778C] leading-relaxed">
                   {currentReaderDoc.summary}
                 </p>
-                <div className="pt-1 flex items-center justify-between gap-2 border-t border-[#F4F0EB]">
-                  <span className="text-[10px] text-[#9E948D] truncate" title={currentReaderDoc.fileName}>{currentReaderDoc.fileName}</span>
+                <div className="pt-1 flex items-center justify-between gap-2 border-t border-[#F2F7FB]">
+                  <span className="text-[10px] text-[#7E93A6] truncate" title={currentReaderDoc.fileName}>{currentReaderDoc.fileName}</span>
                   <a
                     href={currentReaderDoc.downloadUrl}
                     download={downloadFileName(currentReaderDoc.downloadUrl)}
-                    className="text-[10px] font-semibold text-[#A9825A] hover:underline inline-flex items-center gap-1 shrink-0"
+                    className="text-[10px] font-semibold text-[#0B6BB0] hover:underline inline-flex items-center gap-1 shrink-0"
                   >
                     <Download size={11} />
                     <span>Download {downloadExtension(currentReaderDoc.downloadUrl)}</span>
@@ -818,14 +818,14 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
             </div>
 
             {/* Right: Chapter Content formatted like a Bible book */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#FDFCFA] space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#FFFFFF] space-y-6">
               {/* Chapter Header */}
-              <div className="pb-4 border-b border-[#D2C9BF] flex flex-wrap items-center justify-between gap-3">
+              <div className="pb-4 border-b border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <span className="text-xs font-semibold text-[#A9825A] uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-[#0B6BB0] uppercase tracking-wider">
                     {currentReaderDoc.shortName}
                   </span>
-                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1D2F3F] mt-0.5">
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#0B2A44] mt-0.5">
                     Chapter {currentReaderChapter.chapterNumber}: {currentReaderChapter.title}
                   </h3>
                 </div>
@@ -834,7 +834,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                   <a
                     href={currentReaderDoc.downloadUrl}
                     download={downloadFileName(currentReaderDoc.downloadUrl)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D2C9BF] bg-white text-[#1D2F3F] hover:bg-[#F4F0EB] transition"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D3E3F0] bg-white text-[#0B2A44] hover:bg-[#F2F7FB] transition"
                   >
                     <Download size={13} />
                     <span>Download Markdown ({downloadExtension(currentReaderDoc.downloadUrl)})</span>
@@ -855,26 +855,26 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                       ref={isHighlighted ? highlightedVerseRef : undefined}
                       className={`p-4 rounded-xl transition border ${
                         isHighlighted
-                          ? 'bg-[#FAF2E6] border-[#A9825A] shadow-md ring-2 ring-[#A9825A]/40'
-                          : 'bg-white border-[#ECE8E1] hover:border-[#D2C9BF]'
+                          ? 'bg-[#EEF6FC] border-[#0B6BB0] shadow-md ring-2 ring-[#0B6BB0]/40'
+                          : 'bg-white border-[#E6EFF6] hover:border-[#D3E3F0]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-serif font-bold text-sm text-[#A9825A]">
+                            <span className="font-serif font-bold text-sm text-[#0B6BB0]">
                               § {verse.chapterNumber}.{verse.verseNumber}
                             </span>
-                            <span className="text-[10px] font-mono text-[#9E948D]">
+                            <span className="text-[10px] font-mono text-[#7E93A6]">
                               [{verse.reference}]
                             </span>
                             {verse.pageNumber && (
-                              <span className="text-[10px] text-[#9E948D]">
+                              <span className="text-[10px] text-[#7E93A6]">
                                 (Page {verse.pageNumber})
                               </span>
                             )}
                           </div>
-                          <p className="font-serif text-sm sm:text-base text-[#2B231D] leading-relaxed">
+                          <p className="font-serif text-sm sm:text-base text-[#0A1F33] leading-relaxed">
                             {q ? (
                               <span
                                 dangerouslySetInnerHTML={{
@@ -890,7 +890,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                         <div className="flex items-center gap-1 shrink-0 pt-1">
                           <button
                             onClick={() => handleCopyPassage(verse)}
-                            className="p-1.5 rounded-md text-[#9E948D] hover:text-[#1D2F3F] hover:bg-[#F4F0EB]"
+                            className="p-1.5 rounded-md text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB]"
                             title="Copy verse"
                           >
                             {isCopied ? (
@@ -914,7 +914,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               </div>
 
               {/* Chapter Next / Previous controls */}
-              <div className="flex items-center justify-between pt-6 border-t border-[#D2C9BF]">
+              <div className="flex items-center justify-between pt-6 border-t border-[#D3E3F0]">
                 <button
                   onClick={() => {
                     if (readerChapterNum > 1) {
@@ -923,12 +923,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                     }
                   }}
                   disabled={readerChapterNum <= 1}
-                  className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-[#D2C9BF] bg-white text-[#1D2F3F] hover:bg-[#F4F0EB] disabled:opacity-40 transition"
+                  className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-[#D3E3F0] bg-white text-[#0B2A44] hover:bg-[#F2F7FB] disabled:opacity-40 transition"
                 >
                   ← Previous Chapter
                 </button>
 
-                <span className="text-xs font-medium text-[#6B5F57]">
+                <span className="text-xs font-medium text-[#5E778C]">
                   Chapter {readerChapterNum} of {currentReaderDoc.chapters.length}
                 </span>
 
@@ -940,7 +940,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                     }
                   }}
                   disabled={readerChapterNum >= currentReaderDoc.chapters.length}
-                  className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-[#1D2F3F] text-white hover:brightness-110 disabled:opacity-40 transition"
+                  className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 disabled:opacity-40 transition"
                 >
                   Next Chapter →
                 </button>
@@ -952,18 +952,18 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
         {/* Tab 3: Quick Reference Specs View (Original Library Content preserved) */}
         {activeTab === 'quickSpecs' && (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#D2C9BF] flex items-center justify-between gap-3">
+            <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] flex items-center justify-between gap-3">
               <div>
-                <h3 className="font-serif text-base font-bold text-[#1D2F3F]">
+                <h3 className="font-serif text-base font-bold text-[#0B2A44]">
                   Quick Reference Project Specifications
                 </h3>
-                <p className="text-xs text-[#6B5F57]">
+                <p className="text-xs text-[#5E778C]">
                   Executive summaries of unit sizes, pricing slabs, food care packages & Clubhouse amenities
                 </p>
               </div>
               <button
                 onClick={() => setActiveTab('search')}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1D2F3F] text-white hover:brightness-110 transition"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition"
               >
                 Switch to Bible Concordance Search
               </button>
@@ -976,19 +976,19 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                 return (
                   <div
                     key={sIdx}
-                    className="bg-white rounded-xl p-5 border border-[#D2C9BF] shadow-xs flex flex-col justify-between"
+                    className="bg-white rounded-xl p-5 border border-[#D3E3F0] shadow-xs flex flex-col justify-between"
                   >
                     <div>
-                      <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-[#ECE8E1]">
+                      <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-[#E6EFF6]">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-[#A9825A]/10 text-[#A9825A]">
+                          <div className="p-1.5 rounded-lg bg-[#0B6BB0]/10 text-[#0B6BB0]">
                             <SectionIcon size={16} />
                           </div>
-                          <h4 className="font-serif text-base font-bold text-[#1D2F3F]">
+                          <h4 className="font-serif text-base font-bold text-[#0B2A44]">
                             {section.category}
                           </h4>
                         </div>
-                        <span className="text-[11px] font-mono text-[#885A28] bg-[#A9825A]/10 px-2 py-0.5 rounded">
+                        <span className="text-[11px] font-mono text-[#0B5E9C] bg-[#0B6BB0]/10 px-2 py-0.5 rounded">
                           {section.docRef}
                         </span>
                       </div>
@@ -997,9 +997,9 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                         {section.items.map((item, iIdx) => (
                           <div
                             key={iIdx}
-                            className="text-xs text-[#3D3530] leading-relaxed flex items-start gap-2 py-0.5"
+                            className="text-xs text-[#0F2233] leading-relaxed flex items-start gap-2 py-0.5"
                           >
-                            <span className="text-[#A9825A] font-bold">•</span>
+                            <span className="text-[#0B6BB0] font-bold">•</span>
                             <span className="flex-1">
                               {q ? (
                                 <span
@@ -1025,16 +1025,16 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
         {/* Tab 4: Documents Folder Repository */}
         {activeTab === 'repository' && (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#D2C9BF] flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="font-serif text-base font-bold text-[#1D2F3F]">
+                <h3 className="font-serif text-base font-bold text-[#0B2A44]">
                   Official Project Documents Folder Repository
                 </h3>
-                <p className="text-xs text-[#6B5F57]">
-                  All documents are permanently stored in the project's <code className="bg-white px-1.5 py-0.5 rounded border border-[#D2C9BF]">/documents</code> directory, accessible via search, direct read mode, or download.
+                <p className="text-xs text-[#5E778C]">
+                  All documents are permanently stored in the project's <code className="bg-white px-1.5 py-0.5 rounded border border-[#D3E3F0]">/documents</code> directory, accessible via search, direct read mode, or download.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#1D2F3F] text-white">
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0B2A44] text-white">
                 {PROJECT_DOCUMENTS.length} Active Documents
               </span>
             </div>
@@ -1043,34 +1043,34 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               {PROJECT_DOCUMENTS.map((doc) => (
                 <div
                   key={doc.id}
-                  className="bg-white rounded-xl p-5 border border-[#D2C9BF] hover:border-[#A9825A] shadow-xs transition flex flex-col justify-between"
+                  className="bg-white rounded-xl p-5 border border-[#D3E3F0] hover:border-[#0B6BB0] shadow-xs transition flex flex-col justify-between"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${doc.badgeColor}`}>
                         {doc.category}
                       </span>
-                      <span className="text-[10px] font-mono text-[#9E948D]">
+                      <span className="text-[10px] font-mono text-[#7E93A6]">
                         {doc.chapters.length} Chapters • {doc.verses.length} Indexed Verses
                       </span>
                     </div>
 
                     <div>
-                      <h4 className="font-serif text-base font-bold text-[#1D2F3F] leading-snug">
+                      <h4 className="font-serif text-base font-bold text-[#0B2A44] leading-snug">
                         {doc.title}
                       </h4>
-                      <p className="text-xs text-[#6B5F57] mt-1.5 leading-relaxed">
+                      <p className="text-xs text-[#5E778C] mt-1.5 leading-relaxed">
                         {doc.summary}
                       </p>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-[#F4F0EB] text-[11px] text-[#3D3530] font-mono space-y-1">
+                    <div className="p-2.5 rounded-lg bg-[#F2F7FB] text-[11px] text-[#0F2233] font-mono space-y-1">
                       <div className="break-all">Source: {doc.fileName}</div>
-                      <div className="text-[10px] text-[#9E948D] break-all">Download: {doc.downloadUrl}</div>
+                      <div className="text-[10px] text-[#7E93A6] break-all">Download: {doc.downloadUrl}</div>
                     </div>
                   </div>
 
-                  <div className="pt-4 mt-3 border-t border-[#ECE8E1] flex items-center justify-between gap-2">
+                  <div className="pt-4 mt-3 border-t border-[#E6EFF6] flex items-center justify-between gap-2">
                     <button
                       onClick={() => {
                         setReaderDocId(doc.id);
@@ -1078,7 +1078,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                         setHighlightVerseId(null);
                         setActiveTab('reader');
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1D2F3F] text-white hover:brightness-110 transition shadow-2xs"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition shadow-2xs"
                     >
                       <Eye size={13} />
                       <span>Read in Library</span>
@@ -1087,7 +1087,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                     <a
                       href={doc.downloadUrl}
                       download={downloadFileName(doc.downloadUrl)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D2C9BF] text-[#1D2F3F] hover:bg-[#F4F0EB] transition"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D3E3F0] text-[#0B2A44] hover:bg-[#F2F7FB] transition"
                     >
                       <Download size={13} />
                       <span>Download {downloadExtension(doc.downloadUrl)}</span>
@@ -1100,9 +1100,9 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="p-3 sm:p-4 bg-white border-t border-[#D2C9BF] flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B5F57] shrink-0">
+        <div className="p-3 sm:p-4 bg-white border-t border-[#D3E3F0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#5E778C] shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-[#1D2F3F]">Amaya by Vera Vita Living</span>
+            <span className="font-semibold text-[#0B2A44]">Amaya by Vera Vita Living</span>
             <span>•</span>
             <span>TG RERA: P02200011109</span>
             <span>•</span>
@@ -1112,7 +1112,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#EDE8E0] hover:bg-[#D2C9BF] text-[#1D2F3F] transition"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#E6EFF6] hover:bg-[#D3E3F0] text-[#0B2A44] transition"
             >
               Close
             </button>

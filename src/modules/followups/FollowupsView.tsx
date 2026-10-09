@@ -39,11 +39,11 @@ const COLUMNS: Array<{ id: BucketId; title: string; hint: string; icon: React.Re
 ];
 
 const TONES = {
-  muted: { col: 'bg-[#EDE8E0] border-[#D2C9BF]', head: 'bg-[#E7D8C6]/50 text-[#1D2F3F]', count: 'bg-[#9E948D] text-white' },
+  muted: { col: 'bg-[#E6EFF6] border-[#D3E3F0]', head: 'bg-[#C4D8EA]/50 text-[#0B2A44]', count: 'bg-[#7E93A6] text-white' },
   rust: { col: 'bg-[#F5EDE8] border-[#B06A55]/40', head: 'bg-[#F0E5DF] text-[#8A3E28]', count: 'bg-[#B06A55] text-white' },
-  gold: { col: 'bg-[#EDE8E0] border-[#D2C9BF]', head: 'bg-[#A9825A]/20 text-[#86633E]', count: 'bg-[#A9825A] text-white' },
-  sage: { col: 'bg-[#EDE8E0] border-[#D2C9BF]', head: 'bg-[#7C8B78]/25 text-[#3C573A]', count: 'bg-[#7C8B78] text-white' },
-  navy: { col: 'bg-[#EDE8E0] border-[#D2C9BF]', head: 'bg-[#1D2F3F]/10 text-[#1D2F3F]', count: 'bg-[#1D2F3F] text-white' },
+  gold: { col: 'bg-[#E6EFF6] border-[#D3E3F0]', head: 'bg-[#0B6BB0]/20 text-[#0B5E9C]', count: 'bg-[#0B6BB0] text-white' },
+  sage: { col: 'bg-[#E6EFF6] border-[#D3E3F0]', head: 'bg-[#0E8A86]/25 text-[#3C573A]', count: 'bg-[#0E8A86] text-white' },
+  navy: { col: 'bg-[#E6EFF6] border-[#D3E3F0]', head: 'bg-[#0B2A44]/10 text-[#0B2A44]', count: 'bg-[#0B2A44] text-white' },
 };
 
 export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, settings, currentUser, onOpenLead, onUpdateLeadStage, onAppendRemark }) => {
@@ -76,7 +76,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, set
   if (base.length === 0) {
     return (
       <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-        <div className="bg-white rounded-2xl border border-[#D2C9BF] shadow-xs">
+        <div className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs">
           <EmptyState icon={<CalendarClock size={22} />} title="Nothing to follow up yet" description="Active enquiries with a next follow-up date appear here, grouped into overdue, today, tomorrow and upcoming." />
         </div>
       </div>
@@ -88,8 +88,8 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, set
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Follow-up Schedule</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Follow-up Schedule</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">
             {activeCount} active {activeCount === 1 ? 'enquiry' : 'enquiries'} ·{' '}
             <span className={buckets.overdue.length ? 'text-[#B06A55] font-semibold' : ''}>{buckets.overdue.length} overdue</span> · {buckets.today.length} due today · {buckets.none.length} without a date
           </p>
@@ -101,17 +101,17 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, set
       </div>
 
       {/* Not contacted strip */}
-      <section className="bg-white rounded-xl border border-[#D2C9BF] shadow-2xs flex-shrink-0">
-        <div className="px-4 py-2.5 border-b border-[#ECE8E1] flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-[#1D2F3F]">
+      <section className="bg-white rounded-xl border border-[#D3E3F0] shadow-2xs flex-shrink-0">
+        <div className="px-4 py-2.5 border-b border-[#E6EFF6] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44]">
             <UserX size={14} className="text-[#B06A55]" />
             Not contacted for 7+ days
-            <span className={cx('text-[10px] font-mono rounded-full px-2 py-0.5', stale.length ? 'bg-[#B06A55] text-white' : 'bg-[#ECE8E1] text-[#6B5F57]')}>{stale.length}</span>
+            <span className={cx('text-[10px] font-mono rounded-full px-2 py-0.5', stale.length ? 'bg-[#B06A55] text-white' : 'bg-[#E6EFF6] text-[#5E778C]')}>{stale.length}</span>
           </div>
-          <span className="text-[10px] text-[#9E948D]">Active leads with no follow-up logged in a week · oldest first</span>
+          <span className="text-[10px] text-[#7E93A6]">Active leads with no follow-up logged in a week · oldest first</span>
         </div>
         {stale.length === 0 ? (
-          <div className="px-4 py-3 text-xs text-[#6B5F57] flex items-center gap-2">
+          <div className="px-4 py-3 text-xs text-[#5E778C] flex items-center gap-2">
             <CheckCircle2 size={14} className="text-[#3C573A]" /> Every active enquiry was contacted within the last 7 days.
           </div>
         ) : (
@@ -120,15 +120,15 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, set
               const last = lastActivityDate(l) || enquiryDate(l);
               const days = daysSince(last, now);
               return (
-                <button key={l[F.ID]} type="button" onClick={() => onOpenLead(l[F.ID])} className="flex-shrink-0 w-52 text-left bg-[#FDFCFA] border border-[#D2C9BF] hover:border-[#B06A55] rounded-lg p-2.5 transition">
+                <button key={l[F.ID]} type="button" onClick={() => onOpenLead(l[F.ID])} className="flex-shrink-0 w-52 text-left bg-[#FFFFFF] border border-[#D3E3F0] hover:border-[#B06A55] rounded-lg p-2.5 transition">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-[#1D2F3F] truncate">{l[F.NAME] || 'Unnamed'}</span>
+                    <span className="text-xs font-bold text-[#0B2A44] truncate">{l[F.NAME] || 'Unnamed'}</span>
                     <span className="text-[10px] font-bold text-[#B06A55] whitespace-nowrap">{days === null ? '—' : `${days}d`}</span>
                   </div>
-                  <div className="text-[10px] text-[#6B5F57] mt-0.5 truncate">
+                  <div className="text-[10px] text-[#5E778C] mt-0.5 truncate">
                     {stageOf(l) || STAGES.NEW} · {l[F.RM] || 'Unassigned'}
                   </div>
-                  <div className="text-[10px] text-[#9E948D] mt-0.5 truncate">{last ? `Last contact ${formatRelative(last)}` : 'Never contacted'}</div>
+                  <div className="text-[10px] text-[#7E93A6] mt-0.5 truncate">{last ? `Last contact ${formatRelative(last)}` : 'Never contacted'}</div>
                 </button>
               );
             })}
@@ -143,7 +143,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, set
           const tone = TONES[col.tone];
           return (
             <section key={col.id} className={cx('w-80 flex-shrink-0 rounded-xl border flex flex-col max-h-full overflow-hidden shadow-2xs', tone.col)} aria-label={col.title}>
-              <header className={cx('px-3.5 py-3 border-b border-[#D2C9BF]/70 flex items-center justify-between gap-2 flex-shrink-0', tone.head)}>
+              <header className={cx('px-3.5 py-3 border-b border-[#D3E3F0]/70 flex items-center justify-between gap-2 flex-shrink-0', tone.head)}>
                 <div className="flex items-center gap-2 min-w-0">
                   {col.icon}
                   <div className="min-w-0">
@@ -155,7 +155,7 @@ export const FollowupsView: React.FC<FollowupsViewProps> = ({ leads, config, set
               </header>
               <div className="p-3 overflow-y-auto space-y-3 flex-1">
                 {items.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-[#9E948D]">{col.id === 'overdue' ? 'Nothing overdue — well done' : 'No enquiries here'}</div>
+                  <div className="text-center py-8 text-xs text-[#7E93A6]">{col.id === 'overdue' ? 'Nothing overdue — well done' : 'No enquiries here'}</div>
                 ) : (
                   items.map((lead) => (
                     <FollowupCard
@@ -218,30 +218,30 @@ const FollowupCard: React.FC<{
   };
 
   return (
-    <div className={cx('bg-white rounded-xl p-3.5 border shadow-xs hover:border-[#A9825A] hover:shadow-md transition', urgent ? 'border-[#B06A55]/40' : 'border-[#D2C9BF]')}>
+    <div className={cx('bg-white rounded-xl p-3.5 border shadow-xs hover:border-[#0B6BB0] hover:shadow-md transition', urgent ? 'border-[#B06A55]/40' : 'border-[#D3E3F0]')}>
       <div className="cursor-pointer" onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}>
         <div className="flex items-start justify-between gap-2 mb-1">
           <div className="min-w-0">
-            <div className="font-bold text-sm text-[#1D2F3F] leading-snug truncate">{lead[F.NAME] || 'Unnamed'}</div>
-            <div className="text-[10px] font-mono text-[#A9825A] font-semibold">{lead[F.ID]}</div>
+            <div className="font-bold text-sm text-[#0B2A44] leading-snug truncate">{lead[F.NAME] || 'Unnamed'}</div>
+            <div className="text-[10px] font-mono text-[#0B6BB0] font-semibold">{lead[F.ID]}</div>
           </div>
           <StageBadge stage={stage} />
         </div>
-        <div className="text-xs text-[#6B5F57] font-medium">{formatPhone(phone) || <span className="text-[#9E948D]">No phone</span>}</div>
+        <div className="text-xs text-[#5E778C] font-medium">{formatPhone(phone) || <span className="text-[#7E93A6]">No phone</span>}</div>
 
-        <div className="mt-2 text-[11px] text-[#3D3530] bg-[#F4F0EB] p-2 rounded-lg space-y-1">
+        <div className="mt-2 text-[11px] text-[#0F2233] bg-[#F2F7FB] p-2 rounded-lg space-y-1">
           <div className="flex items-center justify-between gap-2">
             <span className="truncate">
               Unit: <strong>{lead[F.UNIT_TYPE] || 'Any'}</strong>
             </span>
-            <span className="text-[#6B5F57] truncate">{lead[F.RM] || 'Unassigned'}</span>
+            <span className="text-[#5E778C] truncate">{lead[F.RM] || 'Unassigned'}</span>
           </div>
-          <div className={cx('flex items-center gap-1 font-semibold', urgent ? 'text-[#8A3E28]' : due ? 'text-[#A9825A]' : 'text-[#9E948D] font-normal')}>
+          <div className={cx('flex items-center gap-1 font-semibold', urgent ? 'text-[#8A3E28]' : due ? 'text-[#0B6BB0]' : 'text-[#7E93A6] font-normal')}>
             {urgent ? <AlertTriangle size={11} /> : <Clock size={11} />}
             <span className="truncate">{due ? `${formatRelative(due)}${urgent ? ` · ${formatDistance(due, now)}` : ''}` : 'No follow-up scheduled'}</span>
           </div>
           {lead[F.LAST_FOLLOWUP] && (
-            <div className="text-[10px] text-[#9E948D] flex items-center gap-1">
+            <div className="text-[10px] text-[#7E93A6] flex items-center gap-1">
               <Timer size={10} /> Last contact {formatRelative(lead[F.LAST_FOLLOWUP])}
             </div>
           )}
@@ -249,19 +249,19 @@ const FollowupCard: React.FC<{
       </div>
 
       {/* Actions */}
-      <div className="mt-2.5 pt-2 border-t border-[#ECE8E1] flex items-center justify-between gap-1.5">
+      <div className="mt-2.5 pt-2 border-t border-[#E6EFF6] flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
           {phone && (
-            <a href={telLink(phone)} className="p-1.5 rounded-full bg-[#F4F0EB] text-[#1976D2] hover:bg-blue-50" title={`Call ${formatPhone(phone)}`}>
+            <a href={telLink(phone)} className="p-1.5 rounded-full bg-[#F2F7FB] text-[#1976D2] hover:bg-blue-50" title={`Call ${formatPhone(phone)}`}>
               <Phone size={13} />
             </a>
           )}
           {phone && (
-            <a href={whatsappLink(phone, waText)} target="_blank" rel="noreferrer" className="p-1.5 rounded-full bg-[#F4F0EB] text-[#25D366] hover:bg-green-50" title="WhatsApp">
+            <a href={whatsappLink(phone, waText)} target="_blank" rel="noreferrer" className="p-1.5 rounded-full bg-[#F2F7FB] text-[#25D366] hover:bg-green-50" title="WhatsApp">
               <MessageSquare size={13} />
             </a>
           )}
-          <button type="button" onClick={() => setOpen((v) => !v)} className={cx('p-1.5 rounded-full hover:bg-[#EBE5DC]', open ? 'bg-[#A9825A] text-white hover:bg-[#A9825A]' : 'bg-[#F4F0EB] text-[#A9825A]')} title="Quick remark">
+          <button type="button" onClick={() => setOpen((v) => !v)} className={cx('p-1.5 rounded-full hover:bg-[#E3EDF5]', open ? 'bg-[#0B6BB0] text-white hover:bg-[#0B6BB0]' : 'bg-[#F2F7FB] text-[#0B6BB0]')} title="Quick remark">
             <MessageSquarePlus size={13} />
           </button>
         </div>
@@ -273,7 +273,7 @@ const FollowupCard: React.FC<{
             await onStage(e.target.value);
             setChangingStage(false);
           }}
-          className="text-[10px] py-1 px-1.5 rounded border border-[#D2C9BF] bg-white text-[#1D2F3F] focus:outline-none focus:border-[#A9825A] max-w-[150px] disabled:opacity-60"
+          className="text-[10px] py-1 px-1.5 rounded border border-[#D3E3F0] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0] max-w-[150px] disabled:opacity-60"
           aria-label="Change stage"
         >
           {options.map((s) => (
@@ -286,7 +286,7 @@ const FollowupCard: React.FC<{
 
       {/* Quick remark */}
       {open && (
-        <div className="mt-2.5 space-y-2 bg-[#F4F0EB] rounded-lg p-2.5 border border-[#D2C9BF]">
+        <div className="mt-2.5 space-y-2 bg-[#F2F7FB] rounded-lg p-2.5 border border-[#D3E3F0]">
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="What happened? Next step?" className={cx(inputCls, 'resize-none')} autoFocus />
           <div className="flex items-center gap-2">
             <input type="datetime-local" value={next} onChange={(e) => setNext(e.target.value)} className={cx(inputCls, 'flex-1')} aria-label="Next follow-up" title="Next follow-up (optional)" />

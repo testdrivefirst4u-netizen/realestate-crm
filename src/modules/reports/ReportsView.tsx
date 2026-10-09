@@ -107,8 +107,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ leads, tasks, config, 
       {/* Header + global filters */}
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight inline-flex items-center gap-2"><BarChart3 size={22} className="text-[#A9825A]" />Reports & Analytics</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight inline-flex items-center gap-2"><BarChart3 size={22} className="text-[#0B6BB0]" />Reports & Analytics</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">
             {formatNumber(counted)} counted leads · {formatNumber(tasks.length)} tasks{rm ? ` · filtered to ${rm}` : ''}
           </p>
         </div>
@@ -164,7 +164,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ leads, tasks, config, 
           {tab === 'export' && <ExportTab leads={leads} config={config} rm={rm} onRmChange={setRm} onOpenLead={onOpenLead} onTables={registerTables} />}
         </>
       )}
-      <p className="text-[10px] text-[#9E948D]">
+      <p className="text-[10px] text-[#7E93A6]">
         {active ? `CSV / Save act on “${active.title}”${active.range ? ` (${active.range})` : ''}. ` : ''}
         Attribution: enquiries by enquiry date, visits and bookings by their own dates, follow-ups by remark time, tasks by due time; trashed leads are never counted.
       </p>

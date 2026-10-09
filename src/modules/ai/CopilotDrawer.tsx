@@ -264,7 +264,7 @@ const ResultTable: React.FC<{
                   e.stopPropagation();
                   onOpenLead(r._leadId);
                 }}
-                className="font-mono font-semibold text-[#A9825A] hover:underline"
+                className="font-mono font-semibold text-[#0B6BB0] hover:underline"
               >
                 {v}
               </button>
@@ -272,7 +272,7 @@ const ResultTable: React.FC<{
           }
           if (c === 'Stage') return <StageBadge stage={v} />;
           if (c === 'Status') return <Badge tone={v === 'Overdue' ? 'rust' : v === 'Completed' ? 'sage' : 'amber'}>{v}</Badge>;
-          return <span className={cx(c === 'Name' && 'font-semibold text-[#1D2F3F]', 'whitespace-nowrap')}>{v}</span>;
+          return <span className={cx(c === 'Name' && 'font-semibold text-[#0B2A44]', 'whitespace-nowrap')}>{v}</span>;
         },
       })),
     [table.columns, onOpenLead]
@@ -280,7 +280,7 @@ const ResultTable: React.FC<{
   const leadIds = table.leadIds || [];
   const shownNote = table.rows.length < leadIds.length ? `Showing ${table.rows.length} of ${leadIds.length}` : `${table.rows.length} row${table.rows.length === 1 ? '' : 's'}`;
   return (
-    <div className="mt-2 rounded-xl border border-[#D2C9BF] bg-white overflow-hidden">
+    <div className="mt-2 rounded-xl border border-[#D3E3F0] bg-white overflow-hidden">
       <DataTable<Row>
         dense
         columns={columns}
@@ -291,7 +291,7 @@ const ResultTable: React.FC<{
         }}
         empty="No rows"
       />
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-[#ECE8E1] bg-[#FAF7F2] text-[10px] text-[#6B5F57]">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-[#E6EFF6] bg-[#F7FAFD] text-[10px] text-[#5E778C]">
         <span>{shownNote}{leadIds.length ? ' · click a row to open the lead' : ''}</span>
         {leadIds.length > 0 && (
           <Button size="xs" variant="secondary" icon={<ExternalLink size={11} />} onClick={() => onShowLeads(label, leadIds)}>
@@ -310,9 +310,9 @@ const ResultTable: React.FC<{
 const ActionCard: React.FC<{ action: CopilotAction; status: ChatMessage['status']; canAct: boolean; acting: boolean; onConfirm: () => void; onCancel: () => void }> = ({
   action, status = 'pending', canAct, acting, onConfirm, onCancel,
 }) => (
-  <div className={cx('mt-2 rounded-xl border p-3 space-y-2', action.destructive ? 'border-[#B06A55]/50 bg-[#FAF0EC]' : 'border-[#A9825A]/40 bg-[#FAF7F2]')}>
+  <div className={cx('mt-2 rounded-xl border p-3 space-y-2', action.destructive ? 'border-[#B06A55]/50 bg-[#FAF0EC]' : 'border-[#0B6BB0]/40 bg-[#F7FAFD]')}>
     <div className="flex items-center justify-between gap-2">
-      <span className="inline-flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-[#86633E]">
+      <span className="inline-flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-[#0B5E9C]">
         <Wand2 size={12} /> Proposed action
       </span>
       {status === 'pending' ? (
@@ -321,7 +321,7 @@ const ActionCard: React.FC<{ action: CopilotAction; status: ChatMessage['status'
         <Badge tone={status === 'done' ? 'sage' : status === 'error' ? 'rust' : 'muted'}>{status === 'done' ? 'Done' : status === 'error' ? 'Failed' : 'Cancelled'}</Badge>
       )}
     </div>
-    <div className="text-xs font-semibold text-[#1D2F3F] leading-relaxed">{action.summary}</div>
+    <div className="text-xs font-semibold text-[#0B2A44] leading-relaxed">{action.summary}</div>
     {status === 'pending' &&
       (canAct ? (
         <div className="flex items-center gap-2 pt-1">
@@ -690,21 +690,21 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 bg-[#1D2F3F]/40 backdrop-blur-xs z-50" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#0B2A44]/40 backdrop-blur-xs z-50" onClick={onClose} />
       <aside
         role="dialog"
         aria-label="CRM Copilot"
-        className="fixed top-0 right-0 bottom-0 w-[560px] max-w-full bg-[#FDFCFA] z-50 shadow-2xl flex flex-col border-l border-[#D2C9BF] animate-in slide-in-from-right duration-200"
+        className="fixed top-0 right-0 bottom-0 w-[560px] max-w-full bg-[#FFFFFF] z-50 shadow-2xl flex flex-col border-l border-[#D3E3F0] animate-in slide-in-from-right duration-200"
       >
         {/* Header */}
-        <div className="p-4 border-b border-[#D2C9BF] bg-white flex items-center justify-between gap-3">
+        <div className="p-4 border-b border-[#D3E3F0] bg-white flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-[#A9825A] text-white flex items-center justify-center shadow-xs flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#0B6BB0] text-white flex items-center justify-center shadow-xs flex-shrink-0">
               <Sparkles size={18} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-[#1D2F3F] leading-tight">CRM Copilot</h3>
-              <p className="text-[11px] text-[#6B5F57] truncate">{subtitle}</p>
+              <h3 className="text-base font-bold text-[#0B2A44] leading-tight">CRM Copilot</h3>
+              <p className="text-[11px] text-[#5E778C] truncate">{subtitle}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -713,7 +713,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                 Clear
               </Button>
             )}
-            <button onClick={onClose} className="p-1.5 rounded-md text-[#9E948D] hover:text-[#1D2F3F] hover:bg-[#F4F0EB]" aria-label="Close">
+            <button onClick={onClose} className="p-1.5 rounded-md text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB]" aria-label="Close">
               <X size={18} />
             </button>
           </div>
@@ -721,16 +721,16 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
 
         {/* What the Copilot is looking at */}
         {chip && (
-          <div className="px-4 py-2 border-b border-[#ECE8E1] bg-[#FBF7F1] flex items-center gap-2 text-[11px] text-[#86633E]">
-            <Sparkles size={12} className="flex-shrink-0 text-[#A9825A]" />
+          <div className="px-4 py-2 border-b border-[#E6EFF6] bg-[#F5F9FC] flex items-center gap-2 text-[11px] text-[#0B5E9C]">
+            <Sparkles size={12} className="flex-shrink-0 text-[#0B6BB0]" />
             <span className="truncate min-w-0">
-              Context: <strong className="font-semibold text-[#1D2F3F]">{chip}</strong>
+              Context: <strong className="font-semibold text-[#0B2A44]">{chip}</strong>
             </span>
             <button
               type="button"
               onClick={() => setDetachedKey(contextKey)}
               disabled={busy}
-              className="ml-auto p-1 rounded-md text-[#9E948D] hover:text-[#1D2F3F] hover:bg-[#F4F0EB] disabled:opacity-40 flex-shrink-0"
+              className="ml-auto p-1 rounded-md text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB] disabled:opacity-40 flex-shrink-0"
               title="Stop using this context"
               aria-label="Stop using this context"
             >
@@ -742,13 +742,13 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
         {/* Thread */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && (
-            <div className="rounded-2xl border border-[#D2C9BF] bg-white p-4 space-y-3 shadow-2xs">
+            <div className="rounded-2xl border border-[#D3E3F0] bg-white p-4 space-y-3 shadow-2xs">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#A9825A] text-white flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-[#0B6BB0] text-white flex items-center justify-center flex-shrink-0">
                   <Bot size={16} />
                 </div>
-                <div className="text-xs text-[#2F2925] leading-relaxed">
-                  <div className="font-bold text-[#1D2F3F] text-sm">Hello{userName ? `, ${userName.split(' ')[0]}` : ''}.</div>
+                <div className="text-xs text-[#0F2233] leading-relaxed">
+                  <div className="font-bold text-[#0B2A44] text-sm">Hello{userName ? `, ${userName.split(' ')[0]}` : ''}.</div>
                   {aiConfigured
                     ? `${projectLibrary ? AMAYA_ASSISTANT_INTRO : GENERIC_ASSISTANT_INTRO} I'll always ask you to confirm before changing a lead or creating a task.`
                     : "Ask me anything about the live pipeline, or tell me what to do — I'll always ask you to confirm before changing a lead or creating a task."}
@@ -761,7 +761,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                     type="button"
                     disabled={busy}
                     onClick={() => void send(ex)}
-                    className="px-2.5 py-1.5 rounded-full border border-[#D2C9BF] bg-[#FAF7F2] text-[11px] text-[#1D2F3F] hover:bg-[#F4F0EB] hover:border-[#A9825A] transition text-left disabled:opacity-50"
+                    className="px-2.5 py-1.5 rounded-full border border-[#D3E3F0] bg-[#F7FAFD] text-[11px] text-[#0B2A44] hover:bg-[#F2F7FB] hover:border-[#0B6BB0] transition text-left disabled:opacity-50"
                   >
                     {ex}
                   </button>
@@ -783,14 +783,14 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
             return (
               <div key={msg.id} className={cx('flex gap-2.5 text-xs leading-relaxed', isUser ? 'justify-end' : 'justify-start')}>
                 {!isUser && (
-                  <div className="w-7 h-7 rounded-full bg-[#A9825A] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full bg-[#0B6BB0] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Bot size={14} />
                   </div>
                 )}
                 <div
                   className={cx(
                     'rounded-2xl p-3.5 shadow-2xs min-w-0',
-                    isUser ? 'max-w-[85%] bg-[#1D2F3F] text-white rounded-br-xs whitespace-pre-wrap break-words' : 'max-w-[92%] bg-white border border-[#D2C9BF] text-[#2F2925] rounded-bl-xs',
+                    isUser ? 'max-w-[85%] bg-[#0B2A44] text-white rounded-br-xs whitespace-pre-wrap break-words' : 'max-w-[92%] bg-white border border-[#D3E3F0] text-[#0F2233] rounded-bl-xs',
                     msg.status === 'error' && !msg.pendingAction && 'border-[#B06A55]/50 bg-[#FAF0EC] text-[#8A3E28]'
                   )}
                 >
@@ -819,7 +819,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                     />
                   )}
 
-                  <div className={cx('text-[9px] flex items-center justify-between gap-2 pt-1.5', isUser ? 'text-white/60' : 'text-[#9E948D]')}>
+                  <div className={cx('text-[9px] flex items-center justify-between gap-2 pt-1.5', isUser ? 'text-white/60' : 'text-[#7E93A6]')}>
                     <span>{formatTime(msg.timestamp)}</span>
                     {!isUser && (
                       <span className="flex items-center gap-1.5 min-w-0">
@@ -828,7 +828,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                           <button
                             type="button"
                             onClick={() => void copyMessage(msg)}
-                            className={cx('inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-[#1D2F3F] hover:bg-[#F4F0EB] transition flex-shrink-0', copied && 'text-[#3C573A]')}
+                            className={cx('inline-flex items-center gap-1 rounded px-1 py-0.5 hover:text-[#0B2A44] hover:bg-[#F2F7FB] transition flex-shrink-0', copied && 'text-[#3C573A]')}
                             title="Copy this answer"
                             aria-label="Copy this answer"
                           >
@@ -841,7 +841,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                   </div>
                 </div>
                 {isUser && (
-                  <div className="w-7 h-7 rounded-full bg-[#1D2F3F] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full bg-[#0B2A44] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
                     <User size={14} />
                   </div>
                 )}
@@ -851,10 +851,10 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
 
           {busy && (
             <div className="flex gap-2.5 text-xs">
-              <div className="w-7 h-7 rounded-full bg-[#A9825A] text-white flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded-full bg-[#0B6BB0] text-white flex items-center justify-center flex-shrink-0">
                 <Loader2 size={14} className="animate-spin" />
               </div>
-              <div className="bg-white border border-[#D2C9BF] px-3.5 py-2.5 rounded-2xl rounded-bl-xs text-[#6B5F57] italic shadow-2xs">
+              <div className="bg-white border border-[#D3E3F0] px-3.5 py-2.5 rounded-2xl rounded-bl-xs text-[#5E778C] italic shadow-2xs">
                 {busyNote || (aiConfigured ? 'Thinking…' : 'Searching…')}
               </div>
             </div>
@@ -862,7 +862,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
         </div>
 
         {/* Composer */}
-        <div className="p-3 border-t border-[#D2C9BF] bg-white">
+        <div className="p-3 border-t border-[#D3E3F0] bg-white">
           {quickPrompts.length > 0 && (
             <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-0.5 px-0.5 [scrollbar-width:thin]" role="group" aria-label="Quick prompts">
               {quickPrompts.map((p) => (
@@ -874,11 +874,11 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                   className={cx(
                     'flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] whitespace-nowrap transition disabled:opacity-50',
                     p.contextual
-                      ? 'border-[#A9825A]/50 bg-[#FBF7F1] text-[#86633E] font-semibold hover:border-[#A9825A] hover:bg-[#F4F0EB]'
-                      : 'border-[#D2C9BF] bg-[#FAF7F2] text-[#1D2F3F] hover:border-[#A9825A] hover:bg-[#F4F0EB]'
+                      ? 'border-[#0B6BB0]/50 bg-[#F5F9FC] text-[#0B5E9C] font-semibold hover:border-[#0B6BB0] hover:bg-[#F2F7FB]'
+                      : 'border-[#D3E3F0] bg-[#F7FAFD] text-[#0B2A44] hover:border-[#0B6BB0] hover:bg-[#F2F7FB]'
                   )}
                 >
-                  {p.contextual && <Sparkles size={10} className="text-[#A9825A]" />}
+                  {p.contextual && <Sparkles size={10} className="text-[#0B6BB0]" />}
                   {p.text}
                 </button>
               ))}
@@ -892,7 +892,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                 disabled={transcribing || busy}
                 className={cx(
                   'p-2.5 rounded-full transition flex items-center justify-center flex-shrink-0 disabled:opacity-50',
-                  recording ? 'bg-[#B06A55] text-white animate-pulse' : transcribing ? 'bg-amber-100 text-amber-700' : 'bg-[#F4F0EB] text-[#1D2F3F] hover:bg-[#EDE8E0]'
+                  recording ? 'bg-[#B06A55] text-white animate-pulse' : transcribing ? 'bg-amber-100 text-amber-700' : 'bg-[#F2F7FB] text-[#0B2A44] hover:bg-[#E6EFF6]'
                 )}
                 title={recording ? 'Stop and transcribe' : transcribing ? 'Transcribing…' : 'Speak your question'}
                 aria-label={recording ? 'Stop recording' : 'Start recording'}
@@ -921,20 +921,20 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
                       ? projectLibrary ? 'Ask anything — project facts, a WhatsApp draft, leads, follow-ups — or say what to do…' : 'Ask anything — a WhatsApp draft, leads, follow-ups — or say what to do…'
                       : "Quick search: hot leads, today's follow-ups, enquiries this month…"
               }
-              className="flex-1 resize-none text-xs p-2.5 rounded-xl border border-[#D2C9BF] bg-[#F4F0EB] text-[#1D2F3F] placeholder:text-[#9E948D] focus:outline-none focus:border-[#A9825A] leading-relaxed max-h-[140px] disabled:text-[#9E948D]"
+              className="flex-1 resize-none text-xs p-2.5 rounded-xl border border-[#D3E3F0] bg-[#F2F7FB] text-[#0B2A44] placeholder:text-[#7E93A6] focus:outline-none focus:border-[#0B6BB0] leading-relaxed max-h-[140px] disabled:text-[#7E93A6]"
             />
             <button
               type="button"
               onClick={() => void send(input)}
               disabled={!input.trim() || composerLocked}
-              className="p-2.5 rounded-full bg-[#1D2F3F] text-white hover:brightness-110 transition disabled:opacity-40 flex-shrink-0"
+              className="p-2.5 rounded-full bg-[#0B2A44] text-white hover:brightness-110 transition disabled:opacity-40 flex-shrink-0"
               title="Send (Enter)"
               aria-label="Send"
             >
               <Send size={15} />
             </button>
           </div>
-          <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-[#9E948D]">
+          <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-[#7E93A6]">
             <span>{recording ? '● Recording — click the mic to stop and transcribe' : 'Enter to send · Shift+Enter for a new line'}</span>
             <span className="truncate">{canAct ? 'Actions need your confirmation' : 'Read-only for your role'}</span>
           </div>

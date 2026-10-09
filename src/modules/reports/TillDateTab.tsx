@@ -51,7 +51,7 @@ export const TillDateTab: React.FC<Props> = ({ leads, tasks, rm, index, onOpenLe
 
   return (
     <div className="space-y-5">
-      <Card title="Till-date summary" subtitle={since} actions={<span className="text-xs text-[#6B5F57]">{formatNumber(monthly.length)} month{monthly.length === 1 ? '' : 's'} of data</span>}>
+      <Card title="Till-date summary" subtitle={since} actions={<span className="text-xs text-[#5E778C]">{formatNumber(monthly.length)} month{monthly.length === 1 ? '' : 's'} of data</span>}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiTile label="Total Enquiries" value={snapshot.totalEnquiries} tone="navy" icon={<Users size={12} />} onClick={() => show('All enquiries', snapshot.ids.enquiries)} />
           <KpiTile label="Total Leads (open)" value={snapshot.openLeads} tone="white" icon={<Target size={12} />} hint="still in the pipeline" onClick={() => show('Open pipeline', snapshot.ids.open)} />
@@ -67,16 +67,16 @@ export const TillDateTab: React.FC<Props> = ({ leads, tasks, rm, index, onOpenLe
 
       {drill && <DrillDown drill={drill} index={index} onOpenLead={onOpenLead} onClose={() => setDrill(null)} />}
 
-      <Card title="Monthly trend" subtitle={trendRecent.length ? `Enquiries vs bookings · last ${trendRecent.length} month${trendRecent.length === 1 ? '' : 's'} charted, all months in the table` : 'No data yet'} actions={<Layers size={16} className="text-[#A9825A]" />}>
+      <Card title="Monthly trend" subtitle={trendRecent.length ? `Enquiries vs bookings · last ${trendRecent.length} month${trendRecent.length === 1 ? '' : 's'} charted, all months in the table` : 'No data yet'} actions={<Layers size={16} className="text-[#0B6BB0]" />}>
         {trendRecent.length > 0 && <TrendBars series={trendRecent} />}
-        <div className="mt-4 -mx-5 border-t border-[#ECE8E1]">
+        <div className="mt-4 -mx-5 border-t border-[#E6EFF6]">
           <DataTable<MonthPoint>
             dense
             rows={trendDesc.slice(0, trendVisible)}
             keyFn={(p) => p.key}
             empty="No months to show"
             columns={[
-              { key: 'label', label: 'Month', render: (p) => <span className="font-semibold text-[#1D2F3F] whitespace-nowrap">{p.label}</span> },
+              { key: 'label', label: 'Month', render: (p) => <span className="font-semibold text-[#0B2A44] whitespace-nowrap">{p.label}</span> },
               { key: 'enquiries', label: 'Enquiries', align: 'right', render: (p) => formatNumber(p.enquiries) },
               { key: 'qualified', label: 'Qualified', align: 'right', render: (p) => formatNumber(p.qualified) },
               { key: 'siteVisits', label: 'Site Visits', align: 'right', render: (p) => formatNumber(p.siteVisits) },
@@ -87,7 +87,7 @@ export const TillDateTab: React.FC<Props> = ({ leads, tasks, rm, index, onOpenLe
             ]}
           />
           {trendDesc.length > trendVisible && (
-            <div className="text-center py-3 border-t border-[#ECE8E1]">
+            <div className="text-center py-3 border-t border-[#E6EFF6]">
               <Button variant="ghost" onClick={() => setTrendVisible((v) => v + TREND_PAGE)}>Show more ({trendDesc.length - trendVisible} remaining)</Button>
             </div>
           )}
@@ -116,34 +116,34 @@ const TrendBars: React.FC<{ series: MonthPoint[] }> = ({ series }) => {
   const max = Math.max(1, ...series.map((p) => p.enquiries));
   return (
     <div>
-      <div className="h-40 flex items-end gap-2 border-b border-[#ECE8E1] pb-1">
+      <div className="h-40 flex items-end gap-2 border-b border-[#E6EFF6] pb-1">
         {series.map((p) => (
           <div key={p.key} className="flex-1 flex flex-col items-center justify-end h-full group relative min-w-0">
-            <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition pointer-events-none bg-[#1D2F3F] text-white p-2 rounded text-[10px] whitespace-nowrap z-10">
-              <div className="font-bold text-[#E7D8C6]">{p.label}</div>
+            <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition pointer-events-none bg-[#0B2A44] text-white p-2 rounded text-[10px] whitespace-nowrap z-10">
+              <div className="font-bold text-[#C4D8EA]">{p.label}</div>
               <div>{p.enquiries} enquiries · {p.bookings} booked</div>
               <div>{p.siteVisits} visits · {p.enquiries ? formatPercent(p.conversionRate, 0) : '—'} conv.</div>
             </div>
             <div className="w-full flex items-end gap-0.5 h-full">
-              <div className="flex-1 rounded-t bg-[#1D2F3F]" style={{ height: `${Math.max(3, (p.enquiries / max) * 100)}%` }} />
-              <div className="flex-1 rounded-t bg-[#A9825A]" style={{ height: `${Math.max(2, (p.siteVisits / max) * 100)}%` }} />
-              <div className="flex-1 rounded-t bg-[#7C8B78]" style={{ height: `${Math.max(2, (p.bookings / max) * 100)}%` }} />
+              <div className="flex-1 rounded-t bg-[#0B2A44]" style={{ height: `${Math.max(3, (p.enquiries / max) * 100)}%` }} />
+              <div className="flex-1 rounded-t bg-[#0B6BB0]" style={{ height: `${Math.max(2, (p.siteVisits / max) * 100)}%` }} />
+              <div className="flex-1 rounded-t bg-[#0E8A86]" style={{ height: `${Math.max(2, (p.bookings / max) * 100)}%` }} />
             </div>
           </div>
         ))}
       </div>
       <div className="flex gap-2 mt-1">
         {series.map((p) => (
-          <div key={p.key} className="flex-1 text-center text-[10px] text-[#6B5F57] truncate">
+          <div key={p.key} className="flex-1 text-center text-[10px] text-[#5E778C] truncate">
             {p.label.slice(0, 3)}
-            <div className="font-bold text-[#1D2F3F]">{p.enquiries}</div>
+            <div className="font-bold text-[#0B2A44]">{p.enquiries}</div>
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-4 text-[10px] text-[#6B5F57] mt-2">
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#1D2F3F]" />Enquiries</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#A9825A]" />Site visits</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#7C8B78]" />Bookings</span>
+      <div className="flex items-center gap-4 text-[10px] text-[#5E778C] mt-2">
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#0B2A44]" />Enquiries</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#0B6BB0]" />Site visits</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-[#0E8A86]" />Bookings</span>
       </div>
     </div>
   );

@@ -141,8 +141,8 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Message Templates</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">Standard replies for WhatsApp, email and follow-ups. Tokens: {TOKENS.map((t) => t.token).join(', ')}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Message Templates</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">Standard replies for WhatsApp, email and follow-ups. Tokens: {TOKENS.map((t) => t.token).join(', ')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => setImportOpen(true)} icon={<FileUp size={14} />} title="Create templates from the scripts in a Word, Excel, CSV or text file">Import from file</Button>
@@ -154,9 +154,9 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="min-w-0 flex-1"><Tabs tabs={tabs} value={typeFilter} onChange={setTypeFilter} /></div>
           <div className="relative w-full lg:w-72">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9E948D] pointer-events-none" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6] pointer-events-none" />
             <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates…" aria-label="Search templates" className={`${inputCls} pl-8 pr-8`} />
-            {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-[#9E948D] hover:text-[#1D2F3F]" aria-label="Clear search"><X size={14} /></button>}
+            {search && <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-[#7E93A6] hover:text-[#0B2A44]" aria-label="Clear search"><X size={14} /></button>}
           </div>
         </div>
       )}
@@ -166,7 +166,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
           <EmptyState
             icon={<MessageSquareQuote size={22} />}
             title="No templates yet"
-            description={<>Create reusable messages for enquiries, site-visit confirmations and follow-ups, or import the scripts you already have in Word, Excel, CSV or text. Tokens such as {'{name}'} and {'{rm}'} are filled in when you use them.<span className="block mt-1.5 text-[#9E948D]">{TEMPLATE_IMPORT_TIP}</span></>}
+            description={<>Create reusable messages for enquiries, site-visit confirmations and follow-ups, or import the scripts you already have in Word, Excel, CSV or text. Tokens such as {'{name}'} and {'{rm}'} are filled in when you use them.<span className="block mt-1.5 text-[#7E93A6]">{TEMPLATE_IMPORT_TIP}</span></>}
             action={
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button variant="primary" onClick={openCreate} icon={<Plus size={14} />}>Create the first template</Button>
@@ -191,25 +191,25 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
           {filtered.map((tpl) => {
             const preview = previewIds.has(tpl.id);
             return (
-              <div key={tpl.id} className="bg-white rounded-xl p-5 border border-[#D2C9BF] shadow-xs flex flex-col justify-between hover:border-[#A9825A] transition">
+              <div key={tpl.id} className="bg-white rounded-xl p-5 border border-[#D3E3F0] shadow-xs flex flex-col justify-between hover:border-[#0B6BB0] transition">
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <Badge tone="gold">{tpl.type || 'General'}</Badge>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => togglePreview(tpl.id)} className={`p-1.5 rounded-md transition ${preview ? 'text-[#A9825A] bg-[#A9825A]/10' : 'text-[#9E948D] hover:text-[#1D2F3F]'}`} title={preview ? 'Show raw template' : 'Preview with sample values'}>
+                      <button onClick={() => togglePreview(tpl.id)} className={`p-1.5 rounded-md transition ${preview ? 'text-[#0B6BB0] bg-[#0B6BB0]/10' : 'text-[#7E93A6] hover:text-[#0B2A44]'}`} title={preview ? 'Show raw template' : 'Preview with sample values'}>
                         {preview ? <EyeOff size={13} /> : <Eye size={13} />}
                       </button>
-                      <button onClick={() => openEdit(tpl)} className="p-1.5 rounded-md text-[#9E948D] hover:text-[#1D2F3F] transition" title="Edit template"><Edit size={13} /></button>
-                      <button onClick={() => setDeleteTarget(tpl)} className="p-1.5 rounded-md text-[#9E948D] hover:text-[#8A3E28] transition" title="Delete template"><Trash2 size={13} /></button>
+                      <button onClick={() => openEdit(tpl)} className="p-1.5 rounded-md text-[#7E93A6] hover:text-[#0B2A44] transition" title="Edit template"><Edit size={13} /></button>
+                      <button onClick={() => setDeleteTarget(tpl)} className="p-1.5 rounded-md text-[#7E93A6] hover:text-[#8A3E28] transition" title="Delete template"><Trash2 size={13} /></button>
                     </div>
                   </div>
-                  <h4 className="text-sm font-bold text-[#1D2F3F] mb-2 break-words">{tpl.name}</h4>
-                  <div className={`p-3.5 rounded-lg text-xs leading-relaxed whitespace-pre-wrap border mb-3 max-h-56 overflow-y-auto break-words ${preview ? 'bg-[#E8F0E7] border-[#7C8B78]/40 text-[#2F3F2D]' : 'bg-[#F4F0EB] border-[#D2C9BF]/60 text-[#3D3530]'}`}>
+                  <h4 className="text-sm font-bold text-[#0B2A44] mb-2 break-words">{tpl.name}</h4>
+                  <div className={`p-3.5 rounded-lg text-xs leading-relaxed whitespace-pre-wrap border mb-3 max-h-56 overflow-y-auto break-words ${preview ? 'bg-[#E8F0E7] border-[#0E8A86]/40 text-[#2F3F2D]' : 'bg-[#F2F7FB] border-[#D3E3F0]/60 text-[#0F2233]'}`}>
                     {preview ? fillTemplate(tpl.message, sampleVars) : tpl.message}
                   </div>
                 </div>
-                <div className="pt-3 border-t border-[#ECE8E1] flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-[#9E948D]">{preview ? 'Preview with sample values' : tpl.updated ? `Updated ${formatRelative(tpl.updated)}` : 'Tokens are filled when used'}</span>
+                <div className="pt-3 border-t border-[#E6EFF6] flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-[#7E93A6]">{preview ? 'Preview with sample values' : tpl.updated ? `Updated ${formatRelative(tpl.updated)}` : 'Tokens are filled when used'}</span>
                   <Button variant="primary" size="xs" onClick={() => copy(tpl)} icon={copiedId === tpl.id ? <Check size={12} /> : <Copy size={12} />}>{copiedId === tpl.id ? 'Copied' : preview ? 'Copy preview' : 'Copy text'}</Button>
                 </div>
               </div>
@@ -241,7 +241,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
               <span className={labelCls}>Insert token</span>
               <div className="flex flex-wrap gap-1.5">
                 {TOKENS.map((t) => (
-                  <button type="button" key={t.token} onClick={() => insertToken(t.token)} className="px-2 py-1 rounded-md bg-[#F4F0EB] border border-[#D2C9BF] text-[11px] font-mono text-[#1D2F3F] hover:border-[#A9825A]" title={t.label}>{t.token}</button>
+                  <button type="button" key={t.token} onClick={() => insertToken(t.token)} className="px-2 py-1 rounded-md bg-[#F2F7FB] border border-[#D3E3F0] text-[11px] font-mono text-[#0B2A44] hover:border-[#0B6BB0]" title={t.label}>{t.token}</button>
                 ))}
               </div>
             </div>
@@ -249,10 +249,10 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ templates, onAddTe
           </div>
           <div>
             <span className={labelCls}>Live preview</span>
-            <div className="p-4 rounded-xl bg-[#E8F0E7] border border-[#7C8B78]/40 text-xs text-[#2F3F2D] leading-relaxed whitespace-pre-wrap min-h-[180px] break-words">
-              {formMessage.trim() ? fillTemplate(formMessage, sampleVars) : <span className="text-[#7C8B78] italic">Type a message to see it with sample values…</span>}
+            <div className="p-4 rounded-xl bg-[#E8F0E7] border border-[#0E8A86]/40 text-xs text-[#2F3F2D] leading-relaxed whitespace-pre-wrap min-h-[180px] break-words">
+              {formMessage.trim() ? fillTemplate(formMessage, sampleVars) : <span className="text-[#0E8A86] italic">Type a message to see it with sample values…</span>}
             </div>
-            <div className="text-[10px] text-[#9E948D] mt-2 leading-relaxed">
+            <div className="text-[10px] text-[#7E93A6] mt-2 leading-relaxed">
               Sample values: {TOKENS.map((t) => `${t.token} → ${(sampleVars as Record<string, string>)[t.token.slice(1, -1)]}`).join(' · ')}
             </div>
           </div>

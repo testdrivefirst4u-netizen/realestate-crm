@@ -34,10 +34,10 @@ const list = (s: string) => s.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()
 
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string; hint?: React.ReactNode }> = ({ checked, onChange, disabled, label, hint }) => (
   <label className={`flex items-start gap-3 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
-    <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1D2F3F]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+    <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#0B2A44]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     <span>
-      <span className="block text-sm font-semibold text-[#1D2F3F]">{label}</span>
-      {hint && <span className="block text-xs text-[#6B5F57] mt-0.5">{hint}</span>}
+      <span className="block text-sm font-semibold text-[#0B2A44]">{label}</span>
+      {hint && <span className="block text-xs text-[#5E778C] mt-0.5">{hint}</span>}
     </span>
   </label>
 );
@@ -87,7 +87,7 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
 
   return (
     <div className="space-y-5">
-      <Card title={<span className="inline-flex items-center gap-2"><BellRing size={16} className="text-[#A9825A]" /> E-mail alerts</span>} subtitle="Sent the moment a lead arrives from any source (CRM, website, Google Sheet, Facebook, WhatsApp) or is reassigned. Leads replied to within minutes convert far better.">
+      <Card title={<span className="inline-flex items-center gap-2"><BellRing size={16} className="text-[#0B6BB0]" /> E-mail alerts</span>} subtitle="Sent the moment a lead arrives from any source (CRM, website, Google Sheet, Facebook, WhatsApp) or is reassigned. Leads replied to within minutes convert far better.">
         <div className="space-y-4">
           {s.mailConfigured === false && (
             <InlineNotice tone="warning">E-mail is not set up on the server yet (SMTP_URL and MAIL_FROM), so no alert e-mails are sent. Your platform administrator can add them.</InlineNotice>
@@ -95,15 +95,15 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
           <Toggle checked={cfg.emailRm} disabled={!editable} onChange={(v) => set('emailRm', v)} label="E-mail the assigned RM" hint="The RM is matched by name to an active CRM user. Reassigning a lead alerts the new RM." />
           <Field label="Also notify" hint="Active CRM users only — e.g. the sales manager. They get every new-lead alert.">
             {active.length === 0 ? (
-              <p className="text-xs text-[#6B5F57]">No users yet.</p>
+              <p className="text-xs text-[#5E778C]">No users yet.</p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
                 {active.map((u) => (
-                  <label key={u.id} className={`flex items-center gap-2 rounded-lg border border-[#ECE8E1] px-3 py-2 text-xs ${editable ? 'cursor-pointer hover:bg-[#FAF7F2]' : 'opacity-70'}`}>
-                    <input type="checkbox" className="h-4 w-4 accent-[#1D2F3F]" disabled={!editable} checked={chosen.has(u.email.toLowerCase())} onChange={(e) => toggleUser(u.email, e.target.checked)} />
+                  <label key={u.id} className={`flex items-center gap-2 rounded-lg border border-[#E6EFF6] px-3 py-2 text-xs ${editable ? 'cursor-pointer hover:bg-[#F7FAFD]' : 'opacity-70'}`}>
+                    <input type="checkbox" className="h-4 w-4 accent-[#0B2A44]" disabled={!editable} checked={chosen.has(u.email.toLowerCase())} onChange={(e) => toggleUser(u.email, e.target.checked)} />
                     <span className="min-w-0">
-                      <span className="block font-semibold text-[#1D2F3F] truncate">{u.name}</span>
-                      <span className="block text-[#6B5F57] truncate">{u.email} · {u.role}</span>
+                      <span className="block font-semibold text-[#0B2A44] truncate">{u.name}</span>
+                      <span className="block text-[#5E778C] truncate">{u.email} · {u.role}</span>
                     </span>
                   </label>
                 ))}
@@ -113,7 +113,7 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
         </div>
       </Card>
 
-      <Card title={<span className="inline-flex items-center gap-2"><MessageCircle size={16} className="text-[#7C8B78]" /> Automatic WhatsApp reply</span>} subtitle="Every new lead with a phone number gets your approved WhatsApp template within seconds — even at night. Sent through Chat360.">
+      <Card title={<span className="inline-flex items-center gap-2"><MessageCircle size={16} className="text-[#0E8A86]" /> Automatic WhatsApp reply</span>} subtitle="Every new lead with a phone number gets your approved WhatsApp template within seconds — even at night. Sent through Chat360.">
         <div className="space-y-4">
           {!whatsappFeature && <InlineNotice tone="info">WhatsApp (Chat360) is not part of your company’s plan.</InlineNotice>}
           {whatsappFeature && !s.chat360Configured && <InlineNotice tone="warning">Add your Chat360 API key under Settings › Integrations first.</InlineNotice>}
@@ -132,7 +132,7 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
         </div>
       </Card>
 
-      <Card title={<span className="inline-flex items-center gap-2"><CalendarClock size={16} className="text-[#A9825A]" /> Follow-up sequence</span>} subtitle="Fills in each lead’s next follow-up automatically, so no enquiry is forgotten. RMs get the usual reminder when it is due. A date the RM picks always wins.">
+      <Card title={<span className="inline-flex items-center gap-2"><CalendarClock size={16} className="text-[#0B6BB0]" /> Follow-up sequence</span>} subtitle="Fills in each lead’s next follow-up automatically, so no enquiry is forgotten. RMs get the usual reminder when it is due. A date the RM picks always wins.">
         <div className="space-y-4">
           <Toggle checked={seq.enabled} disabled={!editable} onChange={(v) => setSeq((x) => ({ ...x, enabled: v }))} label="Schedule follow-ups automatically" hint="New, Open, Warm, Hot and Qualified leads only. When a follow-up is logged without a next date, the next step is scheduled." />
           <div className="grid gap-4 sm:grid-cols-3">
@@ -146,7 +146,7 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
           <Field label="Mark as “Not Responding” after" hint="New, Open or Warm leads with no activity for this many days move to Not Responding (checked daily). 0 = never.">
             <div className="flex items-center gap-2">
               <input className={inputCls + ' !w-24'} type="number" min={0} max={365} value={seq.autoNotRespondingDays} disabled={!editable} onChange={(e) => setSeq((x) => ({ ...x, autoNotRespondingDays: Number(e.target.value) || 0 }))} />
-              <span className="text-xs text-[#6B5F57]">days without activity</span>
+              <span className="text-xs text-[#5E778C]">days without activity</span>
             </div>
           </Field>
         </div>

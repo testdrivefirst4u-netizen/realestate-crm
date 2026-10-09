@@ -143,15 +143,15 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
   return (
     <div className="space-y-4">
       {/* Quick log */}
-      <div className="bg-[#F4F0EB] p-4 rounded-xl border border-[#D2C9BF] space-y-3">
+      <div className="bg-[#F2F7FB] p-4 rounded-xl border border-[#D3E3F0] space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 text-xs font-bold text-[#1D2F3F]">
-            <PhoneCall size={14} className="text-[#A9825A]" />
+          <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44]">
+            <PhoneCall size={14} className="text-[#0B6BB0]" />
             Log a call
           </div>
-          <div className="inline-flex rounded-lg border border-[#D2C9BF] bg-white p-0.5 text-[11px] font-semibold">
+          <div className="inline-flex rounded-lg border border-[#D3E3F0] bg-white p-0.5 text-[11px] font-semibold">
             {(['Outbound', 'Inbound'] as Direction[]).map((d) => (
-              <button key={d} type="button" onClick={() => setDirection(d)} className={cx('px-2.5 py-1 rounded-md flex items-center gap-1', direction === d ? 'bg-[#1D2F3F] text-white' : 'text-[#6B5F57] hover:text-[#1D2F3F]')}>
+              <button key={d} type="button" onClick={() => setDirection(d)} className={cx('px-2.5 py-1 rounded-md flex items-center gap-1', direction === d ? 'bg-[#0B2A44] text-white' : 'text-[#5E778C] hover:text-[#0B2A44]')}>
                 {d === 'Outbound' ? <PhoneOutgoing size={11} /> : <PhoneIncoming size={11} />} {d}
               </button>
             ))}
@@ -172,8 +172,8 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
               Restart timer
             </Button>
           )}
-          <span className={cx('font-mono text-sm font-bold tabular-nums', startedAt && !endedAt ? 'text-[#8A3E28]' : 'text-[#1D2F3F]')}>{formatDuration(durationSec)}</span>
-          <span className="text-[11px] text-[#6B5F57]">
+          <span className={cx('font-mono text-sm font-bold tabular-nums', startedAt && !endedAt ? 'text-[#8A3E28]' : 'text-[#0B2A44]')}>{formatDuration(durationSec)}</span>
+          <span className="text-[11px] text-[#5E778C]">
             {startedAt ? `Started ${formatDateTime(startedAt)}${endedAt ? ` · ended ${formatDateTime(endedAt)}` : ' · in progress'}` : 'Optional — or log a call that already happened.'}
           </span>
           {phone && (
@@ -208,7 +208,7 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
 
       {/* History */}
       <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase font-bold tracking-wider text-[#6B5F57]">Call history{calls.data ? ` · ${list.length}` : ''}</div>
+        <div className="text-[11px] uppercase font-bold tracking-wider text-[#5E778C]">Call history{calls.data ? ` · ${list.length}` : ''}</div>
         <Button variant="ghost" size="xs" onClick={() => void calls.reload()} loading={calls.loading} icon={<RefreshCw size={11} />}>
           Refresh
         </Button>
@@ -282,33 +282,33 @@ const CallRow: React.FC<{
   const when = call.startTime || call.callDate || call.createdAt;
 
   return (
-    <div className="bg-white rounded-xl border border-[#D2C9BF] p-3 shadow-2xs space-y-2">
+    <div className="bg-white rounded-xl border border-[#D3E3F0] p-3 shadow-2xs space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 min-w-0">
-          <span className={cx('mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', call.direction === 'Inbound' ? 'bg-[#7C8B78]/20 text-[#3C573A]' : 'bg-[#1D2F3F]/10 text-[#1D2F3F]')}>
+          <span className={cx('mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', call.direction === 'Inbound' ? 'bg-[#0E8A86]/20 text-[#3C573A]' : 'bg-[#0B2A44]/10 text-[#0B2A44]')}>
             {call.direction === 'Inbound' ? <PhoneIncoming size={13} /> : <PhoneOutgoing size={13} />}
           </span>
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-[#1D2F3F] flex items-center gap-2 flex-wrap">
+            <div className="text-xs font-semibold text-[#0B2A44] flex items-center gap-2 flex-wrap">
               <span>{call.direction === 'Inbound' ? 'Incoming call' : 'Outgoing call'}</span>
               <Badge tone={statusTone(call.status)}>{call.status}</Badge>
               {call.outcome && <Badge tone="gold">{call.outcome}</Badge>}
             </div>
-            <div className="text-[11px] text-[#6B5F57] mt-0.5">
+            <div className="text-[11px] text-[#5E778C] mt-0.5">
               {formatDateTime(when, '—')} · {formatDuration(call.durationSec)}
               {call.loggedBy && ` · ${call.loggedBy}`}
               {call.provider && call.provider !== 'Manual' && ` · ${call.provider}`}
             </div>
           </div>
         </div>
-        <span className="font-mono text-[10px] text-[#9E948D] whitespace-nowrap">{call.id}</span>
+        <span className="font-mono text-[10px] text-[#7E93A6] whitespace-nowrap">{call.id}</span>
       </div>
 
-      {call.notes && <div className="text-xs text-[#3D3530] leading-relaxed whitespace-pre-wrap bg-[#F4F0EB] rounded-lg p-2">{call.notes}</div>}
+      {call.notes && <div className="text-xs text-[#0F2233] leading-relaxed whitespace-pre-wrap bg-[#F2F7FB] rounded-lg p-2">{call.notes}</div>}
 
       <div className="flex items-center gap-2 flex-wrap">
         {call.recordingUrl && (
-          <a href={call.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1D2F3F] hover:text-[#A9825A]">
+          <a href={call.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0B2A44] hover:text-[#0B6BB0]">
             <FileAudio size={12} /> Recording <ExternalLink size={10} />
           </a>
         )}
@@ -317,28 +317,28 @@ const CallRow: React.FC<{
           {hasRecording ? 'Replace recording' : 'Upload recording'}
         </Button>
         {aiConfigured && hasRecording && (
-          <Button type="button" variant="secondary" size="xs" onClick={onTranscribe} loading={busy === 'transcribe'} disabled={!!busy} icon={<Sparkles size={11} className="text-[#A9825A]" />}>
+          <Button type="button" variant="secondary" size="xs" onClick={onTranscribe} loading={busy === 'transcribe'} disabled={!!busy} icon={<Sparkles size={11} className="text-[#0B6BB0]" />}>
             {call.transcript ? 'Re-transcribe & summarise' : 'Transcribe & summarise'}
           </Button>
         )}
         {call.aiSummary && (
-          <button type="button" onClick={() => setShowSummary((v) => !v)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#86633E] hover:text-[#A9825A]">
+          <button type="button" onClick={() => setShowSummary((v) => !v)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0B5E9C] hover:text-[#0B6BB0]">
             <Sparkles size={11} /> AI summary {showSummary ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
         )}
         {call.transcript && (
-          <button type="button" onClick={() => setShowTranscript((v) => !v)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#6B5F57] hover:text-[#1D2F3F]">
+          <button type="button" onClick={() => setShowTranscript((v) => !v)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#5E778C] hover:text-[#0B2A44]">
             Transcript {showTranscript ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
         )}
       </div>
 
       {showSummary && call.aiSummary && (
-        <div className="rounded-lg border border-[#A9825A]/50 bg-[#FBF7F1] p-3 space-y-2 text-xs text-[#1D2F3F]">
+        <div className="rounded-lg border border-[#0B6BB0]/50 bg-[#F5F9FC] p-3 space-y-2 text-xs text-[#0B2A44]">
           <div className="leading-relaxed whitespace-pre-wrap">{call.aiSummary}</div>
           {!!call.keyPoints?.length && (
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#86633E] mb-1">Key points</div>
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#0B5E9C] mb-1">Key points</div>
               <ul className="list-disc pl-4 space-y-0.5">
                 {call.keyPoints.map((k, i) => (
                   <li key={i}>{k}</li>
@@ -348,7 +348,7 @@ const CallRow: React.FC<{
           )}
           {!!call.followupActions?.length && (
             <div>
-              <div className="text-[10px] uppercase font-bold tracking-wider text-[#86633E] mb-1">Follow-up actions</div>
+              <div className="text-[10px] uppercase font-bold tracking-wider text-[#0B5E9C] mb-1">Follow-up actions</div>
               <ul className="list-disc pl-4 space-y-0.5">
                 {call.followupActions.map((k, i) => (
                   <li key={i}>{k}</li>
@@ -358,7 +358,7 @@ const CallRow: React.FC<{
           )}
         </div>
       )}
-      {showTranscript && call.transcript && <div className="rounded-lg border border-[#D2C9BF] bg-[#FDFCFA] p-3 text-xs text-[#3D3530] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{call.transcript}</div>}
+      {showTranscript && call.transcript && <div className="rounded-lg border border-[#D3E3F0] bg-[#FFFFFF] p-3 text-xs text-[#0F2233] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{call.transcript}</div>}
     </div>
   );
 };

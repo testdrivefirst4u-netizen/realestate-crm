@@ -19,9 +19,9 @@ import { Button, cx, inputCls } from '../../components/ui';
 /* ------------------------------------------------------------------------ */
 
 export const Stars: React.FC<{ score: number; size?: number; className?: string; title?: string }> = ({ score, size = 12, className, title }) => (
-  <span className={cx('inline-flex text-[#A9825A]', className)} title={title ?? `Engagement score ${score}/5`} aria-label={`${score} of 5`}>
+  <span className={cx('inline-flex text-[#0B6BB0]', className)} title={title ?? `Engagement score ${score}/5`} aria-label={`${score} of 5`}>
     {[0, 1, 2, 3, 4].map((i) => (
-      <Star key={i} size={size} className={i < score ? 'fill-[#A9825A]' : 'stroke-[#D2C9BF]'} />
+      <Star key={i} size={size} className={i < score ? 'fill-[#0B6BB0]' : 'stroke-[#D3E3F0]'} />
     ))}
   </span>
 );
@@ -381,7 +381,7 @@ export const SmartTextarea: React.FC<{
               onClick={() => void reframe()}
               disabled={disabled || !value.trim()}
               aria-disabled={polishing || undefined}
-              icon={<Sparkles size={12} className={cx('text-[#A9825A]', polishing && 'animate-pulse')} />}
+              icon={<Sparkles size={12} className={cx('text-[#0B6BB0]', polishing && 'animate-pulse')} />}
               className={polishing ? 'cursor-progress' : undefined}
               title={polishing ? 'Polishing — you can keep typing' : 'Polish grammar, punctuation and tone with AI'}
             >
@@ -394,11 +394,11 @@ export const SmartTextarea: React.FC<{
                 type="button"
                 onClick={acceptOffer}
                 title={offer}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#A9825A]/50 bg-[#FBF7F1] text-[11px] font-semibold text-[#86633E] hover:border-[#A9825A] hover:bg-[#F4F0EB] transition"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#0B6BB0]/50 bg-[#F5F9FC] text-[11px] font-semibold text-[#0B5E9C] hover:border-[#0B6BB0] hover:bg-[#F2F7FB] transition"
               >
                 <Sparkles size={11} /> Use polished version
               </button>
-              <button type="button" onClick={() => setOffer(null)} className="p-1 rounded text-[#9E948D] hover:text-[#1D2F3F]" title="Keep my text" aria-label="Dismiss the polished version">
+              <button type="button" onClick={() => setOffer(null)} className="p-1 rounded text-[#7E93A6] hover:text-[#0B2A44]" title="Keep my text" aria-label="Dismiss the polished version">
                 <X size={11} />
               </button>
             </span>
@@ -407,13 +407,13 @@ export const SmartTextarea: React.FC<{
             <span className="inline-flex items-center gap-1 text-[11px] text-[#3C573A]">
               <Check size={11} /> Polished
               <span className="text-[#C9BFB4]">·</span>
-              <button type="button" onClick={undo} className="font-semibold text-[#6B5F57] hover:text-[#1D2F3F] hover:underline underline-offset-2">
+              <button type="button" onClick={undo} className="font-semibold text-[#5E778C] hover:text-[#0B2A44] hover:underline underline-offset-2">
                 Undo
               </button>
             </span>
           )}
-          {aiEnabled && shownNote?.kind === 'unchanged' && <span className="text-[11px] text-[#9E948D]">Already reads well — no changes needed.</span>}
-          {aiEnabled && shownNote?.kind === 'failed' && <span className="text-[11px] text-[#9E948D]">Couldn't polish just now — your text is unchanged.</span>}
+          {aiEnabled && shownNote?.kind === 'unchanged' && <span className="text-[11px] text-[#7E93A6]">Already reads well — no changes needed.</span>}
+          {aiEnabled && shownNote?.kind === 'failed' && <span className="text-[11px] text-[#7E93A6]">Couldn't polish just now — your text is unchanged.</span>}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>

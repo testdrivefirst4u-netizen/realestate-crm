@@ -66,7 +66,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
         {currentUser ? (
           <div className="flex flex-col sm:flex-row sm:items-center gap-5">
             <div className="flex flex-col items-center gap-2 flex-shrink-0 sm:w-60">
-              <Avatar user={{ name: currentUser.name, avatar: shownPhoto }} size="xl" className="ring-4 ring-[#ECE8E1]" />
+              <Avatar user={{ name: currentUser.name, avatar: shownPhoto }} size="xl" className="ring-4 ring-[#E6EFF6]" />
               {picker.input}
               {photoDirty ? (
                 <div className="flex items-center gap-1.5">
@@ -79,15 +79,15 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
                   {hasPhoto && <Button type="button" variant="ghost" size="xs" onClick={() => setPhoto({ value: null, dirty: true })} disabled={picker.busy} icon={<Trash2 size={12} />}>Remove photo</Button>}
                 </div>
               )}
-              <div className="text-[10px] text-[#9E948D] text-center leading-snug">
+              <div className="text-[10px] text-[#7E93A6] text-center leading-snug">
                 {photoDirty ? (shownPhoto ? 'Preview — not saved yet' : 'Your initials will be shown instead') : 'JPEG, PNG or WebP, up to 8 MB'}
               </div>
             </div>
             <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
-              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Name</div><div className="font-bold text-[#1D2F3F] text-sm truncate">{currentUser.name}</div></div>
-              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Email</div><div className="text-[#3D3530] truncate">{currentUser.email}</div></div>
-              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Role</div><div><Badge tone="navy">{roleLabel(currentUser.role)}</Badge></div></div>
-              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Last sign-in</div><div className="text-[#3D3530]">{formatDateTime(currentUser.lastLoginAt, '—')}</div></div>
+              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Name</div><div className="font-bold text-[#0B2A44] text-sm truncate">{currentUser.name}</div></div>
+              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Email</div><div className="text-[#0F2233] truncate">{currentUser.email}</div></div>
+              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Role</div><div><Badge tone="navy">{roleLabel(currentUser.role)}</Badge></div></div>
+              <div><div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Last sign-in</div><div className="text-[#0F2233]">{formatDateTime(currentUser.lastLoginAt, '—')}</div></div>
             </div>
           </div>
         ) : (
@@ -95,7 +95,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
         )}
       </Card>
 
-      <div className="text-[11px] text-[#9E948D] inline-flex items-center gap-1.5"><UserCircle2 size={12} />Need a different role or email? Ask an administrator — they can change it under Settings → Users.</div>
+      <div className="text-[11px] text-[#7E93A6] inline-flex items-center gap-1.5"><UserCircle2 size={12} />Need a different role or email? Ask an administrator — they can change it under Settings → Users.</div>
     </div>
   );
 };

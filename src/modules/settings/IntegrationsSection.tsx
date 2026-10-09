@@ -86,7 +86,7 @@ const SecretField: React.FC<{
     <div>
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className={`${labelCls} !mb-0`} data-secret={envVar}>{label}</span>
-        <span className="text-[11px] font-mono text-[#6B5F57]">{masked ? `Saved: ${masked}` : 'Not set'}</span>
+        <span className="text-[11px] font-mono text-[#5E778C]">{masked ? `Saved: ${masked}` : 'Not set'}</span>
       </div>
       {canEdit ? (
         <div className="flex gap-2">
@@ -94,9 +94,9 @@ const SecretField: React.FC<{
           <Button variant="primary" onClick={save} loading={busy} disabled={!value.trim()} icon={<KeyRound size={12} />} className="flex-shrink-0">Save</Button>
         </div>
       ) : (
-        <div className="text-[11px] text-[#9E948D]">Only an administrator can change this key.</div>
+        <div className="text-[11px] text-[#7E93A6]">Only an administrator can change this key.</div>
       )}
-      {hint && <div className="text-[10px] text-[#9E948D] mt-1">{hint}</div>}
+      {hint && <div className="text-[10px] text-[#7E93A6] mt-1">{hint}</div>}
     </div>
   );
 };
@@ -108,14 +108,14 @@ const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; disab
     aria-checked={checked}
     disabled={disabled}
     onClick={() => onChange(!checked)}
-    className="w-full text-left flex items-start gap-3 p-3 rounded-xl border border-[#D2C9BF] bg-[#F4F0EB] disabled:opacity-70 disabled:cursor-not-allowed hover:border-[#A9825A] transition"
+    className="w-full text-left flex items-start gap-3 p-3 rounded-xl border border-[#D3E3F0] bg-[#F2F7FB] disabled:opacity-70 disabled:cursor-not-allowed hover:border-[#0B6BB0] transition"
   >
-    <span className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition mt-0.5 ${checked ? 'bg-[#7C8B78]' : 'bg-[#D2C9BF]'}`} aria-hidden="true">
+    <span className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition mt-0.5 ${checked ? 'bg-[#0E8A86]' : 'bg-[#D3E3F0]'}`} aria-hidden="true">
       <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${checked ? 'left-[18px]' : 'left-0.5'}`} />
     </span>
     <span className="text-xs">
-      <span className="font-bold text-[#1D2F3F] block">{label}</span>
-      {hint && <span className="text-[11px] text-[#6B5F57]">{hint}</span>}
+      <span className="font-bold text-[#0B2A44] block">{label}</span>
+      {hint && <span className="text-[11px] text-[#5E778C]">{hint}</span>}
     </span>
   </button>
 );
@@ -183,8 +183,8 @@ export const CallingAppSettings: React.FC<{ settings: CRMSettings; onUpdateLocal
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="text-xs font-bold text-[#1D2F3F]">Calling app</div>
-          <div className="text-[11px] text-[#6B5F57]">What opens when you press Start call in the CRM. Saved on this device — each person chooses it on their own computer.</div>
+          <div className="text-xs font-bold text-[#0B2A44]">Calling app</div>
+          <div className="text-[11px] text-[#5E778C]">What opens when you press Start call in the CRM. Saved on this device — each person chooses it on their own computer.</div>
         </div>
         <Badge tone={effective === 'zoho' ? 'gold' : effective === 'custom' ? 'navy' : 'muted'} title="Calling app in use on this device"><PhoneCall size={10} className="mr-1" />{dialerPreset(effective).short}</Badge>
       </div>
@@ -215,15 +215,15 @@ export const CallingAppSettings: React.FC<{ settings: CRMSettings; onUpdateLocal
                 </div>
               </Field>
             ) : (
-              <div className="text-[11px] text-[#3D3530]">Custom link in use: <code className="font-mono break-all">{template}</code></div>
+              <div className="text-[11px] text-[#0F2233]">Custom link in use: <code className="font-mono break-all">{template}</code></div>
             ))}
           {customError && <InlineNotice tone="warning">{customError}</InlineNotice>}
-          {example && <div className="text-[10px] text-[#9E948D]">Example link for +91 98490 12345: <code className="font-mono break-all">{example}</code></div>}
+          {example && <div className="text-[10px] text-[#7E93A6]">Example link for +91 98490 12345: <code className="font-mono break-all">{example}</code></div>}
         </div>
         <InlineNotice>
           {preset === 'zoho' ? (
             <>
-              <div className="font-bold text-[#1D2F3F] mb-1">Set up Zoho Voice</div>
+              <div className="font-bold text-[#0B2A44] mb-1">Set up Zoho Voice</div>
               <ol className="list-decimal list-inside space-y-1">
                 {guidanceSteps(info.guidance || '').map((step) => <li key={step}>{step}</li>)}
               </ol>
@@ -460,7 +460,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
       >
         {s.aiPlatformKey && (
           <InlineNotice className="mb-4">
-            <span className="inline-flex items-start gap-1.5"><Server size={12} className="text-[#A9825A] flex-shrink-0 mt-0.5" /><span>AI is provided by the platform; you can optionally use your own Gemini key.</span></span>
+            <span className="inline-flex items-start gap-1.5"><Server size={12} className="text-[#0B6BB0] flex-shrink-0 mt-0.5" /><span>AI is provided by the platform; you can optionally use your own Gemini key.</span></span>
           </InlineNotice>
         )}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -470,7 +470,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
               masked={s.geminiKeyMasked}
               canEdit={canSecrets}
               envVar="GEMINI_API_KEY"
-              hint={<>Create a key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-[#A9825A]">Google AI Studio</a>. The key is stored encrypted on the server and never shown again.</>}
+              hint={<>Create a key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline hover:text-[#0B6BB0]">Google AI Studio</a>. The key is stored encrypted on the server and never shown again.</>}
               onSave={(v) => setSecret('GEMINI_API_KEY', v, 'Gemini key saved')}
             />
           </div>
@@ -490,7 +490,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
             </Field>
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="secondary" onClick={testAi} loading={aiBusy} icon={<Wand2 size={13} />} disabled={!s.aiConfigured}>Test Gemini</Button>
-              {!s.aiConfigured && <span className="text-[11px] text-[#9E948D]">Save a key first.</span>}
+              {!s.aiConfigured && <span className="text-[11px] text-[#7E93A6]">Save a key first.</span>}
             </div>
             {aiTest && <InlineNotice tone={aiTest.ok ? 'success' : 'warning'}>{aiTest.message}</InlineNotice>}
           </div>
@@ -511,17 +511,17 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
               <input className={inputCls} value={c360.chat360BusinessNumber} onChange={(e) => setC360({ ...c360, chat360BusinessNumber: e.target.value })} disabled={!canEdit} placeholder="91 98765 43210" inputMode="tel" />
             </Field>
 
-            <div className="rounded-xl border border-[#E4DCD2] bg-[#FAF7F2] p-3.5 space-y-3">
+            <div className="rounded-xl border border-[#E4DCD2] bg-[#F7FAFD] p-3.5 space-y-3">
               <div>
-                <div className="text-[12px] font-bold text-[#1D2F3F]">Chat360 login for typed replies</div>
-                <p className="text-[11px] text-[#6B5F57] mt-0.5 leading-relaxed">Chat360 only accepts typed (non-template) replies from a signed-in user, so the CRM signs in with this login and renews the session itself. Best: create a separate Chat360 user for the CRM, so changing your own password never stops replies.</p>
+                <div className="text-[12px] font-bold text-[#0B2A44]">Chat360 login for typed replies</div>
+                <p className="text-[11px] text-[#5E778C] mt-0.5 leading-relaxed">Chat360 only accepts typed (non-template) replies from a signed-in user, so the CRM signs in with this login and renews the session itself. Best: create a separate Chat360 user for the CRM, so changing your own password never stops replies.</p>
               </div>
               <Field label="Login e-mail" hint="The e-mail you sign in to app.chat360.io with. Saved with “Save Chat360 settings” below."><input className={inputCls} type="email" autoComplete="off" value={c360.chat360LoginEmail} onChange={(e) => setC360({ ...c360, chat360LoginEmail: e.target.value })} disabled={!canEdit} placeholder="crm@yourcompany.com" /></Field>
               <SecretField label="Login password" masked={s.chat360LoginPasswordSet ? '••••••••' : ''} canEdit={canSecrets} envVar="CHAT360_LOGIN_PASSWORD" placeholder={s.chat360LoginPasswordSet ? 'Type a new password to replace the saved one' : 'The Chat360 password for that e-mail'} hint="Click Save next to it. Stored encrypted on the server and never shown again." onSave={(v) => setSecret('CHAT360_LOGIN_PASSWORD', v, 'Chat360 login password saved')} />
             </div>
 
             <details>
-              <summary className="cursor-pointer text-[11px] font-semibold text-[#7A5B37] select-none">Advanced: Chat360 addresses</summary>
+              <summary className="cursor-pointer text-[11px] font-semibold text-[#0B5E9C] select-none">Advanced: Chat360 addresses</summary>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <Field label="Base URL" className="sm:col-span-2" hint={`Leave blank for the default (${CHAT360_DEFAULTS.chat360BaseUrl}).`}><input className={inputCls} value={c360.chat360BaseUrl} onChange={(e) => setC360({ ...c360, chat360BaseUrl: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360BaseUrl} /></Field>
                 <Field label="Typed reply path"><input className={inputCls} value={c360.chat360SendPath} onChange={(e) => setC360({ ...c360, chat360SendPath: e.target.value })} disabled={!canEdit} placeholder={CHAT360_DEFAULTS.chat360SendPath} /></Field>
@@ -537,7 +537,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
             {canEdit && (
               <div className="flex items-center gap-2">
                 <Button variant="primary" onClick={saveC360} loading={c360Busy} disabled={!c360Dirty}>Save Chat360 settings</Button>
-                {c360Dirty && <span className="text-[11px] text-[#A9825A] font-medium">Unsaved changes</span>}
+                {c360Dirty && <span className="text-[11px] text-[#0B6BB0] font-medium">Unsaved changes</span>}
               </div>
             )}
           </div>
@@ -549,11 +549,11 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
                 {canSecrets && <Button variant="secondary" size="xs" onClick={() => generateSecret('CHAT360_WEBHOOK_SECRET', 'Chat360')} loading={whBusy} icon={<RefreshCw size={11} />}>{s.chat360WebhookSecretSet ? 'Regenerate secret' : 'Generate webhook secret'}</Button>}
               </div>
               <div className="flex gap-2 items-start">
-                <code className="flex-1 text-[11px] font-mono p-2.5 rounded-lg bg-[#F4F0EB] border border-[#D2C9BF] text-[#1D2F3F] break-all min-h-[38px]">{s.chat360WebhookUrl || 'Generate a webhook secret to get the URL.'}</code>
+                <code className="flex-1 text-[11px] font-mono p-2.5 rounded-lg bg-[#F2F7FB] border border-[#D3E3F0] text-[#0B2A44] break-all min-h-[38px]">{s.chat360WebhookUrl || 'Generate a webhook secret to get the URL.'}</code>
                 <CopyButton value={canSecrets && s.chat360WebhookSecretSet ? s.chat360WebhookUrl || '' : ''} />
               </div>
-              {s.chat360WebhookUrl && !s.chat360WebhookSecretSet && <div className="text-[10px] text-[#A9825A] mt-1">Generate a webhook secret first — the URL contains it.</div>}
-              {!canSecrets && <div className="text-[10px] text-[#9E948D] mt-1">Full URL with secret is visible to Admins only.</div>}
+              {s.chat360WebhookUrl && !s.chat360WebhookSecretSet && <div className="text-[10px] text-[#0B6BB0] mt-1">Generate a webhook secret first — the URL contains it.</div>}
+              {!canSecrets && <div className="text-[10px] text-[#7E93A6] mt-1">Full URL with secret is visible to Admins only.</div>}
             </div>
             <InlineNotice>
               <strong>Connect in Chat360:</strong> dashboard → Settings → Webhooks → Add → paste the URL above → select the events <code className="font-mono">message_received</code>, <code className="font-mono">session_message_sent</code>, <code className="font-mono">template_message_sent</code>, <code className="font-mono">delivered</code> and <code className="font-mono">read</code> → Save.
@@ -573,7 +573,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
         actions={<Badge tone={s.telephonyWebhookSecretSet ? 'sage' : 'amber'}><PhoneCall size={10} className="mr-1" />{s.telephonyWebhookSecretSet ? 'Webhook ready' : 'No secret yet'}</Badge>}
       >
         <CallingAppSettings settings={settings} onUpdateLocalSettings={onUpdateLocalSettings} />
-        <div className="border-t border-[#ECE8E1] my-5" />
+        <div className="border-t border-[#E6EFF6] my-5" />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="space-y-4">
             <div>
@@ -582,14 +582,14 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
                 {canSecrets && <Button variant="secondary" size="xs" onClick={() => generateSecret('TELEPHONY_WEBHOOK_SECRET', 'Telephony')} loading={whBusy} icon={<RefreshCw size={11} />}>{s.telephonyWebhookSecretSet ? 'Regenerate secret' : 'Generate webhook secret'}</Button>}
               </div>
               <div className="flex gap-2 items-start">
-                <code className="flex-1 text-[11px] font-mono p-2.5 rounded-lg bg-[#F4F0EB] border border-[#D2C9BF] text-[#1D2F3F] break-all min-h-[38px]">{s.telephonyWebhookUrl || 'Generate a secret to create the webhook URL.'}</code>
+                <code className="flex-1 text-[11px] font-mono p-2.5 rounded-lg bg-[#F2F7FB] border border-[#D3E3F0] text-[#0B2A44] break-all min-h-[38px]">{s.telephonyWebhookUrl || 'Generate a secret to create the webhook URL.'}</code>
                 <div className="flex flex-col items-stretch gap-1.5 flex-shrink-0">
                   <CopyButton value={canSecrets && s.telephonyWebhookSecretSet ? s.telephonyWebhookUrl || '' : ''} />
                   <CopyButton value={canSecrets && s.telephonyWebhookSecretSet ? telephonyUrlForProvider(s.telephonyWebhookUrl, 'zoho') : ''} label="Copy for Zoho Voice" />
                 </div>
               </div>
-              <div className="text-[10px] text-[#9E948D] mt-1">Replace <code className="font-mono">&lt;name&gt;</code> in the URL with the provider: <code className="font-mono">zoho</code>, <code className="font-mono">exotel</code> or <code className="font-mono">knowlarity</code> (“Copy for Zoho Voice” does this for you).</div>
-              {!canSecrets && <div className="text-[10px] text-[#9E948D] mt-1">Full URL with secret is visible to Admins only.</div>}
+              <div className="text-[10px] text-[#7E93A6] mt-1">Replace <code className="font-mono">&lt;name&gt;</code> in the URL with the provider: <code className="font-mono">zoho</code>, <code className="font-mono">exotel</code> or <code className="font-mono">knowlarity</code> (“Copy for Zoho Voice” does this for you).</div>
+              {!canSecrets && <div className="text-[10px] text-[#7E93A6] mt-1">Full URL with secret is visible to Admins only.</div>}
             </div>
             <InlineNotice>
               <ul className="list-disc list-inside space-y-1">
@@ -623,8 +623,8 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
 
       {/* File storage */}
       <Card title="File storage" subtitle="Lead documents, call recordings and report snapshots are stored by the CRM server and served only to signed-in users">
-        <div className="text-xs text-[#3D3530] inline-flex items-start gap-2 min-w-0">
-          <Database size={16} className="text-[#A9825A] flex-shrink-0 mt-0.5" />
+        <div className="text-xs text-[#0F2233] inline-flex items-start gap-2 min-w-0">
+          <Database size={16} className="text-[#0B6BB0] flex-shrink-0 mt-0.5" />
           <span>Files are kept in <strong>{s.storage || 'the CRM database'}</strong> alongside the CRM data — nothing to set up here.</span>
         </div>
       </Card>
@@ -641,9 +641,9 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="primary" onClick={saveFeatures} loading={featuresBusy} disabled={!featuresDirty}>Save modules</Button>
-                {featuresDirty && <span className="text-[11px] text-[#A9825A] font-medium">Unsaved changes</span>}
+                {featuresDirty && <span className="text-[11px] text-[#0B6BB0] font-medium">Unsaved changes</span>}
               </div>
-              <div className="text-[10px] text-[#9E948D]">A module that is switched off disappears from the sidebar for every user after their next refresh. Role permissions still apply. Modules your company’s plan does not include stay off whatever is set here.</div>
+              <div className="text-[10px] text-[#7E93A6]">A module that is switched off disappears from the sidebar for every user after their next refresh. Role permissions still apply. Modules your company’s plan does not include stay off whatever is set here.</div>
             </div>
             <div className="space-y-3">
               <Field label="Daily digest email" hint={<>Sent at about 06:00 IST by the daily scheduled job: new enquiries yesterday, follow-ups due today and overdue follow-ups. Separate several addresses with commas; leave blank to turn the digest off.</>}>

@@ -243,12 +243,12 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
   const footer =
     phase === 'review' ? (
       <>
-        <div className="mr-auto min-w-0 text-[11px] text-[#6B5F57]">
+        <div className="mr-auto min-w-0 text-[11px] text-[#5E778C]">
           {importing ? (
-            <span className="font-semibold text-[#1D2F3F]">{stopping ? 'Stopping after this template…' : `Adding ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`}</span>
+            <span className="font-semibold text-[#0B2A44]">{stopping ? 'Stopping after this template…' : `Adding ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`}</span>
           ) : (
             <span>
-              <strong className="text-[#1D2F3F]">{chosen.length}</strong> of {plural(rows.length, 'template')} selected
+              <strong className="text-[#0B2A44]">{chosen.length}</strong> of {plural(rows.length, 'template')} selected
               {existingCount > 0 && ` · ${existingCount} already saved`}
             </span>
           )}
@@ -282,7 +282,7 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
       width="xl"
       title={
         <span className="inline-flex items-center gap-2">
-          <FileUp size={18} className="text-[#A9825A]" />
+          <FileUp size={18} className="text-[#0B6BB0]" />
           Import templates
         </span>
       }
@@ -338,17 +338,17 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
                 if (f) void readFile(f);
               }}
               className={cx(
-                'block border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer focus:outline-none focus:border-[#A9825A]',
-                dragging ? 'border-[#A9825A] bg-[#F4F0EB]' : 'border-[#B8AFA7] bg-[#F4F0EB]/50 hover:bg-[#F4F0EB]'
+                'block border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer focus:outline-none focus:border-[#0B6BB0]',
+                dragging ? 'border-[#0B6BB0] bg-[#F2F7FB]' : 'border-[#A9BDCD] bg-[#F2F7FB]/50 hover:bg-[#F2F7FB]'
               )}
             >
-              <Upload size={28} className="mx-auto text-[#A9825A] mb-2.5" />
-              <span className="text-base font-bold text-[#1D2F3F] block mb-1.5">Choose a file, or drop it here</span>
-              <p className="text-[#6B5F57] max-w-lg mx-auto leading-relaxed">
+              <Upload size={28} className="mx-auto text-[#0B6BB0] mb-2.5" />
+              <span className="text-base font-bold text-[#0B2A44] block mb-1.5">Choose a file, or drop it here</span>
+              <p className="text-[#5E778C] max-w-lg mx-auto leading-relaxed">
                 Word (.docx), Excel (.xlsx), CSV or text (.txt, .md), up to {MAX_MB} MB. Every script found becomes a template you can review, rename or untick — nothing is saved until you press “Add”.
               </p>
-              <span className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-[#D2C9BF] text-[#1D2F3F] text-[11px] font-semibold">
-                <Info size={13} className="text-[#A9825A] shrink-0" />
+              <span className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-[#D3E3F0] text-[#0B2A44] text-[11px] font-semibold">
+                <Info size={13} className="text-[#0B6BB0] shrink-0" />
                 {TEMPLATE_IMPORT_TIP}
               </span>
             </div>
@@ -367,7 +367,7 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
         )}
 
         {phase === 'reading' && (
-          <div className="flex items-center justify-center gap-3 py-12 text-[#A9825A] font-semibold">
+          <div className="flex items-center justify-center gap-3 py-12 text-[#0B6BB0] font-semibold">
             <Loader2 size={18} className="animate-spin" />
             <span>Reading “{file?.name}” and looking for templates…</span>
           </div>
@@ -375,14 +375,14 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
 
         {phase === 'review' && file && (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-[#D2C9BF]">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-[#D3E3F0]">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-[#F4F0EB] text-[#A9825A] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-[#F2F7FB] text-[#0B6BB0] flex items-center justify-center shrink-0">
                   {file.format === 'xlsx' || file.format === 'csv' ? <FileSpreadsheet size={16} /> : <FileText size={16} />}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold text-[#1D2F3F] truncate">{file.name}</div>
-                  <div className="text-[11px] text-[#6B5F57]">
+                  <div className="font-bold text-[#0B2A44] truncate">{file.name}</div>
+                  <div className="text-[11px] text-[#5E778C]">
                     {file.format ? `${FORMAT_LABEL[file.format]} file · ` : ''}
                     {plural(file.found ?? rows.length, 'template')} found{added > 0 && ` · ${added} added`} · {Math.max(1, Math.round(file.size / 1024))} KB
                   </div>
@@ -398,7 +398,7 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
                 <ul className="space-y-0.5">
                   {warnings.map((w) => (
                     <li key={w} className="flex items-start gap-1.5">
-                      <Info size={12} className="mt-0.5 shrink-0 text-[#A9825A]" />
+                      <Info size={12} className="mt-0.5 shrink-0 text-[#0B6BB0]" />
                       <span>{w}</span>
                     </li>
                   ))}
@@ -406,19 +406,19 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
               </InlineNotice>
             )}
 
-            {importing && <Bar value={progress.done} max={progress.total} color="#7C8B78" />}
+            {importing && <Bar value={progress.done} max={progress.total} color="#0E8A86" />}
 
-            <div className="bg-white rounded-xl border border-[#D2C9BF] shadow-xs overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-[#D2C9BF] bg-[#FDFCFA]">
-                <label className={cx('inline-flex items-center gap-2 font-semibold text-[#1D2F3F] select-none', selectable.length && !importing ? 'cursor-pointer' : 'opacity-60')}>
-                  <input ref={selectAllRef} type="checkbox" className="w-3.5 h-3.5 accent-[#1D2F3F]" checked={allChosen} onChange={toggleAll} disabled={!selectable.length || importing} />
+            <div className="bg-white rounded-xl border border-[#D3E3F0] shadow-xs overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-b border-[#D3E3F0] bg-[#FFFFFF]">
+                <label className={cx('inline-flex items-center gap-2 font-semibold text-[#0B2A44] select-none', selectable.length && !importing ? 'cursor-pointer' : 'opacity-60')}>
+                  <input ref={selectAllRef} type="checkbox" className="w-3.5 h-3.5 accent-[#0B2A44]" checked={allChosen} onChange={toggleAll} disabled={!selectable.length || importing} />
                   Select all
                 </label>
-                <span className="text-[11px] text-[#6B5F57]">Adjust a type or name before adding · untick anything you don’t need</span>
+                <span className="text-[11px] text-[#5E778C]">Adjust a type or name before adding · untick anything you don’t need</span>
               </div>
               <div className="overflow-auto max-h-[52vh]">
                 <table className="w-full min-w-[760px] text-left border-collapse">
-                  <thead className="bg-[#EDE8E0] text-[#6B5F57] text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10">
+                  <thead className="bg-[#E6EFF6] text-[#5E778C] text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10">
                     <tr>
                       <th className="py-2.5 px-3 w-10">
                         <span className="sr-only">Include</span>
@@ -428,17 +428,17 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
                       <th className="py-2.5 px-3">Message</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#ECE8E1]">
+                  <tbody className="divide-y divide-[#E6EFF6]">
                     {rows.map((r) => {
                       const exists = existingKeys.has(templateFingerprint(r.name, r.message));
                       const nameMissing = !r.name.trim();
                       const canTick = !exists && !nameMissing;
                       return (
-                        <tr key={r.key} className={cx('align-top transition', exists && 'bg-[#F4F0EB]/60', r.failed && 'bg-[#FAF0EC]/70', canTick && !r.selected && 'opacity-70')}>
+                        <tr key={r.key} className={cx('align-top transition', exists && 'bg-[#F2F7FB]/60', r.failed && 'bg-[#FAF0EC]/70', canTick && !r.selected && 'opacity-70')}>
                           <td className="py-3 px-3">
                             <input
                               type="checkbox"
-                              className="w-3.5 h-3.5 mt-1.5 accent-[#1D2F3F]"
+                              className="w-3.5 h-3.5 mt-1.5 accent-[#0B2A44]"
                               checked={canTick && r.selected}
                               disabled={!canTick || importing}
                               onChange={() => updateRow(r.key, { selected: !r.selected })}
@@ -460,13 +460,13 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
                               onChange={(e) => updateRow(r.key, { name: e.target.value })}
                             />
                             <div className="text-[10px] mt-1 truncate" title={r.source}>
-                              {nameMissing ? <span className="text-[#8A3E28] font-semibold">Name required</span> : <span className="text-[#9E948D]">{r.source}</span>}
+                              {nameMissing ? <span className="text-[#8A3E28] font-semibold">Name required</span> : <span className="text-[#7E93A6]">{r.source}</span>}
                             </div>
                           </td>
                           <td className="py-2.5 px-3">
-                            <div className={cx('whitespace-pre-wrap break-words leading-relaxed text-[#3D3530]', !r.expanded && 'line-clamp-4')}>{r.message}</div>
+                            <div className={cx('whitespace-pre-wrap break-words leading-relaxed text-[#0F2233]', !r.expanded && 'line-clamp-4')}>{r.message}</div>
                             {isLong(r.message) && (
-                              <button type="button" className="mt-1 text-[11px] font-semibold text-[#A9825A] hover:text-[#1D2F3F]" onClick={() => updateRow(r.key, { expanded: !r.expanded })}>
+                              <button type="button" className="mt-1 text-[11px] font-semibold text-[#0B6BB0] hover:text-[#0B2A44]" onClick={() => updateRow(r.key, { expanded: !r.expanded })}>
                                 {r.expanded ? 'Show less' : 'Show all'}
                               </button>
                             )}
@@ -502,11 +502,11 @@ export const ImportTemplatesModal: React.FC<ImportTemplatesModalProps> = ({ open
 };
 
 const Guide: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
-  <div className="p-3.5 rounded-xl bg-white border border-[#D2C9BF]">
-    <div className="flex items-center gap-1.5 font-bold text-[#1D2F3F] mb-1">
-      <span className="text-[#A9825A]">{icon}</span>
+  <div className="p-3.5 rounded-xl bg-white border border-[#D3E3F0]">
+    <div className="flex items-center gap-1.5 font-bold text-[#0B2A44] mb-1">
+      <span className="text-[#0B6BB0]">{icon}</span>
       {title}
     </div>
-    <p className="text-[11px] text-[#6B5F57] leading-relaxed">{children}</p>
+    <p className="text-[11px] text-[#5E778C] leading-relaxed">{children}</p>
   </div>
 );

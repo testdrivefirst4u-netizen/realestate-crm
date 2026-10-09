@@ -68,22 +68,22 @@ export const VisitBookingSection: React.FC<SectionBaseProps> = ({ serverSettings
 
   return (
     <div className="space-y-5">
-      <Card title={<span className="inline-flex items-center gap-2"><CalendarDays size={16} className="text-[#A9825A]" /> Online site-visit booking</span>} subtitle="Customers pick a free slot and book a visit themselves — from a link you share on WhatsApp, in ads or on your website. Each booking becomes a lead with the visit scheduled, and the RM is alerted.">
+      <Card title={<span className="inline-flex items-center gap-2"><CalendarDays size={16} className="text-[#0B6BB0]" /> Online site-visit booking</span>} subtitle="Customers pick a free slot and book a visit themselves — from a link you share on WhatsApp, in ads or on your website. Each booking becomes a lead with the visit scheduled, and the RM is alerted.">
         <div className="space-y-4">
           <label className={`flex items-start gap-3 ${editable ? 'cursor-pointer' : 'opacity-60'}`}>
-            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1D2F3F]" checked={cfg.enabled} disabled={!editable} onChange={(e) => set('enabled', e.target.checked)} />
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#0B2A44]" checked={cfg.enabled} disabled={!editable} onChange={(e) => set('enabled', e.target.checked)} />
             <span>
-              <span className="block text-sm font-semibold text-[#1D2F3F]">Accept online bookings</span>
-              <span className="block text-xs text-[#6B5F57] mt-0.5">Switched off, the booking page shows “not available”.</span>
+              <span className="block text-sm font-semibold text-[#0B2A44]">Accept online bookings</span>
+              <span className="block text-xs text-[#5E778C] mt-0.5">Switched off, the booking page shows “not available”.</span>
             </span>
           </label>
 
           {link && (
             <Field label="Your booking link" hint={cfg.enabled ? 'Share it in WhatsApp replies, ads and on your website.' : 'Save with bookings switched on to open it.'}>
               <div className="flex flex-wrap items-center gap-2">
-                <code className="flex-1 min-w-0 break-all rounded-lg border border-[#D2C9BF] bg-white px-3 py-2 text-xs text-[#1D2F3F]">{link}</code>
+                <code className="flex-1 min-w-0 break-all rounded-lg border border-[#D3E3F0] bg-white px-3 py-2 text-xs text-[#0B2A44]">{link}</code>
                 <Button variant="secondary" size="sm" onClick={copy} icon={copied ? <Check size={13} /> : <Copy size={13} />}>{copied ? 'Copied' : 'Copy'}</Button>
-                <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#7A5B37] hover:underline">Open <ExternalLink size={12} /></a>
+                <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-[#0B5E9C] hover:underline">Open <ExternalLink size={12} /></a>
               </div>
             </Field>
           )}
@@ -92,7 +92,7 @@ export const VisitBookingSection: React.FC<SectionBaseProps> = ({ serverSettings
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((w, i) => (
                 <button key={w} type="button" disabled={!editable} onClick={() => toggleDay(i)} aria-pressed={cfg.days.includes(i)}
-                  className={`h-9 min-w-[52px] rounded-lg border px-3 text-xs font-semibold ${cfg.days.includes(i) ? 'border-[#1D2F3F] bg-[#1D2F3F] text-white' : 'border-[#D2C9BF] bg-white text-[#6B5F57]'}`}>
+                  className={`h-9 min-w-[52px] rounded-lg border px-3 text-xs font-semibold ${cfg.days.includes(i) ? 'border-[#0B2A44] bg-[#0B2A44] text-white' : 'border-[#D3E3F0] bg-white text-[#5E778C]'}`}>
                   {w}
                 </button>
               ))}

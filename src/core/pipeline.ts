@@ -212,11 +212,11 @@ export function calculatePerformanceMetrics(
   const evaluated = target.length || 1;
   const slaBuckets = [
     { label: '< 1 hr (Lightning)', count: b1, percent: Math.round((b1 / evaluated) * 100), color: '#2E7D32' },
-    { label: '1 - 4 hrs (Fast)', count: b4, percent: Math.round((b4 / evaluated) * 100), color: '#7C8B78' },
-    { label: '4 - 24 hrs (Same Day)', count: b24, percent: Math.round((b24 / evaluated) * 100), color: '#A9825A' },
+    { label: '1 - 4 hrs (Fast)', count: b4, percent: Math.round((b4 / evaluated) * 100), color: '#0E8A86' },
+    { label: '4 - 24 hrs (Same Day)', count: b24, percent: Math.round((b24 / evaluated) * 100), color: '#0B6BB0' },
     { label: '24 - 48 hrs (Delayed)', count: b48, percent: Math.round((b48 / evaluated) * 100), color: '#D97706' },
     { label: '> 48 hrs (Critical)', count: bOver, percent: Math.round((bOver / evaluated) * 100), color: '#B06A55' },
-    { label: 'Pending Response', count: unresponded.length, percent: Math.round((unresponded.length / evaluated) * 100), color: '#9E948D' },
+    { label: 'Pending Response', count: unresponded.length, percent: Math.round((unresponded.length / evaluated) * 100), color: '#7E93A6' },
   ];
 
   // RM metrics

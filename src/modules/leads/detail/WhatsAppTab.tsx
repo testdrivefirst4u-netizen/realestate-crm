@@ -90,9 +90,9 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
       <div className="space-y-3">
         <InlineNotice tone="warning">Chat360 is not configured — ask an admin (Settings → Integrations).</InlineNotice>
         {phone && (
-          <div className="bg-white rounded-xl border border-[#D2C9BF] p-4 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-xs text-[#6B5F57]">
-              You can still message <strong className="text-[#1D2F3F]">{name || formatPhone(phone)}</strong> from your own WhatsApp.
+          <div className="bg-white rounded-xl border border-[#D3E3F0] p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-xs text-[#5E778C]">
+              You can still message <strong className="text-[#0B2A44]">{name || formatPhone(phone)}</strong> from your own WhatsApp.
             </div>
             <a href={whatsappLink(phone, waText)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-[#25D366] text-white hover:brightness-105">
               <MessageSquare size={13} /> Open WhatsApp
@@ -116,8 +116,8 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
   return (
     <div className="flex flex-col gap-3" style={{ minHeight: 420 }}>
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs text-[#6B5F57]">
-          Conversation with <strong className="text-[#1D2F3F]">{formatPhone(phone)}</strong>
+        <div className="text-xs text-[#5E778C]">
+          Conversation with <strong className="text-[#0B2A44]">{formatPhone(phone)}</strong>
           {chat.data && ` · ${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`}
         </div>
         <div className="flex items-center gap-1.5">
@@ -127,7 +127,7 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
               size="xs"
               onClick={askCopilot}
               disabled={!chat.data}
-              icon={<Sparkles size={11} className="text-[#A9825A]" />}
+              icon={<Sparkles size={11} className="text-[#0B6BB0]" />}
               title="Ask the Copilot to draft a reply from the latest messages — you review it before sending"
             >
               {messages.length ? 'Suggest a reply' : 'Draft an opener'}
@@ -139,7 +139,7 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
         </div>
       </div>
 
-      <div ref={listRef} className="flex-1 bg-[#EFE9E1] rounded-xl border border-[#D2C9BF] p-3 overflow-y-auto max-h-[52vh] space-y-2">
+      <div ref={listRef} className="flex-1 bg-[#E6EFF6] rounded-xl border border-[#D3E3F0] p-3 overflow-y-auto max-h-[52vh] space-y-2">
         {chat.loading && !chat.data && <ChatSkeleton className="py-4" />}
         {chat.error && !chat.data && <ErrorState compact title="Messages could not load" message={chat.error} onRetry={() => void chat.reload()} />}
         {chat.data && messages.length === 0 && <EmptyState icon={<MessageCircle size={20} />} title="No messages yet" description="Send the first message below. Replies arrive here automatically through the Chat360 webhook." className="py-8" />}
@@ -151,18 +151,18 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
             <React.Fragment key={m.id || `${m.timestamp}_${i}`}>
               {newDay && (
                 <div className="flex justify-center py-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F57] bg-white/70 rounded-full px-2.5 py-0.5">{formatDate(m.timestamp, '—')}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#5E778C] bg-white/70 rounded-full px-2.5 py-0.5">{formatDate(m.timestamp, '—')}</span>
                 </div>
               )}
               <div className={cx('flex', out ? 'justify-end' : 'justify-start')}>
-                <div className={cx('max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-2xs', out ? 'bg-[#DCF3D3] text-[#1D2F3F] rounded-br-sm' : 'bg-white text-[#1D2F3F] rounded-bl-sm')}>
+                <div className={cx('max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-2xs', out ? 'bg-[#DCF3D3] text-[#0B2A44] rounded-br-sm' : 'bg-white text-[#0B2A44] rounded-bl-sm')}>
                   {m.mediaUrl && (
                     <a href={m.mediaUrl} target="_blank" rel="noreferrer" className="block text-[11px] font-semibold text-[#1976D2] hover:underline mb-1">
                       Attachment{m.messageType ? ` (${m.messageType})` : ''}
                     </a>
                   )}
                   <div className="whitespace-pre-wrap break-words">{m.text}</div>
-                  <div className={cx('mt-1 flex items-center gap-1 text-[10px]', out ? 'justify-end text-[#5B7A52]' : 'text-[#9E948D]')}>
+                  <div className={cx('mt-1 flex items-center gap-1 text-[10px]', out ? 'justify-end text-[#5B7A52]' : 'text-[#7E93A6]')}>
                     {out && m.agent && <span className="mr-1">{m.agent}</span>}
                     <span>{formatTime(m.timestamp)}</span>
                     {out && <StatusTick status={m.status} />}
@@ -193,9 +193,9 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
           Send
         </Button>
       </div>
-      <div className="flex items-center justify-between text-[10px] text-[#9E948D]">
+      <div className="flex items-center justify-between text-[10px] text-[#7E93A6]">
         <span>Sent via Chat360 · logged on the lead timeline</span>
-        <button type="button" onClick={() => setDraft((d) => (d.trim() ? d : waText))} className="hover:text-[#1D2F3F]">
+        <button type="button" onClick={() => setDraft((d) => (d.trim() ? d : waText))} className="hover:text-[#0B2A44]">
           Insert greeting template
         </button>
       </div>

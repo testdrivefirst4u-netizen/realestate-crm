@@ -22,7 +22,7 @@ const Busy: React.FC<{ label: string; className?: string; children: React.ReactN
 );
 
 const Panel: React.FC<{ className?: string; children: React.ReactNode }> = ({ className, children }) => (
-  <div aria-hidden className={cx('bg-white rounded-2xl border border-[#D2C9BF] shadow-xs p-5', className)}>{children}</div>
+  <div aria-hidden className={cx('bg-white rounded-2xl border border-[#D3E3F0] shadow-xs p-5', className)}>{children}</div>
 );
 
 /** Page title + subtitle, with an action button on the right. */
@@ -50,7 +50,7 @@ const Kpis: React.FC<{ count?: number }> = ({ count = 4 }) => (
 
 /** Rows of a list or table: avatar, two lines, and a badge. */
 export const ListSkeleton: React.FC<{ rows?: number; label?: string; className?: string }> = ({ rows = 5, label = 'Loading…', className }) => (
-  <Busy label={label} className={cx('divide-y divide-[#ECE8E1]', className)}>
+  <Busy label={label} className={cx('divide-y divide-[#E6EFF6]', className)}>
     {Array.from({ length: rows }, (_, i) => (
       <div key={i} className="flex items-center gap-3 py-3">
         <Skeleton className="h-9 w-9 rounded-full flex-none" />
@@ -69,17 +69,17 @@ export const TableSkeleton: React.FC<{ rows?: number; cols?: number; label?: str
   <Busy label={label}>
     <Panel className="p-0 overflow-hidden">
       {toolbar && (
-        <div className="flex flex-wrap items-center gap-2 p-4 border-b border-[#ECE8E1]">
+        <div className="flex flex-wrap items-center gap-2 p-4 border-b border-[#E6EFF6]">
           <Skeleton className="h-9 w-full sm:w-64 rounded-lg" />
           <Skeleton className="h-9 w-28 rounded-lg hidden sm:block" />
           <Skeleton className="h-9 w-28 rounded-lg hidden md:block" />
         </div>
       )}
-      <div className="px-4 py-3 grid gap-4 bg-[#FAF7F2]" style={{ gridTemplateColumns: `2fr repeat(${cols - 1}, 1fr)` }}>
+      <div className="px-4 py-3 grid gap-4 bg-[#F7FAFD]" style={{ gridTemplateColumns: `2fr repeat(${cols - 1}, 1fr)` }}>
         {Array.from({ length: cols }, (_, i) => <Skeleton key={i} className="h-2.5 w-16" />)}
       </div>
       {Array.from({ length: rows }, (_, r) => (
-        <div key={r} className="px-4 py-3.5 grid gap-4 items-center border-t border-[#ECE8E1]" style={{ gridTemplateColumns: `2fr repeat(${cols - 1}, 1fr)` }}>
+        <div key={r} className="px-4 py-3.5 grid gap-4 items-center border-t border-[#E6EFF6]" style={{ gridTemplateColumns: `2fr repeat(${cols - 1}, 1fr)` }}>
           <div className="flex items-center gap-2.5 min-w-0">
             <Skeleton className="h-8 w-8 rounded-full flex-none" />
             <div className="space-y-1.5 flex-1 min-w-0">
@@ -130,7 +130,7 @@ const CardGrid: React.FC<{ count?: number }> = ({ count = 6 }) => (
       <Panel key={i}>
         <div className="flex items-center justify-between"><Skeleton className="h-5 w-20 rounded-full" /><Skeleton className="h-5 w-14" /></div>
         <Skeleton className="h-4 w-1/2 mt-4" />
-        <div className="mt-3 space-y-2 rounded-lg bg-[#FAF7F2] p-3">
+        <div className="mt-3 space-y-2 rounded-lg bg-[#F7FAFD] p-3">
           <Skeleton className="h-2.5 w-full" />
           <Skeleton className="h-2.5 w-11/12" />
           <Skeleton className="h-2.5 w-2/3" />
@@ -149,7 +149,7 @@ const Split: React.FC = () => (
       <ListSkeleton rows={7} className="mt-1" />
     </Panel>
     <Panel className="hidden md:flex flex-col">
-      <div className="flex items-center gap-3 pb-4 border-b border-[#ECE8E1]"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-2.5 w-24" /></div></div>
+      <div className="flex items-center gap-3 pb-4 border-b border-[#E6EFF6]"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-2.5 w-24" /></div></div>
       <ChatSkeleton className="flex-1 py-4" />
       <Skeleton className="h-11 w-full rounded-xl" />
     </Panel>

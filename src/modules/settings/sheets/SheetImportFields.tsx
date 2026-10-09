@@ -18,16 +18,16 @@ export const NOT_CONFIGURED_TEXT = 'Google Sheets isn’t set up on this platfor
 
 /** "Share your sheet with …" with a copy button. */
 export const ShareStep: React.FC<{ email: string; forExport?: boolean }> = ({ email, forExport }) => (
-  <div className="rounded-xl border border-[#A9825A]/50 bg-[#FBF6EF] p-3.5 space-y-2">
-    <div className="flex items-center gap-2 text-xs font-bold text-[#1D2F3F]"><ShieldCheck size={14} className="text-[#A9825A]" /> Share your sheet with the CRM</div>
-    <p className="text-[11px] text-[#6B5F57] leading-relaxed">
+  <div className="rounded-xl border border-[#0B6BB0]/50 bg-[#F5F9FC] p-3.5 space-y-2">
+    <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44]"><ShieldCheck size={14} className="text-[#0B6BB0]" /> Share your sheet with the CRM</div>
+    <p className="text-[11px] text-[#5E778C] leading-relaxed">
       In Google Sheets click <b>Share</b> and add this address.{' '}
       {forExport
         ? <>Give it <b>Editor</b> access — the CRM writes the leads into the sheet.</>
         : <><b>Viewer</b> is enough; choose <b>Editor</b> if you want the CRM to write an import status column.</>}
     </p>
     <div className="flex items-center gap-2">
-      <code className="flex-1 min-w-0 break-all text-xs font-mono bg-white border border-[#D2C9BF] rounded-lg px-3 py-2 text-[#1D2F3F]" aria-label="Service account e-mail">{email}</code>
+      <code className="flex-1 min-w-0 break-all text-xs font-mono bg-white border border-[#D3E3F0] rounded-lg px-3 py-2 text-[#0B2A44]" aria-label="Service account e-mail">{email}</code>
       <CopyButton value={email} label="Copy" ariaLabel="Copy the service account e-mail" />
     </div>
   </div>
@@ -49,7 +49,7 @@ export const AccessPicker: React.FC<{
 }> = ({ options, value, onChange, id, forExport, disabled, loading }) => {
   const selected = optionForAuth(options, value);
   if (!options.length) {
-    return loading ? <p className="text-[11px] text-[#9E948D]">Loading the Google accounts…</p> : <InlineNotice tone="warning">{NOT_CONFIGURED_TEXT}</InlineNotice>;
+    return loading ? <p className="text-[11px] text-[#7E93A6]">Loading the Google accounts…</p> : <InlineNotice tone="warning">{NOT_CONFIGURED_TEXT}</InlineNotice>;
   }
   return (
     <div className="space-y-2">
@@ -66,7 +66,7 @@ export const AccessPicker: React.FC<{
             if (o) onChange(o.auth);
           }}
         />
-        {loading && <div className="text-[10px] text-[#9E948D] mt-1">Loading the connected Google accounts…</div>}
+        {loading && <div className="text-[10px] text-[#7E93A6] mt-1">Loading the connected Google accounts…</div>}
       </div>
       {selected?.unavailable && (
         <div role="alert" className="flex items-start gap-1.5 text-[11px] text-[#8A3E28] bg-[#FAF0EC] border border-[#B06A55]/40 rounded-lg p-2.5">
@@ -76,8 +76,8 @@ export const AccessPicker: React.FC<{
       )}
       {selected && selected.auth.mode === 'service_account' && selected.email && <ShareStep email={selected.email} forExport={forExport} />}
       {selected && selected.auth.mode === 'oauth' && selected.email && (
-        <div className="flex items-start gap-2 rounded-xl border border-[#D2C9BF] bg-[#FBF6EF] p-3 text-[11px] text-[#3D3530] leading-relaxed">
-          <UserCheck size={14} className="text-[#A9825A] flex-shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="flex items-start gap-2 rounded-xl border border-[#D3E3F0] bg-[#F5F9FC] p-3 text-[11px] text-[#0F2233] leading-relaxed">
+          <UserCheck size={14} className="text-[#0B6BB0] flex-shrink-0 mt-0.5" aria-hidden="true" />
           <span>
             Make sure <b className="break-all">{selected.email}</b> can open this sheet
             {forExport ? <> with <b>Editor</b> access — the CRM writes the leads into it.</> : <>. <b>Editor</b> access is needed only for an import status column.</>}
@@ -167,8 +167,8 @@ export const SheetImportFields: React.FC<{
   );
 
   return (
-    <div className="space-y-3 rounded-xl border border-[#D2C9BF] bg-white p-3.5">
-      <div className="flex items-center gap-2 text-xs font-bold text-[#1D2F3F]"><FileSpreadsheet size={14} className="text-[#A9825A]" /> Google Sheet</div>
+    <div className="space-y-3 rounded-xl border border-[#D3E3F0] bg-white p-3.5">
+      <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44]"><FileSpreadsheet size={14} className="text-[#0B6BB0]" /> Google Sheet</div>
       {google ? (
         <AccessPicker
           id={id('access')}
@@ -181,7 +181,7 @@ export const SheetImportFields: React.FC<{
             setCheck(null);
           }}
         />
-      ) : <p className="text-[11px] text-[#9E948D]">Loading the Google Sheets status…</p>}
+      ) : <p className="text-[11px] text-[#7E93A6]">Loading the Google Sheets status…</p>}
 
       <div>
         <label htmlFor={id('url')} className={labelCls}>Spreadsheet link</label>
@@ -201,7 +201,7 @@ export const SheetImportFields: React.FC<{
           <Button size="sm" variant="primary" loading={checking} disabled={disabled || !url?.ok} onClick={() => runCheck()}>Check access</Button>
         </div>
         {url && !url.ok && <div id={id('url-err')} className="text-[10px] text-[#8A3E28] mt-0.5">{url.error}</div>}
-        {href && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#A9825A] hover:underline mt-1">Open the sheet <ExternalLink size={11} /></a>}
+        {href && <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#0B6BB0] hover:underline mt-1">Open the sheet <ExternalLink size={11} /></a>}
       </div>
 
       {error && <div role="alert" className="text-xs text-[#8A3E28] bg-[#FAF0EC] border border-[#B06A55]/40 rounded-lg p-2.5">{error}</div>}
@@ -244,7 +244,7 @@ export const SheetImportFields: React.FC<{
           <div className={labelCls}>Detected columns</div>
           {headers.length ? (
             <ul className="flex flex-wrap gap-1" aria-label="Detected column headers">
-              {headers.map((h) => <li key={h} className="text-[11px] px-2 py-0.5 rounded-md bg-[#F4F0EB] border border-[#D2C9BF] text-[#1D2F3F]">{h}</li>)}
+              {headers.map((h) => <li key={h} className="text-[11px] px-2 py-0.5 rounded-md bg-[#F2F7FB] border border-[#D3E3F0] text-[#0B2A44]">{h}</li>)}
             </ul>
           ) : (
             <p className="text-[11px] text-[#92400E]">Row {f.headerRow || 1} of this tab is empty — check the header row number.</p>
@@ -256,7 +256,7 @@ export const SheetImportFields: React.FC<{
         <div>
           <label htmlFor={id('status')} className={labelCls}>Status column</label>
           <Select id={id('status')} value={f.statusColumn} options={statusOptions} onChange={(e) => set({ statusColumn: e.target.value })} />
-          <div className="text-[10px] text-[#9E948D] mt-1 leading-relaxed">
+          <div className="text-[10px] text-[#7E93A6] mt-1 leading-relaxed">
             Optional. The CRM writes “Imported ENQ-…” (or the error) into this column and skips rows that already have a value — safe even if rows are sorted or inserted. Needs Editor access.
             {!check?.ok && ' Check access to choose from the sheet’s columns.'}
           </div>
@@ -264,7 +264,7 @@ export const SheetImportFields: React.FC<{
         <div>
           <label htmlFor={id('interval')} className={labelCls}>Sync</label>
           <Select id={id('interval')} value={String(f.intervalMinutes)} options={INTERVAL_SELECT_OPTIONS} onChange={(e) => set({ intervalMinutes: toSyncInterval(e.target.value) })} />
-          <div className="text-[10px] text-[#9E948D] mt-1">How often new rows are read. “Sync now” works at any time.</div>
+          <div className="text-[10px] text-[#7E93A6] mt-1">How often new rows are read. “Sync now” works at any time.</div>
         </div>
       </div>
     </div>

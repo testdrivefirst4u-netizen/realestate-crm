@@ -157,10 +157,10 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   }
 
   const filterBanner = activeFilterLabel ? (
-    <div className="p-3 bg-[#A9825A]/15 border border-[#A9825A]/40 rounded-xl flex items-center justify-between gap-3 text-xs text-[#1D2F3F]">
+    <div className="p-3 bg-[#0B6BB0]/15 border border-[#0B6BB0]/40 rounded-xl flex items-center justify-between gap-3 text-xs text-[#0B2A44]">
       <span className="font-semibold truncate">
         Filtered view: <span className="font-bold">{activeFilterLabel}</span>
-        <span className="text-[#6B5F57] font-normal"> · {base.length} {base.length === 1 ? 'enquiry' : 'enquiries'}</span>
+        <span className="text-[#5E778C] font-normal"> · {base.length} {base.length === 1 ? 'enquiry' : 'enquiries'}</span>
       </span>
       {onClearActiveFilter && (
         <Button variant="primary" size="xs" onClick={onClearActiveFilter} icon={<RotateCcw size={11} />}>
@@ -178,7 +178,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         {offline && leads.length === 0 && (
           <ErrorState compact title={sync.status === 'offline' ? 'You are offline' : 'Last sync failed'} message={sync.lastError || 'Showing the last known data.'} />
         )}
-        <div className="bg-white rounded-2xl border border-[#D2C9BF] shadow-xs">
+        <div className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs">
           <EmptyState
             icon={<Users size={22} />}
             title={activeFilterLabel ? 'No enquiries match this filter' : 'No enquiries yet'}
@@ -213,7 +213,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       label: 'ID',
       onSort: () => toggleSort('id'),
       sortIndicator: indicator('id'),
-      render: (l: Lead) => <span className="font-semibold text-[#A9825A] whitespace-nowrap">{l[F.ID]}</span>,
+      render: (l: Lead) => <span className="font-semibold text-[#0B6BB0] whitespace-nowrap">{l[F.ID]}</span>,
     },
     {
       key: 'name',
@@ -223,8 +223,8 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       className: 'min-w-[180px]',
       render: (l: Lead) => (
         <div className="min-w-0">
-          <div className="font-semibold text-[#1D2F3F]">{l[F.NAME] || <span className="text-[#9E948D] font-normal">Unnamed</span>}</div>
-          <div className="text-[10px] text-[#9E948D] mt-0.5 truncate max-w-[220px]">
+          <div className="font-semibold text-[#0B2A44]">{l[F.NAME] || <span className="text-[#7E93A6] font-normal">Unnamed</span>}</div>
+          <div className="text-[10px] text-[#7E93A6] mt-0.5 truncate max-w-[220px]">
             {[l[F.SOURCE], l[F.EMAIL]].filter(Boolean).join(' · ') || '—'}
           </div>
         </div>
@@ -235,12 +235,12 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       label: 'Enquiry Date',
       onSort: () => toggleSort('enquiryDate'),
       sortIndicator: indicator('enquiryDate'),
-      render: (l: Lead) => <span className="whitespace-nowrap text-[#3D3530]">{formatDateTime(enquiryDate(l), '—')}</span>,
+      render: (l: Lead) => <span className="whitespace-nowrap text-[#0F2233]">{formatDateTime(enquiryDate(l), '—')}</span>,
     },
     {
       key: 'contact',
       label: 'Contact',
-      render: (l: Lead) => <span className="whitespace-nowrap">{formatPhone(l[F.PHONE]) || <span className="text-[#9E948D]">No phone</span>}</span>,
+      render: (l: Lead) => <span className="whitespace-nowrap">{formatPhone(l[F.PHONE]) || <span className="text-[#7E93A6]">No phone</span>}</span>,
     },
     {
       key: 'stage',
@@ -254,15 +254,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       label: 'Unit',
       onSort: () => toggleSort('unit'),
       sortIndicator: indicator('unit'),
-      render: (l: Lead) => <span className="font-medium text-[#1D2F3F] whitespace-nowrap">{l[F.UNIT_TYPE] || '—'}</span>,
+      render: (l: Lead) => <span className="font-medium text-[#0B2A44] whitespace-nowrap">{l[F.UNIT_TYPE] || '—'}</span>,
     },
     {
       key: 'siteVisit',
       label: 'Site Visit',
       render: (l: Lead) => (
-        <div className="text-[11px] text-[#6B5F57]">
+        <div className="text-[11px] text-[#5E778C]">
           <div>{l[F.SITE_VISIT_STATUS] || '—'}</div>
-          {l[F.SITE_VISIT_DATE] && <div className="text-[10px] text-[#9E948D]">{formatDateTime(l[F.SITE_VISIT_DATE])}</div>}
+          {l[F.SITE_VISIT_DATE] && <div className="text-[10px] text-[#7E93A6]">{formatDateTime(l[F.SITE_VISIT_DATE])}</div>}
         </div>
       ),
     },
@@ -273,9 +273,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       sortIndicator: indicator('nextDue'),
       render: (l: Lead) => {
         const d = nextFollowupDate(l);
-        if (!d) return <span className="text-[#9E948D]">Unscheduled</span>;
+        if (!d) return <span className="text-[#7E93A6]">Unscheduled</span>;
         const overdue = d.getTime() < now && isActive(l);
-        return <span className={cx('whitespace-nowrap font-medium', overdue ? 'text-[#B06A55] font-bold' : 'text-[#A9825A]')}>{formatRelative(d)}</span>;
+        return <span className={cx('whitespace-nowrap font-medium', overdue ? 'text-[#B06A55] font-bold' : 'text-[#0B6BB0]')}>{formatRelative(d)}</span>;
       },
     },
     {
@@ -283,7 +283,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       label: 'RM',
       onSort: () => toggleSort('rm'),
       sortIndicator: indicator('rm'),
-      render: (l: Lead) => <span className="text-[#6B5F57] whitespace-nowrap">{l[F.RM] || '—'}</span>,
+      render: (l: Lead) => <span className="text-[#5E778C] whitespace-nowrap">{l[F.RM] || '—'}</span>,
     },
     {
       key: 'score',
@@ -297,7 +297,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       align: 'center' as const,
       render: (l: Lead) => {
         const n = followupCount(l);
-        return <span className={cx('font-mono text-xs', n ? 'text-[#1D2F3F] font-semibold' : 'text-[#9E948D]')}>{n}</span>;
+        return <span className={cx('font-mono text-xs', n ? 'text-[#0B2A44] font-semibold' : 'text-[#7E93A6]')}>{n}</span>;
       },
     },
   ];
@@ -306,8 +306,8 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">{DEFAULT_CUSTOMIZATION.leadsViewTitle}</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">{DEFAULT_CUSTOMIZATION.leadsViewTitle}</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">
             {base.length} {base.length === 1 ? 'enquiry' : 'enquiries'} · click a row to open the full record
           </p>
         </div>
@@ -326,15 +326,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       {filterBanner}
 
       {/* Toolbar */}
-      <div className="bg-[#EDE8E0] p-3 rounded-xl border border-[#D2C9BF] shadow-2xs flex flex-wrap items-center gap-2">
+      <div className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] shadow-2xs flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3 top-2.5 text-[#9E948D]" />
+          <Search size={14} className="absolute left-3 top-2.5 text-[#7E93A6]" />
           <input
             type="search"
             placeholder="Search name, phone, email, ID, notes…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-[#B8AFA7] bg-white text-[#1D2F3F] focus:outline-none focus:border-[#A9825A]"
+            className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0]"
             aria-label="Search leads"
           />
         </div>
@@ -357,22 +357,22 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
             Clear
           </Button>
         )}
-        <span className="ml-auto text-xs text-[#6B5F57] font-medium whitespace-nowrap">
+        <span className="ml-auto text-xs text-[#5E778C] font-medium whitespace-nowrap">
           {sorted.length === base.length ? (
             <>
-              <strong className="text-[#1D2F3F]">{sorted.length}</strong> {sorted.length === 1 ? 'lead' : 'leads'}
+              <strong className="text-[#0B2A44]">{sorted.length}</strong> {sorted.length === 1 ? 'lead' : 'leads'}
             </>
           ) : (
             <>
-              <strong className="text-[#1D2F3F]">{sorted.length}</strong> of {base.length} leads
+              <strong className="text-[#0B2A44]">{sorted.length}</strong> of {base.length} leads
             </>
           )}
-          {range && <span className="text-[#9E948D]"> · enquired {range.label.toLowerCase()}</span>}
+          {range && <span className="text-[#7E93A6]"> · enquired {range.label.toLowerCase()}</span>}
         </span>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-[#D2C9BF] shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs overflow-hidden">
         <DataTable<Lead>
           columns={columns}
           rows={visible}
@@ -390,9 +390,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
           }
         />
         {sorted.length > visible.length && (
-          <div className="p-3 border-t border-[#ECE8E1] bg-[#FDFCFA] flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-xs text-[#6B5F57]">
-              Showing <strong className="text-[#1D2F3F]">{visible.length}</strong> of {sorted.length}
+          <div className="p-3 border-t border-[#E6EFF6] bg-[#FFFFFF] flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-xs text-[#5E778C]">
+              Showing <strong className="text-[#0B2A44]">{visible.length}</strong> of {sorted.length}
             </span>
             <Button variant="secondary" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
               Show {Math.min(PAGE_SIZE, sorted.length - visible.length)} more

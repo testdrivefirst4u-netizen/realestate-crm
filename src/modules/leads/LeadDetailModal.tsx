@@ -140,7 +140,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
     if (booked) {
       sound.playSuccess();
       try {
-        confetti({ particleCount: 140, spread: 85, origin: { y: 0.6 }, colors: ['#A9825A', '#1D2F3F', '#7C8B78', '#E7D8C6'] });
+        confetti({ particleCount: 140, spread: 85, origin: { y: 0.6 }, colors: ['#0B6BB0', '#0B2A44', '#0E8A86', '#C4D8EA'] });
       } catch {
         /* confetti is cosmetic */
       }
@@ -201,8 +201,8 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
 
   /* ------------------------------- render -------------------------------- */
 
-  const actionCls = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white text-[11px] font-semibold text-[#1D2F3F] border border-[#D2C9BF] hover:border-[#A9825A] hover:bg-[#F4F0EB] transition';
-  const copilotCls = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#FBF7F1] text-[11px] font-semibold text-[#86633E] border border-[#A9825A]/50 hover:border-[#A9825A] hover:bg-[#F4F0EB] transition';
+  const actionCls = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white text-[11px] font-semibold text-[#0B2A44] border border-[#D3E3F0] hover:border-[#0B6BB0] hover:bg-[#F2F7FB] transition';
+  const copilotCls = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#F5F9FC] text-[11px] font-semibold text-[#0B5E9C] border border-[#0B6BB0]/50 hover:border-[#0B6BB0] hover:bg-[#F2F7FB] transition';
   // The Copilot can only use the enquiry as context when AI is configured (quick-search mode ignores it).
   const openCopilot = aiConfigured ? onOpenCopilot : undefined;
   const opts = (field: string) => optionsWithCurrent(config.options[field], value(field));
@@ -212,7 +212,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
 
   const title = (
     <span className="flex items-center gap-2 min-w-0">
-      <span className="font-mono text-xs font-semibold text-[#A9825A] flex-shrink-0">{id}</span>
+      <span className="font-mono text-xs font-semibold text-[#0B6BB0] flex-shrink-0">{id}</span>
       <span className="truncate">{name || 'Unnamed enquiry'}</span>
       <LeadStars lead={lead} size={13} className="flex-shrink-0" />
       <StageBadge stage={String(lead[F.STAGE] || '')} />
@@ -246,10 +246,10 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
           className={copilotCls}
           title="Ask the Copilot about this enquiry — a WhatsApp follow-up, a summary, objection handling, project facts"
         >
-          <Sparkles size={12} className="text-[#A9825A]" /> Ask Copilot
+          <Sparkles size={12} className="text-[#0B6BB0]" /> Ask Copilot
         </button>
       )}
-      {phone && <span className="text-[#6B5F57] ml-1">{formatPhone(phone)}</span>}
+      {phone && <span className="text-[#5E778C] ml-1">{formatPhone(phone)}</span>}
     </span>
   );
 
@@ -291,7 +291,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
             {!canEdit && <InlineNotice>Your role can view this enquiry but not edit it. Ask a manager if a detail needs changing.</InlineNotice>}
 
             {/* Status & timing */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-[#D2C9BF]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-[#D3E3F0]">
               <Field label="Lead stage">
                 <Select
                   value={stageNow}
@@ -303,10 +303,10 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
                   // Trash / Permanently Deleted need `leads.trash` and go through the confirm dialog below, never the dropdown.
                   options={optionsWithCurrent((config.options[F.STAGE] || []).filter((s) => !STAGE_CLASS.excluded.includes(s)), stageNow)}
                   disabled={!canEdit}
-                  className="font-semibold !bg-[#F4F0EB]"
+                  className="font-semibold !bg-[#F2F7FB]"
                 />
               </Field>
-              <Field label="Next follow-up">{dateInput(F.NEXT_FOLLOWUP, '!bg-[#F4F0EB] font-medium')}</Field>
+              <Field label="Next follow-up">{dateInput(F.NEXT_FOLLOWUP, '!bg-[#F2F7FB] font-medium')}</Field>
               {becomesBooked && (
                 <div className="sm:col-span-2">
                   <InlineNotice tone="success">Saving will record a booking for {name || 'this prospect'} 🎉 — set the Booking Date below if it differs from now.</InlineNotice>
@@ -316,7 +316,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
 
             {/* Prospect */}
             <section className="space-y-3">
-              <h4 className="text-sm font-bold text-[#1D2F3F] pb-1 border-b border-[#ECE8E1]">Prospect</h4>
+              <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6]">Prospect</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Prospect name">
                   <input value={value(F.NAME)} onChange={(e) => setField(F.NAME, e.target.value)} disabled={!canEdit} className={inputCls} />
@@ -345,7 +345,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
 
             {/* Requirement */}
             <section className="space-y-3">
-              <h4 className="text-sm font-bold text-[#1D2F3F] pb-1 border-b border-[#ECE8E1]">Requirement & visit</h4>
+              <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6]">Requirement & visit</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Unit type interested in">
                   <Select value={value(F.UNIT_TYPE)} onChange={(e) => setField(F.UNIT_TYPE, e.target.value)} options={opts(F.UNIT_TYPE)} placeholder="Select…" disabled={!canEdit} />
@@ -369,14 +369,14 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
 
             {linkedUnits.length > 0 && (
               <section className="space-y-2">
-                <h4 className="text-sm font-bold text-[#1D2F3F] pb-1 border-b border-[#ECE8E1] flex items-center gap-1.5">
-                  <Building2 size={14} className="text-[#A9825A]" /> Linked units
+                <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6] flex items-center gap-1.5">
+                  <Building2 size={14} className="text-[#0B6BB0]" /> Linked units
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {linkedUnits.map((u) => (
-                    <span key={u.inventoryId} className="inline-flex items-center gap-2 text-xs bg-white border border-[#D2C9BF] rounded-lg px-2.5 py-1.5">
-                      <strong className="text-[#1D2F3F]">{u.unitId}</strong>
-                      <span className="text-[#6B5F57]">
+                    <span key={u.inventoryId} className="inline-flex items-center gap-2 text-xs bg-white border border-[#D3E3F0] rounded-lg px-2.5 py-1.5">
+                      <strong className="text-[#0B2A44]">{u.unitId}</strong>
+                      <span className="text-[#5E778C]">
                         {u.tower ? `Tower ${u.tower} · ` : ''}
                         {u.unitType}
                       </span>
@@ -393,21 +393,21 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
             {aiConfigured && (
               <section className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-sm font-bold text-[#1D2F3F] flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-[#A9825A]" /> AI summary
+                  <h4 className="text-sm font-bold text-[#0B2A44] flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-[#0B6BB0]" /> AI summary
                   </h4>
-                  <Button variant="secondary" size="xs" onClick={() => void summarise()} loading={summaryLoading} icon={<Sparkles size={11} className="text-[#A9825A]" />}>
+                  <Button variant="secondary" size="xs" onClick={() => void summarise()} loading={summaryLoading} icon={<Sparkles size={11} className="text-[#0B6BB0]" />}>
                     {summary ? 'Regenerate' : 'Summarise this enquiry'}
                   </Button>
                 </div>
                 {summaryError && <InlineNotice tone="warning">{summaryError}</InlineNotice>}
-                {summary && <div className="rounded-xl border border-[#A9825A]/50 bg-[#FBF7F1] p-4 text-xs text-[#1D2F3F] leading-relaxed whitespace-pre-wrap">{summary}</div>}
-                {!summary && !summaryError && !summaryLoading && <p className="text-[11px] text-[#9E948D]">Gemini reads the notes, follow-ups, calls and chats of this enquiry and writes a short brief with suggested next steps.</p>}
+                {summary && <div className="rounded-xl border border-[#0B6BB0]/50 bg-[#F5F9FC] p-4 text-xs text-[#0B2A44] leading-relaxed whitespace-pre-wrap">{summary}</div>}
+                {!summary && !summaryError && !summaryLoading && <p className="text-[11px] text-[#7E93A6]">Gemini reads the notes, follow-ups, calls and chats of this enquiry and writes a short brief with suggested next steps.</p>}
               </section>
             )}
 
             {/* Meta */}
-            <div className="text-[10px] text-[#9E948D] flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-[#ECE8E1]">
+            <div className="text-[10px] text-[#7E93A6] flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-[#E6EFF6]">
               <span>Created {formatDateTime(lead[F.CREATED_AT] || lead[F.ENQUIRY_DATE], '—')}</span>
               <span>·</span>
               <span>

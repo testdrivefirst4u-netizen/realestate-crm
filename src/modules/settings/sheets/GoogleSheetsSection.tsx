@@ -149,7 +149,7 @@ const GoogleSheetsScreen: React.FC<GoogleSheetsSectionProps> = ({ can, onOpenLea
 
 /* -------------------------------- Access ---------------------------------- */
 
-const panelCls = 'rounded-xl border border-[#D2C9BF] bg-[#FDFCFA] p-4 space-y-3';
+const panelCls = 'rounded-xl border border-[#D3E3F0] bg-[#FFFFFF] p-4 space-y-3';
 const usedByText = (n: number) => `${n} ${n === 1 ? 'import/export' : 'imports/exports'}`;
 
 const ConnectionsPanel: React.FC<{
@@ -189,29 +189,29 @@ const ConnectionsPanel: React.FC<{
     <div className={panelCls} role="group" aria-labelledby="gs-oauth-title">
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="min-w-0 space-y-1">
-          <h4 id="gs-oauth-title" className="text-sm font-bold text-[#1D2F3F] flex items-center gap-1.5"><UserRound size={15} className="text-[#A9825A]" aria-hidden="true" /> Connect a Google account</h4>
+          <h4 id="gs-oauth-title" className="text-sm font-bold text-[#0B2A44] flex items-center gap-1.5"><UserRound size={15} className="text-[#0B6BB0]" aria-hidden="true" /> Connect a Google account</h4>
           <Badge tone="sage">Recommended — no key file</Badge>
         </div>
         {connectUrl && <Button size="sm" variant="primary" icon={<LogIn size={13} />} onClick={() => goToConnect(connectUrl)}>Connect Google account</Button>}
       </div>
-      <p className="text-[11px] text-[#6B5F57] leading-relaxed">You sign in with the Google account that can open your sheets; the CRM only gets access to spreadsheets.</p>
+      <p className="text-[11px] text-[#5E778C] leading-relaxed">You sign in with the Google account that can open your sheets; the CRM only gets access to spreadsheets.</p>
 
       {error && <ErrorState compact title="Could not load the connected accounts" message={error} onRetry={onReload} />}
       {!connections && loading && <LoadingState label="Loading connected accounts…" className="py-3" />}
       {connections && connections.length === 0 && (
-        <p className="text-[11px] text-[#9E948D]">{canManage ? 'No Google account connected yet.' : 'No Google account connected yet — an administrator can connect one.'}</p>
+        <p className="text-[11px] text-[#7E93A6]">{canManage ? 'No Google account connected yet.' : 'No Google account connected yet — an administrator can connect one.'}</p>
       )}
       {connections && connections.length > 0 && (
         <ul className="space-y-2" aria-label="Connected Google accounts">
           {connections.map((c) => (
-            <li key={c.id} className="rounded-lg border border-[#D2C9BF] bg-white p-3 space-y-1.5">
+            <li key={c.id} className="rounded-lg border border-[#D3E3F0] bg-white p-3 space-y-1.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-bold text-[#1D2F3F] break-all">{c.email}</span>
+                    <span className="text-xs font-bold text-[#0B2A44] break-all">{c.email}</span>
                     <Badge tone={c.status === 'Active' ? 'sage' : 'rust'}>{c.status}</Badge>
                   </div>
-                  <div className="text-[10px] text-[#9E948D] mt-0.5">
+                  <div className="text-[10px] text-[#7E93A6] mt-0.5">
                     Connected{c.connectedBy ? ` by ${c.connectedBy}` : ''}
                     {c.connectedAt ? <> · <span title={formatDateTime(c.connectedAt)}>{formatDistance(c.connectedAt)}</span></> : null}
                     {' · '}used by {usedByText(Number(c.usedBy || 0))}
@@ -263,12 +263,12 @@ const ConnectionsPanel: React.FC<{
 
 const ServiceAccountPanel: React.FC<{ email: string }> = ({ email }) => (
   <div className={panelCls} role="group" aria-labelledby="gs-sa-title">
-    <h4 id="gs-sa-title" className="text-sm font-bold text-[#1D2F3F] flex items-center gap-1.5"><KeyRound size={15} className="text-[#A9825A]" aria-hidden="true" /> Share with the platform service account</h4>
-    <p className="text-[11px] text-[#3D3530] leading-relaxed">
+    <h4 id="gs-sa-title" className="text-sm font-bold text-[#0B2A44] flex items-center gap-1.5"><KeyRound size={15} className="text-[#0B6BB0]" aria-hidden="true" /> Share with the platform service account</h4>
+    <p className="text-[11px] text-[#0F2233] leading-relaxed">
       <b>Share your sheets with this address</b> (Share → add people). <b>Viewer</b> is enough to import; <b>Editor</b> is needed for exports and for the import status column.
     </p>
     <div className="flex items-center gap-2">
-      <code className="flex-1 min-w-0 break-all text-xs font-mono bg-white border border-[#D2C9BF] rounded-lg px-3 py-2 text-[#1D2F3F]" aria-label="Service account e-mail">{email}</code>
+      <code className="flex-1 min-w-0 break-all text-xs font-mono bg-white border border-[#D3E3F0] rounded-lg px-3 py-2 text-[#0B2A44]" aria-label="Service account e-mail">{email}</code>
       <CopyButton value={email} ariaLabel="Copy the service account e-mail" />
     </div>
   </div>
@@ -333,14 +333,14 @@ const ImportsCard: React.FC<{ canManage: boolean; onOpenLeadSources?: () => void
       {sources && sources.length > 0 && (
         <ul className="grid gap-3 xl:grid-cols-2">
           {sources.map((s) => (
-            <li key={s.id} className="rounded-xl border border-[#D2C9BF] bg-[#FDFCFA] p-4 space-y-2.5" aria-label={`Import ${s.name}`}>
+            <li key={s.id} className="rounded-xl border border-[#D3E3F0] bg-[#FFFFFF] p-4 space-y-2.5" aria-label={`Import ${s.name}`}>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <FileSpreadsheet size={15} className="text-[#A9825A]" aria-hidden="true" />
-                <h4 className="text-sm font-bold text-[#1D2F3F] truncate">{s.name}</h4>
+                <FileSpreadsheet size={15} className="text-[#0B6BB0]" aria-hidden="true" />
+                <h4 className="text-sm font-bold text-[#0B2A44] truncate">{s.name}</h4>
                 <Badge tone={s.status === 'Active' ? 'sage' : 'amber'}>{s.status}</Badge>
               </div>
               <SheetSummary sheet={s.config?.sheet} connections={connections} />
-              <div className="text-[11px] text-[#6B5F57]">
+              <div className="text-[11px] text-[#5E778C]">
                 {Number(s.stats?.created || 0).toLocaleString('en-GB')} leads created · {Number(s.stats?.duplicates || 0).toLocaleString('en-GB')} duplicates
               </div>
               {canManage && (
@@ -451,10 +451,10 @@ const ExportsCard: React.FC<{ canManage: boolean; google: GoogleStatus | null; c
         />
       )}
       {rows && rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[#D2C9BF] bg-white">
+        <div className="overflow-x-auto rounded-lg border border-[#D3E3F0] bg-white">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-[#EDE8E0] border-b border-[#D2C9BF] text-[#6B5F57] uppercase font-bold tracking-wider text-[10px]">
+              <tr className="bg-[#E6EFF6] border-b border-[#D3E3F0] text-[#5E778C] uppercase font-bold tracking-wider text-[10px]">
                 <th className="p-2.5">Name</th>
                 <th className="p-2.5">Sheet · tab · access</th>
                 <th className="p-2.5">Columns</th>
@@ -465,33 +465,33 @@ const ExportsCard: React.FC<{ canManage: boolean; google: GoogleStatus | null; c
                 {canManage && <th className="p-2.5"><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#ECE8E1]">
+            <tbody className="divide-y divide-[#E6EFF6]">
               {rows.map((x) => {
                 const href = spreadsheetHref(x.spreadsheetUrl, x.spreadsheetId);
                 const cols = (x.columns?.headers?.length || 0) + (x.columns?.includeFollowups ? 1 : 0);
                 return (
                   <tr key={x.id} className="align-top">
                     <td className="p-2.5">
-                      <div className="font-semibold text-[#1D2F3F]">{x.name}</div>
-                      <div className="text-[10px] text-[#9E948D]">{x.id}{x.columns?.includeTrash ? ' · includes Trash' : ''}</div>
+                      <div className="font-semibold text-[#0B2A44]">{x.name}</div>
+                      <div className="text-[10px] text-[#7E93A6]">{x.id}{x.columns?.includeTrash ? ' · includes Trash' : ''}</div>
                     </td>
                     <td className="p-2.5 max-w-[200px]">
                       {href ? (
-                        <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#A9825A] hover:underline font-semibold">
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[#0B6BB0] hover:underline font-semibold">
                           Open <ExternalLink size={11} aria-hidden="true" /><span className="sr-only">spreadsheet of {x.name} (opens in a new tab)</span>
                         </a>
-                      ) : <span className="text-[#9E948D]">—</span>}
-                      <div className="text-[#3D3530] truncate">{x.tab}</div>
-                      <div className="text-[10px] text-[#9E948D] truncate" title={authLabel(x.auth, connections)}>{authLabel(x.auth, connections)}</div>
+                      ) : <span className="text-[#7E93A6]">—</span>}
+                      <div className="text-[#0F2233] truncate">{x.tab}</div>
+                      <div className="text-[10px] text-[#7E93A6] truncate" title={authLabel(x.auth, connections)}>{authLabel(x.auth, connections)}</div>
                     </td>
-                    <td className="p-2.5 whitespace-nowrap">{cols}{x.columns?.includeFollowups ? <span className="text-[10px] text-[#9E948D]"> incl. follow-ups</span> : null}</td>
+                    <td className="p-2.5 whitespace-nowrap">{cols}{x.columns?.includeFollowups ? <span className="text-[10px] text-[#7E93A6]"> incl. follow-ups</span> : null}</td>
                     <td className="p-2.5 whitespace-nowrap">{intervalLabel(x.intervalMinutes)}</td>
                     <td className="p-2.5">
                       <Badge tone={x.lastError ? 'rust' : x.status === 'Active' ? 'sage' : 'amber'}>{x.lastError ? 'Error' : x.status}</Badge>
-                      {x.lastError && x.status === 'Paused' && <div className="text-[10px] text-[#9E948D] mt-0.5">Paused</div>}
+                      {x.lastError && x.status === 'Paused' && <div className="text-[10px] text-[#7E93A6] mt-0.5">Paused</div>}
                     </td>
                     <td className="p-2.5 whitespace-nowrap">
-                      {x.lastSyncAt ? <span title={formatDateTime(x.lastSyncAt)}>{formatDistance(x.lastSyncAt)}</span> : <span className="text-[#9E948D]">never</span>}
+                      {x.lastSyncAt ? <span title={formatDateTime(x.lastSyncAt)}>{formatDistance(x.lastSyncAt)}</span> : <span className="text-[#7E93A6]">never</span>}
                     </td>
                     <td className="p-2.5 text-right whitespace-nowrap">{x.lastSyncAt ? Number(x.lastRows || 0).toLocaleString('en-GB') : '—'}</td>
                     {canManage && (
@@ -512,7 +512,7 @@ const ExportsCard: React.FC<{ canManage: boolean; google: GoogleStatus | null; c
             </tbody>
           </table>
           {rows.some((x) => x.lastError) && (
-            <ul className="border-t border-[#D2C9BF] p-2.5 space-y-1">
+            <ul className="border-t border-[#D3E3F0] p-2.5 space-y-1">
               {rows.filter((x) => x.lastError).map((x) => (
                 <li key={x.id} className="flex items-start gap-1.5 text-[11px] text-[#8A3E28]">
                   <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" aria-hidden="true" />

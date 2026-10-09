@@ -60,9 +60,9 @@ export const CompareTab: React.FC<Props> = ({ leads, tasks, rm, months, defaultP
           rows={cmp.rows}
           keyFn={(r) => r.metric}
           columns={[
-            { key: 'metric', label: 'Metric', render: (r) => <span className="font-semibold text-[#1D2F3F]">{r.metric}</span> },
+            { key: 'metric', label: 'Metric', render: (r) => <span className="font-semibold text-[#0B2A44]">{r.metric}</span> },
             { key: 'previous', label: prevLabel, align: 'right', render: (r) => fmtMetric(r.previous, r.format) },
-            { key: 'current', label: currLabel, align: 'right', render: (r) => <span className="font-bold text-[#1D2F3F]">{fmtMetric(r.current, r.format)}</span> },
+            { key: 'current', label: currLabel, align: 'right', render: (r) => <span className="font-bold text-[#0B2A44]">{fmtMetric(r.current, r.format)}</span> },
             { key: 'difference', label: 'Difference', align: 'right', render: (r) => <span className={cx('font-semibold', TONE_CLS[changeTone(r)])}>{fmtDiff(r.difference, r.format)}</span> },
             {
               key: 'pctChange', label: '% Change', align: 'right',
@@ -99,7 +99,7 @@ const MiniSourceTable: React.FC<{ rows: Breakdown[] }> = ({ rows }) => (
     keyFn={(r) => r.key}
     empty="No enquiries"
     columns={[
-      { key: 'label', label: 'Source', render: (r) => <span className="font-semibold text-[#1D2F3F]">{r.label}</span> },
+      { key: 'label', label: 'Source', render: (r) => <span className="font-semibold text-[#0B2A44]">{r.label}</span> },
       { key: 'count', label: 'Enq', align: 'right', render: (r) => formatNumber(r.count) },
       { key: 'siteVisits', label: 'Visits', align: 'right', render: (r) => formatNumber(r.siteVisits) },
       { key: 'bookings', label: 'Booked', align: 'right', render: (r) => <span className="font-bold text-[#2E7D32]">{formatNumber(r.bookings)}</span> },
@@ -115,12 +115,12 @@ const MiniRMTable: React.FC<{ rows: RMPerformance[] }> = ({ rows }) => (
     keyFn={(r) => r.rm}
     empty="No RM activity"
     columns={[
-      { key: 'rm', label: 'RM', render: (r) => <span className="font-semibold text-[#1D2F3F]">{r.rm}</span> },
+      { key: 'rm', label: 'RM', render: (r) => <span className="font-semibold text-[#0B2A44]">{r.rm}</span> },
       { key: 'enquiries', label: 'Enq', align: 'right', render: (r) => formatNumber(r.enquiries) },
       { key: 'siteVisits', label: 'Visits', align: 'right', render: (r) => formatNumber(r.siteVisits) },
       { key: 'bookings', label: 'Booked', align: 'right', render: (r) => <span className="font-bold text-[#2E7D32]">{formatNumber(r.bookings)}</span> },
       { key: 'conversionRate', label: 'Conv', align: 'right', render: (r) => formatPercent(r.conversionRate, 0) },
-      { key: 'followupsOverdue', label: 'Overdue', align: 'right', render: (r) => <span className={r.followupsOverdue ? 'font-bold text-[#B06A55]' : 'text-[#9E948D]'}>{formatNumber(r.followupsOverdue)}</span> },
+      { key: 'followupsOverdue', label: 'Overdue', align: 'right', render: (r) => <span className={r.followupsOverdue ? 'font-bold text-[#B06A55]' : 'text-[#7E93A6]'}>{formatNumber(r.followupsOverdue)}</span> },
     ]}
   />
 );

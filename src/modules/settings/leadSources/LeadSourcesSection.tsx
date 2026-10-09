@@ -230,7 +230,7 @@ const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions
           <div className="space-y-5">
             <ApiKeyPanel apiKey={created.apiKey} />
             <div>
-              <h4 className="text-sm font-bold text-[#1D2F3F] mb-2">Integration guide</h4>
+              <h4 className="text-sm font-bold text-[#0B2A44] mb-2">Integration guide</h4>
               <IntegrationGuide apiKey={created.apiKey} initialTab={created.source.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={created.source.config?.allowedOrigins?.[0] ? `${created.source.config.allowedOrigins[0]}/thank-you` : undefined} />
             </div>
           </div>
@@ -272,8 +272,8 @@ const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions
 
 const Stat: React.FC<{ label: string; value: number; tone?: string }> = ({ label, value, tone }) => (
   <div className="min-w-0">
-    <div className={`text-base font-bold leading-tight ${tone || 'text-[#1D2F3F]'}`}>{Number(value || 0).toLocaleString('en-GB')}</div>
-    <div className="text-[9px] uppercase font-bold tracking-wider text-[#9E948D] truncate">{label}</div>
+    <div className={`text-base font-bold leading-tight ${tone || 'text-[#0B2A44]'}`}>{Number(value || 0).toLocaleString('en-GB')}</div>
+    <div className="text-[9px] uppercase font-bold tracking-wider text-[#7E93A6] truncate">{label}</div>
   </div>
 );
 
@@ -297,19 +297,19 @@ const SourceCard: React.FC<{
   const isMeta = s.type === 'meta';
   const lastError = isMeta ? s.config?.meta?.lastError || st.lastError : st.lastError;
   return (
-    <article className="rounded-xl border border-[#D2C9BF] bg-[#FDFCFA] p-4 space-y-3" aria-label={`Lead source ${s.name}`}>
+    <article className="rounded-xl border border-[#D3E3F0] bg-[#FFFFFF] p-4 space-y-3" aria-label={`Lead source ${s.name}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={isMeta ? 'text-[#1877F2]' : 'text-[#A9825A]'} aria-hidden="true">
+            <span className={isMeta ? 'text-[#1877F2]' : 'text-[#0B6BB0]'} aria-hidden="true">
               {s.type === 'website' ? <Globe size={15} /> : isSheet ? <FileSpreadsheet size={15} /> : isMeta ? <Facebook size={15} /> : <Webhook size={15} />}
             </span>
-            <h4 className="text-sm font-bold text-[#1D2F3F] truncate">{s.name}</h4>
+            <h4 className="text-sm font-bold text-[#0B2A44] truncate">{s.name}</h4>
           </div>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <Badge tone="navy">{TYPE_LABEL[s.type] || s.type}</Badge>
             <Badge tone={s.status === 'Active' ? 'sage' : 'amber'}>{s.status}</Badge>
-            {usesApiKey(s.type) && s.keyPrefix && <code className="text-[10px] font-mono text-[#6B5F57]" title="Start of the API key">{s.keyPrefix}…</code>}
+            {usesApiKey(s.type) && s.keyPrefix && <code className="text-[10px] font-mono text-[#5E778C]" title="Start of the API key">{s.keyPrefix}…</code>}
           </div>
         </div>
       </div>
@@ -318,13 +318,13 @@ const SourceCard: React.FC<{
       <div className="grid grid-cols-5 gap-2">
         <Stat label="Received" value={st.received} />
         <Stat label="Created" value={st.created} tone="text-[#3C573A]" />
-        <Stat label="Duplicates" value={st.duplicates} tone="text-[#86633E]" />
+        <Stat label="Duplicates" value={st.duplicates} tone="text-[#0B5E9C]" />
         <Stat label="Rejected" value={st.rejected} tone="text-[#92400E]" />
         <Stat label="Failed" value={st.failed} tone="text-[#8A3E28]" />
       </div>
       {!isMeta && (
-        <div className="text-[11px] text-[#6B5F57]">
-          {isSheet ? 'Last lead:' : 'Last received:'} {st.lastReceivedAt ? <span title={formatDateTime(st.lastReceivedAt)}>{formatDistance(st.lastReceivedAt)}</span> : <span className="text-[#9E948D]">never</span>}
+        <div className="text-[11px] text-[#5E778C]">
+          {isSheet ? 'Last lead:' : 'Last received:'} {st.lastReceivedAt ? <span title={formatDateTime(st.lastReceivedAt)}>{formatDistance(st.lastReceivedAt)}</span> : <span className="text-[#7E93A6]">never</span>}
         </div>
       )}
       {isMeta ? (

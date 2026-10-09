@@ -38,11 +38,11 @@ const KANBAN_SORT_KEYS = KANBAN_SORT_OPTIONS.map((o) => o.key);
 
 /** Column accent per stage class — one place. */
 function columnAccent(stage: string): { header: string; count: string } {
-  if (stage === STAGES.BOOKED) return { header: 'bg-[#7C8B78]/25 text-[#3C573A]', count: 'bg-[#7C8B78] text-white' };
+  if (stage === STAGES.BOOKED) return { header: 'bg-[#0E8A86]/25 text-[#3C573A]', count: 'bg-[#0E8A86] text-white' };
   if (stage === STAGES.HOT) return { header: 'bg-[#F5EDE8] text-[#8A3E28]', count: 'bg-[#B06A55] text-white' };
-  if (stage === STAGES.WARM || stage === STAGES.QUALIFIED) return { header: 'bg-[#A9825A]/20 text-[#86633E]', count: 'bg-[#A9825A] text-white' };
-  if (classifyStage(stage) === 'lost') return { header: 'bg-[#ECE8E1] text-[#6B5F57]', count: 'bg-[#9E948D] text-white' };
-  return { header: 'bg-[#E7D8C6]/60 text-[#1D2F3F]', count: 'bg-[#1D2F3F] text-white' };
+  if (stage === STAGES.WARM || stage === STAGES.QUALIFIED) return { header: 'bg-[#0B6BB0]/20 text-[#0B5E9C]', count: 'bg-[#0B6BB0] text-white' };
+  if (classifyStage(stage) === 'lost') return { header: 'bg-[#E6EFF6] text-[#5E778C]', count: 'bg-[#7E93A6] text-white' };
+  return { header: 'bg-[#C4D8EA]/60 text-[#0B2A44]', count: 'bg-[#0B2A44] text-white' };
 }
 
 export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLead, onUpdateLeadStage, onOpenAddLead }) => {
@@ -107,7 +107,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
     if (ok && stage === STAGES.BOOKED) {
       sound.playSuccess();
       try {
-        confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#A9825A', '#1D2F3F', '#7C8B78', '#E7D8C6'] });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 }, colors: ['#0B6BB0', '#0B2A44', '#0E8A86', '#C4D8EA'] });
       } catch {
         /* cosmetic */
       }
@@ -117,7 +117,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
   if (base.length === 0) {
     return (
       <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-        <div className="bg-white rounded-2xl border border-[#D2C9BF] shadow-xs">
+        <div className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs">
           <EmptyState
             icon={<KanbanSquare size={22} />}
             title="The pipeline is empty"
@@ -138,16 +138,16 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
       {/* Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 flex-shrink-0">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#1D2F3F] tracking-tight">Enquiry Status</h2>
-          <p className="text-xs text-[#6B5F57] mt-0.5">
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Enquiry Status</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">
             {grouped.total} {grouped.total === 1 ? 'enquiry' : 'enquiries'} on the board · drag a card or use its stage menu to move it
-            {hiddenLost > 0 && <span className="text-[#9E948D]"> · {hiddenLost} closed/lost hidden</span>}
+            {hiddenLost > 0 && <span className="text-[#7E93A6]"> · {hiddenLost} closed/lost hidden</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative w-56">
-            <Search size={14} className="absolute left-3 top-2.5 text-[#9E948D]" />
-            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter cards…" className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-[#B8AFA7] bg-white text-[#1D2F3F] focus:outline-none focus:border-[#A9825A]" aria-label="Filter cards" />
+            <Search size={14} className="absolute left-3 top-2.5 text-[#7E93A6]" />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter cards…" className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0]" aria-label="Filter cards" />
           </div>
           <Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All RMs" className="!w-auto" aria-label="Relationship manager" />
           <SortControl sortKey={sort.key} asc={sort.asc} onChange={setSort} options={KANBAN_SORT_OPTIONS} />
@@ -169,7 +169,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
           return (
             <section
               key={stage}
-              className={cx('w-72 flex-shrink-0 bg-[#EDE8E0] rounded-xl border flex flex-col max-h-full overflow-hidden shadow-2xs transition', isOver ? 'border-[#A9825A] ring-2 ring-[#A9825A]/40' : 'border-[#D2C9BF]')}
+              className={cx('w-72 flex-shrink-0 bg-[#E6EFF6] rounded-xl border flex flex-col max-h-full overflow-hidden shadow-2xs transition', isOver ? 'border-[#0B6BB0] ring-2 ring-[#0B6BB0]/40' : 'border-[#D3E3F0]')}
               onDragOver={(e) => {
                 if (!dragId) return;
                 e.preventDefault();
@@ -189,13 +189,13 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
               }}
               aria-label={`${stage} column`}
             >
-              <header className={cx('px-3.5 py-3 border-b border-[#D2C9BF] flex items-center justify-between gap-2 flex-shrink-0', accent.header)}>
+              <header className={cx('px-3.5 py-3 border-b border-[#D3E3F0] flex items-center justify-between gap-2 flex-shrink-0', accent.header)}>
                 <span className="font-bold text-sm truncate">{stage}</span>
                 <span className={cx('text-[10px] font-bold font-mono rounded-full px-2 py-0.5', accent.count)}>{items.length}</span>
               </header>
               <div className="p-3 overflow-y-auto space-y-3 flex-1 min-h-[120px]">
                 {items.length === 0 ? (
-                  <div className={cx('text-center py-8 text-xs rounded-lg border border-dashed', isOver ? 'border-[#A9825A] text-[#86633E] bg-white/60' : 'border-[#D2C9BF] text-[#9E948D]')}>{isOver ? `Drop to move to ${stage}` : 'No enquiries'}</div>
+                  <div className={cx('text-center py-8 text-xs rounded-lg border border-dashed', isOver ? 'border-[#0B6BB0] text-[#0B5E9C] bg-white/60' : 'border-[#D3E3F0] text-[#7E93A6]')}>{isOver ? `Drop to move to ${stage}` : 'No enquiries'}</div>
                 ) : (
                   items.map((lead) => (
                     <KanbanCard
@@ -249,17 +249,17 @@ const KanbanCard: React.FC<{
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cx(
-        'bg-white rounded-xl p-3.5 border shadow-xs hover:border-[#A9825A] hover:shadow-md transition cursor-pointer group select-none',
-        dragging ? 'opacity-40 border-[#A9825A]' : 'border-[#D2C9BF]',
+        'bg-white rounded-xl p-3.5 border shadow-xs hover:border-[#0B6BB0] hover:shadow-md transition cursor-pointer group select-none',
+        dragging ? 'opacity-40 border-[#0B6BB0]' : 'border-[#D3E3F0]',
         busy && 'opacity-60 pointer-events-none'
       )}
       title="Drag to another column or click to open"
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="min-w-0">
-          <div className="font-bold text-xs text-[#1D2F3F] group-hover:text-[#A9825A] transition truncate">{lead[F.NAME] || 'Unnamed'}</div>
-          <div className="text-[10px] text-[#9E948D] mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span className="font-mono text-[#A9825A] font-semibold">{lead[F.ID]}</span>
+          <div className="font-bold text-xs text-[#0B2A44] group-hover:text-[#0B6BB0] transition truncate">{lead[F.NAME] || 'Unnamed'}</div>
+          <div className="text-[10px] text-[#7E93A6] mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <span className="font-mono text-[#0B6BB0] font-semibold">{lead[F.ID]}</span>
             {lead[F.SOURCE] && (
               <>
                 <span>·</span>
@@ -268,12 +268,12 @@ const KanbanCard: React.FC<{
             )}
           </div>
         </div>
-        <GripVertical size={14} className="text-[#D2C9BF] group-hover:text-[#9E948D] flex-shrink-0 mt-0.5" />
+        <GripVertical size={14} className="text-[#D3E3F0] group-hover:text-[#7E93A6] flex-shrink-0 mt-0.5" />
       </div>
 
-      <div className="text-[11px] text-[#6B5F57] font-medium">{formatPhone(phone) || <span className="text-[#9E948D]">No phone</span>}</div>
+      <div className="text-[11px] text-[#5E778C] font-medium">{formatPhone(phone) || <span className="text-[#7E93A6]">No phone</span>}</div>
 
-      <div className="mt-2 p-2 rounded-lg bg-[#F4F0EB] text-[11px] text-[#3D3530] flex items-center justify-between gap-2">
+      <div className="mt-2 p-2 rounded-lg bg-[#F2F7FB] text-[11px] text-[#0F2233] flex items-center justify-between gap-2">
         <span className="truncate">
           Unit: <strong>{lead[F.UNIT_TYPE] || 'Any'}</strong>
         </span>
@@ -281,21 +281,21 @@ const KanbanCard: React.FC<{
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
-        <span className={cx('font-semibold truncate', overdue ? 'text-[#B06A55]' : due ? 'text-[#A9825A]' : 'text-[#9E948D] font-normal')}>{due ? `${overdue ? 'Overdue' : 'Next'}: ${formatRelative(due)}` : 'No follow-up set'}</span>
-        <span className="text-[#6B5F57] truncate flex items-center gap-1 flex-shrink-0">
+        <span className={cx('font-semibold truncate', overdue ? 'text-[#B06A55]' : due ? 'text-[#0B6BB0]' : 'text-[#7E93A6] font-normal')}>{due ? `${overdue ? 'Overdue' : 'Next'}: ${formatRelative(due)}` : 'No follow-up set'}</span>
+        <span className="text-[#5E778C] truncate flex items-center gap-1 flex-shrink-0">
           <Users size={10} /> {lead[F.RM] || 'Unassigned'}
         </span>
       </div>
 
-      <div className="mt-2.5 pt-2 border-t border-[#ECE8E1] flex items-center justify-between gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <div className="mt-2.5 pt-2 border-t border-[#E6EFF6] flex items-center justify-between gap-1.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-1.5">
           {phone && (
-            <a href={telLink(phone)} className="p-1.5 rounded bg-[#F4F0EB] text-[#1976D2] hover:bg-blue-50" title="Call" draggable={false}>
+            <a href={telLink(phone)} className="p-1.5 rounded bg-[#F2F7FB] text-[#1976D2] hover:bg-blue-50" title="Call" draggable={false}>
               <Phone size={12} />
             </a>
           )}
           {phone && (
-            <a href={whatsappLink(phone)} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-[#F4F0EB] text-[#25D366] hover:bg-green-50" title="WhatsApp" draggable={false}>
+            <a href={whatsappLink(phone)} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-[#F2F7FB] text-[#25D366] hover:bg-green-50" title="WhatsApp" draggable={false}>
               <MessageSquare size={12} />
             </a>
           )}
@@ -304,7 +304,7 @@ const KanbanCard: React.FC<{
           value={stageOf(lead) || STAGES.NEW}
           onChange={(e) => onStage(e.target.value)}
           disabled={busy}
-          className="text-[10px] py-1 px-1.5 rounded border border-[#D2C9BF] bg-white text-[#1D2F3F] focus:outline-none focus:border-[#A9825A] max-w-[150px]"
+          className="text-[10px] py-1 px-1.5 rounded border border-[#D3E3F0] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0] max-w-[150px]"
           aria-label="Change stage"
         >
           {stageOptions.map((s) => (

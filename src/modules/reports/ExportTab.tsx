@@ -100,7 +100,7 @@ export const ExportTab: React.FC<Props> = ({ leads, config, rm, onRmChange, onOp
 
   return (
     <div className="space-y-5">
-      <Card title={<span className="inline-flex items-center gap-2"><Filter size={16} className="text-[#A9825A]" />Filters</span>} subtitle="Leads are matched by enquiry date; trashed and deleted leads are never exported" actions={<Button variant="ghost" size="xs" onClick={reset}>Reset</Button>}>
+      <Card title={<span className="inline-flex items-center gap-2"><Filter size={16} className="text-[#0B6BB0]" />Filters</span>} subtitle="Leads are matched by enquiry date; trashed and deleted leads are never exported" actions={<Button variant="ghost" size="xs" onClick={reset}>Reset</Button>}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Field label="Enquiry date">
             <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
@@ -118,10 +118,10 @@ export const ExportTab: React.FC<Props> = ({ leads, config, rm, onRmChange, onOp
             <Select value={rm} onChange={(e) => onRmChange(e.target.value)} options={config.options[F.RM] || []} placeholder="All RMs" />
           </Field>
         </div>
-        <div className="mt-4 pt-4 border-t border-[#ECE8E1] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="text-xs text-[#1D2F3F]">
-            Matching leads: <strong className="text-sm font-bold text-[#A9825A]">{formatNumber(filtered.length)}</strong> of {formatNumber(counted.length)}
-            <span className="text-[#6B5F57]"> · {filterLabel}</span>
+        <div className="mt-4 pt-4 border-t border-[#E6EFF6] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs text-[#0B2A44]">
+            Matching leads: <strong className="text-sm font-bold text-[#0B6BB0]">{formatNumber(filtered.length)}</strong> of {formatNumber(counted.length)}
+            <span className="text-[#5E778C]"> · {filterLabel}</span>
           </div>
           <Button variant="gold" size="md" onClick={download} disabled={!filtered.length} icon={<FileSpreadsheet size={15} />}>Download CSV ({formatNumber(filtered.length)})</Button>
         </div>
@@ -135,9 +135,9 @@ export const ExportTab: React.FC<Props> = ({ leads, config, rm, onRmChange, onOp
           onRowClick={onOpenLead ? (l) => onOpenLead(l[F.ID]) : undefined}
           empty="No leads match these filters"
           columns={[
-            { key: 'id', label: 'ID', render: (l) => <span className="font-mono text-[10px] text-[#A9825A]">{l[F.ID]}</span> },
+            { key: 'id', label: 'ID', render: (l) => <span className="font-mono text-[10px] text-[#0B6BB0]">{l[F.ID]}</span> },
             { key: 'date', label: 'Enquiry Date', render: (l) => <span className="whitespace-nowrap">{formatDate(enquiryDate(l), '—')}</span> },
-            { key: 'name', label: 'Prospect', render: (l) => <span className="font-semibold text-[#1D2F3F]">{l[F.NAME] || '—'}</span> },
+            { key: 'name', label: 'Prospect', render: (l) => <span className="font-semibold text-[#0B2A44]">{l[F.NAME] || '—'}</span> },
             { key: 'phone', label: 'Phone', render: (l) => <span className="whitespace-nowrap">{l[F.PHONE] || '—'}</span> },
             { key: 'stage', label: 'Stage', render: (l) => <StageBadge stage={l[F.STAGE]} /> },
             { key: 'source', label: 'Source', render: (l) => l[F.SOURCE] || '—' },

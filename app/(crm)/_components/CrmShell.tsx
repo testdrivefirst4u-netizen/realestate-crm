@@ -24,7 +24,9 @@ import type { CopilotContext, OpenCopilot } from '@/src/modules/ai/copilotContex
 import { useCrmEngine, type CrmEngine, type CrmEngineInit } from '@/src/core/engine';
 import { notifications } from '@/src/core/notifications';
 import { SIGNED_OUT_REASON_KEY } from '@/src/core/persistence';
-import { F } from '@/src/core/config';
+import { F, STAGES } from '@/src/core/config';
+import { nextFollowupDate } from '@/src/core/analytics';
+import { isSameDay } from '@/src/core/dates';
 import { TenantProvider, companyOf, hasFeature, resolveFeatures, type FeatureName } from '@/src/core/tenant';
 import { DEFAULT_VIEW, viewAllowed, viewFromPath, viewHref, type ViewId } from '@/src/core/views';
 import { initGlobalFontAutoScaler } from '@/src/utils/fontSizeAdjuster';
@@ -53,6 +55,9 @@ export interface CrmContextValue {
   aiConfigured: boolean;
   rmOptions: string[];
 }
+
+/** This device remembers whether the sidebar panel is collapsed. */
+const SIDEBAR_KEY = 'crm_sidebar_collapsed';
 
 const CrmContext = createContext<CrmContextValue | null>(null);
 
@@ -160,6 +165,24 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   /* ------------------------------ overlays ------------------------------ */
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Remember the sidebar choice on this device (read after mount, so the server render and the first client render agree).
+  useEffect(() => {
+    try { if (localStorage.getItem(SIDEBAR_KEY) === '1') setIsSidebarCollapsed(true); } catch { /* storage blocked */ }
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed((c) => {
+      try { localStorage.setItem(SIDEBAR_KEY, c ? '0' : '1'); } catch { /* storage blocked */ }
+      return !c;
+    });
+  }, []);
+  const sidebarCounts = useMemo(() => {
+    const now = new Date();
+    return {
+      leads: data.leads.filter((l) => l[F.STAGE] !== STAGES.TRASH).length,
+      followupsToday: data.leads.filter((l) => { const d = nextFollowupDate(l); return !!d && isSameDay(d, now) && l[F.STAGE] !== STAGES.TRASH; }).length,
+      tasksPending: data.tasks.filter((t) => !t.completed).length,
+    };
+  }, [data.leads, data.tasks]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -265,12 +288,12 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   return (
     <CrmContext.Provider value={ctx}>
       <TenantProvider settings={serverSettings}>
-        <div className="flex h-screen bg-[#F4F0EB] text-[#3D3530] overflow-hidden">
+        <div className="crm-ocean flex h-screen bg-[#F2F7FB] text-[#0F2233] overflow-hidden">
           <Sidebar
             currentView={currentView}
             onNavigate={() => setIsMobileSidebarOpen(false)}
             isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            onToggleCollapse={toggleSidebar}
             isMobileOpen={isMobileSidebarOpen}
             onCloseMobile={() => setIsMobileSidebarOpen(false)}
             sync={sync}
@@ -279,7 +302,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
             can={engine.can}
             features={features}
             onLogout={handleLogout}
-            unreadChats={0}
+            counts={sidebarCounts}
+            onNewEnquiry={engine.can('leads.create') ? openAddLead : undefined}
           />
 
           <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">

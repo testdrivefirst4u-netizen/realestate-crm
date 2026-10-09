@@ -25,22 +25,22 @@ import {
 /* ------------------------------------------------------------------------ */
 
 const C = {
-  navy: '#1D2F3F',
+  navy: '#0B2A44',
   midnight: '#23384A',
-  limestone: '#E7D8C6',
-  stone: '#D8CEC3',
-  mist: '#ECE8E1',
-  white: '#FDFCFA',
-  gold: '#A9825A',
-  sage: '#7C8B78',
+  limestone: '#C4D8EA',
+  stone: '#C9DBEA',
+  mist: '#E6EFF6',
+  white: '#FFFFFF',
+  gold: '#0B6BB0',
+  sage: '#0E8A86',
   // shades of the palette for lit / shaded faces
   goldLight: '#C2A07A',
   goldDeep: '#8A6844',
   goldShadow: '#73563A',
-  goldPale: '#F4ECE1',
+  goldPale: '#EAF3FA',
   sageDeep: '#4F5D4C',
-  ink: '#6B5F57',
-  faint: '#9E948D',
+  ink: '#5E778C',
+  faint: '#7E93A6',
   edge: '#B5A796',
 } as const;
 
@@ -141,7 +141,7 @@ interface Palette {
   edge: string;
   glass: number; // opacity of the navy glazing bands
 }
-const PLAIN: Palette = { west: '#F0EBE4', south: '#E3DBD1', roof: C.white, edge: '#CFC5B9', glass: 0.08 };
+const PLAIN: Palette = { west: '#E6EFF6', south: '#E3DBD1', roof: C.white, edge: '#CFC5B9', glass: 0.08 };
 const SELECTED: Palette = { west: C.limestone, south: C.stone, roof: C.white, edge: '#9E8F80', glass: 0.16 };
 
 type Projector = (x: number, y: number, z: number) => Pt;
@@ -179,15 +179,15 @@ function drawGhost(out: Shape[], P: Projector, from: number, to: number) {
   const z1 = to * STOREY;
   out.push({ k: 'line', pts: [P(0, D, z0), P(W, D, z0), P(W, 0, z0)], stroke: C.edge, sw: 0.6, so: 0.7, dash: '2 2' });
   out.push({ k: 'line', pts: [P(W, D, z0), P(W, D, z1)], stroke: C.edge, sw: 0.6, so: 0.7, dash: '2 2' });
-  out.push({ k: 'poly', pts: westFace(P, z0, z1), fill: C.white, fo: 0.5, stroke: '#A79888', sw: 0.7, so: 0.85 });
-  out.push({ k: 'poly', pts: southFace(P, z0, z1), fill: C.mist, fo: 0.55, stroke: '#A79888', sw: 0.7, so: 0.85 });
+  out.push({ k: 'poly', pts: westFace(P, z0, z1), fill: C.white, fo: 0.5, stroke: '#8EA3B5', sw: 0.7, so: 0.85 });
+  out.push({ k: 'poly', pts: southFace(P, z0, z1), fill: C.mist, fo: 0.55, stroke: '#8EA3B5', sw: 0.7, so: 0.85 });
   for (let k = from; k < to; k++) {
     const a = k * STOREY + STOREY * 0.3;
     const b = k * STOREY + STOREY * 0.78;
     out.push({ k: 'poly', pts: [P(0, 5, a), P(0, D - 5, a), P(0, D - 5, b), P(0, 5, b)], fill: C.midnight, fo: 0.045 });
     out.push({ k: 'poly', pts: [P(5, 0, a), P(W - 5, 0, a), P(W - 5, 0, b), P(5, 0, b)], fill: C.midnight, fo: 0.06 });
   }
-  out.push({ k: 'poly', pts: topFace(P, z1), fill: C.white, fo: 0.6, stroke: '#A79888', sw: 0.7, so: 0.85 });
+  out.push({ k: 'poly', pts: topFace(P, z1), fill: C.white, fo: 0.6, stroke: '#8EA3B5', sw: 0.7, so: 0.85 });
 }
 
 /** A flat arrow lying on the plane z, from (x, y) along a compass bearing. */
@@ -797,8 +797,8 @@ type Busy = 'png' | 'wa' | 'share' | null;
 
 const Fact: React.FC<{ label: string; value: React.ReactNode; wide?: boolean }> = ({ label, value, wide }) => (
   <div className={wide ? 'col-span-2 min-w-0' : 'min-w-0'}>
-    <dt className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F57]">{label}</dt>
-    <dd className="mt-0.5 truncate text-sm font-semibold text-[#1D2F3F]">{value}</dd>
+    <dt className="text-[10px] font-bold uppercase tracking-wider text-[#5E778C]">{label}</dt>
+    <dd className="mt-0.5 truncate text-sm font-semibold text-[#0B2A44]">{value}</dd>
   </div>
 );
 
@@ -986,7 +986,7 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
         {scene.placementNote && (
           <InlineNotice>
             <span className="flex items-start gap-2">
-              <Info size={14} className="mt-0.5 flex-shrink-0 text-[#A9825A]" aria-hidden="true" />
+              <Info size={14} className="mt-0.5 flex-shrink-0 text-[#0B6BB0]" aria-hidden="true" />
               <span>{scene.placementNote}</span>
             </span>
           </InlineNotice>
@@ -1002,9 +1002,9 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
         )}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          <figure className="m-0 min-w-0 rounded-2xl border border-[#D2C9BF] bg-white p-3 sm:p-4">
+          <figure className="m-0 min-w-0 rounded-2xl border border-[#D3E3F0] bg-white p-3 sm:p-4">
             <IsoScene scene={scene} />
-            <figcaption className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#6B5F57]">
+            <figcaption className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#5E778C]">
               <Swatch color={C.gold}>{scene.floorIndex !== null ? `${scene.floorLabel}, ${scene.towerName}` : 'Highlighted floor'}</Swatch>
               <Swatch color={C.goldShadow}>Residence {scene.code}</Swatch>
               {scene.facing.angle !== null && <span>Arrow: {facingPhrase(scene.facing).toLowerCase()}{scene.facing.assumed ? ' (indicative)' : ''}</span>}
@@ -1013,11 +1013,11 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
           </figure>
 
           <div className="min-w-0 space-y-4">
-            <section aria-label="Residence details" className="rounded-2xl border border-[#D2C9BF] bg-white p-4">
+            <section aria-label="Residence details" className="rounded-2xl border border-[#D3E3F0] bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A9825A]">Residence</div>
-                  <div className="truncate text-2xl font-semibold leading-tight text-[#1D2F3F]">{scene.code || '—'}</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0B6BB0]">Residence</div>
+                  <div className="truncate text-2xl font-semibold leading-tight text-[#0B2A44]">{scene.code || '—'}</div>
                 </div>
                 <Badge tone={statusTone(u.status)}>{u.status || 'Unknown'}</Badge>
               </div>
@@ -1032,7 +1032,7 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
                 {customerName && <Fact wide label={u.status === 'Booked' || u.status === 'Sold' ? `${u.status} by` : 'Customer'} value={customerName} />}
               </dl>
               {scene.note && (
-                <p className="mt-3 flex items-start gap-2 rounded-lg bg-[#7C8B78]/10 p-2.5 text-xs text-[#3C573A]">
+                <p className="mt-3 flex items-start gap-2 rounded-lg bg-[#0E8A86]/10 p-2.5 text-xs text-[#3C573A]">
                   <Trees size={14} className="mt-0.5 flex-shrink-0" aria-hidden="true" />
                   <span>{scene.note}</span>
                 </p>
@@ -1040,18 +1040,18 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
             </section>
 
             <div className="grid gap-3 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)]">
-              <section aria-label="Facing" className="flex flex-col items-center rounded-2xl border border-[#D2C9BF] bg-white p-3 text-center">
-                <div className="self-start text-[10px] font-bold uppercase tracking-wider text-[#6B5F57]">Facing · north up</div>
+              <section aria-label="Facing" className="flex flex-col items-center rounded-2xl border border-[#D3E3F0] bg-white p-3 text-center">
+                <div className="self-start text-[10px] font-bold uppercase tracking-wider text-[#5E778C]">Facing · north up</div>
                 <div className="mt-1 w-full max-w-[150px]">
                   <CompassRose facing={scene.facing} />
                 </div>
-                <div className="mt-1 text-sm font-semibold text-[#1D2F3F]">{facingText(scene.facing)[0]}</div>
-                <div className="text-[10px] text-[#9E948D]">{facingText(scene.facing)[1]}</div>
+                <div className="mt-1 text-sm font-semibold text-[#0B2A44]">{facingText(scene.facing)[0]}</div>
+                <div className="text-[10px] text-[#7E93A6]">{facingText(scene.facing)[1]}</div>
               </section>
-              <section aria-label="Floor plan" className="min-w-0 rounded-2xl border border-[#D2C9BF] bg-white p-3">
+              <section aria-label="Floor plan" className="min-w-0 rounded-2xl border border-[#D3E3F0] bg-white p-3">
                 <div className="flex items-baseline justify-between gap-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F57]">{planHeading(scene)}</div>
-                  {scene.plate && <div className="text-[10px] text-[#9E948D]">{scene.plate.cells.length} on this floor</div>}
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#5E778C]">{planHeading(scene)}</div>
+                  {scene.plate && <div className="text-[10px] text-[#7E93A6]">{scene.plate.cells.length} on this floor</div>}
                 </div>
                 <div className="mt-2">
                   <FloorPlan scene={scene} />
@@ -1061,11 +1061,11 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
           </div>
         </div>
 
-        <section aria-label="Share" className="space-y-2.5 rounded-2xl border border-[#D2C9BF] bg-[#F4F0EB] p-3 sm:p-4">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B5F57]">WhatsApp caption</div>
-          <p className="break-words text-xs text-[#1D2F3F]">{caption}</p>
-          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#6B5F57]">
-            <Info size={13} className="mt-0.5 flex-shrink-0 text-[#A9825A]" aria-hidden="true" />
+        <section aria-label="Share" className="space-y-2.5 rounded-2xl border border-[#D3E3F0] bg-[#F2F7FB] p-3 sm:p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#5E778C]">WhatsApp caption</div>
+          <p className="break-words text-xs text-[#0B2A44]">{caption}</p>
+          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-[#5E778C]">
+            <Info size={13} className="mt-0.5 flex-shrink-0 text-[#0B6BB0]" aria-hidden="true" />
             <span>
               <strong>Share on WhatsApp</strong> saves the image to your downloads and opens WhatsApp (WhatsApp Web on a computer) with this caption already typed — attach the downloaded image to the chat, then send.{' '}
               {phone
@@ -1075,8 +1075,8 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
             </span>
           </p>
           {customerName && (
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-[#3D3530]">
-              <input type="checkbox" checked={includeCustomer} onChange={(e) => setIncludeCustomer(e.target.checked)} className="h-3.5 w-3.5 accent-[#A9825A]" />
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-[#0F2233]">
+              <input type="checkbox" checked={includeCustomer} onChange={(e) => setIncludeCustomer(e.target.checked)} className="h-3.5 w-3.5 accent-[#0B6BB0]" />
               Show the customer's name ({customerName}) on the image and in copied details
             </label>
           )}

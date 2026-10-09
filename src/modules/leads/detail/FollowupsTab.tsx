@@ -104,21 +104,21 @@ export const FollowupsTab: React.FC<Props> = ({ lead, canEdit, aiConfigured, cur
     <div className="space-y-4">
       {/* Summary strip */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-xl border border-[#D2C9BF] p-3">
-          <div className="text-[10px] uppercase font-bold tracking-wider text-[#6B5F57]">Last follow-up</div>
-          <div className="text-xs font-semibold text-[#1D2F3F] mt-1">{formatRelative(lead[F.LAST_FOLLOWUP] || entries[0]?.date, 'Not contacted yet')}</div>
+        <div className="bg-white rounded-xl border border-[#D3E3F0] p-3">
+          <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Last follow-up</div>
+          <div className="text-xs font-semibold text-[#0B2A44] mt-1">{formatRelative(lead[F.LAST_FOLLOWUP] || entries[0]?.date, 'Not contacted yet')}</div>
         </div>
-        <div className={cx('rounded-xl border p-3', overdue ? 'bg-[#FAF0EC] border-[#B06A55]/40' : 'bg-white border-[#D2C9BF]')}>
-          <div className={cx('text-[10px] uppercase font-bold tracking-wider', overdue ? 'text-[#8A3E28]' : 'text-[#6B5F57]')}>{overdue ? 'Overdue' : 'Next follow-up'}</div>
-          <div className={cx('text-xs font-semibold mt-1', overdue ? 'text-[#8A3E28]' : 'text-[#1D2F3F]')}>{formatRelative(nextDue, 'Not scheduled')}</div>
+        <div className={cx('rounded-xl border p-3', overdue ? 'bg-[#FAF0EC] border-[#B06A55]/40' : 'bg-white border-[#D3E3F0]')}>
+          <div className={cx('text-[10px] uppercase font-bold tracking-wider', overdue ? 'text-[#8A3E28]' : 'text-[#5E778C]')}>{overdue ? 'Overdue' : 'Next follow-up'}</div>
+          <div className={cx('text-xs font-semibold mt-1', overdue ? 'text-[#8A3E28]' : 'text-[#0B2A44]')}>{formatRelative(nextDue, 'Not scheduled')}</div>
         </div>
       </div>
 
       {/* Log form */}
       {canEdit ? (
-        <div className="bg-[#F4F0EB] p-4 rounded-xl border border-[#D2C9BF] space-y-3">
-          <div className="flex items-center gap-2 text-xs font-bold text-[#1D2F3F]">
-            <MessageSquare size={14} className="text-[#A9825A]" />
+        <div className="bg-[#F2F7FB] p-4 rounded-xl border border-[#D3E3F0] space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44]">
+            <MessageSquare size={14} className="text-[#0B6BB0]" />
             Log a follow-up
           </div>
           <SmartTextarea
@@ -133,12 +133,12 @@ export const FollowupsTab: React.FC<Props> = ({ lead, canEdit, aiConfigured, cur
             <div className="flex items-center gap-2 flex-wrap">
               <input type="datetime-local" value={next} onChange={(e) => setNext(e.target.value)} className={cx(inputCls, 'sm:!w-auto')} />
               {QUICK_PICKS.map((q) => (
-                <button key={q.label} type="button" onClick={() => setNext(q.value())} className="text-[11px] px-2 py-1 rounded-md bg-white border border-[#D2C9BF] text-[#6B5F57] hover:text-[#1D2F3F] hover:border-[#A9825A]">
+                <button key={q.label} type="button" onClick={() => setNext(q.value())} className="text-[11px] px-2 py-1 rounded-md bg-white border border-[#D3E3F0] text-[#5E778C] hover:text-[#0B2A44] hover:border-[#0B6BB0]">
                   {q.label}
                 </button>
               ))}
               {next && (
-                <button type="button" onClick={() => setNext('')} className="text-[11px] text-[#9E948D] hover:text-[#1D2F3F]">
+                <button type="button" onClick={() => setNext('')} className="text-[11px] text-[#7E93A6] hover:text-[#0B2A44]">
                   clear
                 </button>
               )}
@@ -154,9 +154,9 @@ export const FollowupsTab: React.FC<Props> = ({ lead, canEdit, aiConfigured, cur
           </div>
 
           {taskOpen && (
-            <div className="bg-white rounded-lg border border-[#D2C9BF] p-3 space-y-2">
-              <div className="text-[11px] uppercase font-bold tracking-wider text-[#6B5F57] flex items-center gap-1.5">
-                <ListChecks size={12} className="text-[#A9825A]" /> New task for {lead[F.NAME] || id}
+            <div className="bg-white rounded-lg border border-[#D3E3F0] p-3 space-y-2">
+              <div className="text-[11px] uppercase font-bold tracking-wider text-[#5E778C] flex items-center gap-1.5">
+                <ListChecks size={12} className="text-[#0B6BB0]" /> New task for {lead[F.NAME] || id}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
                 <input value={taskName} onChange={(e) => setTaskName(e.target.value)} placeholder="Task name" className={inputCls} />
@@ -181,11 +181,11 @@ export const FollowupsTab: React.FC<Props> = ({ lead, canEdit, aiConfigured, cur
       {/* Linked tasks */}
       {leadTasks.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[11px] uppercase font-bold tracking-wider text-[#6B5F57]">Tasks for this enquiry</div>
+          <div className="text-[11px] uppercase font-bold tracking-wider text-[#5E778C]">Tasks for this enquiry</div>
           {leadTasks.map((t) => (
-            <div key={t.id} className={cx('flex items-center justify-between gap-3 text-xs bg-white border border-[#D2C9BF] rounded-lg px-3 py-2', t.completed && 'opacity-60')}>
-              <span className={cx('font-medium text-[#1D2F3F] truncate', t.completed && 'line-through')}>{t.name}</span>
-              <span className="text-[#6B5F57] whitespace-nowrap flex items-center gap-1">
+            <div key={t.id} className={cx('flex items-center justify-between gap-3 text-xs bg-white border border-[#D3E3F0] rounded-lg px-3 py-2', t.completed && 'opacity-60')}>
+              <span className={cx('font-medium text-[#0B2A44] truncate', t.completed && 'line-through')}>{t.name}</span>
+              <span className="text-[#5E778C] whitespace-nowrap flex items-center gap-1">
                 <Clock size={11} /> {formatRelative(t.datetime, '—')}
                 {t.completed && <CheckCircle2 size={11} className="text-[#3C573A]" />}
               </span>
@@ -197,21 +197,21 @@ export const FollowupsTab: React.FC<Props> = ({ lead, canEdit, aiConfigured, cur
       {/* History */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="text-[11px] uppercase font-bold tracking-wider text-[#6B5F57]">History · {entries.length}</div>
-          <div className="text-[10px] text-[#9E948D]">newest first</div>
+          <div className="text-[11px] uppercase font-bold tracking-wider text-[#5E778C]">History · {entries.length}</div>
+          <div className="text-[10px] text-[#7E93A6]">newest first</div>
         </div>
         {entries.length === 0 ? (
-          <div className="text-xs text-[#9E948D] py-5 text-center bg-white rounded-xl border border-[#ECE8E1]">No follow-ups logged yet — the first one goes above.</div>
+          <div className="text-xs text-[#7E93A6] py-5 text-center bg-white rounded-xl border border-[#E6EFF6]">No follow-ups logged yet — the first one goes above.</div>
         ) : (
           entries.map((e) => (
-            <div key={e.index} className="bg-white rounded-xl border border-[#D2C9BF] p-3 shadow-2xs">
-              <div className="flex items-center justify-between gap-2 text-[10px] uppercase font-bold tracking-wider text-[#A9825A]">
+            <div key={e.index} className="bg-white rounded-xl border border-[#D3E3F0] p-3 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 text-[10px] uppercase font-bold tracking-wider text-[#0B6BB0]">
                 <span>Follow-up #{e.index}</span>
-                <span className="flex items-center gap-1 text-[#6B5F57] normal-case tracking-normal font-medium">
+                <span className="flex items-center gap-1 text-[#5E778C] normal-case tracking-normal font-medium">
                   <CalendarClock size={11} /> {e.date ? formatDateTime(e.date) : 'Undated'}
                 </span>
               </div>
-              <div className="text-xs text-[#3D3530] mt-1.5 leading-relaxed whitespace-pre-wrap break-words">{e.text || e.raw}</div>
+              <div className="text-xs text-[#0F2233] mt-1.5 leading-relaxed whitespace-pre-wrap break-words">{e.text || e.raw}</div>
             </div>
           ))
         )}

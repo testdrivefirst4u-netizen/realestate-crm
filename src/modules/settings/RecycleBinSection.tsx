@@ -54,14 +54,14 @@ export const RecycleBinSection: React.FC<RecycleBinSectionProps> = ({ trashedLea
             {visible.map((lead) => {
               const id = lead[F.ID];
               return (
-                <div key={id} className="p-3 bg-[#F4F0EB] rounded-xl border border-[#D2C9BF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div key={id} className="p-3 bg-[#F2F7FB] rounded-xl border border-[#D3E3F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-[#1D2F3F]">{lead[F.NAME] || 'Unnamed enquiry'}</span>
-                      <span className="font-mono text-[#9E948D]">{id}</span>
+                      <span className="font-bold text-[#0B2A44]">{lead[F.NAME] || 'Unnamed enquiry'}</span>
+                      <span className="font-mono text-[#7E93A6]">{id}</span>
                       {lead[F.UNIT_TYPE] && <Badge tone="muted">{lead[F.UNIT_TYPE]}</Badge>}
                     </div>
-                    <div className="text-[11px] text-[#6B5F57] mt-0.5">
+                    <div className="text-[11px] text-[#5E778C] mt-0.5">
                       {formatPhone(lead[F.PHONE]) || 'No phone'}{lead[F.RM] ? ` · RM ${lead[F.RM]}` : ''}{lead[F.UPDATED_AT] ? ` · Trashed ${formatRelative(lead[F.UPDATED_AT])}` : ''}
                     </div>
                   </div>

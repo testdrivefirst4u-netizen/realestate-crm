@@ -165,7 +165,7 @@ export function changeTone(r: ComparisonRow): Tone {
   const improved = r.lowerIsBetter ? r.direction === 'down' : r.direction === 'up';
   return improved ? 'good' : 'bad';
 }
-export const TONE_CLS: Record<Tone, string> = { good: 'text-[#2E7D32]', bad: 'text-[#B06A55]', flat: 'text-[#9E948D]' };
+export const TONE_CLS: Record<Tone, string> = { good: 'text-[#2E7D32]', bad: 'text-[#B06A55]', flat: 'text-[#7E93A6]' };
 export const DIRECTION_GLYPH: Record<ComparisonRow['direction'], string> = { up: '▲', down: '▼', flat: '•' };
 
 /* ------------------------------------------------------------------------ */
@@ -173,8 +173,8 @@ export const DIRECTION_GLYPH: Record<ComparisonRow['direction'], string> = { up:
 /* ------------------------------------------------------------------------ */
 
 export const STAGE_COLORS: Record<string, string> = {
-  New: '#1D2F3F', Open: '#3A5D7C', Warm: '#A9825A', Hot: '#B06A55', Qualified: '#7C8B78', Booked: '#2E7D32',
-  'Not Responding': '#D97706', DND: '#9E948D', Junk: '#9E948D', 'Disqualified - Budget': '#8A3E28', 'Disqualified - Location': '#8A3E28', 'Disqualified - Rental': '#8A3E28',
+  New: '#0B2A44', Open: '#3A5D7C', Warm: '#0B6BB0', Hot: '#B06A55', Qualified: '#0E8A86', Booked: '#2E7D32',
+  'Not Responding': '#D97706', DND: '#7E93A6', Junk: '#7E93A6', 'Disqualified - Budget': '#8A3E28', 'Disqualified - Location': '#8A3E28', 'Disqualified - Rental': '#8A3E28',
 };
 
 export const MonthSelect: React.FC<{ value: string; onChange: (key: string) => void; months: string[]; className?: string; label?: string }> = ({ value, onChange, months, className, label }) => {
@@ -190,8 +190,8 @@ export const SourceTable: React.FC<{ rows: Breakdown[]; dense?: boolean; onRowCl
     onRowClick={onRowClick}
     empty="No enquiries in this period"
     columns={[
-      { key: 'label', label: 'Source', render: (r) => <span className="font-semibold text-[#1D2F3F]">{r.label}</span> },
-      { key: 'count', label: 'Enquiries', align: 'right', render: (r) => <span>{formatNumber(r.count)} <span className="text-[#9E948D] text-[10px]">({formatPercent(r.percent, 0)})</span></span> },
+      { key: 'label', label: 'Source', render: (r) => <span className="font-semibold text-[#0B2A44]">{r.label}</span> },
+      { key: 'count', label: 'Enquiries', align: 'right', render: (r) => <span>{formatNumber(r.count)} <span className="text-[#7E93A6] text-[10px]">({formatPercent(r.percent, 0)})</span></span> },
       { key: 'qualified', label: 'Qualified', align: 'right', render: (r) => formatNumber(r.qualified) },
       { key: 'siteVisits', label: 'Site Visits', align: 'right', render: (r) => formatNumber(r.siteVisits) },
       { key: 'bookings', label: 'Bookings', align: 'right', render: (r) => <span className="font-bold text-[#2E7D32]">{formatNumber(r.bookings)}</span> },
@@ -200,7 +200,7 @@ export const SourceTable: React.FC<{ rows: Breakdown[]; dense?: boolean; onRowCl
   />
 );
 
-const slaCls = (v: number | null) => (v === null ? 'bg-[#ECE8E1] text-[#6B5F57]' : v >= 80 ? 'bg-[#E8F5E9] text-[#2E7D32]' : v >= 50 ? 'bg-[#FFF8E1] text-[#92400E]' : 'bg-[#FAF0EC] text-[#8A3E28]');
+const slaCls = (v: number | null) => (v === null ? 'bg-[#E6EFF6] text-[#5E778C]' : v >= 80 ? 'bg-[#E8F5E9] text-[#2E7D32]' : v >= 50 ? 'bg-[#FFF8E1] text-[#92400E]' : 'bg-[#FAF0EC] text-[#8A3E28]');
 
 export const RMTable: React.FC<{ rows: RMPerformance[]; dense?: boolean }> = ({ rows, dense = true }) => (
   <DataTable<RMPerformance>
@@ -209,7 +209,7 @@ export const RMTable: React.FC<{ rows: RMPerformance[]; dense?: boolean }> = ({ 
     keyFn={(r) => r.rm}
     empty="No RM activity in this period"
     columns={[
-      { key: 'rm', label: 'RM', render: (r) => <span className="font-semibold text-[#1D2F3F] whitespace-nowrap">{r.rm}</span> },
+      { key: 'rm', label: 'RM', render: (r) => <span className="font-semibold text-[#0B2A44] whitespace-nowrap">{r.rm}</span> },
       { key: 'enquiries', label: 'Enq', align: 'right', render: (r) => formatNumber(r.enquiries) },
       { key: 'open', label: 'Open', align: 'right', render: (r) => formatNumber(r.open) },
       { key: 'hot', label: 'Hot', align: 'right', render: (r) => <span className={r.hot ? 'font-semibold text-[#B06A55]' : ''}>{formatNumber(r.hot)}</span> },
@@ -218,7 +218,7 @@ export const RMTable: React.FC<{ rows: RMPerformance[]; dense?: boolean }> = ({ 
       { key: 'bookings', label: 'Booked', align: 'right', render: (r) => <span className="font-bold text-[#2E7D32]">{formatNumber(r.bookings)}</span> },
       { key: 'conversionRate', label: 'Conv %', align: 'right', render: (r) => <span className="font-semibold">{formatPercent(r.conversionRate, 0)}</span> },
       { key: 'followupsCompleted', label: 'FU Done', align: 'right', render: (r) => formatNumber(r.followupsCompleted) },
-      { key: 'followupsOverdue', label: 'FU Overdue', align: 'right', render: (r) => <span className={r.followupsOverdue ? 'font-bold text-[#B06A55]' : 'text-[#9E948D]'}>{formatNumber(r.followupsOverdue)}</span> },
+      { key: 'followupsOverdue', label: 'FU Overdue', align: 'right', render: (r) => <span className={r.followupsOverdue ? 'font-bold text-[#B06A55]' : 'text-[#7E93A6]'}>{formatNumber(r.followupsOverdue)}</span> },
       { key: 'avgResponseHours', label: 'Avg Response', align: 'right', render: (r) => <span className="whitespace-nowrap">{formatHours(r.avgResponseHours)}</span> },
       {
         key: 'slaWithin24hPercent', label: 'SLA 24h', align: 'right',
@@ -233,8 +233,8 @@ export const StageDistribution: React.FC<{ rows: Breakdown[]; total: number; onC
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <div>
-      <div className="w-full h-3.5 rounded-full overflow-hidden flex bg-[#EBE5DC]">
-        {rows.map((r) => <div key={r.key} style={{ width: `${r.percent}%`, backgroundColor: STAGE_COLORS[r.key] || '#9E948D' }} title={`${r.label}: ${r.count}`} />)}
+      <div className="w-full h-3.5 rounded-full overflow-hidden flex bg-[#E3EDF5]">
+        {rows.map((r) => <div key={r.key} style={{ width: `${r.percent}%`, backgroundColor: STAGE_COLORS[r.key] || '#7E93A6' }} title={`${r.label}: ${r.count}`} />)}
       </div>
       <div className="mt-3 space-y-2">
         {rows.map((r) => {
@@ -242,15 +242,15 @@ export const StageDistribution: React.FC<{ rows: Breakdown[]; total: number; onC
           return (
             <Tag key={r.key} onClick={onClick ? () => onClick(r.key) : undefined} className={cx('w-full text-left', onClick && 'group')}>
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="inline-flex items-center gap-1.5 min-w-0"><span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: STAGE_COLORS[r.key] || '#9E948D' }} /><span className={cx('truncate text-[#3D3530]', onClick && 'group-hover:text-[#A9825A]')}>{r.label}</span></span>
-                <span className="text-[#6B5F57] flex-shrink-0 ml-2"><strong className="text-[#1D2F3F]">{formatNumber(r.count)}</strong> · {formatPercent(r.percent, 0)}</span>
+                <span className="inline-flex items-center gap-1.5 min-w-0"><span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: STAGE_COLORS[r.key] || '#7E93A6' }} /><span className={cx('truncate text-[#0F2233]', onClick && 'group-hover:text-[#0B6BB0]')}>{r.label}</span></span>
+                <span className="text-[#5E778C] flex-shrink-0 ml-2"><strong className="text-[#0B2A44]">{formatNumber(r.count)}</strong> · {formatPercent(r.percent, 0)}</span>
               </div>
-              <Bar value={r.count} max={max} color={STAGE_COLORS[r.key] || '#9E948D'} />
+              <Bar value={r.count} max={max} color={STAGE_COLORS[r.key] || '#7E93A6'} />
             </Tag>
           );
         })}
       </div>
-      <div className="text-[10px] text-[#9E948D] mt-2">{formatNumber(total)} enquiries · current stage of the leads enquired in the period</div>
+      <div className="text-[10px] text-[#7E93A6] mt-2">{formatNumber(total)} enquiries · current stage of the leads enquired in the period</div>
     </div>
   );
 };
@@ -290,7 +290,7 @@ export const DrillDown: React.FC<{ drill: DrillState; index: LeadIndex; onOpenLe
 
   return (
     <Card
-      className="border-[#A9825A]/50"
+      className="border-[#0B6BB0]/50"
       title={<span>Drill-down · {drill.label}</span>}
       subtitle={`${formatNumber(leads.length)} lead${leads.length === 1 ? '' : 's'}${onOpenLead ? ' · click a row to open the profile' : ''}`}
       actions={
@@ -304,22 +304,22 @@ export const DrillDown: React.FC<{ drill: DrillState; index: LeadIndex; onOpenLe
         <EmptyState title="No leads" description="Nothing matched this metric in the selected period." className="py-6" />
       ) : (
         <>
-          <div className="divide-y divide-[#ECE8E1] -mx-2">
+          <div className="divide-y divide-[#E6EFF6] -mx-2">
             {leads.slice(0, visible).map((l) => {
               const Tag: any = onOpenLead ? 'button' : 'div';
               return (
-                <Tag key={l[F.ID]} onClick={onOpenLead ? () => onOpenLead(l[F.ID]) : undefined} className={cx('w-full flex items-center justify-between gap-3 px-2 py-2.5 text-left', onOpenLead && 'hover:bg-[#F4F0EB]')}>
+                <Tag key={l[F.ID]} onClick={onOpenLead ? () => onOpenLead(l[F.ID]) : undefined} className={cx('w-full flex items-center justify-between gap-3 px-2 py-2.5 text-left', onOpenLead && 'hover:bg-[#F2F7FB]')}>
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[#1D2F3F] truncate">
-                      {l[F.NAME] || '—'} <span className="text-[10px] font-mono text-[#A9825A] ml-1">{l[F.ID]}</span>
+                    <div className="text-sm font-semibold text-[#0B2A44] truncate">
+                      {l[F.NAME] || '—'} <span className="text-[10px] font-mono text-[#0B6BB0] ml-1">{l[F.ID]}</span>
                     </div>
-                    <div className="text-[11px] text-[#6B5F57] truncate">
+                    <div className="text-[11px] text-[#5E778C] truncate">
                       {l[F.SOURCE] || 'Source —'} · {l[F.UNIT_TYPE] || 'Unit —'} · RM {l[F.RM] || '—'}
                       {l[F.NEXT_FOLLOWUP] ? ` · Next follow-up ${formatDateTime(l[F.NEXT_FOLLOWUP])}` : ''}
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="text-[11px] text-[#6B5F57] mb-0.5">{formatDate(enquiryDate(l), '—')}</div>
+                    <div className="text-[11px] text-[#5E778C] mb-0.5">{formatDate(enquiryDate(l), '—')}</div>
                     <StageBadge stage={l[F.STAGE]} />
                   </div>
                 </Tag>
@@ -339,4 +339,4 @@ export const DrillDown: React.FC<{ drill: DrillState; index: LeadIndex; onOpenLe
 
 /* ------------------------------- Section hdr ----------------------------- */
 
-export const SectionNote: React.FC<{ children: React.ReactNode }> = ({ children }) => <p className="text-[11px] text-[#9E948D] mt-2 leading-relaxed">{children}</p>;
+export const SectionNote: React.FC<{ children: React.ReactNode }> = ({ children }) => <p className="text-[11px] text-[#7E93A6] mt-2 leading-relaxed">{children}</p>;

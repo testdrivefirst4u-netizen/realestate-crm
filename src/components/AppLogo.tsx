@@ -55,12 +55,12 @@ export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' })
       {src ? (
         <img src={src} alt={label} className={`${s.img} object-contain rounded-md filter drop-shadow-sm`} onError={() => setFailed(src)} />
       ) : initials ? (
-        <div className={`${s.box} ${s.text} rounded-lg bg-[#A9825A] text-white font-bold flex items-center justify-center tracking-wide`} aria-label={label} role="img">
+        <div className={`${s.box} ${s.text} rounded-lg bg-[#0B6BB0] text-white font-bold flex items-center justify-center tracking-wide`} aria-label={label} role="img">
           {initials}
         </div>
       ) : (
         <svg viewBox="0 0 48 48" className={s.box} role="img" aria-label="CRM" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="2" y="2" width="44" height="44" rx="10" fill="#A9825A" />
+          <rect x="2" y="2" width="44" height="44" rx="10" fill="#0B6BB0" />
           <path d="M14 34V20l10-7 10 7v14" stroke="#fff" strokeWidth="3" strokeLinejoin="round" />
           <path d="M21 34v-7h6v7" stroke="#fff" strokeWidth="3" strokeLinejoin="round" />
         </svg>
