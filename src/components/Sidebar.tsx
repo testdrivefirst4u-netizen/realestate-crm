@@ -185,13 +185,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           <div className="flex-1 overflow-y-auto -mr-2 pr-2 mt-1">
             {groups.map((g) => (
               <div key={g.id}>
-                <div className={`text-[11px] font-extrabold tracking-[.08em] uppercase mt-4 mb-1.5 ${g.id === activeGroup ? 'text-[#0B6BB0]' : 'text-[#0A1F33]'}`}>{g.label}</div>
+                <div className={`text-[11px] font-extrabold tracking-[.08em] uppercase mt-3 mb-1 ${g.id === activeGroup ? 'text-[#0B6BB0]' : 'text-[#0A1F33]'}`}>{g.label}</div>
                 <div className="border-l border-[#DCE8F2] ml-1 flex flex-col">
                   {g.items.map((i) => {
                     const on = currentView === i.id;
                     return (
                       <Link key={i.id} href={viewHref(i.id)} onClick={go} aria-current={on ? 'page' : undefined}
-                        className={`-ml-px flex items-center justify-between gap-2 rounded-r-[10px] border-l-2 py-[7px] pl-4 pr-2.5 text-sm ${on ? 'border-[#0B6BB0] bg-[#EEF6FC] font-bold text-[#0B6BB0]' : 'border-transparent text-[#5E778C] hover:bg-[#EEF6FC] hover:text-[#0F2233]'}`}>
+                        className={`-ml-px flex items-center justify-between gap-2 rounded-r-[10px] border-l-2 py-1.5 pl-4 pr-2.5 text-sm ${on ? 'border-[#0B6BB0] bg-[#EEF6FC] font-bold text-[#0B6BB0]' : 'border-transparent text-[#5E778C] hover:bg-[#EEF6FC] hover:text-[#0F2233]'}`}>
                         <span className="truncate">{i.label || VIEW_TITLES[i.id]}</span><Count item={i} />
                       </Link>
                     );
@@ -202,9 +202,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           </div>
 
           <div className="pt-3 flex flex-col gap-2.5">
-            <Link href={viewHref('settings')} onClick={go} className="flex items-center justify-between rounded-xl bg-[#F2F7FB] px-3 py-2 text-xs hover:bg-[#E6F1FA]" title="Server sync status">
-              <span className="font-bold text-[#0A1F33]">CRM server</span>
-              <span className="font-bold" style={{ color: syncBad ? '#A1301A' : '#14653F' }}>● {syncText}</span>
+            <Link href={viewHref('settings')} onClick={go} className="block rounded-xl bg-[#F2F7FB] px-3 py-2 text-xs hover:bg-[#E6F1FA]" title={`CRM server · ${syncText}`}>
+              <span className="flex items-center justify-between"><span className="font-bold text-[#0A1F33]">CRM server</span><span className="font-bold" style={{ color: syncBad ? '#A1301A' : '#14653F' }}>● {offline ? 'Offline' : sync.status === 'error' ? 'Sync error' : sync.status === 'syncing' || sync.status === 'loading' ? 'Syncing' : 'Synced'}</span></span>
+              {sync.lastSyncAt && <span className="block text-[11px] text-[#7E93A6] mt-0.5 truncate">Updated {formatRelative(sync.lastSyncAt)}</span>}
             </Link>
             {!mobile && (
               <button type="button" onClick={onToggleCollapse} className="self-start flex items-center gap-2.5 h-11 rounded-full bg-[#0A1F33] pl-1.5 pr-4 text-[13px] font-bold text-[#7FD0F7] hover:bg-[#16466E]">

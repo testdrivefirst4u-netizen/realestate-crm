@@ -397,16 +397,16 @@ const SourceDonut: React.FC<{ rows: Array<{ key: string; label: string; count: n
   const stops = shown.map((r, i) => { const a = acc; acc += total ? (r.count / total) * 100 : 0; return `${SOURCE_COLORS[i % SOURCE_COLORS.length]} ${a.toFixed(2)}% ${acc.toFixed(2)}%`; });
   if (acc < 100) stops.push(`${C.soft} ${acc.toFixed(2)}% 100%`);
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-col items-center gap-4">
       <div className="w-[130px] h-[130px] rounded-full flex-none flex items-center justify-center" style={{ background: `conic-gradient(${stops.join(', ')})` }} role="img" aria-label={`${total} enquiries by source`}>
         <div className="w-[84px] h-[84px] rounded-full bg-white flex items-center justify-center text-[22px] font-extrabold text-[#0B2A44]">{total}</div>
       </div>
-      <div className="flex-1 min-w-0 space-y-1">
+      <div className="w-full min-w-0 space-y-1">
         {shown.map((r, i) => (
           <button key={r.key} type="button" onClick={() => onClick(r.key)} className="w-full flex items-center gap-2 text-[13px] rounded-md px-1 py-0.5 hover:bg-[#F2F7FB] text-left">
             <span className="w-2.5 h-2.5 rounded-[3px] flex-none" style={{ background: SOURCE_COLORS[i % SOURCE_COLORS.length] }} />
             <span className="flex-1 truncate text-[#0F2233]">{r.label}</span>
-            <span className="text-[11.5px] text-[#7E93A6] whitespace-nowrap">{r.bookings || 0} bkd</span>
+            <span className="text-[11.5px] text-[#7E93A6] whitespace-nowrap">{r.bookings || 0} booked</span>
             <strong className="w-8 text-right text-[#0F2233]">{r.count}</strong>
           </button>
         ))}

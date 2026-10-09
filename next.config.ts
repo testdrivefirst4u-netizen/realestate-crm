@@ -36,6 +36,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Local escape hatch: NEXT_DIST_DIR=.next-local builds elsewhere when .next is locked (e.g. by antivirus). Unset = .next.
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+  // Next's development badge sits bottom-left by default, on top of the sidebar's profile button.
+  devIndicators: { position: 'bottom-right' },
   // The repository root holds the original Vite app (with its own lockfile): pin the workspace to next-app/.
   turbopack: { root: path.resolve(__dirname) },
   // The MongoDB driver and its optional native deps must stay server-side and unbundled.

@@ -86,7 +86,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
       <div className="lg:hidden flex items-center gap-2 min-w-0">
         <button onClick={onToggleSidebarMobile} className="p-2 rounded-lg text-[#0B2A44] hover:bg-[#F2F7FB]" aria-label="Menu"><Menu size={19} /></button>
         <AppLogo size="xs" />
-        <h1 className="text-base font-bold text-[#0B2A44] tracking-tight truncate max-w-[34vw] sm:max-w-none">{(currentView && VIEW_TITLES[currentView]) || company?.name || 'CRM'}</h1>
+        <h1 className="hidden sm:block text-base font-bold text-[#0B2A44] tracking-tight truncate">{(currentView && VIEW_TITLES[currentView]) || company?.name || 'CRM'}</h1>
       </div>
 
         <div ref={ref} className="relative flex-1 min-w-0 max-w-[460px] ml-auto lg:ml-0">
