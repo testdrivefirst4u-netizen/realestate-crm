@@ -34,6 +34,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Local escape hatch: NEXT_DIST_DIR=.next-local builds elsewhere when .next is locked (e.g. by antivirus). Unset = .next.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // The repository root holds the original Vite app (with its own lockfile): pin the workspace to next-app/.
   turbopack: { root: path.resolve(__dirname) },
   // The MongoDB driver and its optional native deps must stay server-side and unbundled.
