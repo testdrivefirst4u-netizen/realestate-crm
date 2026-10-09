@@ -56,8 +56,8 @@ const Panel: React.FC<{ title: React.ReactNode; subtitle?: React.ReactNode; acti
 
 /** ▲ 12% / ▼ 3 — green when the change is good. */
 const Delta: React.FC<{ value: number | null | undefined; lowerIsBetter?: boolean; suffix?: string }> = ({ value, lowerIsBetter, suffix = '%' }) => {
-  if (value === undefined) return null;
-  if (value === null) return <span className="text-[11px] font-extrabold rounded-md px-1.5 py-px bg-[#E0F0FF] text-[#0B5E9C]">new</span>;
+  // No previous period to compare with (none, or it was zero): show nothing rather than a row of "new" chips.
+  if (value === undefined || value === null) return null;
   const good = lowerIsBetter ? value < 0 : value > 0;
   const flat = Math.abs(value) < 0.05;
   const cls = flat ? 'bg-[#EEF4F9] text-[#5E778C]' : good ? 'bg-[#E1F5EA] text-[#14653F]' : 'bg-[#FDE8E3] text-[#A1301A]';
