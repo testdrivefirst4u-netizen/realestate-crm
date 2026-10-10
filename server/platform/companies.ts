@@ -57,7 +57,7 @@ function validateLogo(v: unknown): string {
   if (v === null || v === undefined || v === '') return '';
   const s = String(v).trim();
   if (!LOGO_RE.test(s)) throw fail('VALIDATION', 'Logo must be a PNG, JPEG or WebP image');
-  if (s.length > 48000) throw fail('VALIDATION', 'Logo is too large (max ~35 KB) — please use a smaller image');
+  if (s.length > 200_000) throw fail('VALIDATION', 'Logo is too large (max ~150 KB) — please use a smaller image');
   return s;
 }
 

@@ -5,7 +5,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
-import { AppLogo } from './AppLogo';
+import { AppLogo, useLogoSrc } from './AppLogo';
 import { Avatar } from './Avatar';
 import { useCompany } from '../core/tenant';
 import { type ViewId, VIEW_TITLES, viewAllowed, viewHref } from '../core/views';
@@ -66,6 +66,7 @@ const Count: React.FC<{ item: Item; dark?: boolean }> = ({ item, dark }) =>
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, onNewEnquiry, counts = {}, unreadChats }) => {
   const company = useCompany();
+  const logo = useLogoSrc();
   const allowed = (v: ViewId) => viewAllowed(v, { features }, can);
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats })
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
@@ -170,10 +171,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       {expanded && (
         <nav aria-label="Main menu" className="w-[232px] flex-none flex flex-col pl-5 pr-4 pt-5 pb-4 min-h-0">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-[19px] font-bold text-[#0A1F33] leading-tight truncate" title={company?.name || 'CRM'}>{company?.name || 'CRM'}</div>
-              <div className="text-xs text-[#7E93A6] truncate">{company?.tagline || 'Sales CRM'}</div>
-            </div>
+            {logo.src ? (
+              <Link href={viewHref('dashboard')} onClick={go} className="min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logo.src} alt={company?.name || 'Company logo'} onError={logo.onError} className="h-12 w-auto max-w-full object-contain object-left" />
+              </Link>
+            ) : (
+              <div className="min-w-0">
+                <div className="text-[19px] font-bold text-[#0A1F33] leading-tight truncate" title={company?.name || 'CRM'}>{company?.name || 'CRM'}</div>
+                <div className="text-xs text-[#7E93A6] truncate">{company?.tagline || 'Sales CRM'}</div>
+              </div>
+            )}
             {mobile && <button type="button" onClick={onCloseMobile} className="p-1.5 -mr-1 rounded-md text-[#5E778C] hover:text-[#0A1F33]" aria-label="Close menu"><X size={18} /></button>}
           </div>
           {onNewEnquiry && (

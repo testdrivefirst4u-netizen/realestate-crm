@@ -92,7 +92,7 @@ export function EditCompanyForm({ company, plans, onSaved }: { company: CompanyD
       <form onSubmit={submit} noValidate>
         <div className="grid gap-4 p-5 sm:grid-cols-2">
           <TextField label="Company name" value={f.name} onChange={(e) => set('name', e.target.value)} required error={show('name')} maxLength={120} />
-          <TextField label="Tagline" value={f.tagline} onChange={(e) => set('tagline', e.target.value)} maxLength={140} hint="Shown under the name in the CRM." />
+          <TextField label="Tagline" value={f.tagline} onChange={(e) => set('tagline', e.target.value)} maxLength={140} hint="Shown under the name in the CRM sidebar when the company has no logo." />
           <div className="sm:col-span-2">
             <LogoUpload value={f.logo} onChange={(v) => set('logo', v)} name={f.name || company.name} disabled={busy} />
           </div>

@@ -319,7 +319,7 @@ describe('companies', () => {
     expect(body(ai).code).toBe('FORBIDDEN');
 
     expect((await pd('updateCompany', { id: s.id, patch: { logo: 'data:image/gif;base64,AAAA' } }, sa)).status).toBe(400);
-    expect((await pd('updateCompany', { id: s.id, patch: { logo: 'data:image/png;base64,' + 'A'.repeat(48001) } }, sa)).status).toBe(400);
+    expect((await pd('updateCompany', { id: s.id, patch: { logo: 'data:image/png;base64,' + 'A'.repeat(200_001) } }, sa)).status).toBe(400);
     expect((await pd('updateCompany', { id: s.id, patch: { maxUsers: -1 } }, sa)).status).toBe(400);
     expect((await pd('updateCompany', { id: s.id, patch: { maxUsers: 1.5 } }, sa)).status).toBe(400);
     const up = await pd('updateCompany', { id: s.id, patch: { features: { aiCopilot: true }, logo: 'data:image/png;base64,iVBORw0KGgo=', tagline: 'Hi' } }, sa);

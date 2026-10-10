@@ -78,7 +78,7 @@ export interface CompanyUser {
 
 export interface CompanyDetail extends CompanySummary {
   dbName: string;
-  logo: string; // data URL ≤ 48 KB or ''
+  logo: string; // data URL ≤ 200 000 characters or ''
   tagline: string;
   contactName: string;
   contactPhone: string;

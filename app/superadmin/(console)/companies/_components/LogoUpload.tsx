@@ -3,8 +3,9 @@ import { useId, useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { Button, cx } from '../../../_components/ui';
 
-const MAX_SIDE = 128;
-const MAX_BYTES = 48 * 1024;
+const MAX_SIDE = 512;
+/** Data-URL length; the server rejects anything longer (server/platform/companies.ts). */
+const MAX_BYTES = 200_000;
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -22,7 +23,7 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-/** Resizes an image so its longest side is ≤ 128 px and returns a data URL of at most 48 KB. */
+/** Resizes an image so its longest side is ≤ 512 px and returns a data URL of at most ~150 KB. */
 export async function imageToLogoDataUrl(file: File): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('Choose an image file (PNG, JPG, SVG or WebP).');
   const img = await loadImage(file);
@@ -58,7 +59,7 @@ export async function imageToLogoDataUrl(file: File): Promise<string> {
     const jpg = flat.toDataURL('image/jpeg', q);
     if (fits(jpg)) return jpg;
   }
-  throw new Error('This image is too detailed to fit in 48 KB. Try a simpler logo.');
+  throw new Error('This image is too detailed to fit in 150 KB. Try a simpler logo.');
 }
 
 export function LogoUpload({ value, onChange, name, disabled }: { value: string; onChange: (v: string) => void; name: string; disabled?: boolean }) {
@@ -87,7 +88,7 @@ export function LogoUpload({ value, onChange, name, disabled }: { value: string;
         Logo
       </span>
       <div className="flex items-center gap-4">
-        <div className={cx('flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E4DCD2] bg-[#FBF9F6]', !value && 'border-dashed')}>
+        <div className={cx('flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E4DCD2] bg-[#FBF9F6]', !value && 'border-dashed')}>
           {value ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt={`${name} logo`} className="max-h-full max-w-full object-contain" />
@@ -124,7 +125,7 @@ export function LogoUpload({ value, onChange, name, disabled }: { value: string;
         </p>
       ) : (
         <p id={`${id}-h`} className="text-[13px] text-[#7A6F64]">
-          Resized to at most 128 px and 48 KB. Shown in the company&apos;s CRM header.
+          A wide logo on a transparent background works best (about 400 × 120 px). It replaces the company name at the top of the CRM sidebar.
         </p>
       )}
     </div>

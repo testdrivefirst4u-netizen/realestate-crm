@@ -24,10 +24,10 @@ const SIZES: Record<string, { box: string; img: string; text: string }> = {
 };
 
 /**
- * The company's logo. Order: a logo uploaded on this device (Settings › Display) → the company logo →
- * the company's initials → a neutral CRM mark (before sign-in, when no company is known).
+ * The logo image to show: one uploaded on this device (Settings › Display), else the company logo (set by the
+ * platform admin), else '' — so callers can fall back to text. `onError` drops an image that fails to load.
  */
-export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' }) => {
+export function useLogoSrc(): { src: string; onError: () => void } {
   const company = useCompany();
   /** Read after mount: the server render cannot see this device's storage (and must match the first client render). */
   const [deviceLogo, setDeviceLogo] = useState<string>('');
@@ -44,16 +44,27 @@ export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' })
     };
   }, []);
 
+  const src = [deviceLogo, company?.logo || ''].find((u) => u && u !== failed) || '';
+  return { src, onError: () => setFailed(src) };
+}
+
+/**
+ * The company's logo. Order: a logo uploaded on this device (Settings › Display) → the company logo →
+ * the company's initials → a neutral CRM mark (before sign-in, when no company is known).
+ */
+export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' }) => {
+  const company = useCompany();
+  const { src, onError } = useLogoSrc();
+
   const s = SIZES[size] || SIZES.md;
   const name = company?.name || '';
-  const src = [deviceLogo, company?.logo || ''].find((u) => u && u !== failed) || '';
   const initials = companyInitials(name);
   const label = name ? `${name} logo` : 'CRM';
 
   return (
     <div className={`inline-flex items-center justify-center select-none ${className}`} title={name || 'CRM'}>
       {src ? (
-        <img src={src} alt={label} className={`${s.img} object-contain rounded-md filter drop-shadow-sm`} onError={() => setFailed(src)} />
+        <img src={src} alt={label} className={`${s.img} object-contain rounded-md filter drop-shadow-sm`} onError={onError} />
       ) : initials ? (
         <div className={`${s.box} ${s.text} rounded-lg bg-[#0B6BB0] text-white font-bold flex items-center justify-center tracking-wide`} aria-label={label} role="img">
           {initials}
