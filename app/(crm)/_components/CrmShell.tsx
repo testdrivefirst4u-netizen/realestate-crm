@@ -356,6 +356,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 whatsappFeature={on('chat360')}
                 tasks={data.tasks}
                 inventory={data.inventory}
+                leads={data.leads}
                 onOpenCopilot={openCopilot}
               />
 

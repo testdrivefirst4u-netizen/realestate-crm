@@ -335,7 +335,7 @@ describe('retry & preview', () => {
     const again = await inCo(() => LS.retryInbound({ id: failed.id }, null));
     expect(again).toMatchObject({ id: failed.id, status: 'created', leadId: 'ENQ-0001' });
     const [lead] = await leadsIn();
-    expect(lead['Enquiry Notes']).toContain('city: Pune');
+    expect(lead['City']).toBe('Pune'); // a `city` field now fills the lead's City instead of the notes
     await expect(inCo(() => LS.retryInbound({ id: failed.id }, null))).rejects.toThrow(/Only failed/);
     const [src] = await inCo(() => LS.listLeadSources());
     expect(src.id).toBe(source.id);

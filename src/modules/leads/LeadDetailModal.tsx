@@ -20,6 +20,7 @@ import { sound } from '../../services/sound';
 import { Badge, Button, ConfirmDialog, Field, InlineNotice, Modal, Select, StageBadge, Tabs, cx, inputCls } from '../../components/ui';
 import type { OpenCopilot } from '../ai/copilotContext';
 import { LeadStars, optionsWithCurrent } from './shared';
+import { GeoFields } from './GeoFields';
 import { TimelineTab } from './detail/TimelineTab';
 import { FollowupsTab } from './detail/FollowupsTab';
 import { CallsTab } from './detail/CallsTab';
@@ -47,6 +48,8 @@ export interface LeadDetailModalProps {
   whatsappFeature?: boolean;
   tasks: TaskItem[];
   inventory: InventoryUnit[];
+  /** All leads — only for the city / state suggestions. */
+  leads?: Lead[];
   /**
    * Opens the AI Copilot with this enquiry as context ("Ask Copilot", WhatsApp "Suggest a reply").
    * Optional — the buttons are hidden until App wires it (and while AI is not configured).
@@ -64,9 +67,9 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = (props) => {
 type TabId = 'details' | 'timeline' | 'followups' | 'calls' | 'whatsapp' | 'files';
 type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead };
 
-const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES];
+const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY];
 
-const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, currentUser, onClose, onSaveLead, onAppendRemark, onTrashLead, onAddTask, canTrash, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
+const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onTrashLead, onAddTask, canTrash, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
   const id = String(lead[F.ID]);
   const [tab, setTab] = useState<TabId>('details');
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -340,6 +343,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, current
                 <Field label="Assigned RM">
                   <Select value={value(F.RM)} onChange={(e) => setField(F.RM, e.target.value)} options={opts(F.RM)} placeholder="Unassigned" disabled={!canEdit} />
                 </Field>
+                <GeoFields leads={leads} value={value} onChange={setField} disabled={!canEdit} />
               </div>
             </section>
 

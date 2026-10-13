@@ -42,6 +42,10 @@ export const F = {
   CREATED_AT: 'Created At',
   UPDATED_AT: 'Updated At',
   UPDATED_BY: 'Updated By',
+  /** Where the prospect lives. Not base headers: the backend keeps them in the lead's extra columns. */
+  COUNTRY: 'Country',
+  STATE: 'State',
+  CITY: 'City',
 } as const;
 
 export const MAX_FOLLOWUPS = 50;

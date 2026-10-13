@@ -73,6 +73,9 @@ export const CFG = {
     UPDATED_BY: 'Updated By',
   },
 
+  /** Where the prospect lives — kept in the lead's extra columns (not base headers), filled by intake aliases. */
+  LEAD_GEO: { COUNTRY: 'Country', STATE: 'State', CITY: 'City' },
+
   LEAD_BASE_HEADERS: [
     'Enquiry ID', 'Enquiry Date', 'Prospect Name', 'Phone Number', 'Email', 'Lead Stage', 'Enquiry Source',
     'Unit Type Interested In', 'Purchase or Rent', 'Site Visit Status', 'Site Visit Date', 'Booking Date',

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { F, SITE_VISIT, STAGES } from '../src/core/config';
-import { addDaysKey, firstCallByLead, periodRange, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
+import { addDaysKey, changePct, firstCallByLead, funnelCounts, funnelStep, periodRange, previousRange, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
+import { mapMetaLead } from '../server/modules/meta';
 import { sourceKind } from '../src/modules/leads/SourceLogo';
 import type { CallRecord, Lead } from '../src/types/crm';
 
@@ -29,7 +30,7 @@ describe('MIS stage mapping', () => {
   });
 
   it('takes the earliest of first follow-up and first call as the response', () => {
-    const l = lead('10', STAGES.OPEN, { 'Follow-up 1': '05 Oct 2026, 12:00 PM | Called' });
+    const l = lead('10', STAGES.OPEN, { 'Follow-up 1': '2026-10-05 12:00 — Called' });
     const calls = [{ id: 'c', leadId: '10', startTime: '2026-10-05T10:30:00+05:30' } as CallRecord];
     expect(toMisLeads([l], firstCallByLead(calls))[0].respMins).toBe(30);
   });
@@ -57,5 +58,48 @@ describe('source logos', () => {
     expect(sourceKind('Website/Whatsapp')).toBe('website');
     expect(sourceKind('Google Sheet')).toBe('sheet');
     expect(sourceKind('Google Ads')).toBe('google');
+  });
+});
+
+describe('MIS funnel and trends', () => {
+  const mis = (l: Lead) => toMisLeads([l], new Map())[0];
+
+  it('places each lead at the furthest step it reached, counting earlier steps too', () => {
+    const list = [
+      mis(lead('a', STAGES.NEW)),
+      mis(lead('b', STAGES.NEW, { 'Follow-up 1': '2026-10-05 12:00 — Called' })),
+      mis(lead('c', STAGES.QUALIFIED)),
+      mis(lead('d', STAGES.WARM, { [F.SITE_VISIT_STATUS]: SITE_VISIT.SCHEDULED })),
+      mis(lead('e', STAGES.HOT, { [F.SITE_VISIT_STATUS]: SITE_VISIT.COMPLETED })),
+      mis(lead('f', STAGES.BOOKED)),
+      mis(lead('g', STAGES.DQ_BUDGET)),
+    ];
+    expect(list.map(funnelStep)).toEqual([0, 1, 2, 3, 4, 5, 0]);
+    expect(funnelCounts(list)).toEqual([7, 5, 4, 3, 2, 1]);
+  });
+
+  it('compares like-for-like stretches', () => {
+    const today = '2026-10-15'; // Thursday
+    expect(previousRange('today', today)?.range).toEqual(['2026-10-14', '2026-10-14']);
+    expect(previousRange('week', today)?.range).toEqual(['2026-10-05', '2026-10-08']);
+    expect(previousRange('month', '2026-03-31')?.range).toEqual(['2026-02-01', '2026-02-28']);
+    expect(previousRange('all', today)).toBeNull();
+    expect(changePct(12, 10)).toBe(20);
+    expect(changePct(5, 0)).toBeNull();
+  });
+
+  it('reads City / State / Country and normalises country codes', () => {
+    const m = mis(lead('h', STAGES.NEW, { [F.CITY]: 'Dubai', [F.COUNTRY]: 'AE' }));
+    expect(m).toMatchObject({ city: 'Dubai', country: 'UAE' });
+  });
+});
+
+describe('Meta lead forms', () => {
+  it('passes city, state and country through to intake', () => {
+    const out = mapMetaLead(
+      { id: '1', form_id: 'F', created_time: '', field_data: [{ name: 'full_name', values: ['Asha'] }, { name: 'city', values: ['Pune'] }, { name: 'province', values: ['Maharashtra'] }, { name: 'country', values: ['IN'] }] } as any,
+      { config: {} } as any,
+    );
+    expect(out).toMatchObject({ city: 'Pune', state: 'Maharashtra', country: 'IN' });
   });
 });

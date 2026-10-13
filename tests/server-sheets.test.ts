@@ -336,7 +336,7 @@ describe('import (lead source type google_sheet)', () => {
     const leads = await leadsIn();
     expect(leads).toHaveLength(2);
     expect(leads[0]).toMatchObject({ 'Prospect Name': 'Asha Rao', Email: 'asha@example.com', 'Enquiry Source': 'Google Sheet', 'Lead Stage': 'New' });
-    expect(leads[0]['Enquiry Notes']).toContain('City: Pune');
+    expect(leads[0]['City']).toBe('Pune'); // a City column fills the lead's City (it used to go to the notes)
 
     // re-run: nothing new, nothing written
     calls = [];

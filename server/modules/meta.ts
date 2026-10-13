@@ -416,6 +416,7 @@ export async function checkMetaSource(d: Req<'checkMetaSource'>, ctx: Ctx | null
 /* ------------------------------- lead mapping ---------------------------- */
 
 const STANDARD = new Set(['full_name', 'first_name', 'last_name', 'phone_number', 'email']);
+const GEO = new Set(['city', 'state', 'province', 'country']);
 const LABELS: Record<string, string> = {
   city: 'City', state: 'State', province: 'Province', country: 'Country', zip_code: 'ZIP code', post_code: 'Post code', street_address: 'Address',
   company_name: 'Company', job_title: 'Job title', work_email: 'Work e-mail', work_phone_number: 'Work phone', date_of_birth: 'Date of birth',
@@ -450,6 +451,8 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
       out[k] = value;
       continue;
     }
+    // Where the prospect lives: intake aliases map these onto the lead's City / State / Country.
+    if (GEO.has(k)) out[k === 'province' ? 'state' : k] = value;
     if (k === 'work_email') workEmail = value;
     if (k === 'work_phone_number') workPhone = value;
     notes.push(`${LABELS[k] || questionLabel(name)}: ${truncate(value, 300)}`);

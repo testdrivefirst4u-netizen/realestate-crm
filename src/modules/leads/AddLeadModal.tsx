@@ -18,6 +18,7 @@ import { fromDatetimeLocalInput, nowIso, toDatetimeLocalInput, toSheetDateTime }
 import { formatPhone, isLikelyPhone, samePhone } from '../../core/phone';
 import { Button, Field, InlineNotice, Modal, Select, StageBadge, cx, inputCls } from '../../components/ui';
 import { SmartTextarea, optionsWithCurrent } from './shared';
+import { GeoFields } from './GeoFields';
 
 export interface AddLeadModalProps {
   isOpen: boolean;
@@ -52,6 +53,9 @@ interface FormState {
   siteVisitDateAuto: boolean;
   relationship: string;
   enquiredFor: string;
+  country: string;
+  state: string;
+  city: string;
   brochure: string;
   rm: string;
   notes: string;
@@ -60,7 +64,9 @@ interface FormState {
   forceCreate: boolean;
 }
 
-const isVisitScheduled = (status: string) => status === SITE_VISIT.SCHEDULED;
+const GEO_KEY: Record<string, 'country' | 'state' | 'city'> = { [F.COUNTRY]: 'country', [F.STATE]: 'state', [F.CITY]: 'city' };
+
+const isVisitScheduled =(status: string) => status === SITE_VISIT.SCHEDULED;
 const isVisitDone = (status: string) => SITE_VISIT_DONE.includes(status);
 
 const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true }) => {
@@ -77,6 +83,9 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
     siteVisitStatus: (config.options[F.SITE_VISIT_STATUS] || []).includes(SITE_VISIT.PROSPECT) ? SITE_VISIT.PROSPECT : '',
     relationship: '',
     enquiredFor: '',
+    country: 'India',
+    state: '',
+    city: '',
     brochure: (config.options[F.BROCHURE] || []).includes('No') ? 'No' : '',
     rm: currentUser?.name && rmOptions.includes(currentUser.name) ? currentUser.name : '',
     notes: '',
@@ -141,6 +150,9 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
       [F.SITE_VISIT_STATUS]: form.siteVisitStatus,
       [F.RELATIONSHIP]: form.relationship,
       [F.ENQUIRED_FOR]: form.enquiredFor,
+      [F.COUNTRY]: form.country.trim(),
+      [F.STATE]: form.state.trim(),
+      [F.CITY]: form.city.trim(),
       [F.BROCHURE]: form.brochure,
       [F.RM]: form.rm,
       [F.NOTES]: form.notes.trim(),
@@ -210,6 +222,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
             <Field label="Enquired for" hint="Who will live in the home">
               <Select value={form.enquiredFor} onChange={(e) => set('enquiredFor', e.target.value)} options={opts(F.ENQUIRED_FOR, form.enquiredFor)} placeholder="Select…" />
             </Field>
+            <GeoFields leads={leads} value={(f) => form[GEO_KEY[f]]} onChange={(f, v) => set(GEO_KEY[f], v)} />
           </div>
 
           {duplicate && (

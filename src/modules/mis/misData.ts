@@ -88,7 +88,7 @@ export function canonCountry(c: string): string {
   const k = c.toLowerCase().replace(/[^a-z]/g, '');
   if (['us', 'usa', 'unitedstates', 'unitedstatesofamerica', 'america'].includes(k)) return 'USA';
   if (['uk', 'unitedkingdom', 'greatbritain', 'britain', 'england', 'gb'].includes(k)) return 'UK';
-  if (['uae', 'unitedarabemirates', 'emirates'].includes(k)) return 'UAE';
+  if (['uae', 'ae', 'unitedarabemirates', 'emirates'].includes(k)) return 'UAE';
   if (['india', 'in', 'bharat'].includes(k)) return 'India';
   return c.trim();
 }
@@ -165,9 +165,9 @@ export function toMisLeads(leads: Lead[], firstCall: Map<string, Date>): MisLead
       svPlanned: sv === SITE_VISIT.SCHEDULED && stage !== 'disqualified' && stage !== 'ni' && stage !== 'booked',
       respMins: enq && first ? (first.getTime() - enq.getTime()) / 60000 : null,
       responded: !!(fu || call),
-      country: canonCountry(pick(lead, 'Country', 'country')),
-      state: pick(lead, 'State', 'state'),
-      city: pick(lead, 'City', 'city'),
+      country: canonCountry(pick(lead, F.COUNTRY, 'country')),
+      state: pick(lead, F.STATE, 'state'),
+      city: pick(lead, F.CITY, 'city'),
     };
   });
 }
@@ -200,6 +200,51 @@ export function periodRange(p: PeriodId, custom: Range = ['', ''], today = dateK
     default: return ['', ''];
   }
 }
+
+/**
+ * The like-for-like earlier period for a trend: today vs yesterday, this week so far vs the same
+ * weekdays last week, this month so far vs the same dates last month. null = nothing to compare.
+ */
+export function previousRange(p: PeriodId, today = dateKey(new Date())): { range: Range; label: string } | null {
+  if (p === 'today') { const y = addDaysKey(today, -1); return { range: [y, y], label: 'vs yesterday' }; }
+  if (p === 'week') {
+    const ws = weekStartKey(today), s = addDaysKey(ws, -7);
+    return { range: [s, addDaysKey(today, -7)], label: 'vs same days last week' };
+  }
+  if (p === 'month') {
+    const lms = monthStartKey(addDaysKey(monthStartKey(today), -1));
+    const upto = Math.min(Number(today.slice(8)), daysInMonth(lms));
+    return { range: [lms, addDaysKey(lms, upto - 1)], label: 'vs same dates last month' };
+  }
+  return null;
+}
+
+/** % change; null when there is no earlier figure to compare with. */
+export const changePct = (now: number, before: number): number | null => (before ? Math.round(((now - before) * 100) / before) : null);
+
+/* -------------------------------- funnel --------------------------------- */
+
+export const FUNNEL_STEPS = ['Leads', 'Contacted', 'Qualified', 'Site visit planned', 'Site visit done', 'Booked'] as const;
+const SV_PLANNED_OR_DONE = new Set<string>([SITE_VISIT.SCHEDULED, SITE_VISIT.WALK_IN, SITE_VISIT.COMPLETED]);
+
+/**
+ * Furthest funnel step a lead reached (index into FUNNEL_STEPS). A later step implies the earlier
+ * ones — a booked lead counts as contacted even when no follow-up was logged — so the funnel never widens.
+ */
+export function funnelStep(l: MisLead): number {
+  if (l.stage === 'booked') return 5;
+  if (SITE_VISIT_DONE.includes(l.sv) || l.stage === 'ni') return 4;
+  if (SV_PLANNED_OR_DONE.has(l.sv)) return 3;
+  if (l.stage !== 'open' && l.stage !== 'disqualified') return 2;
+  if (l.responded) return 1;
+  return 0;
+}
+
+export const funnelCounts = (list: MisLead[]) => {
+  const out = FUNNEL_STEPS.map(() => 0);
+  for (const l of list) for (let i = funnelStep(l); i >= 0; i--) out[i]++;
+  return out;
+};
 
 export const inRange = (day: string, [a, b]: Range) => (!a || (!!day && day >= a)) && (!b || (!!day && day <= b));
 

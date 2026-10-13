@@ -88,6 +88,9 @@ alias(L.PHONE, ['phone', 'mobile', 'phone_number', 'phonenumber', 'mobile_number
 alias(L.EMAIL, ['email', 'e_mail', 'email_address', 'your_email', 'mail']);
 alias(L.NOTES, ['message', 'notes', 'note', 'comments', 'comment', 'enquiry', 'inquiry', 'your_message', 'remarks', 'requirement']);
 alias(L.UNIT_TYPE, ['unit', 'unit_type', 'bhk', 'configuration', 'unit_type_interested_in']);
+alias(CFG.LEAD_GEO.CITY, ['city', 'your_city', 'town', 'city_name', 'current_city', 'location_city']);
+alias(CFG.LEAD_GEO.STATE, ['state', 'province', 'region', 'state_province', 'your_state']);
+alias(CFG.LEAD_GEO.COUNTRY, ['country', 'your_country', 'country_name', 'country_of_residence']);
 // CRM headers themselves ('Phone Number', 'Purchase or Rent', …) are recognised too.
 for (const h of CFG.LEAD_BASE_HEADERS) ALIASES[normKey(h)] ||= h;
 const FIRST = new Set(['first_name', 'firstname', 'fname', 'given_name']);

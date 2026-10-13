@@ -15,8 +15,8 @@ import { Button, Select, cx } from '../../components/ui';
 import { PageSkeleton } from '../../components/Skeletons';
 import { SourceLogo } from '../leads/SourceLogo';
 import {
-  BLANK, CallDay, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_STATUSES, UNASSIGNED,
-  addDaysKey, avgResp, callDays, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
+  BLANK, CallDay, FUNNEL_STEPS, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_STATUSES, UNASSIGNED,
+  addDaysKey, avgResp, callDays, changePct, funnelCounts, funnelStep, previousRange, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
   pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
 } from './misData';
 
@@ -31,6 +31,26 @@ export interface MisViewProps {
 }
 
 const CALL_POLL_MS = 60_000;
+
+/** This device remembers the MIS filters between visits. */
+const FILTERS_KEY = 'crm_mis_filters';
+const PERIODS: PeriodId[] = ['today', 'week', 'month', 'all', 'custom'];
+
+interface SavedFilters { period: PeriodId; custom: Range; teamPeriod: PeriodId; rm: string; source: string; country: string; state: string; city: string }
+
+function loadFilters(): SavedFilters {
+  const out: SavedFilters = { period: 'month', custom: ['', ''], teamPeriod: 'week', rm: '', source: '', country: '', state: '', city: '' };
+  try {
+    const v = JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}');
+    if (PERIODS.includes(v.period)) out.period = v.period;
+    if (PERIODS.includes(v.teamPeriod) && v.teamPeriod !== 'custom') out.teamPeriod = v.teamPeriod;
+    if (Array.isArray(v.custom) && v.custom.length === 2) out.custom = [String(v.custom[0] || ''), String(v.custom[1] || '')];
+    for (const k of ['rm', 'source', 'country', 'state', 'city'] as const) if (typeof v[k] === 'string') out[k] = v[k];
+  } catch {
+    /* nothing saved, or storage blocked */
+  }
+  return out;
+}
 
 /* ------------------------------- small UI -------------------------------- */
 
@@ -70,6 +90,20 @@ const Dot: React.FC<{ color: string; square?: boolean }> = ({ color, square }) =
 
 const Pc: React.FC<{ n: number; of: number; suffix?: string }> = ({ n, of, suffix }) => (of ? <span className="text-[#7E93A6] text-[10px] font-normal ml-1">{pct(n, of)}{suffix}</span> : null);
 
+/** ▲ / ▼ change against the earlier period; green when it moved the right way. */
+const Trend: React.FC<{ now: number; before: number; bad?: boolean; title: string }> = ({ now, before, bad, title }) => {
+  if (!now && !before) return null;
+  const d = changePct(now, before);
+  if (d === null) return <span className="block text-[10px] font-semibold text-[#0E8A7D]" title={`Earlier: ${title}`}>new</span>;
+  if (d === 0) return <span className="block text-[10px] text-[#A9BDCD]" title={`Earlier: ${title}`}>= same</span>;
+  const good = bad ? d < 0 : d > 0;
+  return (
+    <span className={cx('block text-[10px] font-semibold', good ? 'text-[#0E8A7D]' : 'text-[#D92D3A]')} title={`Earlier: ${title}`}>
+      {d > 0 ? '▲' : '▼'} {Math.abs(d)}%
+    </span>
+  );
+};
+
 const th = 'px-2.5 py-2 text-right font-semibold text-[#5E778C] text-[11px] whitespace-nowrap align-bottom border-b border-[#D3E3F0]';
 const td = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums border-b border-[#EEF4F9]';
 const first = '!text-left';
@@ -81,14 +115,23 @@ const foot = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums font-bold bo
 export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads }) => {
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [callsState, setCallsState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [period, setPeriod] = useState<PeriodId>('month');
-  const [custom, setCustom] = useState<Range>(['', '']);
-  const [teamPeriod, setTeamPeriod] = useState<PeriodId>('week');
-  const [rm, setRm] = useState('');
-  const [source, setSource] = useState('');
-  const [country, setCountry] = useState('');
-  const [state, setState] = useState('');
-  const [city, setCity] = useState('');
+  const [saved] = useState(loadFilters);
+  const [period, setPeriod] = useState<PeriodId>(saved.period);
+  const [custom, setCustom] = useState<Range>(saved.custom);
+  const [teamPeriod, setTeamPeriod] = useState<PeriodId>(saved.teamPeriod);
+  const [rm, setRm] = useState(saved.rm);
+  const [source, setSource] = useState(saved.source);
+  const [country, setCountry] = useState(saved.country);
+  const [state, setState] = useState(saved.state);
+  const [city, setCity] = useState(saved.city);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify({ period, custom, teamPeriod, rm, source, country, state, city }));
+    } catch {
+      /* storage blocked (private window) — the filters just aren't remembered */
+    }
+  }, [period, custom, teamPeriod, rm, source, country, state, city]);
   const [geoOpen, setGeoOpen] = useState<Set<string>>(() => new Set(['India']));
   const [weekInfo, setWeekInfo] = useState('');
   // Re-evaluate "today" every minute so periods roll over at midnight without a reload.
@@ -140,6 +183,16 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
   const countries = useMemo(() => uniq(all.map((l) => l.country)), [all]);
   const states = useMemo(() => uniq(all.filter((l) => !country || l.country === country).map((l) => l.state)), [all, country]);
   const cities = useMemo(() => uniq(all.filter((l) => (!country || l.country === country) && (!state || l.state === state)).map((l) => l.city)), [all, country, state]);
+
+  // A remembered filter whose value no longer exists would hide every lead — drop it once leads are in.
+  useEffect(() => {
+    if (!all.length) return;
+    if (rm && !rmOptions.includes(rm)) setRm('');
+    if (source && !sourceOptions.includes(source)) setSource('');
+    if (country && !countries.includes(country)) setCountry('');
+    if (state && !states.includes(state)) setState('');
+    if (city && !cities.includes(city)) setCity('');
+  }, [all.length, rm, rmOptions, source, sourceOptions, country, countries, state, states, city, cities]);
 
   const rangeText = rangeLabel(period, range);
   const show = (label: string, ls: MisLead[]) => onShowLeads(`${label} · ${PERIOD_NAME[period]}`, ls.map((l) => l.id));
@@ -209,6 +262,8 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
 
       <Details list={list} total={all.length} period={period} rangeText={rangeText} onPick={pickPeriod} show={show} />
 
+      <Funnel list={list} order={order} period={period} rangeText={rangeText} show={show} />
+
       <Weeks nonDate={nonDate} end={range[1] || today} order={order} info={weekInfo} setInfo={setWeekInfo} />
 
       <DqBySource list={list} order={order} period={period} rangeText={rangeText} reasons={dqReasons(all)} show={show} />
@@ -241,35 +296,42 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
 
 const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; onPick: (p: PeriodId) => void; reasons: string[] }> = ({ nonDate, period, today, onPick, reasons }) => {
   const ps: PeriodId[] = ['today', 'week', 'month', 'all'];
+  const summary = (ls: MisLead[]) => ({ total: ls.length, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length });
   const sets = ps.map((p) => {
     const r = periodRange(p, undefined, today);
     const ls = nonDate.filter((l) => inRange(l.day, r));
     const dq = ls.filter((l) => l.stage === 'disqualified');
-    return { p, r, ls, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length, dq };
+    const prev = previousRange(p, today);
+    return { p, r, ls, dq, now: summary(ls), prev: prev && { label: prev.label, ...summary(nonDate.filter((l) => inRange(l.day, prev.range))) } };
   });
   const sub = (p: PeriodId, [a, b]: Range) => (p === 'all' ? 'All dates' : p === 'today' ? fmtKey(a) : p === 'month' ? monthNameOf(a) : `${fmtKeyShort(a)} to ${fmtKeyShort(b)}`);
   const on = (p: PeriodId) => (p === period ? 'bg-[#F2F7FB]' : '');
-  const rows: Array<[string, string, (s: (typeof sets)[number]) => number]> = [
+  type Sum = ReturnType<typeof summary>;
+  // `bad`: a rise is unwelcome, so it is shown in red.
+  const rows: Array<[string, string, (s: Sum) => number, boolean?]> = [
     ['Sales Qualified', MIS_STAGE.qualified.color, (s) => s.c.qualified],
     ['Site visits planned', MIS_STAGE.prospect.color, (s) => s.sv],
     ['HOT', MIS_STAGE.hot.color, (s) => s.c.hot],
     ['Warm', MIS_STAGE.warm.color, (s) => s.c.warm],
     ['Booked', MIS_STAGE.booked.color, (s) => s.c.booked],
-    ['Open / not responded', MIS_STAGE.open.color, (s) => s.c.open],
-    ['Not interested post site visit', MIS_STAGE.ni.color, (s) => s.c.ni],
-    ['Disqualified', MIS_STAGE.disqualified.color, (s) => s.c.disqualified],
+    ['Open / not responded', MIS_STAGE.open.color, (s) => s.c.open, true],
+    ['Not interested post site visit', MIS_STAGE.ni.color, (s) => s.c.ni, true],
+    ['Disqualified', MIS_STAGE.disqualified.color, (s) => s.c.disqualified, true],
   ];
+  const trend = (s: (typeof sets)[number], fn: (x: Sum) => number, bad?: boolean) =>
+    s.prev ? <Trend now={fn(s.now)} before={fn(s.prev)} bad={bad} title={`${fn(s.prev)} ${s.prev.label.replace(/^vs /, '')}`} /> : null;
   return (
-    <Panel title="At a glance" hint="Leads counted by enquiry date. The week runs Monday to today. Percentages are a share of new leads in that period. Select a period heading to see its details below.">
+    <Panel title="At a glance" hint="Leads counted by enquiry date. The week runs Monday to today. Percentages are a share of new leads in that period; arrows compare with the same stretch of the previous day, week or month. Select a period heading to see its details below.">
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr>
               <th className={th} />
               {sets.map((s) => (
-                <th key={s.p} className={cx(th, 'min-w-[110px] rounded-t-lg', on(s.p))}>
+                <th key={s.p} className={cx(th, 'min-w-[120px] rounded-t-lg', on(s.p))}>
                   <button type="button" onClick={() => onPick(s.p)} className="text-[#0B2A44] text-sm font-bold hover:underline">{PERIOD_NAME[s.p]}</button>
                   <small className="block text-[10px] font-normal text-[#7E93A6]">{sub(s.p, s.r)}</small>
+                  {s.prev && <small className="block text-[10px] font-normal text-[#A9BDCD]">{s.prev.label}</small>}
                 </th>
               ))}
             </tr>
@@ -277,12 +339,12 @@ const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; on
           <tbody>
             <tr>
               <td className={cx(td, first, 'font-bold text-[#0B2A44]')}>New leads</td>
-              {sets.map((s) => <td key={s.p} className={cx(td, on(s.p), 'text-lg font-bold text-[#0B2A44]')}>{s.ls.length}</td>)}
+              {sets.map((s) => <td key={s.p} className={cx(td, on(s.p), 'text-lg font-bold text-[#0B2A44]')}>{s.ls.length}{trend(s, (x) => x.total)}</td>)}
             </tr>
-            {rows.map(([label, color, fn]) => (
+            {rows.map(([label, color, fn, bad]) => (
               <tr key={label} className="hover:bg-[#F7FAFD]">
                 <td className={cx(td, first, 'text-[#0F2233]')}><Dot color={color} />{label}</td>
-                {sets.map((s) => <td key={s.p} className={cx(td, on(s.p))}>{fn(s)}<Pc n={fn(s)} of={s.ls.length} /></td>)}
+                {sets.map((s) => <td key={s.p} className={cx(td, on(s.p))}>{fn(s.now)}<Pc n={fn(s.now)} of={s.ls.length} />{trend(s, fn, bad)}</td>)}
               </tr>
             ))}
             <tr><td colSpan={5} className="px-2.5 pt-4 pb-1.5 text-[11px] font-semibold text-[#5E778C] border-b border-[#D3E3F0]">Disqualified by reason</td></tr>
@@ -371,6 +433,93 @@ const CritRow: React.FC<{ label: string; n: number }> = ({ label, n }) => (
     <b className="text-[#0B2A44] tabular-nums font-semibold">{n}</b>
   </li>
 );
+
+/* -------------------------------- Funnel --------------------------------- */
+
+const FUNNEL_COLOURS = ['#74889A', '#5B8DB8', '#0E8A7D', '#3B5BDB', '#7B4BC4', '#1F7A4D'];
+
+const Funnel: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; rangeText: string; show: (label: string, ls: MisLead[]) => void }> = ({ list, order, period, rangeText, show }) => {
+  const steps = funnelCounts(list);
+  const atStep = (ls: MisLead[], i: number) => ls.filter((l) => funnelStep(l) >= i);
+  const rows: Array<[string, MisLead[]]> = order.map((s) => [s, list.filter((l) => l.source === s)] as [string, MisLead[]]).filter(([, ls]) => ls.length);
+  const blank = list.filter((l) => !l.source);
+  if (blank.length) rows.push([BLANK, blank]);
+  // Weakest step = the biggest drop between two steps, called out so the team knows where to look.
+  let weakest = -1, worst = 101;
+  for (let i = 1; i < steps.length; i++) {
+    if (!steps[i - 1]) break;
+    const conv = (steps[i] * 100) / steps[i - 1];
+    if (conv < worst) { worst = conv; weakest = i; }
+  }
+  return (
+    <Panel
+      title="Conversion funnel"
+      hint={`${PERIOD_NAME[period]}, ${rangeText}. Each step counts leads that reached it or went further, so a booked lead also counts as contacted. Select a step or number to open those leads.`}
+    >
+      {!list.length ? <p className="text-center text-sm text-[#7E93A6] py-6">No leads in this selection.</p> : (
+        <>
+          <div className="space-y-2 mb-2">
+            {FUNNEL_STEPS.map((name, i) => {
+              const n = steps[i], prev = i ? steps[i - 1] : n;
+              return (
+                <button key={name} type="button" onClick={() => show(`Funnel: ${name}`, atStep(list, i))} className="group w-full grid grid-cols-[120px_1fr_auto] sm:grid-cols-[150px_1fr_150px] items-center gap-3 text-left">
+                  <span className="text-xs font-semibold text-[#0B2A44] group-hover:underline truncate">{name}</span>
+                  <span className="h-7 rounded-lg bg-[#F2F7FB] overflow-hidden">
+                    <span className="h-full rounded-lg flex items-center px-2 text-[11px] font-bold text-white transition-[width] duration-500" style={{ width: `${Math.max((n * 100) / steps[0], n ? 4 : 0)}%`, background: FUNNEL_COLOURS[i] }}>
+                      {(n * 100) / steps[0] >= 12 ? n : ''}
+                    </span>
+                  </span>
+                  <span className="text-xs tabular-nums text-right whitespace-nowrap">
+                    <b className="text-[#0B2A44]">{n}</b>
+                    <span className="text-[#7E93A6]"> · {pct(n, steps[0])}</span>
+                    {i > 0 && <span className={cx('block text-[10px]', i === weakest ? 'text-[#D92D3A] font-bold' : 'text-[#7E93A6]')}>{pct(n, prev)} of previous step</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {weakest > 0 && (
+            <p className="text-xs text-[#5E778C] mb-4">
+              Biggest drop: <b className="text-[#D92D3A]">{FUNNEL_STEPS[weakest - 1]} → {FUNNEL_STEPS[weakest]}</b>, only {Math.round(worst)}% move on.
+            </p>
+          )}
+
+          <h4 className="text-sm font-bold text-[#0B2A44] mt-2 mb-2">By lead source</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className={cx(th, first)}>Lead source</th>
+                  {FUNNEL_STEPS.map((s, i) => <th key={s} className={th}><Dot color={FUNNEL_COLOURS[i]} square />{s}</th>)}
+                  <th className={cx(th, 'border-l-2 border-[#D3E3F0]')}>Lead to booking</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([src, ls]) => {
+                  const c = funnelCounts(ls);
+                  return (
+                    <tr key={src} className="hover:bg-[#F7FAFD]">
+                      <td className={cx(td, first)}>{src === BLANK ? <span className="text-[#7E93A6]">{BLANK}</span> : <SourceLogo source={src} />}</td>
+                      {c.map((n, i) => <td key={i} className={cx(td, i === 0 && 'font-semibold')}><NumBtn n={n} of={i ? c[0] : undefined} onClick={() => show(`${src} · ${FUNNEL_STEPS[i]}`, atStep(ls, i))} /></td>)}
+                      <td className={cx(td, 'border-l-2 border-[#D3E3F0] font-bold', c[5] ? 'text-[#1F7A4D]' : zero)}>{pct(c[5], c[0])}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className={cx(foot, first)}>All sources</td>
+                  {steps.map((n, i) => <td key={i} className={foot}>{n}{i > 0 && <Pc n={n} of={steps[0]} />}</td>)}
+                  <td className={cx(foot, 'border-l-2 border-[#D3E3F0] text-[#1F7A4D]')}>{pct(steps[5], steps[0])}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+};
 
 /* --------------------------- Weekly by source ---------------------------- */
 
@@ -684,7 +833,7 @@ const Geo: React.FC<{ list: MisLead[]; hasGeo: boolean; open: Set<string>; setOp
   if (!hasGeo) {
     return (
       <Panel title="Country, state and city" hint="Breakdown by where the prospect lives.">
-        <p className="text-center text-sm text-[#7E93A6] py-6">No country, state or city is recorded on your leads yet. Add Country, State and City columns to your lead imports or sheet and this table fills in by itself.</p>
+        <p className="text-center text-sm text-[#7E93A6] py-6">No city, state or country is recorded on your leads yet. Fill them in on New Enquiry or a lead's Details tab — website forms, sheets and Meta lead forms that ask for them fill them in automatically — and this table builds itself.</p>
       </Panel>
     );
   }
