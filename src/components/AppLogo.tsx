@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { STORAGE_KEYS } from '../core/config';
+import { brandAssets } from '../core/brandAssets';
 import { companyInitials, useCompany } from '../core/tenant';
 
 interface AppLogoProps {
@@ -25,9 +26,11 @@ const SIZES: Record<string, { box: string; img: string; text: string }> = {
 
 /**
  * The logo image to show: one uploaded on this device (Settings › Display), else the company logo (set by the
- * platform admin), else '' — so callers can fall back to text. `onError` drops an image that fails to load.
+ * platform admin), else the logo shipped with the app for this company (core/brandAssets), else '' — so callers
+ * can fall back to text. `variant: 'mark'` asks for the square emblem where one is shipped. `onTile`: the image
+ * is shipped dark artwork that needs a white tile behind it. `onError` drops an image that fails to load.
  */
-export function useLogoSrc(): { src: string; onError: () => void } {
+export function useLogoSrc(variant: 'logo' | 'mark' = 'logo'): { src: string; onError: () => void; onTile: boolean } {
   const company = useCompany();
   /** Read after mount: the server render cannot see this device's storage (and must match the first client render). */
   const [deviceLogo, setDeviceLogo] = useState<string>('');
@@ -44,8 +47,9 @@ export function useLogoSrc(): { src: string; onError: () => void } {
     };
   }, []);
 
-  const src = [deviceLogo, company?.logo || ''].find((u) => u && u !== failed) || '';
-  return { src, onError: () => setFailed(src) };
+  const shipped = brandAssets(company)?.[variant] || '';
+  const src = [deviceLogo, company?.logo || '', shipped].find((u) => u && u !== failed) || '';
+  return { src, onError: () => setFailed(src), onTile: !!src && src === shipped };
 }
 
 /**
@@ -54,7 +58,8 @@ export function useLogoSrc(): { src: string; onError: () => void } {
  */
 export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' }) => {
   const company = useCompany();
-  const { src, onError } = useLogoSrc();
+  const small = size === 'xs' || size === 'sm' || size === 'md';
+  const { src, onError, onTile } = useLogoSrc(small ? 'mark' : 'logo');
 
   const s = SIZES[size] || SIZES.md;
   const name = company?.name || '';
@@ -63,8 +68,12 @@ export const AppLogo: React.FC<AppLogoProps> = ({ className = '', size = 'md' })
 
   return (
     <div className={`inline-flex items-center justify-center select-none ${className}`} title={name || 'CRM'}>
-      {src ? (
-        <img src={src} alt={label} className={`${s.img} object-contain rounded-md filter drop-shadow-sm`} onError={onError} />
+      {src && onTile && small ? (
+        <span className={`${s.box} rounded-lg bg-white flex items-center justify-center p-[12%] shadow-sm`}>
+          <img src={src} alt={label} className="w-full h-full object-contain" onError={onError} />
+        </span>
+      ) : src ? (
+        <img src={src} alt={label} className={`${s.img} object-contain rounded-md ${onTile ? 'bg-white p-1.5' : 'filter drop-shadow-sm'}`} onError={onError} />
       ) : initials ? (
         <div className={`${s.box} ${s.text} rounded-lg bg-[#0B6BB0] text-white font-bold flex items-center justify-center tracking-wide`} aria-label={label} role="img">
           {initials}
