@@ -28,6 +28,7 @@ import {
   resolveDateFilter,
 } from '../../components/ui';
 import { LeadStars } from './shared';
+import { SourceLogo } from './SourceLogo';
 import { LeadSortKey, sortLeads } from './sorting';
 import { PageSkeleton } from '../../components/Skeletons';
 
@@ -225,10 +226,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         <div className="min-w-0">
           <div className="font-semibold text-[#0B2A44]">{l[F.NAME] || <span className="text-[#7E93A6] font-normal">Unnamed</span>}</div>
           <div className="text-[10px] text-[#7E93A6] mt-0.5 truncate max-w-[220px]">
-            {[l[F.SOURCE], l[F.EMAIL]].filter(Boolean).join(' · ') || '—'}
+            {l[F.EMAIL] || '—'}
           </div>
         </div>
       ),
+    },
+    {
+      key: 'source',
+      label: 'Source',
+      render: (l: Lead) => <SourceLogo source={l[F.SOURCE]} />,
     },
     {
       key: 'enquiryDate',
