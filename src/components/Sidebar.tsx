@@ -47,10 +47,10 @@ interface SidebarProps {
 interface Item { id: ViewId; label: string; count?: number; urgent?: boolean }
 interface Group { id: string; label: string; icon: LucideIcon; items: Item[] }
 
-/** The 14 screens in six groups: one rail icon per group, the panel lists them all. */
+/** The 15 screens in six groups: one rail icon per group, the panel lists them all. */
 function buildGroups(counts: SidebarCounts): Group[] {
   return [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard, items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'reports', label: 'Reports' }, { id: 'audit', label: 'Audit Log' }] },
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard, items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'mis', label: 'Sales MIS' }, { id: 'reports', label: 'Reports' }, { id: 'audit', label: 'Audit Log' }] },
     { id: 'leads', label: 'Leads', icon: Users, items: [{ id: 'leads', label: 'All Leads', count: counts.leads }, { id: 'kanban', label: 'Enquiry Status' }, { id: 'followups', label: 'Follow-ups', count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments' }] },
     { id: 'messages', label: 'Messages', icon: MessageCircle, items: [{ id: 'chat360', label: 'WhatsApp (Chat360)', count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History' }, { id: 'templates', label: 'Templates' }] },
     { id: 'work', label: 'Work', icon: CheckSquare, items: [{ id: 'tasks', label: 'Tasks & Notes', count: counts.tasksPending }, { id: 'documents', label: 'Documents' }] },

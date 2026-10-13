@@ -1,0 +1,748 @@
+/**
+ * MisView — the Sales MIS dashboard.
+ *
+ * Built from live CRM data: leads come from the engine (kept current by its polling) and talk time
+ * from Call History (reloaded every minute). Every number that stands for leads opens them on the
+ * Leads screen through `onShowLeads`. Stage mapping, periods and formatting live in ./misData.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { CallRecord, Lead, SyncState } from '../../types/crm';
+import { api } from '../../core/api';
+import { dateKey } from '../../core/dates';
+import { reportError } from '../../core/errors';
+import { Button, Select, cx } from '../../components/ui';
+import { PageSkeleton } from '../../components/Skeletons';
+import { SourceLogo } from '../leads/SourceLogo';
+import {
+  BLANK, CallDay, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_STATUSES, UNASSIGNED,
+  addDaysKey, avgResp, callDays, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
+  pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
+} from './misData';
+
+export interface MisViewProps {
+  leads: Lead[];
+  sources: string[];
+  sync: SyncState;
+  /** Call History feature on and allowed. */
+  canSeeCalls: boolean;
+  onRefresh: () => void;
+  onShowLeads: (label: string, ids: string[]) => void;
+}
+
+const CALL_POLL_MS = 60_000;
+
+/* ------------------------------- small UI -------------------------------- */
+
+const Panel: React.FC<{ title: React.ReactNode; hint?: React.ReactNode; actions?: React.ReactNode; className?: string; children: React.ReactNode }> = ({ title, hint, actions, className, children }) => (
+  <section className={cx('bg-white rounded-2xl border border-[#D3E3F0] shadow-xs p-4 sm:p-5 min-w-0', className)}>
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <h3 className="text-base font-bold text-[#0B2A44] tracking-tight">{title}</h3>
+      {actions}
+    </div>
+    {hint && <p className="text-xs text-[#5E778C] mt-1 mb-3">{hint}</p>}
+    {children}
+  </section>
+);
+
+const PeriodButtons: React.FC<{ value: string; options: PeriodId[]; onChange: (p: PeriodId) => void; label: string }> = ({ value, options, onChange, label }) => (
+  <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+    {options.map((p) => (
+      <button
+        key={p}
+        type="button"
+        aria-pressed={value === p}
+        onClick={() => onChange(p)}
+        className={cx(
+          'rounded-full px-3.5 py-1.5 text-xs font-semibold border transition',
+          value === p ? 'bg-[#0B2A44] border-[#0B2A44] text-white' : 'bg-white border-[#D3E3F0] text-[#0B2A44] hover:bg-[#F2F7FB]',
+        )}
+      >
+        {PERIOD_NAME[p]}
+      </button>
+    ))}
+  </div>
+);
+
+const Dot: React.FC<{ color: string; square?: boolean }> = ({ color, square }) => (
+  <i className={cx('inline-block w-2 h-2 mr-1.5 align-middle flex-shrink-0', square ? 'rounded-sm' : 'rounded-full')} style={{ background: color }} />
+);
+
+const Pc: React.FC<{ n: number; of: number; suffix?: string }> = ({ n, of, suffix }) => (of ? <span className="text-[#7E93A6] text-[10px] font-normal ml-1">{pct(n, of)}{suffix}</span> : null);
+
+const th = 'px-2.5 py-2 text-right font-semibold text-[#5E778C] text-[11px] whitespace-nowrap align-bottom border-b border-[#D3E3F0]';
+const td = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums border-b border-[#EEF4F9]';
+const first = '!text-left';
+const zero = 'text-[#C5D3DF]';
+const foot = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums font-bold border-t-2 border-[#D3E3F0]';
+
+/* --------------------------------- view ---------------------------------- */
+
+export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads }) => {
+  const [calls, setCalls] = useState<CallRecord[]>([]);
+  const [callsState, setCallsState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [period, setPeriod] = useState<PeriodId>('month');
+  const [custom, setCustom] = useState<Range>(['', '']);
+  const [teamPeriod, setTeamPeriod] = useState<PeriodId>('week');
+  const [rm, setRm] = useState('');
+  const [source, setSource] = useState('');
+  const [country, setCountry] = useState('');
+  const [state, setState] = useState('');
+  const [city, setCity] = useState('');
+  const [geoOpen, setGeoOpen] = useState<Set<string>>(() => new Set(['India']));
+  const [weekInfo, setWeekInfo] = useState('');
+  // Re-evaluate "today" every minute so periods roll over at midnight without a reload.
+  const [today, setToday] = useState(() => dateKey(new Date()));
+
+  useEffect(() => {
+    const t = setInterval(() => setToday(dateKey(new Date())), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const loadCalls = useCallback(async (silent: boolean) => {
+    if (!silent) setCallsState('loading');
+    try {
+      const list = await api.calls.list();
+      setCalls(Array.isArray(list) ? list.filter((c) => c && c.id) : []);
+      setCallsState('ready');
+    } catch (e) {
+      reportError('mis.calls', e);
+      if (!silent) setCallsState('error');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canSeeCalls) return;
+    loadCalls(false);
+    const t = setInterval(() => loadCalls(true), CALL_POLL_MS);
+    return () => clearInterval(t);
+  }, [canSeeCalls, loadCalls]);
+
+  /* ------------------------------- data ---------------------------------- */
+
+  const all = useMemo(() => toMisLeads(leads, firstCallByLead(calls)), [leads, calls]);
+  const hasGeo = useMemo(() => all.some((l) => l.country || l.state || l.city), [all]);
+
+  const nonDate = useMemo(
+    () => all.filter((l) => (!rm || (rm === UNASSIGNED ? !l.rm : l.rm === rm)) && (!source || (source === BLANK ? !l.source : l.source === source)) &&
+      (!country || l.country === country) && (!state || l.state === state) && (!city || l.city === city)),
+    [all, rm, source, country, state, city],
+  );
+  const range = useMemo(() => periodRange(period, custom, today), [period, custom, today]);
+  const list = useMemo(() => nonDate.filter((l) => inRange(l.day, range)), [nonDate, range]);
+  const order = useMemo(() => sourceOrder(sources, all), [sources, all]);
+
+  const rmOptions = useMemo(() => {
+    const r = uniq(all.map((l) => l.rm));
+    return all.some((l) => !l.rm) ? r.concat(UNASSIGNED) : r;
+  }, [all]);
+  const sourceOptions = useMemo(() => (all.some((l) => !l.source) ? order.concat(BLANK) : order), [order, all]);
+  const countries = useMemo(() => uniq(all.map((l) => l.country)), [all]);
+  const states = useMemo(() => uniq(all.filter((l) => !country || l.country === country).map((l) => l.state)), [all, country]);
+  const cities = useMemo(() => uniq(all.filter((l) => (!country || l.country === country) && (!state || l.state === state)).map((l) => l.city)), [all, country, state]);
+
+  const rangeText = rangeLabel(period, range);
+  const show = (label: string, ls: MisLead[]) => onShowLeads(`${label} · ${PERIOD_NAME[period]}`, ls.map((l) => l.id));
+  const hasFilters = !!(rm || source || country || state || city || period !== 'month');
+  const clearFilters = () => {
+    setRm(''); setSource(''); setCountry(''); setState(''); setCity(''); setCustom(['', '']); setPeriod('month');
+  };
+  const pickPeriod = (p: PeriodId) => {
+    if (p === 'custom' && !custom[0] && !custom[1]) setCustom(periodRange(period, custom, today));
+    setPeriod(p);
+  };
+
+  if (leads.length === 0 && (sync.status === 'loading' || (!sync.hasLoadedOnce && sync.status === 'syncing'))) {
+    return <PageSkeleton variant="dashboard" label="Loading the MIS…" />;
+  }
+
+  return (
+    <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Sales MIS dashboard</h2>
+          <p className="text-xs text-[#5E778C] mt-0.5">
+            Live lead pipeline as on {fmtKey(today)} · updates on its own as leads and calls come in
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => { onRefresh(); if (canSeeCalls) loadCalls(true); }} icon={<RefreshCw size={13} className={sync.status === 'syncing' ? 'animate-spin' : ''} />}>
+          Refresh
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <section aria-label="Filters" className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] grid gap-2.5 items-end" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))' }}>
+        <label className="text-[11px] text-[#5E778C] font-semibold">
+          Date from
+          <input type="date" value={custom[0]} max={custom[1] || undefined} onChange={(e) => { setCustom([e.target.value, custom[1]]); setPeriod('custom'); }}
+            className="mt-1 w-full text-xs px-2.5 py-2 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" />
+        </label>
+        <label className="text-[11px] text-[#5E778C] font-semibold">
+          Date to
+          <input type="date" value={custom[1]} min={custom[0] || undefined} onChange={(e) => { setCustom([custom[0], e.target.value]); setPeriod('custom'); }}
+            className="mt-1 w-full text-xs px-2.5 py-2 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" />
+        </label>
+        <label className="text-[11px] text-[#5E778C] font-semibold">Sales representative
+          <Select className="mt-1" value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All representatives" aria-label="Sales representative" />
+        </label>
+        <label className="text-[11px] text-[#5E778C] font-semibold">Lead source
+          <Select className="mt-1" value={source} onChange={(e) => setSource(e.target.value)} options={sourceOptions} placeholder="All sources" aria-label="Lead source" />
+        </label>
+        {hasGeo && (
+          <>
+            <label className="text-[11px] text-[#5E778C] font-semibold">Country
+              <Select className="mt-1" value={country} onChange={(e) => { setCountry(e.target.value); setState(''); setCity(''); }} options={countries} placeholder="All countries" aria-label="Country" />
+            </label>
+            <label className="text-[11px] text-[#5E778C] font-semibold">State
+              <Select className="mt-1" value={state} onChange={(e) => { setState(e.target.value); setCity(''); }} options={states} placeholder="All states" aria-label="State" />
+            </label>
+            <label className="text-[11px] text-[#5E778C] font-semibold">City
+              <Select className="mt-1" value={city} onChange={(e) => setCity(e.target.value)} options={cities} placeholder="All cities" aria-label="City" />
+            </label>
+          </>
+        )}
+        <Button variant={hasFilters ? 'secondary' : 'ghost'} onClick={clearFilters} disabled={!hasFilters} className="w-full">Clear filters</Button>
+      </section>
+
+      <Glance nonDate={nonDate} period={period} today={today} onPick={pickPeriod} reasons={dqReasons(all)} />
+
+      <Details list={list} total={all.length} period={period} rangeText={rangeText} onPick={pickPeriod} show={show} />
+
+      <Weeks nonDate={nonDate} end={range[1] || today} order={order} info={weekInfo} setInfo={setWeekInfo} />
+
+      <DqBySource list={list} order={order} period={period} rangeText={rangeText} reasons={dqReasons(all)} show={show} />
+
+      <SourceByStage list={list} order={source ? (source === BLANK ? [] : [source]) : order} show={show} />
+
+      <Panel title="Sales team" hint="First response time runs from when the enquiry came in to the representative's first follow-up or call. Leads without either are left out of the average.">
+        <h4 className="text-sm font-bold text-[#0B2A44] mt-1 mb-2">Average first response time</h4>
+        <ResponseTable nonDate={nonDate} today={today} />
+
+        <h4 className="text-sm font-bold text-[#0B2A44] mt-6 mb-1">Call duration</h4>
+        <p className="text-xs text-[#5E778C] mb-2">
+          Talk time per representative from Call History, with calls made and average call length below it. The last column compares the 1st of this month to yesterday with the same dates last month.
+        </p>
+        <CallTable calls={calls} state={canSeeCalls ? callsState : 'off'} leads={all} rm={rm} today={today} />
+
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-6 mb-2">
+          <h4 className="text-sm font-bold text-[#0B2A44]">Performance by representative</h4>
+          <PeriodButtons value={teamPeriod} options={['today', 'week', 'month', 'all']} onChange={setTeamPeriod} label="Period for sales team" />
+        </div>
+        <TeamTable nonDate={nonDate} range={periodRange(teamPeriod, custom, today)} onRep={(r) => setRm(r)} />
+      </Panel>
+
+      <Geo list={list} hasGeo={hasGeo} open={geoOpen} setOpen={setGeoOpen} country={country} show={show} />
+    </div>
+  );
+};
+
+/* ------------------------------ At a glance ------------------------------ */
+
+const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; onPick: (p: PeriodId) => void; reasons: string[] }> = ({ nonDate, period, today, onPick, reasons }) => {
+  const ps: PeriodId[] = ['today', 'week', 'month', 'all'];
+  const sets = ps.map((p) => {
+    const r = periodRange(p, undefined, today);
+    const ls = nonDate.filter((l) => inRange(l.day, r));
+    const dq = ls.filter((l) => l.stage === 'disqualified');
+    return { p, r, ls, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length, dq };
+  });
+  const sub = (p: PeriodId, [a, b]: Range) => (p === 'all' ? 'All dates' : p === 'today' ? fmtKey(a) : p === 'month' ? monthNameOf(a) : `${fmtKeyShort(a)} to ${fmtKeyShort(b)}`);
+  const on = (p: PeriodId) => (p === period ? 'bg-[#F2F7FB]' : '');
+  const rows: Array<[string, string, (s: (typeof sets)[number]) => number]> = [
+    ['Sales Qualified', MIS_STAGE.qualified.color, (s) => s.c.qualified],
+    ['Site visits planned', MIS_STAGE.prospect.color, (s) => s.sv],
+    ['HOT', MIS_STAGE.hot.color, (s) => s.c.hot],
+    ['Warm', MIS_STAGE.warm.color, (s) => s.c.warm],
+    ['Booked', MIS_STAGE.booked.color, (s) => s.c.booked],
+    ['Open / not responded', MIS_STAGE.open.color, (s) => s.c.open],
+    ['Not interested post site visit', MIS_STAGE.ni.color, (s) => s.c.ni],
+    ['Disqualified', MIS_STAGE.disqualified.color, (s) => s.c.disqualified],
+  ];
+  return (
+    <Panel title="At a glance" hint="Leads counted by enquiry date. The week runs Monday to today. Percentages are a share of new leads in that period. Select a period heading to see its details below.">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr>
+              <th className={th} />
+              {sets.map((s) => (
+                <th key={s.p} className={cx(th, 'min-w-[110px] rounded-t-lg', on(s.p))}>
+                  <button type="button" onClick={() => onPick(s.p)} className="text-[#0B2A44] text-sm font-bold hover:underline">{PERIOD_NAME[s.p]}</button>
+                  <small className="block text-[10px] font-normal text-[#7E93A6]">{sub(s.p, s.r)}</small>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className={cx(td, first, 'font-bold text-[#0B2A44]')}>New leads</td>
+              {sets.map((s) => <td key={s.p} className={cx(td, on(s.p), 'text-lg font-bold text-[#0B2A44]')}>{s.ls.length}</td>)}
+            </tr>
+            {rows.map(([label, color, fn]) => (
+              <tr key={label} className="hover:bg-[#F7FAFD]">
+                <td className={cx(td, first, 'text-[#0F2233]')}><Dot color={color} />{label}</td>
+                {sets.map((s) => <td key={s.p} className={cx(td, on(s.p))}>{fn(s)}<Pc n={fn(s)} of={s.ls.length} /></td>)}
+              </tr>
+            ))}
+            <tr><td colSpan={5} className="px-2.5 pt-4 pb-1.5 text-[11px] font-semibold text-[#5E778C] border-b border-[#D3E3F0]">Disqualified by reason</td></tr>
+            {reasons.map((r) => (
+              <tr key={r} className="hover:bg-[#F7FAFD]">
+                <td className={cx(td, first, 'pl-7 text-[#5E778C]')}>{r}</td>
+                {sets.map((s) => { const n = s.dq.filter((l) => l.reason === r).length; return <td key={s.p} className={cx(td, on(s.p), !n && zero)}>{n}<Pc n={n} of={s.dq.length} /></td>; })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+};
+
+/* ------------------------------- Details --------------------------------- */
+
+const Details: React.FC<{ list: MisLead[]; total: number; period: PeriodId; rangeText: string; onPick: (p: PeriodId) => void; show: (label: string, ls: MisLead[]) => void }> = ({ list, total, period, rangeText, onPick, show }) => {
+  const c = stageCounts(list);
+  const n = list.length;
+  const kpis: Array<[string, string, MisLead[], string]> = [
+    ['Site visits planned', MIS_STAGE.prospect.color, list.filter((l) => l.svPlanned), 'Prospects with a site visit scheduled'],
+    ['HOT', MIS_STAGE.hot.color, list.filter((l) => l.stage === 'hot'), 'Expected closure within a week'],
+    ['Warm', MIS_STAGE.warm.color, list.filter((l) => l.stage === 'warm'), 'Expected closure in 15 to 20 days'],
+    ['Booked', MIS_STAGE.booked.color, list.filter((l) => l.stage === 'booked'), 'Units booked'],
+  ];
+  return (
+    <section className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <div>
+          <h3 className="text-base font-bold text-[#0B2A44] tracking-tight">{PERIOD_NAME[period]} in detail</h3>
+          <p className="text-xs text-[#5E778C] mt-0.5">{rangeText}</p>
+        </div>
+        <div className="text-sm text-[#5E778C]">
+          <b className="text-3xl font-bold text-[#0B2A44] tabular-nums mr-1.5">{n}</b>
+          {n === 1 ? 'lead' : 'leads'}{n !== total ? ` match the filters, of ${total}` : ' in all'}
+        </div>
+      </div>
+      <PeriodButtons value={period} options={['today', 'week', 'month', 'all', 'custom']} onChange={onPick} label="Period for details" />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 my-4">
+        {kpis.map(([label, color, ls, desc]) => (
+          <button key={label} type="button" onClick={() => show(label, ls)} className="group text-left rounded-xl bg-[#F2F7FB] px-4 py-3 border-l-[6px]" style={{ borderLeftColor: color }}>
+            <span className="block text-sm font-semibold text-[#0B2A44] group-hover:underline">{label}</span>
+            <span className="block text-3xl font-bold text-[#0B2A44] tabular-nums leading-tight my-0.5">{ls.length}</span>
+            <span className="block text-[11px] text-[#5E778C]">{desc}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex h-[18px] rounded-full overflow-hidden bg-[#F2F7FB] gap-0.5 mb-5" role="img" aria-label="Share of leads by stage">
+        {n > 0 && MIS_STAGES.filter((s) => c[s.id]).map((s) => (
+          <span key={s.id} className="min-w-[3px] transition-[flex-grow] duration-500" style={{ flex: `${c[s.id]} 1 0`, background: s.color }} title={`${s.name}: ${c[s.id]}`} />
+        ))}
+      </div>
+
+      <div className="grid gap-x-4 gap-y-5" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))' }}>
+        {MIS_STAGES.map((s) => {
+          const inStage = list.filter((l) => l.stage === s.id);
+          let crit: React.ReactNode;
+          if (s.id === 'prospect') {
+            crit = SV_STATUSES.map((k) => <CritRow key={k} label={k.replace('Site Visit - ', 'Site visit ')} n={inStage.filter((l) => l.sv === k).length} />);
+          } else if (s.id === 'open') {
+            crit = <CritRow label="Not responded yet" n={inStage.filter((l) => !l.responded).length} />;
+          } else {
+            crit = <li className="italic text-[#7E93A6] py-1 border-t border-dashed border-[#D3E3F0]">{s.note}</li>;
+          }
+          return (
+            <button key={s.id} type="button" onClick={() => show(s.name, inStage)} title="Open these leads" className="group text-left pt-2.5 border-t-4" style={{ borderTopColor: s.color }}>
+              <span className="block text-[13px] font-semibold text-[#0B2A44] group-hover:underline">{s.name}</span>
+              <span className="block text-3xl font-bold text-[#0B2A44] tabular-nums leading-tight">{c[s.id]}</span>
+              <span className="block text-[11px] text-[#5E778C] mb-2">{pct(c[s.id], n)} of leads</span>
+              <ul className="text-[11px] text-[#5E778C]">{crit}</ul>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+const CritRow: React.FC<{ label: string; n: number }> = ({ label, n }) => (
+  <li className="flex justify-between gap-2 py-1 border-t border-dashed border-[#D3E3F0]">
+    <span>{label}</span>
+    <b className="text-[#0B2A44] tabular-nums font-semibold">{n}</b>
+  </li>
+);
+
+/* --------------------------- Weekly by source ---------------------------- */
+
+const Weeks: React.FC<{ nonDate: MisLead[]; end: string; order: string[]; info: string; setInfo: (s: string) => void }> = ({ nonDate, end, order, info, setInfo }) => {
+  const keys: string[] = [];
+  for (let k = weekStartKey(end), i = 0; i < 12; i++, k = addDaysKey(k, -7)) keys.unshift(k);
+  const all = order.concat(BLANK);
+  const wk = Object.fromEntries(keys.map((k) => [k, {} as Record<string, number>]));
+  for (const l of nonDate) {
+    const w = wk[l.week];
+    if (w) { const s = l.source || BLANK; w[s] = (w[s] || 0) + 1; }
+  }
+  const tot = (k: string) => Object.values(wk[k]).reduce((a, b) => a + b, 0);
+  const max = Math.max(1, ...keys.map(tot));
+  const used = all.filter((s) => keys.some((k) => wk[k][s]));
+  const describe = (k: string) => {
+    const t = tot(k);
+    return `Week of ${fmtKey(k)}: ${t} leads${t ? ` (${all.filter((s) => wk[k][s]).map((s) => `${s} ${wk[k][s]}`).join(', ')})` : ''}`;
+  };
+  return (
+    <Panel title="New leads per week by source" hint="12 weeks up to the end of the selected period, week starting Monday. Hover or tap a bar for the source split.">
+      <div className="flex items-end gap-1.5 h-[170px] pt-2">
+        {keys.map((k, i) => {
+          const t = tot(k);
+          return (
+            <div key={k} tabIndex={0} title={describe(k)} onMouseEnter={() => setInfo(describe(k))} onFocus={() => setInfo(describe(k))} onClick={() => setInfo(describe(k))}
+              className="flex-1 min-w-0 h-full flex flex-col items-center justify-end text-[10px] text-[#7E93A6] cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0] rounded">
+              <span className="text-[#0B2A44] font-semibold tabular-nums">{t || ''}</span>
+              <span className="w-full max-w-[40px] flex flex-col-reverse rounded-t overflow-hidden bg-[#D3E3F0]" style={{ height: `${(t * 78) / max}%`, minHeight: 2 }}>
+                {all.filter((s) => wk[k][s]).map((s) => <span key={s} className="block w-full" style={{ height: `${(wk[k][s] * 100) / t}%`, background: sourceColour(s, order) }} />)}
+              </span>
+              <span className={cx('mt-1 whitespace-nowrap', i % 2 === 1 && 'max-sm:invisible')}>{fmtKeyShort(k)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3.5 text-xs">
+        {used.length ? used.map((s) => (
+          <span key={s} className="inline-flex items-center gap-1.5">
+            <i className="w-2.5 h-2.5 rounded-sm" style={{ background: sourceColour(s, order) }} />
+            {s === BLANK ? <span className="text-[#5E778C]">{BLANK}</span> : <SourceLogo source={s} size={16} />}
+            <b className="tabular-nums">{keys.reduce((a, k) => a + (wk[k][s] || 0), 0)}</b>
+          </span>
+        )) : <span className="text-[#7E93A6]">No leads in these 12 weeks.</span>}
+      </div>
+      <p className="mt-2 text-xs text-[#5E778C] min-h-[1.3em]">{info}</p>
+    </Panel>
+  );
+};
+
+/* ---------------------- Disqualification by source ----------------------- */
+
+const SourceHead: React.FC<{ s: string; order: string[] }> = ({ s, order }) => (
+  <span className="inline-flex items-center justify-end gap-1">
+    <i className="w-2 h-2 rounded-sm" style={{ background: sourceColour(s, order) }} />
+    {s === BLANK ? BLANK : <SourceLogo source={s} size={16} />}
+  </span>
+);
+
+const DqBySource: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; rangeText: string; reasons: string[]; show: (label: string, ls: MisLead[]) => void }> = ({ list, order, period, rangeText, reasons, show }) => {
+  const dq = list.filter((l) => l.stage === 'disqualified');
+  const srcOf = (l: MisLead) => l.source || BLANK;
+  const cols = order.filter((s, i) => i < 4 || dq.some((l) => l.source === s)).filter((s) => list.some((l) => l.source === s));
+  if (dq.some((l) => !l.source)) cols.push(BLANK);
+  const rows = reasons.filter((r) => r !== NO_REASON || dq.some((l) => l.reason === r));
+  return (
+    <Panel title="Reasons for disqualification by source" hint={`${PERIOD_NAME[period]}, ${rangeText}. ${dq.length} of ${list.length} leads disqualified. Each total shows its share of all disqualified leads.`}>
+      {!list.length ? <p className="text-center text-sm text-[#7E93A6] py-6">No leads in this selection.</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th className={cx(th, first)}>Reason</th>
+                <th className={th}>Total</th>
+                {cols.map((s) => <th key={s} className={th}><SourceHead s={s} order={order} /></th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const rl = dq.filter((l) => l.reason === r);
+                return (
+                  <tr key={r} className="hover:bg-[#F7FAFD]">
+                    <td className={cx(td, first)}>{r}</td>
+                    <td className={cx(td, 'font-semibold')}><NumBtn n={rl.length} onClick={() => show(`Disqualified: ${r}`, rl)} /><Pc n={rl.length} of={dq.length} /></td>
+                    {cols.map((s) => { const ls = rl.filter((l) => srcOf(l) === s); return <td key={s} className={td}><NumBtn n={ls.length} onClick={() => show(`Disqualified: ${r} · ${s}`, ls)} /></td>; })}
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className={cx(foot, first)}>Total disqualified</td>
+                <td className={foot}>{dq.length}</td>
+                {cols.map((s) => {
+                  const n = dq.filter((l) => srcOf(l) === s).length, tot = list.filter((l) => srcOf(l) === s).length;
+                  return <td key={s} className={foot} title={`${n} of ${tot} leads from this source`}>{n}<Pc n={n} of={tot} suffix=" of source" /></td>;
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+};
+
+const NumBtn: React.FC<{ n: number; onClick: () => void; of?: number }> = ({ n, onClick, of }) =>
+  n ? (
+    <button type="button" onClick={onClick} className="tabular-nums hover:underline hover:text-[#0B6BB0]">{n}{of ? <Pc n={n} of={of} /> : null}</button>
+  ) : <span className={zero}>0</span>;
+
+/* --------------------------- Source by stage ----------------------------- */
+
+const SourceByStage: React.FC<{ list: MisLead[]; order: string[]; show: (label: string, ls: MisLead[]) => void }> = ({ list, order, show }) => {
+  const rows: Array<[string, MisLead[]]> = order.map((s) => [s, list.filter((l) => l.source === s)] as [string, MisLead[]]).filter(([, ls]) => ls.length);
+  const blank = list.filter((l) => !l.source);
+  if (blank.length) rows.push([BLANK, blank]);
+  const beyond = (ls: MisLead[]) => ls.filter((l) => l.stage !== 'open' && l.stage !== 'disqualified').length;
+  const c = stageCounts(list);
+  return (
+    <Panel title="Lead source by stage" hint="Selected period. Each number shows its share of that source's leads. Select a number to open those leads.">
+      {!list.length ? <p className="text-center text-sm text-[#7E93A6] py-6">No leads match these filters.</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th className={cx(th, first)}>Lead source</th>
+                <th className={th}>Total</th>
+                {MIS_STAGES.map((s) => <th key={s.id} className={th} title={s.name}><Dot color={s.color} />{s.short}</th>)}
+                <th className={th}>Qualified or beyond</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([src, ls]) => {
+                const sc = stageCounts(ls);
+                return (
+                  <tr key={src} className="hover:bg-[#F7FAFD]">
+                    <td className={cx(td, first)}>{src === BLANK ? <span className="text-[#7E93A6]">{BLANK}</span> : <SourceLogo source={src} />}</td>
+                    <td className={cx(td, 'font-semibold')}><NumBtn n={ls.length} onClick={() => show(src, ls)} /></td>
+                    {MIS_STAGES.map((s) => <td key={s.id} className={td}><NumBtn n={sc[s.id]} of={ls.length} onClick={() => show(`${src} · ${s.name}`, ls.filter((l) => l.stage === s.id))} /></td>)}
+                    <td className={td}>{pct(beyond(ls), ls.length)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className={cx(foot, first)}>All sources</td>
+                <td className={foot}>{list.length}</td>
+                {MIS_STAGES.map((s) => <td key={s.id} className={foot}>{c[s.id]}<Pc n={c[s.id]} of={list.length} /></td>)}
+                <td className={foot}>{pct(beyond(list), list.length)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+};
+
+/* ------------------------------ Sales team ------------------------------- */
+
+function repsOf(list: MisLead[]): string[] {
+  const r = uniq(list.map((l) => l.rm));
+  return list.some((l) => !l.rm) ? r.concat(UNASSIGNED) : r;
+}
+const repLeads = (list: MisLead[], r: string) => list.filter((l) => (r === UNASSIGNED ? !l.rm : l.rm === r));
+
+const ResponseTable: React.FC<{ nonDate: MisLead[]; today: string }> = ({ nonDate, today }) => {
+  const ps: PeriodId[] = ['yesterday', 'week', 'month', 'all'];
+  const reps = repsOf(nonDate);
+  if (!reps.length) return <p className="text-center text-sm text-[#7E93A6] py-6">No leads with a sales representative yet.</p>;
+  const sets = Object.fromEntries(ps.map((p) => { const r = periodRange(p, undefined, today); return [p, nonDate.filter((l) => inRange(l.day, r))]; })) as Record<string, MisLead[]>;
+  const cell = (ls: MisLead[], p: string) => {
+    const a = avgResp(ls);
+    return a
+      ? <td key={p} className={cx(td, speedTone(a.avg))}>{fmtDur(a.avg)}<small className="block text-[10px] font-normal text-[#7E93A6]">{a.n} responded</small></td>
+      : <td key={p} className={cx(td, zero)}>{ls.length ? 'No times' : 'No leads'}</td>;
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead><tr><th className={cx(th, first)}>Sales representative</th>{ps.map((p) => <th key={p} className={th}>{PERIOD_NAME[p]}</th>)}</tr></thead>
+        <tbody>{reps.map((r) => <tr key={r} className="hover:bg-[#F7FAFD]"><td className={cx(td, first)}>{r}</td>{ps.map((p) => cell(repLeads(sets[p], r), p))}</tr>)}</tbody>
+        <tfoot><tr><td className={cx(foot, first)}>Whole team</td>{ps.map((p) => cell(sets[p], p))}</tr></tfoot>
+      </table>
+    </div>
+  );
+};
+
+const CallTable: React.FC<{ calls: CallRecord[]; state: 'idle' | 'loading' | 'ready' | 'error' | 'off'; leads: MisLead[]; rm: string; today: string }> = ({ calls, state, leads, rm, today }) => {
+  const rows = useMemo(() => {
+    const leadRm = new Map(leads.map((l) => [l.id, l.rm]));
+    return callDays(calls, leadRm).filter((c) => !rm || c.rep === rm);
+  }, [calls, leads, rm]);
+  if (state === 'off') return <p className="text-center text-sm text-[#7E93A6] py-6">Call History isn't part of your plan or role, so talk time can't be shown.</p>;
+  if (state === 'loading' || state === 'idle') return <p className="text-center text-sm text-[#7E93A6] py-6">Loading calls…</p>;
+  if (state === 'error') return <p className="text-center text-sm text-[#B06A55] py-6">Calls could not be loaded. Press Refresh to try again.</p>;
+  if (!rows.length) return <p className="text-center text-sm text-[#7E93A6] py-6">No calls logged yet. Calls from Call History appear here automatically.</p>;
+  const ps: PeriodId[] = ['yesterday', 'lastweek', 'month', 'lastmonth'];
+  const reps = uniq(rows.map((c) => c.rep));
+  const stats = (rs: CallDay[]) => ({ calls: rs.reduce((a, r) => a + r.calls, 0), secs: rs.reduce((a, r) => a + r.secs, 0) });
+  const inR = (rs: CallDay[], p: PeriodId) => { const r = periodRange(p, undefined, today); return rs.filter((c) => inRange(c.day, r)); };
+  const sub = (p: PeriodId) => {
+    const [a, b] = periodRange(p, undefined, today);
+    if (p === 'yesterday') return fmtKey(a);
+    if (p === 'month') return `${monthNameOf(a)} so far`;
+    if (p === 'lastmonth') return monthNameOf(a);
+    return `${fmtKeyShort(a)} to ${fmtKeyShort(b)}`;
+  };
+  const cell = (rs: CallDay[], p: string) => {
+    const s = stats(rs);
+    return s.calls
+      ? <td key={p} className={td}>{fmtTalk(s.secs)}<small className="block text-[10px] text-[#7E93A6]">{s.calls} calls, avg {fmtAvgCall(s.secs / s.calls)}</small></td>
+      : <td key={p} className={cx(td, zero)}>None</td>;
+  };
+  const change = (rs: CallDay[]) => {
+    const now = stats(inR(rs, 'monthtoyesterday')).secs, before = stats(inR(rs, 'lastmonthsame')).secs;
+    if (!before) return <td className={cx(td, 'border-l-2 border-[#D3E3F0]', zero)}>{now ? 'New' : 'None'}</td>;
+    const d = Math.round(((now - before) * 100) / before);
+    return (
+      <td className={cx(td, 'border-l-2 border-[#D3E3F0] font-bold', d > 0 ? 'text-[#0E8A7D]' : d < 0 ? 'text-[#D92D3A]' : '')}>
+        {d > 0 ? '+' : ''}{d}%<small className="block text-[10px] font-normal text-[#7E93A6]">{fmtTalk(before)} same days last month</small>
+      </td>
+    );
+  };
+  const line = (label: string, rs: CallDay[], isFoot?: boolean) => (
+    <tr key={label} className={isFoot ? 'font-bold' : 'hover:bg-[#F7FAFD]'}>
+      <td className={cx(td, first, isFoot && 'border-t-2 border-[#D3E3F0]')}>{label}</td>
+      {ps.map((p) => cell(inR(rs, p), p))}
+      {change(rs)}
+    </tr>
+  );
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            <th className={cx(th, first)}>Sales representative</th>
+            {ps.map((p) => <th key={p} className={th}>{p === 'month' ? 'Current month' : PERIOD_NAME[p]}<small className="block font-normal text-[10px]">{sub(p)}</small></th>)}
+            <th className={cx(th, 'border-l-2 border-[#D3E3F0]')}>Current vs last month<small className="block font-normal text-[10px]">Talk time, 1st to yesterday</small></th>
+          </tr>
+        </thead>
+        <tbody>{reps.map((r) => line(r, rows.filter((c) => c.rep === r)))}</tbody>
+        <tfoot>{line('Whole team', rows, true)}</tfoot>
+      </table>
+    </div>
+  );
+};
+
+const TeamTable: React.FC<{ nonDate: MisLead[]; range: Range; onRep: (r: string) => void }> = ({ nonDate, range, onRep }) => {
+  const list = nonDate.filter((l) => inRange(l.day, range));
+  const reps = repsOf(nonDate);
+  if (!reps.length) return <p className="text-center text-sm text-[#7E93A6] py-6">No leads with a sales representative yet.</p>;
+  const n = (x: number, of: number) => (x ? <>{x}<Pc n={x} of={of} /></> : <span className={zero}>0</span>);
+  const row = (label: string, ls: MisLead[], isRep: boolean) => {
+    const c = stageCounts(ls), a = avgResp(ls), wait = ls.filter((l) => !l.responded).length;
+    const cls = isRep ? td : foot;
+    return (
+      <tr key={label} className={isRep ? 'hover:bg-[#F7FAFD]' : ''}>
+        <td className={cx(cls, first)}>
+          {isRep ? <button type="button" onClick={() => onRep(label)} className="font-semibold hover:underline hover:text-[#0B6BB0]" title="Filter the MIS to this representative">{label}</button> : label}
+        </td>
+        <td className={cls}>{ls.length}</td>
+        <td className={cls}>{n(c.qualified, ls.length)}</td>
+        <td className={cls}>{n(ls.filter((l) => l.svPlanned).length, ls.length)}</td>
+        <td className={cls}>{n(c.hot, ls.length)}</td>
+        <td className={cls}>{n(c.warm, ls.length)}</td>
+        <td className={cls}>{n(c.booked, ls.length)}</td>
+        <td className={cls}>{n(c.disqualified, ls.length)}</td>
+        <td className={cls}>{n(c.ni, ls.length)}</td>
+        <td className={cx(cls, a && speedTone(a.avg))}>{a ? fmtDur(a.avg) : <span className={zero}>None</span>}</td>
+        <td className={cls}>{a ? pct(a.fast, a.n) : <span className={zero}>0%</span>}</td>
+        <td className={cx(cls, wait > 0 && 'text-[#D92D3A] font-semibold')}>{wait}</td>
+      </tr>
+    );
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            {['Sales representative', 'Leads', 'Qualified', 'Site visits planned', 'HOT', 'Warm', 'Booked', 'Disqualified', 'Not int. post SV', 'Avg first response', 'Responded within 1 hour', 'Awaiting first response'].map((h, i) => (
+              <th key={h} className={cx(th, i === 0 && first)}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{reps.map((r) => row(r, repLeads(list, r), true))}</tbody>
+        <tfoot>{row('Whole team', list, false)}</tfoot>
+      </table>
+    </div>
+  );
+};
+
+/* --------------------------------- Geo ----------------------------------- */
+
+interface GeoNode { ls: MisLead[]; kids: Map<string, GeoNode> }
+const GEO_COLS: MisStageId[] = ['qualified', 'prospect', 'hot', 'warm', 'booked', 'disqualified'];
+const COUNTRY_ORDER = ['India', 'USA', 'UK', 'UAE'];
+
+const Geo: React.FC<{ list: MisLead[]; hasGeo: boolean; open: Set<string>; setOpen: (s: Set<string>) => void; country: string; show: (label: string, ls: MisLead[]) => void }> = ({ list, hasGeo, open, setOpen, show }) => {
+  const tree = useMemo(() => {
+    const t = new Map<string, GeoNode>();
+    const node = (m: Map<string, GeoNode>, k: string) => { let n = m.get(k); if (!n) { n = { ls: [], kids: new Map() }; m.set(k, n); } return n; };
+    for (const l of list) {
+      const A = node(t, l.country || BLANK), B = node(A.kids, l.state || BLANK), C = node(B.kids, l.city || BLANK);
+      A.ls.push(l); B.ls.push(l); C.ls.push(l);
+    }
+    return t;
+  }, [list]);
+  if (!hasGeo) {
+    return (
+      <Panel title="Country, state and city" hint="Breakdown by where the prospect lives.">
+        <p className="text-center text-sm text-[#7E93A6] py-6">No country, state or city is recorded on your leads yet. Add Country, State and City columns to your lead imports or sheet and this table fills in by itself.</p>
+      </Panel>
+    );
+  }
+  const allKeys: string[] = [];
+  tree.forEach((A, a) => { allKeys.push(a); A.kids.forEach((_, b) => allKeys.push(`${a}|${b}`)); });
+  const allOpen = allKeys.length > 0 && allKeys.every((k) => open.has(k));
+  const toggle = (k: string) => { const s = new Set(open); if (s.has(k)) s.delete(k); else s.add(k); setOpen(s); };
+  const bySize = (m: Map<string, GeoNode>) => [...m.entries()].sort((a, b) => b[1].ls.length - a[1].ls.length);
+  const countries = [...tree.entries()].sort((a, b) => {
+    const ia = COUNTRY_ORDER.indexOf(a[0]), ib = COUNTRY_ORDER.indexOf(b[0]);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || b[1].ls.length - a[1].ls.length;
+  });
+  const row = (lvl: number, label: string, nd: GeoNode, key?: string) => {
+    const c = stageCounts(nd.ls);
+    const pad = ['', 'pl-6', 'pl-11'][lvl];
+    return (
+      <tr key={key || label + lvl} className="hover:bg-[#F7FAFD]">
+        <td className={cx(td, first, pad, lvl === 0 && 'font-bold', lvl === 1 && 'font-semibold', lvl === 2 && 'text-[#5E778C]')}>
+          {key && nd.kids.size ? (
+            <button type="button" aria-expanded={open.has(key)} onClick={() => toggle(key)} className="inline-flex items-center gap-1.5">
+              <span className="inline-flex w-4 h-4 items-center justify-center border border-[#D3E3F0] rounded text-[10px] text-[#5E778C]">{open.has(key) ? '−' : '+'}</span>
+              {label}
+            </button>
+          ) : label}
+        </td>
+        <td className={td}><NumBtn n={nd.ls.length} onClick={() => show(label, nd.ls)} /></td>
+        {GEO_COLS.map((s) => <td key={s} className={td}><NumBtn n={c[s]} of={nd.ls.length} onClick={() => show(`${label} · ${MIS_STAGE[s].name}`, nd.ls.filter((l) => l.stage === s))} /></td>)}
+      </tr>
+    );
+  };
+  const body: React.ReactNode[] = [];
+  countries.forEach(([a, A]) => {
+    body.push(row(0, a, A, a));
+    if (!open.has(a)) return;
+    bySize(A.kids).forEach(([b, B]) => {
+      const kb = `${a}|${b}`;
+      body.push(row(1, b, B, kb));
+      if (open.has(kb)) bySize(B.kids).forEach(([c, C]) => body.push(row(2, c, C)));
+    });
+  });
+  return (
+    <Panel
+      title="Country, state and city"
+      hint="Selected period. Select a country or state to open or close it."
+      actions={<Button size="xs" onClick={() => setOpen(allOpen ? new Set() : new Set(allKeys))}>{allOpen ? 'Close all' : 'Open all'}</Button>}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr>
+              <th className={cx(th, first)}>Country, state, city</th>
+              <th className={th}>Leads</th>
+              {GEO_COLS.map((s) => <th key={s} className={th}><Dot color={MIS_STAGE[s].color} />{MIS_STAGE[s].short}</th>)}
+            </tr>
+          </thead>
+          <tbody>{body}</tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+};

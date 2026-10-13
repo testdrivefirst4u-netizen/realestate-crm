@@ -15,5 +15,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard', '/leads', '/segments', '/kanban', '/followups', '/tasks', '/inventory', '/chat360', '/calls', '/documents', '/templates', '/reports', '/audit', '/settings'],
+  matcher: ['/dashboard', '/mis', '/leads', '/segments', '/kanban', '/followups', '/tasks', '/inventory', '/chat360', '/calls', '/documents', '/templates', '/reports', '/audit', '/settings'],
 };

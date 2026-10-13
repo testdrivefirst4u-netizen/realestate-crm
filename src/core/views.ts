@@ -9,16 +9,16 @@ import { hasFeature, type FeatureName } from './features';
 import type { Permission } from './rbac';
 
 export type ViewId =
-  | 'dashboard' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
+  | 'dashboard' | 'mis' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
   | 'documents' | 'templates' | 'reports' | 'audit' | 'settings';
 
-export const VIEW_IDS: ViewId[] = ['dashboard', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings'];
+export const VIEW_IDS: ViewId[] = ['dashboard', 'mis', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings'];
 
 export const DEFAULT_VIEW: ViewId = 'dashboard';
 
 /** Page headings (top bar) and browser-tab titles. */
 export const VIEW_TITLES: Record<ViewId, string> = {
-  dashboard: 'Dashboard', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
+  dashboard: 'Dashboard', mis: 'Sales MIS', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
   inventory: 'Inventory', chat360: 'WhatsApp · Chat360', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
 };
 
