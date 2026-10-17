@@ -95,6 +95,7 @@ export const CFG = {
     NEW: 'New', OPEN: 'Open', WARM: 'Warm', HOT: 'Hot', QUALIFIED: 'Qualified', BOOKED: 'Booked',
     NOT_RESPONDING: 'Not Responding', DND: 'DND', JUNK: 'Junk', LOST: 'Lost',
     DQ_BUDGET: 'Disqualified - Budget', DQ_LOCATION: 'Disqualified - Location', DQ_RENTAL: 'Disqualified - Rental',
+    DQ_NI: 'Disqualified - NI', DQ_TIMELINE: 'Disqualified - Timeline', DQ_PROJECT: 'Disqualified - Project Type',
     TRASH: 'Trash', DELETED: 'Permanently Deleted',
   },
 
@@ -110,7 +111,8 @@ export const CFG = {
 
   DEFAULT_OPTIONS: {
     'Lead Stage': ['New', 'Open', 'Warm', 'Hot', 'Booked', 'Qualified', 'Lost', 'Not Responding', 'DND', 'Junk',
-      'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Rental', 'Trash'],
+      'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Rental', 'Disqualified - NI', 'Disqualified - Timeline',
+      'Disqualified - Project Type', 'Trash'],
     'Enquiry Source': ['Website', 'Website/Whatsapp', 'WhatsApp', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads',
       'Google Ads', 'Reference', 'Walk-In', 'Inbound Call'],
     'Unit Type Interested In': ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],

@@ -52,12 +52,23 @@ import { pctChange } from './format';
 
 export type StageClass = 'active' | 'won' | 'lost' | 'excluded' | 'unknown';
 
+/** Comparison key for a stage name: lower case, any dash as "-", single spaces, the common "Disqualifid" typo fixed. */
+const stageKey = (s: string) =>
+  s.toLowerCase().replace(/[‐-―−]/g, '-').replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ').replace(/\bdisqualifi?e?d\b/g, 'disqualified').trim();
+const KNOWN_STAGES = new Map<string, string>(Object.values(STAGES).map((s) => [stageKey(s), s]));
+
+/** A stage as written on a lead, mapped onto the CRM's stage name when it is a variant of one ("Disqualifid – Budget"). */
+export function canonicalStage(stage: unknown): string {
+  const s = String(stage ?? '').trim();
+  return (s && KNOWN_STAGES.get(stageKey(s))) || s;
+}
+
 export function stageOf(lead: Lead): string {
-  return String(lead[F.STAGE] || '').trim();
+  return canonicalStage(lead[F.STAGE]);
 }
 
 export function classifyStage(stage: string): StageClass {
-  const s = String(stage || '').trim();
+  const s = canonicalStage(stage);
   if (STAGE_CLASS.excluded.includes(s)) return 'excluded';
   if (STAGE_CLASS.won.includes(s)) return 'won';
   if (STAGE_CLASS.lost.includes(s)) return 'lost';

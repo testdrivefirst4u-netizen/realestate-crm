@@ -468,6 +468,9 @@ const STAGE_ALIASES: Record<string, string> = {
   dq_budget: STAGES.DQ_BUDGET, disqualified_budget: STAGES.DQ_BUDGET, budget: STAGES.DQ_BUDGET,
   dq_location: STAGES.DQ_LOCATION, disqualified_location: STAGES.DQ_LOCATION, location: STAGES.DQ_LOCATION,
   dq_rental: STAGES.DQ_RENTAL, disqualified_rental: STAGES.DQ_RENTAL, rental: STAGES.DQ_RENTAL,
+  dq_ni: STAGES.DQ_NI, disqualified_ni: STAGES.DQ_NI, not_interested: STAGES.DQ_NI,
+  dq_timeline: STAGES.DQ_TIMELINE, disqualified_timeline: STAGES.DQ_TIMELINE, timeline: STAGES.DQ_TIMELINE,
+  dq_project_type: STAGES.DQ_PROJECT, disqualified_project_type: STAGES.DQ_PROJECT,
   deleted: STAGES.TRASH, trashed: STAGES.TRASH, bin: STAGES.TRASH,
 };
 

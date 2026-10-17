@@ -46,6 +46,9 @@ const DQ_REASON: Record<string, string> = {
   [STAGES.DQ_BUDGET]: 'Budget',
   [STAGES.DQ_LOCATION]: 'Location',
   [STAGES.DQ_RENTAL]: 'Rental',
+  [STAGES.DQ_NI]: 'Not interested',
+  [STAGES.DQ_TIMELINE]: 'Timeline',
+  [STAGES.DQ_PROJECT]: 'Project type',
 };
 export const DQ_REASONS_BASE: string[] = Object.values(DQ_REASON);
 export const NO_REASON = 'Reason not recorded';

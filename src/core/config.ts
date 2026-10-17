@@ -109,6 +109,9 @@ export const STAGES = {
   DQ_BUDGET: 'Disqualified - Budget',
   DQ_LOCATION: 'Disqualified - Location',
   DQ_RENTAL: 'Disqualified - Rental',
+  DQ_NI: 'Disqualified - NI',
+  DQ_TIMELINE: 'Disqualified - Timeline',
+  DQ_PROJECT: 'Disqualified - Project Type',
   TRASH: 'Trash',
   DELETED: 'Permanently Deleted',
 } as const;
@@ -138,6 +141,9 @@ export const STAGE_CLASS = {
     STAGES.DQ_BUDGET,
     STAGES.DQ_LOCATION,
     STAGES.DQ_RENTAL,
+    STAGES.DQ_NI,
+    STAGES.DQ_TIMELINE,
+    STAGES.DQ_PROJECT,
   ] as string[],
   /** Never counted anywhere. */
   excluded: [STAGES.TRASH, STAGES.DELETED] as string[],
@@ -185,6 +191,9 @@ export const DEFAULT_CONFIG = {
       STAGES.DQ_BUDGET,
       STAGES.DQ_LOCATION,
       STAGES.DQ_RENTAL,
+      STAGES.DQ_NI,
+      STAGES.DQ_TIMELINE,
+      STAGES.DQ_PROJECT,
       STAGES.TRASH,
     ],
     [F.SOURCE]: [

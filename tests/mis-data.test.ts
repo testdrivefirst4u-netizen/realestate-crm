@@ -3,6 +3,7 @@ import { F, SITE_VISIT, STAGES } from '../src/core/config';
 import { addDaysKey, changePct, firstCallByLead, funnelCounts, funnelStep, periodRange, previousRange, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
 import { mapMetaLead } from '../server/modules/meta';
 import { sourceKind } from '../src/modules/leads/SourceLogo';
+import { canonicalStage, classifyStage } from '../src/core/analytics';
 import type { CallRecord, Lead } from '../src/types/crm';
 
 const lead = (id: string, stage: string, extra: Record<string, string> = {}): Lead =>
@@ -63,6 +64,15 @@ describe('source logos', () => {
 
 describe('MIS funnel and trends', () => {
   const mis = (l: Lead) => toMisLeads([l], new Map())[0];
+
+  it('counts the Disqualified stages from the sheet as lost, even with a long dash or the "Disqualifid" typo', () => {
+    expect(canonicalStage('Disqualifid - Budget')).toBe(STAGES.DQ_BUDGET);
+    expect(canonicalStage('Disqualified – Project Type')).toBe(STAGES.DQ_PROJECT);
+    expect(canonicalStage('  disqualified -  ni ')).toBe(STAGES.DQ_NI);
+    expect(canonicalStage('Others')).toBe('Others');
+    for (const s of ['Disqualified - NI', 'Disqualified - Timeline', 'Disqualified – Project Type', 'Disqualifid - Budget', 'Lost']) expect(classifyStage(s)).toBe('lost');
+    expect(mis(lead('x', 'Disqualified – Project Type' as any))).toMatchObject({ stage: 'disqualified', reason: 'Project type' });
+  });
 
   it('carries the Meta campaign, ad set and ad for the campaign funnel', () => {
     const m = mis(lead('c', STAGES.NEW, { [F.CAMPAIGN]: 'Video_Sept2026', [F.AD_SET]: 'Hyderabad_50+', [F.AD_NAME]: 'Lifestyle_Video' }));
