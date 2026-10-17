@@ -41,6 +41,7 @@ export const SV_STATUSES: string[] = [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED,
 const DQ_REASON: Record<string, string> = {
   [STAGES.NOT_RESPONDING]: 'Call not answered',
   [STAGES.DND]: 'Do not disturb',
+  [STAGES.LOST]: 'Lost',
   [STAGES.JUNK]: 'Junk / not interested',
   [STAGES.DQ_BUDGET]: 'Budget',
   [STAGES.DQ_LOCATION]: 'Location',

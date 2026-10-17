@@ -105,6 +105,7 @@ export const STAGES = {
   NOT_RESPONDING: 'Not Responding',
   DND: 'DND',
   JUNK: 'Junk',
+  LOST: 'Lost',
   DQ_BUDGET: 'Disqualified - Budget',
   DQ_LOCATION: 'Disqualified - Location',
   DQ_RENTAL: 'Disqualified - Rental',
@@ -130,6 +131,7 @@ export const STAGE_CLASS = {
   won: [STAGES.BOOKED] as string[],
   /** Lost / closed without booking. */
   lost: [
+    STAGES.LOST,
     STAGES.NOT_RESPONDING,
     STAGES.DND,
     STAGES.JUNK,
@@ -176,6 +178,7 @@ export const DEFAULT_CONFIG = {
       STAGES.HOT,
       STAGES.BOOKED,
       STAGES.QUALIFIED,
+      STAGES.LOST,
       STAGES.NOT_RESPONDING,
       STAGES.DND,
       STAGES.JUNK,

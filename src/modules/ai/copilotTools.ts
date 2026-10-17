@@ -906,7 +906,7 @@ export const TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
     parameters: {
       type: 'OBJECT',
       properties: {
-        stage: S('Stage name (New, Open, Warm, Hot, Qualified, Booked, Not Responding, DND, Junk, Disqualified - Budget/Location/Rental) or the pseudo-stages "active" (open pipeline) / "lost".'),
+        stage: S('Stage name (New, Open, Warm, Hot, Qualified, Booked, Lost, Not Responding, DND, Junk, Disqualified - Budget/Location/Rental) or the pseudo-stages "active" (open pipeline) / "lost".'),
         source: S('Enquiry source, e.g. Instagram, Facebook, Website, WhatsApp, Chat360, Meta Ads, Google Ads, Reference, Walk-In, Inbound Call (partial match).'),
         rm: S('Assigned RM name ("me" = the signed-in user).'),
         unit_type: S('Unit type interested in, e.g. "2 BHK", "3 BHK".'),
@@ -996,7 +996,7 @@ export const TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
       type: 'OBJECT',
       properties: {
         lead_id: S(LEAD_ID_DESC),
-        stage: S('Target stage: New, Open, Warm, Hot, Qualified, Booked, Not Responding, DND, Junk, Disqualified - Budget, Disqualified - Location, Disqualified - Rental.'),
+        stage: S('Target stage: New, Open, Warm, Hot, Qualified, Booked, Lost, Not Responding, DND, Junk, Disqualified - Budget, Disqualified - Location, Disqualified - Rental.'),
       },
       required: ['lead_id', 'stage'],
     },

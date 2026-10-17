@@ -93,7 +93,7 @@ export const CFG = {
 
   STAGES: {
     NEW: 'New', OPEN: 'Open', WARM: 'Warm', HOT: 'Hot', QUALIFIED: 'Qualified', BOOKED: 'Booked',
-    NOT_RESPONDING: 'Not Responding', DND: 'DND', JUNK: 'Junk',
+    NOT_RESPONDING: 'Not Responding', DND: 'DND', JUNK: 'Junk', LOST: 'Lost',
     DQ_BUDGET: 'Disqualified - Budget', DQ_LOCATION: 'Disqualified - Location', DQ_RENTAL: 'Disqualified - Rental',
     TRASH: 'Trash', DELETED: 'Permanently Deleted',
   },
@@ -109,7 +109,7 @@ export const CFG = {
     'Relationship to Prospect', 'Enquired For', 'Assigned RM', 'Brochure Shared'],
 
   DEFAULT_OPTIONS: {
-    'Lead Stage': ['New', 'Open', 'Warm', 'Hot', 'Booked', 'Qualified', 'Not Responding', 'DND', 'Junk',
+    'Lead Stage': ['New', 'Open', 'Warm', 'Hot', 'Booked', 'Qualified', 'Lost', 'Not Responding', 'DND', 'Junk',
       'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Rental', 'Trash'],
     'Enquiry Source': ['Website', 'Website/Whatsapp', 'WhatsApp', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads',
       'Google Ads', 'Reference', 'Walk-In', 'Inbound Call'],
