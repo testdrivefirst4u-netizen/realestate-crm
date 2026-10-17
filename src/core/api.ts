@@ -179,7 +179,7 @@ export const api = {
     totpEnable: (code: string) => request<UserAccount>('totpEnable', { code }),
     totpDisable: (password: string) => request<UserAccount>('totpDisable', { password }),
     /** Own display name / profile photo (photo = data URL ≤ 48 000 chars; null clears it). */
-    updateProfile: (data: { name?: string; avatar?: string | null }) => request<UserAccount>('updateProfile', { data }),
+    updateProfile: (data: { name?: string; avatar?: string | null; phone?: string }) => request<UserAccount>('updateProfile', { data }),
   },
 
   bootstrap: (since?: string, include?: string[]) =>

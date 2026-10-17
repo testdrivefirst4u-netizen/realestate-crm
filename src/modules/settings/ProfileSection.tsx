@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Check, Trash2, UserCircle2 } from 'lucide-react';
+import { Camera, Check, MessageCircle, Trash2, UserCircle2 } from 'lucide-react';
 import { UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { formatDateTime } from '../../core/dates';
@@ -7,10 +7,10 @@ import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { roleLabel } from '../../core/rbac';
 import { Avatar, isAvatarDataUrl, useAvatarPicker } from '../../components/Avatar';
-import { Badge, Button, Card, InlineNotice } from '../../components/ui';
+import { Badge, Button, Card, InlineNotice, inputCls } from '../../components/ui';
 import { TwoStepCard } from './TwoStepCard';
 
-export type ProfileUpdate = { name?: string; avatar?: string | null };
+export type ProfileUpdate = { name?: string; avatar?: string | null; phone?: string };
 
 export interface ProfileSectionProps {
   currentUser: UserAccount | null;
@@ -34,6 +34,22 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
   const shownPhoto = photo ? photo.value : currentUser?.avatar || null;
   const photoDirty = !!photo?.dirty;
   const hasPhoto = isAvatarDataUrl(shownPhoto);
+  const [phone, setPhone] = useState<string | null>(null); // null = not edited
+  const [savingPhone, setSavingPhone] = useState(false);
+  const savePhone = async () => {
+    if (phone === null) return;
+    setSavingPhone(true);
+    try {
+      if (onUpdateProfile) await onUpdateProfile({ phone: phone.trim() });
+      else { await api.auth.updateProfile({ phone: phone.trim() }); onRefreshAll(); }
+      setPhone(null);
+      toast(phone.trim() ? 'WhatsApp number saved' : 'WhatsApp number removed', undefined, 'success');
+    } catch (err) {
+      toast('Could not save your number', toAppError(reportError('profile.updatePhone', err)).userMessage, 'alert');
+    } finally {
+      setSavingPhone(false);
+    }
+  };
 
   const savePhoto = async () => {
     if (!currentUser || !photo?.dirty) return;
@@ -95,6 +111,16 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
           <InlineNotice tone="warning">No active session. Please sign in again.</InlineNotice>
         )}
       </Card>
+
+      {currentUser && (
+        <Card title={<span className="inline-flex items-center gap-2"><MessageCircle size={15} className="text-[#0E8A86]" /> WhatsApp number</span>} subtitle="Get new-lead alerts on WhatsApp when your company turns them on (Settings › Alerts & follow-ups).">
+          <div className="flex flex-wrap items-end gap-2">
+            <input type="tel" inputMode="tel" className={inputCls + ' w-56'} value={phone ?? currentUser.phone ?? ''} onChange={(e) => setPhone(e.target.value)} placeholder="98765 43210" maxLength={20} aria-label="WhatsApp number" />
+            <Button variant="primary" onClick={() => void savePhone()} loading={savingPhone} disabled={phone === null} icon={<Check size={13} />}>Save</Button>
+          </div>
+          <p className="mt-2 text-xs text-[#5E778C]">10 digits for India, or + country code for other countries.</p>
+        </Card>
+      )}
 
       {currentUser && <TwoStepCard enabled={!!currentUser.twoFactor} onChanged={onRefreshAll} />}
 

@@ -246,6 +246,8 @@ export interface UserAccount {
   mustChangePassword?: boolean;
   /** Two-step sign-in (authenticator app) is on. */
   twoFactor?: boolean;
+  /** WhatsApp number for lead alerts (digits with country code). */
+  phone?: string;
 }
 
 export interface AuthSession {

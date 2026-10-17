@@ -121,7 +121,7 @@ export interface CrmEngine {
    * session (persisted, so the sidebar shows it at once and after a reload) and your entry in `data.users`.
    * Rejects with an AppError on failure (no toast — the caller reports it); resolves `null` when signed out.
    */
-  updateProfile: (data: { name?: string; avatar?: string | null }) => Promise<UserAccount | null>;
+  updateProfile: (data: { name?: string; avatar?: string | null; phone?: string }) => Promise<UserAccount | null>;
   refresh: (opts?: { silent?: boolean; force?: boolean }) => Promise<void>;
   updateLocalSettings: (patch: Partial<CRMData['settings']>) => void;
 
@@ -581,7 +581,7 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
   }, [clearUserData]);
 
   const updateProfile = useCallback(
-    async (input: { name?: string; avatar?: string | null }): Promise<UserAccount | null> => {
+    async (input: { name?: string; avatar?: string | null; phone?: string }): Promise<UserAccount | null> => {
       if (!sessionRef.current) return null;
       const updated = await write(() => api.auth.updateProfile(input));
       const cur = sessionRef.current;

@@ -12,9 +12,9 @@ vi.mock('../server/modules/chat360', async (orig) => ({ ...(await orig<typeof im
 import { startTestDb } from './helpers/mongo';
 import { CFG } from '../server/core/config';
 import { setSecret, updateSettings, getSettings } from '../server/core/settings';
-import { addLead, updateLead } from '../server/modules/leads';
-import { alertEmail, alertRecipients, parseLeadAlerts, renderParams, sendLeadAlerts } from '../server/modules/leadAlerts';
-import type { Ctx, PublicUser } from '../server/core/auth';
+import { addLead, timelineForLead, updateLead } from '../server/modules/leads';
+import { alertEmail, alertRecipients, parseLeadAlerts, renderParams, rmWhatsappNumber, sendLeadAlerts } from '../server/modules/leadAlerts';
+import { updateProfile, updateUser, type Ctx, type PublicUser } from '../server/core/auth';
 
 const L = CFG.LEAD;
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -102,7 +102,7 @@ describe('sending', () => {
     await setSecret('CHAT360_API_KEY', 'test-key', admin);
     const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '+91 98765 43210', [L.RM]: 'Priya Sharma', [L.SOURCE]: 'Website' }, admin);
     const r = await sendLeadAlerts(lead, 'created');
-    expect(r).toEqual({ emailed: 1, whatsapp: true });
+    expect(r).toEqual({ emailed: 1, whatsapp: true, whatsappRm: false });
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: rm.user!.email, subject: 'New lead: Meera Kapoor · Website' }));
     expect(chatSend).toHaveBeenCalledWith(expect.objectContaining({ templateName: 'welcome_v1', params: ['Meera'], leadId: lead[L.ID] }), expect.anything());
   });
@@ -112,7 +112,7 @@ describe('sending', () => {
     await setSecret('CHAT360_API_KEY', 'test-key', admin);
     const { lead } = await addLead({ [L.NAME]: 'Rajiv', [L.PHONE]: '9876500002' }, admin);
     const { lead: after } = await updateLead(lead[L.ID], { [L.RM]: 'Priya Sharma' }, admin);
-    expect(await sendLeadAlerts(after, 'assigned')).toEqual({ emailed: 1, whatsapp: false });
+    expect(await sendLeadAlerts(after, 'assigned')).toEqual({ emailed: 1, whatsapp: false, whatsappRm: false });
     delete process.env.SMTP_URL;
     sendMail.mockClear();
     expect((await sendLeadAlerts(after, 'assigned')).emailed).toBe(0);
@@ -122,6 +122,52 @@ describe('sending', () => {
   it('never throws when the provider fails', async () => {
     sendMail.mockRejectedValueOnce(new Error('SMTP down'));
     const { lead } = await addLead({ [L.NAME]: 'Sunita', [L.PHONE]: '9876500003', [L.RM]: 'Priya Sharma' }, admin);
-    await expect(sendLeadAlerts(lead, 'created')).resolves.toEqual({ emailed: 0, whatsapp: false });
+    await expect(sendLeadAlerts(lead, 'created')).resolves.toEqual({ emailed: 0, whatsapp: false, whatsappRm: false });
+  });
+});
+
+describe('WhatsApp the assigned RM', () => {
+  it('users can save a WhatsApp number (10 digits gets +91), bad numbers are refused', async () => {
+    expect((await updateProfile(rm, { phone: '98765 11111' })).phone).toBe('919876511111');
+    expect((await updateUser({ id: rm.user!.id, phone: '+971 50 123 4567' }, admin)).phone).toBe('971501234567');
+    await expect(updateProfile(rm, { phone: '12345' })).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect((await updateProfile(rm, { phone: '' })).phone).toBe('');
+  });
+
+  it('finds the RM number by name (active users with a number only)', () => {
+    const users = [{ ...user('Priya Sharma', 'p@x.in'), phone: '919876511111' }, { ...user('Old Rep', 'o@x.in', 'Disabled'), phone: '919876522222' }, user('No Number', 'n@x.in')] as PublicUser[];
+    expect(rmWhatsappNumber(' priya sharma', users)).toBe('919876511111');
+    expect(rmWhatsappNumber('Old Rep', users)).toBe('');
+    expect(rmWhatsappNumber('No Number', users)).toBe('');
+    expect(renderParams('{rm}, {phone}, {link}', { [L.RM]: 'Priya', [L.PHONE]: '9876500001' }, 'Amaya', 'https://crm/x')).toEqual(['Priya', '9876500001', 'https://crm/x']);
+  });
+
+  it('needs a valid template when turned on', async () => {
+    await expect(updateSettings({ leadAlerts: { whatsappRm: true, whatsappRmTemplate: '' } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    const s = await updateSettings({ leadAlerts: { whatsappRm: true, whatsappRmTemplate: 'new_lead_rm' } }, admin);
+    expect(s.leadAlerts).toMatchObject({ whatsappRm: true, whatsappRmTemplate: 'new_lead_rm', whatsappRmParams: '{rm}, {name}, {phone}, {source}' });
+  });
+
+  it('sends the template to the RM on a new lead and on reassignment, not filed on the lead chat', async () => {
+    await updateProfile(rm, { phone: '9876511111' });
+    await updateSettings({ leadAlerts: { emailRm: false, whatsappRm: true, whatsappRmTemplate: 'new_lead_rm' } }, admin);
+    await setSecret('CHAT360_API_KEY', 'test-key', admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma', [L.SOURCE]: 'Facebook' }, admin);
+    expect(await sendLeadAlerts(lead, 'created')).toEqual({ emailed: 0, whatsapp: false, whatsappRm: true });
+    expect(chatSend).toHaveBeenCalledTimes(1);
+    const [arg] = chatSend.mock.calls[0] as unknown as [any];
+    expect(arg).toMatchObject({ phone: '919876511111', templateName: 'new_lead_rm', params: ['Priya Sharma', 'Meera Kapoor', '9876543210', 'Facebook'] });
+    expect(arg.leadId).toBeUndefined();
+    expect((await sendLeadAlerts(lead, 'assigned')).whatsappRm).toBe(true);
+  });
+
+  it('notes on the lead when the RM has no number', async () => {
+    await updateSettings({ leadAlerts: { emailRm: false, whatsappRm: true, whatsappRmTemplate: 'new_lead_rm' } }, admin);
+    await setSecret('CHAT360_API_KEY', 'test-key', admin);
+    const { lead } = await addLead({ [L.NAME]: 'Ravi', [L.PHONE]: '9876500004', [L.RM]: 'Priya Sharma' }, admin);
+    expect((await sendLeadAlerts(lead, 'created')).whatsappRm).toBe(false);
+    expect(chatSend).not.toHaveBeenCalled();
+    const tl = await timelineForLead(lead[L.ID]);
+    expect(JSON.stringify(tl)).toContain('has no WhatsApp number');
   });
 });

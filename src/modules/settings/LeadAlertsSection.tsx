@@ -1,9 +1,10 @@
 /**
  * Settings › Alerts & follow-ups — instant e-mail to the assigned RM (and chosen colleagues) when a lead arrives or is
- * reassigned, plus an optional automatic WhatsApp template reply to every new lead (server: modules/leadAlerts.ts).
+ * reassigned, an optional automatic WhatsApp template reply to every new lead, and a WhatsApp alert to the assigned RM
+ * (server: modules/leadAlerts.ts).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { BellRing, CalendarClock, MessageCircle, Save } from 'lucide-react';
+import { BellRing, CalendarClock, MessageCircle, Save, UserCheck } from 'lucide-react';
 import { UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -19,6 +20,10 @@ interface LeadAlertConfig {
   whatsappTemplate: string;
   whatsappLanguage: string;
   whatsappParams: string;
+  whatsappRm: boolean;
+  whatsappRmTemplate: string;
+  whatsappRmLanguage: string;
+  whatsappRmParams: string;
 }
 
 interface SequenceConfig {
@@ -29,7 +34,7 @@ interface SequenceConfig {
 }
 const SEQ_DEFAULTS: SequenceConfig = { enabled: true, days: [1, 3, 7], hour: 10, autoNotRespondingDays: 0 };
 
-const DEFAULTS: LeadAlertConfig = { emailRm: true, emailAlso: '', whatsappAuto: false, whatsappTemplate: '', whatsappLanguage: 'en', whatsappParams: '{first_name}' };
+const DEFAULTS: LeadAlertConfig = { emailRm: true, emailAlso: '', whatsappAuto: false, whatsappTemplate: '', whatsappLanguage: 'en', whatsappParams: '{first_name}', whatsappRm: false, whatsappRmTemplate: '', whatsappRmLanguage: 'en', whatsappRmParams: '{rm}, {name}, {phone}, {source}' };
 const list = (s: string) => s.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
 
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string; hint?: React.ReactNode }> = ({ checked, onChange, disabled, label, hint }) => (
@@ -63,6 +68,7 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
   }, [s.followupSequence]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = useMemo(() => users.filter((u) => u.status !== 'Disabled' && u.email), [users]);
+  const withoutNumber = useMemo(() => active.filter((u) => !u.phone && (u.role === 'RM' || u.role === 'Manager')), [active]);
   const chosen = new Set(list(cfg.emailAlso));
   const toggleUser = (email: string, on: boolean) => {
     const next = new Set(chosen);
@@ -128,6 +134,28 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
           </div>
           <Field label="Template parameters" hint={<>Comma-separated, named as in your Chat360 template: <code>{'customer_name={first_name}, unit={unit}'}</code>. Values can use <code>{'{first_name}'}</code>, <code>{'{name}'}</code>, <code>{'{company}'}</code>, <code>{'{unit}'}</code>, <code>{'{rm}'}</code>, <code>{'{source}'}</code> or your own text. Without names they are sent as 1, 2, 3…</>}>
             <input className={inputCls} value={cfg.whatsappParams} disabled={!editable || !chatReady} onChange={(e) => set('whatsappParams', e.target.value)} placeholder="{first_name}" maxLength={600} />
+          </Field>
+        </div>
+      </Card>
+
+      <Card title={<span className="inline-flex items-center gap-2"><UserCheck size={16} className="text-[#0E8A86]" /> WhatsApp the assigned RM</span>} subtitle="The RM gets a WhatsApp message the moment a lead is assigned to them (new or reassigned) — faster than e-mail. Sent through Chat360 to the number in their user profile.">
+        <div className="space-y-4">
+          {!whatsappFeature && <InlineNotice tone="info">WhatsApp (Chat360) is not part of your company’s plan.</InlineNotice>}
+          {whatsappFeature && !s.chat360Configured && <InlineNotice tone="warning">Add your Chat360 API key under Settings › Integrations first.</InlineNotice>}
+          <Toggle checked={cfg.whatsappRm} disabled={!editable || !chatReady} onChange={(v) => set('whatsappRm', v)} label="WhatsApp the RM when a lead is assigned" hint="Business-initiated WhatsApp messages need an approved template, e.g. “Hi {{1}}, new lead {{2}} ({{3}}) from {{4}}. Call now.” Create it in Chat360 (Utility category)." />
+          {cfg.whatsappRm && withoutNumber.length > 0 && (
+            <InlineNotice tone="warning">No WhatsApp number yet for {withoutNumber.map((u) => u.name).join(', ')}. Add it under Settings › Users (or they can add it in My profile).</InlineNotice>
+          )}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Template name or ID" className="sm:col-span-2" hint="As shown in Chat360 → Campaigns → Templates.">
+              <input className={inputCls} value={cfg.whatsappRmTemplate} disabled={!editable || !chatReady} onChange={(e) => set('whatsappRmTemplate', e.target.value.trim())} placeholder="e.g. new_lead_rm_alert" maxLength={100} />
+            </Field>
+            <Field label="Language">
+              <input className={inputCls} value={cfg.whatsappRmLanguage} disabled={!editable || !chatReady} onChange={(e) => set('whatsappRmLanguage', e.target.value.trim())} placeholder="en" maxLength={6} />
+            </Field>
+          </div>
+          <Field label="Template parameters" hint={<>Comma-separated, in template order (or <code>name=value</code>). Values can use <code>{'{rm}'}</code>, <code>{'{name}'}</code>, <code>{'{phone}'}</code>, <code>{'{source}'}</code>, <code>{'{unit}'}</code>, <code>{'{company}'}</code>, <code>{'{link}'}</code> (opens the lead) or your own text.</>}>
+            <input className={inputCls} value={cfg.whatsappRmParams} disabled={!editable || !chatReady} onChange={(e) => set('whatsappRmParams', e.target.value)} placeholder="{rm}, {name}, {phone}, {source}" maxLength={600} />
           </Field>
         </div>
       </Card>

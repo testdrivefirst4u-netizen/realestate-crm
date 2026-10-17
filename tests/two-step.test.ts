@@ -46,7 +46,7 @@ describe('two-step sign-in — CRM users', () => {
   });
 
   it('an administrator resetting the password turns two-step sign-in off (lost phone)', async () => {
-    const ctx = await t.ctx('Sales');
+    const ctx = await t.ctx('RM');
     const s = await totpSetup(ctx);
     await totpEnable(ctx, totpCode(secretOf(s)));
     await updateUser({ id: ctx.user!.id, password: 'fresh-password-9' }, SYSTEM_CTX);
