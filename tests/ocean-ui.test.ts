@@ -21,8 +21,9 @@ afterEach(() => vi.unstubAllGlobals());
 describe('sidebar', () => {
   it('lists every screen in its group, marks the current one and shows counts', () => {
     const html = sidebar({ counts: { leads: 248, followupsToday: 5, tasksPending: 12, unreadChats: 4 }, onNewEnquiry: () => {} });
-    for (const g of ['Overview', 'Leads', 'Messages', 'Work', 'Property', 'Settings']) expect(html).toContain(`>${g}</div>`);
-    for (const s of ['Dashboard', 'Reports', 'Audit Log', 'All Leads', 'Enquiry Status', 'Follow-ups', 'Client Segments', 'WhatsApp (Chat360)', 'Call History', 'Templates', 'Tasks &amp; Notes', 'Documents', 'Inventory']) expect(html).toContain(`>${s}</span>`);
+    for (const g of ['Overview', 'Leads', 'Messages', 'Work', 'Admin']) expect(html).toContain(`>${g}</div>`);
+    expect(html).not.toContain('>Property</div>');
+    for (const s of ['Dashboard', 'Reports', 'Audit Log', 'All Leads', 'Enquiry Status', 'Follow-ups', 'Client Segments', 'WhatsApp (Chat360)', 'Call History', 'Templates', 'Tasks &amp; Notes', 'Documents', 'Inventory', 'Settings']) expect(html).toContain(`>${s}</span>`);
     expect(html).toMatch(/aria-current="page"[^>]*><span class="truncate">All Leads/);
     for (const n of ['248', '5', '12', '4']) expect(html).toContain(`>${n}</span>`);
     expect(html).toContain('New Enquiry');
@@ -30,10 +31,10 @@ describe('sidebar', () => {
     expect(html).toContain('Developed by');
   });
 
-  it('hides New Enquiry without permission and groups the plan leaves empty', () => {
+  it('hides New Enquiry without permission and screens the plan leaves out', () => {
     const html = sidebar({ features: { inventory: false } });
     expect(html).not.toContain('New Enquiry');
-    expect(html).not.toContain('>Property</div>');
+    expect(html).toContain('>Work</div>');
     expect(html).not.toContain('>Inventory</span>');
   });
 
