@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Activity, Building2, LayoutDashboard, Layers, LogOut, Menu, ScrollText, Settings2, ShieldCheck, X } from 'lucide-react';
+import { Activity, Building2, LayoutDashboard, Layers, LogOut, Menu, Receipt, ScrollText, Settings2, ShieldCheck, X } from 'lucide-react';
 import type { SuperAdmin } from '@/server/platform/contract';
 import { LOGIN_PATH, call, errorMessage, isAuthError } from '../_lib/api';
 import { initials } from '../_lib/format';
@@ -15,52 +15,102 @@ export function useAdmin() {
   return useContext(AdminCtx);
 }
 
-const NAV = [
-  { href: '/superadmin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/superadmin/companies', label: 'Companies', icon: Building2 },
-  { href: '/superadmin/plans', label: 'Plans', icon: Layers },
-  { href: '/superadmin/health', label: 'Health', icon: Activity },
-  { href: '/superadmin/admins', label: 'Super admins', icon: ShieldCheck },
-  { href: '/superadmin/audit', label: 'Audit log', icon: ScrollText },
-  { href: '/superadmin/settings', label: 'Settings', icon: Settings2 },
+const GROUPS: Array<{ label: string; items: Array<{ href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }> }> = [
+  { label: 'Overview', items: [
+    { href: '/superadmin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+    { href: '/superadmin/health', label: 'Platform health', icon: Activity },
+  ] },
+  { label: 'Customers', items: [
+    { href: '/superadmin/companies', label: 'Companies', icon: Building2 },
+    { href: '/superadmin/plans', label: 'Plans', icon: Layers },
+    { href: '/superadmin/billing', label: 'Billing', icon: Receipt },
+  ] },
+  { label: 'Security', items: [
+    { href: '/superadmin/admins', label: 'Super admins', icon: ShieldCheck },
+    { href: '/superadmin/audit', label: 'Audit log', icon: ScrollText },
+  ] },
+  { label: 'Platform', items: [{ href: '/superadmin/settings', label: 'Settings', icon: Settings2 }] },
 ];
 
-function NavLinks({ onNavigate, vertical = false }: { onNavigate?: () => void; vertical?: boolean }) {
+function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname() || '';
   return (
-    <ul className={vertical ? 'space-y-1' : 'flex flex-wrap items-center gap-1'}>
-      {NAV.map(({ href, label, icon: Icon, exact }) => {
-        const active = exact ? pathname === href : pathname === href || pathname.startsWith(href + '/');
-        return (
-          <li key={href}>
-            <Link
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? 'page' : undefined}
-              className={cx(
-                'flex items-center gap-2.5 rounded-lg text-[14px] font-medium transition-colors',
-                vertical ? 'px-3 py-2.5' : 'h-10 px-3.5',
-                active ? 'bg-white/10 text-white' : 'text-[#C9D3DC] hover:bg-white/5 hover:text-white',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]',
-              )}
-            >
-              {vertical && <Icon className={cx('h-[18px] w-[18px]', active ? 'text-[#36B3F2]' : 'text-[#8FA0AF]')} aria-hidden />}
-              {label}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-5">
+      {GROUPS.map((g) => (
+        <div key={g.label}>
+          <div className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#7FA3C2]">{g.label}</div>
+          <ul className="space-y-0.5">
+            {g.items.map(({ href, label, icon: Icon, exact }) => {
+              const active = exact ? pathname === href : pathname === href || pathname.startsWith(href + '/');
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    onClick={onNavigate}
+                    aria-current={active ? 'page' : undefined}
+                    className={cx(
+                      'relative flex min-h-[42px] items-center gap-3 rounded-xl px-3 text-[14px] font-medium transition-colors',
+                      active ? 'bg-[#16466E] text-white' : 'text-[#C9D3DC] hover:bg-white/5 hover:text-white',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]',
+                    )}
+                  >
+                    {active && <span aria-hidden className="absolute -left-3 top-2 bottom-2 w-1 rounded-r bg-[#36B3F2]" />}
+                    <Icon className={cx('h-[18px] w-[18px] flex-none', active ? 'text-[#36B3F2]' : 'text-[#7FA3C2]')} aria-hidden />
+                    {label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
 function Brand() {
   return (
-    <Link href="/superadmin" className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]">
+    <Link href="/superadmin" className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/broaddcast_logo-white.svg" alt="Broaddcast" className="h-9 w-auto" />
-      <span className="hidden border-l border-white/20 pl-3 text-[11px] uppercase tracking-[0.14em] text-[#36B3F2] sm:inline">Super admin</span>
+      <img src="/broaddcast_logo-white.svg" alt="Broaddcast" className="h-8 w-auto" />
+      <span className="border-l border-white/20 pl-3 text-[10.5px] font-bold uppercase tracking-[0.14em] text-[#36B3F2]">Super admin</span>
     </Link>
+  );
+}
+
+/** The dark navigation panel: brand, grouped links, the signed-in admin and Sign out. */
+function SidebarPanel({ admin, onNavigate, onClose, signingOut, signOut }: { admin: SuperAdmin; onNavigate?: () => void; onClose?: () => void; signingOut: boolean; signOut: () => void }) {
+  return (
+    <div className="flex h-full flex-col rounded-[24px] bg-[#0A1F33] px-3 py-5">
+      <div className="flex items-center justify-between gap-2 px-2">
+        <Brand />
+        {onClose && (
+          <button type="button" onClick={onClose} aria-label="Close navigation" className="flex h-11 w-11 items-center justify-center rounded-lg text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]">
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        )}
+      </div>
+      <nav aria-label="Console" className="mt-7 min-h-0 flex-1 overflow-y-auto pl-3 pr-1">
+        <NavLinks onNavigate={onNavigate} />
+      </nav>
+      <div className="mt-4 flex items-center gap-2.5 border-t border-white/10 px-2 pt-4">
+        <div aria-hidden className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#16466E] text-[13px] font-semibold text-white">{initials(admin.name)}</div>
+        <div className="min-w-0 flex-1 text-[13px] leading-tight">
+          <div className="truncate font-semibold text-white">{admin.name}</div>
+          <div className="truncate text-[#7FA3C2]">{admin.email}</div>
+        </div>
+        <button
+          type="button"
+          onClick={signOut}
+          disabled={signingOut}
+          aria-label={signingOut ? 'Signing out' : 'Sign out'}
+          title="Sign out"
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-full border border-white/15 text-[#C9D3DC] hover:bg-white/10 hover:text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]"
+        >
+          <LogOut className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -130,66 +180,39 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         <a href="#sa-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">
           Skip to content
         </a>
-        <div className="min-h-screen bg-[#FFFFFF]">
-          <header className="sticky top-0 z-20 bg-[#0B2A44] text-white">
-            <div className="mx-auto flex min-h-16 max-w-[1320px] items-center gap-6 px-4 sm:px-8">
-              <button
-                type="button"
-                onClick={() => setDrawer(true)}
-                aria-label="Open navigation"
-                aria-expanded={drawer}
-                aria-controls="sa-drawer"
-                className="-ml-1 rounded-md p-2 text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0] lg:hidden"
-              >
-                <Menu className="h-5 w-5" aria-hidden />
-              </button>
-              <Brand />
-              <nav aria-label="Console" className="hidden flex-1 lg:block">
-                <NavLinks />
-              </nav>
-              <div className="ml-auto flex items-center gap-2">
-                <div
-                  aria-hidden
-                  title={`${admin.name} · ${admin.email}`}
-                  className="hidden h-9 w-9 items-center justify-center rounded-full bg-[#3E5468] text-[13px] font-semibold text-white sm:flex"
-                >
-                  {initials(admin.name)}
-                </div>
-                <button
-                  type="button"
-                  onClick={signOut}
-                  disabled={signingOut}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#3A5266] px-3 text-[13.5px] font-medium text-[#C9D3DC] hover:bg-white/10 hover:text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden />
-                  <span className="hidden md:inline">{signingOut ? 'Signing out…' : 'Sign out'}</span>
-                  <span className="sr-only md:hidden">Sign out</span>
-                </button>
-              </div>
-            </div>
+        <div className="min-h-screen bg-[#F2F7FB] lg:flex">
+          {/* Desktop sidebar */}
+          <aside aria-label="Console navigation" className="sticky top-0 hidden h-screen w-[272px] flex-none p-3 lg:block">
+            <SidebarPanel admin={admin} signingOut={signingOut} signOut={signOut} />
+          </aside>
+
+          {/* Mobile top bar */}
+          <header className="sticky top-0 z-20 flex min-h-14 items-center gap-3 bg-[#0B2A44] px-3 text-white lg:hidden">
+            <button
+              type="button"
+              onClick={() => setDrawer(true)}
+              aria-label="Open navigation"
+              aria-expanded={drawer}
+              aria-controls="sa-drawer"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]"
+            >
+              <Menu className="h-5 w-5" aria-hidden />
+            </button>
+            <Brand />
           </header>
 
           {/* Mobile drawer */}
           {drawer && (
             <div className="fixed inset-0 z-40 lg:hidden">
               <div aria-hidden className="animate-in fade-in absolute inset-0 bg-[#0A1F33]/50" onClick={() => setDrawer(false)} />
-              <aside id="sa-drawer" aria-label="Console navigation" className="animate-in slide-in-from-right absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-[#0B2A44] px-3 py-5">
-                <div className="flex items-center justify-between px-2">
-                  <Brand />
-                  <button type="button" onClick={() => setDrawer(false)} aria-label="Close navigation" className="rounded-md p-2 text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]">
-                    <X className="h-5 w-5" aria-hidden />
-                  </button>
-                </div>
-                <nav aria-label="Console" className="mt-8">
-                  <NavLinks vertical onNavigate={() => setDrawer(false)} />
-                </nav>
-                <p className="mt-auto px-3 text-[12.5px] text-[#8FA0AF]">{admin.name} · {admin.email}</p>
-              </aside>
+              <div id="sa-drawer" className="animate-in slide-in-from-left absolute inset-y-0 left-0 w-[290px] max-w-[88vw] p-2">
+                <SidebarPanel admin={admin} onNavigate={() => setDrawer(false)} onClose={() => setDrawer(false)} signingOut={signingOut} signOut={signOut} />
+              </div>
             </div>
           )}
 
-          <main id="sa-main" tabIndex={-1} className="outline-none">
-            {fullBleed ? children : <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-8 lg:py-8">{children}</div>}
+          <main id="sa-main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+            {fullBleed ? children : <div className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-8 lg:py-8">{children}</div>}
           </main>
         </div>
       </ToastProvider>

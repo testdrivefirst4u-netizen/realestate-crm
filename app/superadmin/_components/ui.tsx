@@ -16,7 +16,7 @@ type Variant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger' | 'danger
 const variants: Record<Variant, string> = {
   primary: 'bg-[#0B2A44] text-white hover:bg-[#0A1F33] shadow-sm',
   accent: 'bg-[#0B6BB0] text-white hover:bg-[#0B5E9C] shadow-sm',
-  secondary: 'bg-white text-[#0B2A44] border border-[#C4D6E6] hover:bg-[#F7FAFD] hover:border-[#C7BBAD]',
+  secondary: 'bg-white text-[#0B2A44] border border-[#C4D6E6] hover:bg-[#F7FAFD] hover:border-[#B4C6D6]',
   ghost: 'text-[#0B2A44] hover:bg-[#E3EDF5]',
   danger: 'bg-[#B42318] text-white hover:bg-[#912018] shadow-sm',
   'danger-outline': 'bg-white text-[#B42318] border border-[#F1C4BF] hover:bg-[#FEF3F2]',
@@ -246,7 +246,7 @@ export function Switch({
         onClick={() => onChange(!checked)}
         className={cx(
           'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-          checked ? 'bg-[#0B2A44]' : 'bg-[#CFC6BB]',
+          checked ? 'bg-[#0B2A44]' : 'bg-[#C4D6E6]',
           focusRing,
         )}
       >
@@ -289,7 +289,7 @@ export function CardHeader({ title, description, actions, id }: { title: ReactNo
 const badgeTones: Record<string, string> = {
   Active: 'bg-[#ECFDF3] text-[#067647] ring-[#ABEFC6]',
   Suspended: 'bg-[#FFFAEB] text-[#B54708] ring-[#FEDF89]',
-  Disabled: 'bg-[#EEF4F9] text-[#3F5A70] ring-[#DDD6CE]',
+  Disabled: 'bg-[#EEF4F9] text-[#3F5A70] ring-[#D3E3F0]',
   Error: 'bg-[#FEF3F2] text-[#B42318] ring-[#FECDCA]',
 };
 
@@ -325,7 +325,7 @@ export function Spinner({ label = 'Loading…', className }: { label?: string; c
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cx('animate-pulse rounded-md bg-[#ECE5DC]', className)} />;
+  return <div aria-hidden className={cx('animate-pulse rounded-md bg-[#E3EDF5]', className)} />;
 }
 
 export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {

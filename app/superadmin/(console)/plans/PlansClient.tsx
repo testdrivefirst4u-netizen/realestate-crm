@@ -101,7 +101,7 @@ export function PlansClient() {
                   {FEATURE_KEYS.map((k) => {
                     const on = Boolean(p.features?.[k]);
                     return (
-                      <li key={k} className={on ? 'flex items-center gap-2 text-[13.5px] text-[#0F2233]' : 'flex items-center gap-2 text-[13.5px] text-[#A39888]'}>
+                      <li key={k} className={on ? 'flex items-center gap-2 text-[13.5px] text-[#0F2233]' : 'flex items-center gap-2 text-[13.5px] text-[#8FA0AF]'}>
                         {on ? <Check className="h-3.5 w-3.5 text-[#067647]" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
                         <span>
                           {FEATURE_LABELS[k]}

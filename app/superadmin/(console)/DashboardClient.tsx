@@ -37,11 +37,11 @@ function CompanyCard({ c, plans }: { c: CompanySummary; plans: Plan[] | null }) 
             {limited ? `${fmtNum(c.activeUsers)} of ${fmtNum(c.maxUsers)}` : `${fmtNum(c.activeUsers)} · no limit`}
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-[#EFE8DF]" aria-hidden>
+        <div className="h-1.5 overflow-hidden rounded-full bg-[#E3EDF5]" aria-hidden>
           {limited && <div className={cx('h-1.5 rounded-full', full ? 'bg-[#C9781F]' : 'bg-[#0B6BB0]')} style={{ width: `${Math.max(pct, 4)}%` }} />}
         </div>
       </div>
-      <div className="flex items-center justify-between border-t border-[#F1EBE3] pt-3 text-[13px] text-[#4E6779]">
+      <div className="flex items-center justify-between border-t border-[#E6EFF6] pt-3 text-[13px] text-[#4E6779]">
         <span>
           <strong className="font-semibold tabular-nums text-[#0A1F33]">{fmtNum(c.leads)}</strong> leads · {fmtMB(c.storageMB)}
         </span>
@@ -82,7 +82,7 @@ export function DashboardClient() {
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-6 px-4 py-8 sm:px-8">
           <div>
             <h1 className="text-[1.75rem] font-semibold leading-tight text-[#0A1F33] sm:text-[1.9rem]">{firstName ? `Welcome back, ${firstName}` : 'Dashboard'}</h1>
-            <div className="mt-1.5 text-[15px] text-[#5E534B]">
+            <div className="mt-1.5 text-[15px] text-[#4E6779]">
               {d ? `${fmtNum(d.companies.total)} companies · ${fmtNum(d.companies.active)} active · ${fmtNum(d.companies.suspended)} suspended` : <Skeleton className="inline-block h-4 w-56 align-middle" />}
             </div>
           </div>
@@ -117,7 +117,7 @@ export function DashboardClient() {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search companies"
-                  className="h-11 w-64 max-w-full rounded-[10px] border border-[#C9BEB2] bg-white pl-10 pr-3.5 text-[14px] text-[#0F2233] placeholder:text-[#7E93A6] focus:border-[#0B6BB0] focus:outline-none focus:ring-2 focus:ring-[#0B6BB0]/40"
+                  className="h-11 w-64 max-w-full rounded-[10px] border border-[#C4D6E6] bg-white pl-10 pr-3.5 text-[14px] text-[#0F2233] placeholder:text-[#7E93A6] focus:border-[#0B6BB0] focus:outline-none focus:ring-2 focus:ring-[#0B6BB0]/40"
                 />
               </div>
               <LinkButton href="/superadmin/companies/new" icon={<Plus className="h-4 w-4" aria-hidden />}>

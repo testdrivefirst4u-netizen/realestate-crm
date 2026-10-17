@@ -93,7 +93,7 @@ export function LogoUpload({ value, onChange, name, disabled }: { value: string;
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt={`${name} logo`} className="max-h-full max-w-full object-contain" />
           ) : (
-            <ImagePlus className="h-5 w-5 text-[#B5AA9E]" aria-hidden />
+            <ImagePlus className="h-5 w-5 text-[#A9BDCD]" aria-hidden />
           )}
         </div>
         <div className="flex flex-wrap gap-2">
