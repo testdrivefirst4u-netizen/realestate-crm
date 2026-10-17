@@ -15,7 +15,7 @@ type LoginResult = { area: 'crm' | 'superadmin'; redirect: string; user: { name?
 const isConsolePath = (p: string | null) => !!p && (p === '/superadmin' || p.startsWith('/superadmin/'));
 
 /** POST /api/auth/login — the server decides whether these are super admin or company credentials. */
-async function signIn(email: string, password: string): Promise<LoginResult> {
+async function signIn(email: string, password: string, otp?: string): Promise<LoginResult> {
   let res: Response;
   try {
     res = await fetch('/api/auth/login', {
@@ -23,13 +23,14 @@ async function signIn(email: string, password: string): Promise<LoginResult> {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       cache: 'no-store',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, ...(otp ? { code: otp } : {}) }),
     });
   } catch (e) {
     throw toAppError(e);
   }
   const body = await res.json().catch(() => null);
   if (body?.status === 'success') return body.data;
+  if (body?.details?.totpRequired) throw new AppError('VALIDATION', body.message, { totpRequired: true }, body.message);
   const code = res.status === 429 ? 'RATE_LIMIT' : res.status === 403 ? 'FORBIDDEN' : res.status >= 500 ? 'SERVER' : 'VALIDATION';
   throw new AppError(code, body?.message || `Sign-in failed (HTTP ${res.status})`);
 }
@@ -50,8 +51,8 @@ export function LoginClient({ next, photoUrl }: { next: string | null; photoUrl?
     }
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const r = await signIn(email, password);
+  const login = async (email: string, password: string, code?: string) => {
+    const r = await signIn(email, password, code);
     if (r.area === 'superadmin') {
       router.replace(isConsolePath(next) ? next! : r.redirect);
       return;

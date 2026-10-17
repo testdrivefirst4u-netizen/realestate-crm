@@ -30,21 +30,24 @@ export async function POST(req: Request) {
   }
   const email = String(body?.email || '').trim();
   const password = String(body?.password || '');
+  const code = String(body?.code || '').trim();
   if (!email || !password) return json(errEnvelope('VALIDATION', 'Enter your email and password'), 400);
 
   const base = await requestBase();
 
   if (await isSuperAdminEmail(email)) {
-    const sa = await platformDispatch('saLogin', { email, password }, { token: '', userAgent: base.userAgent, ip: base.ip });
+    const sa = await platformDispatch('saLogin', { email, password, ...(code ? { code } : {}) }, { token: '', userAgent: base.userAgent, ip: base.ip });
     if (sa.status === 200 && sa.session) {
       const res = json({ status: 'success', data: { area: 'superadmin', redirect: '/superadmin', user: (sa.body as any).data?.user } }, 200);
       setPlatformSessionCookie(res, sa.session);
       return res;
     }
+    // Right password, authenticator code missing or wrong: ask for the code (never fall through to the CRM)
+    if ((sa.body as any)?.details?.totpRequired) return json(sa.body, sa.status);
     // Wrong console password (or console sign-in locked): the same e-mail may still be a CRM user.
   }
 
-  const crm = await dispatch('login', { email, password }, base);
+  const crm = await dispatch('login', { email, password, ...(code ? { code } : {}) }, base);
   const data: any = (crm.body as any).data;
   if (crm.status !== 200 || !data?.token || !crm.companyId) return json(crm.body, crm.status);
   const res = json({ status: 'success', data: { area: 'crm', redirect: '/dashboard', user: data.user, expiresAt: data.expiresAt, token: 'cookie' } }, 200);

@@ -11,6 +11,7 @@ import { Button, Card, CardHeader, ErrorBox, PageHeader, Skeleton, TextAreaField
 import { GoogleOAuthSection } from './GoogleOAuthSection';
 import { MetaSettingsCard } from './MetaSettingsCard';
 import { BrandingCard } from './BrandingCard';
+import { AccountSecurityCard } from './AccountSecurityCard';
 import { Field, Guide, StatusPill, TestResult } from './SettingsParts';
 
 type GoogleSettings = PlatformActions['getGoogleSettings']['res'];
@@ -193,6 +194,8 @@ export function SettingsClient() {
   return (
     <>
       <PageHeader title="Platform settings" description="Settings that apply to every company on the platform." />
+
+      <AccountSecurityCard />
 
       <BrandingCard />
 

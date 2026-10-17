@@ -244,6 +244,8 @@ export interface UserAccount {
   createdAt: string;
   lastLoginAt?: string;
   mustChangePassword?: boolean;
+  /** Two-step sign-in (authenticator app) is on. */
+  twoFactor?: boolean;
 }
 
 export interface AuthSession {

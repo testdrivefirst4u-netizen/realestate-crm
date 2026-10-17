@@ -17,6 +17,7 @@ import { fail } from './errors';
 import { currentTenant } from './tenant';
 import { claimEmail, releaseEmail } from '../platform/registry';
 import { randomPassword, randomToken, sha256Base64, sha256Hex, str, truncate, shortId } from './utils';
+import { generateTotpSecret, groupSecret, openTotpSecret, otpauthUri, sealTotpSecret, verifyTotp } from './totp';
 
 export interface PublicUser {
   id: string;
@@ -28,6 +29,8 @@ export interface PublicUser {
   lastLoginAt: string;
   mustChangePassword: boolean;
   avatar: string;
+  /** Two-step sign-in (authenticator app) is on. */
+  twoFactor: boolean;
 }
 
 export interface UserDoc {
@@ -45,6 +48,9 @@ export interface UserDoc {
   avatar?: string;
   /** The hidden Platform support account (opened by a super admin); never listed or counted. */
   support?: boolean;
+  /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
+  totpSecret?: string;
+  totpPending?: string;
 }
 
 interface SessionDoc {
@@ -69,7 +75,7 @@ export interface Ctx {
 }
 
 export const SYSTEM_CTX: Ctx = {
-  user: { id: 'SYSTEM', name: 'System', email: '', role: 'Developer', status: 'Active', createdAt: '', lastLoginAt: '', mustChangePassword: false, avatar: '' },
+  user: { id: 'SYSTEM', name: 'System', email: '', role: 'Developer', status: 'Active', createdAt: '', lastLoginAt: '', mustChangePassword: false, avatar: '', twoFactor: false },
   session: null,
   token: '',
   userAgent: '',
@@ -112,6 +118,7 @@ export function publicUser(u: UserDoc): PublicUser {
     lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : '',
     mustChangePassword: !!u.mustChangePassword,
     avatar: photoValue(u.avatar),
+    twoFactor: !!u.totpSecret,
   };
 }
 
@@ -225,6 +232,9 @@ export async function updateUser(data: any, ctx: Ctx) {
     checkNewPassword(data.password);
     set.passwordHash = await hashPassword(String(data.password));
     unset.legacySalt = '';
+    // a reset is how someone who lost their phone gets back in: two-step sign-in starts over
+    unset.totpSecret = '';
+    unset.totpPending = '';
     set.mustChangePassword = true;
   }
   if (data.mustChangePassword !== undefined) set.mustChangePassword = !!data.mustChangePassword;
@@ -319,7 +329,11 @@ export interface LoginResult {
   expiresAt: string;
 }
 
-export async function login(email: string, password: string, ctx: Pick<Ctx, 'userAgent' | 'ip'>): Promise<LoginResult> {
+/** Thrown when the password was right but the authenticator code is missing or wrong. */
+export const TOTP_REQUIRED_MSG = 'Enter the 6-digit code from your authenticator app.';
+export const TOTP_WRONG_MSG = 'That code is not right. Check the time on your phone and try the newest code.';
+
+export async function login(email: string, password: string, ctx: Pick<Ctx, 'userAgent' | 'ip'>, code?: string): Promise<LoginResult> {
   const key = `${String(email || '').trim().toLowerCase()}|${ctx.ip || ''}`;
   await assertNotLocked(key);
   const u = await findUserByEmail(email);
@@ -327,6 +341,13 @@ export async function login(email: string, password: string, ctx: Pick<Ctx, 'use
   if (!u || !okPw || u.status === 'Disabled') {
     await recordFailure(key);
     throw fail('AUTH_FAILED', 'Invalid email or password');
+  }
+  if (u.totpSecret) {
+    if (!str(code)) throw fail('AUTH_FAILED', TOTP_REQUIRED_MSG, { totpRequired: true });
+    if (!verifyTotp(openTotpSecret(u.totpSecret), code)) {
+      await recordFailure(key);
+      throw fail('AUTH_FAILED', TOTP_WRONG_MSG, { totpRequired: true });
+    }
   }
   await (await attempts()).deleteOne({ key });
 
@@ -439,6 +460,39 @@ export async function changePassword(ctx: Ctx, currentPassword: string, newPassw
   // sign out every other session of this user
   await (await sessions()).deleteMany({ userId: u._id, tokenHash: { $ne: sha256Hex(ctx.token) } });
   await auditLog(ctx, 'Password Changed', 'Auth', u._id, '');
+}
+
+/* --------------------------- two-step sign-in --------------------------- */
+
+/** Start setting up: a new secret to add to the authenticator app (saved as pending until confirmed). */
+export async function totpSetup(ctx: Ctx, issuer = 'CRM'): Promise<{ secret: string; uri: string }> {
+  if (!ctx.user) throw fail('AUTH_REQUIRED', 'Please sign in');
+  const secret = generateTotpSecret();
+  await (await users()).updateOne({ _id: ctx.user.id }, { $set: { totpPending: sealTotpSecret(secret) } });
+  return { secret: groupSecret(secret), uri: otpauthUri(issuer, ctx.user.email, secret) };
+}
+
+/** Confirm with a code from the app: two-step sign-in is on from the next sign-in. */
+export async function totpEnable(ctx: Ctx, code: string): Promise<PublicUser> {
+  if (!ctx.user) throw fail('AUTH_REQUIRED', 'Please sign in');
+  const u = await findUserById(ctx.user.id);
+  const pending = openTotpSecret(u?.totpPending);
+  if (!u || !pending) throw fail('VALIDATION', 'Start the setup again');
+  if (!verifyTotp(pending, code)) throw fail('VALIDATION', TOTP_WRONG_MSG);
+  await (await users()).updateOne({ _id: u._id }, { $set: { totpSecret: u.totpPending }, $unset: { totpPending: '' } });
+  await auditLog(ctx, 'Two-step Sign-in On', 'Auth', u._id, '');
+  return publicUser({ ...u, totpSecret: u.totpPending, totpPending: undefined });
+}
+
+/** Turn it off (needs the password). */
+export async function totpDisable(ctx: Ctx, password: string): Promise<PublicUser> {
+  if (!ctx.user) throw fail('AUTH_REQUIRED', 'Please sign in');
+  const u = await findUserById(ctx.user.id);
+  if (!u) throw fail('NOT_FOUND', 'User not found');
+  if (!(await verifyPassword(u, password))) throw fail('VALIDATION', 'Password is incorrect');
+  await (await users()).updateOne({ _id: u._id }, { $unset: { totpSecret: '', totpPending: '' } });
+  await auditLog(ctx, 'Two-step Sign-in Off', 'Auth', u._id, '');
+  return publicUser({ ...u, totpSecret: undefined, totpPending: undefined });
 }
 
 /* ------------------------------ permissions ------------------------------ */

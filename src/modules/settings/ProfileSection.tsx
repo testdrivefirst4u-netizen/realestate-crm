@@ -8,6 +8,7 @@ import { toast } from '../../core/notifications';
 import { roleLabel } from '../../core/rbac';
 import { Avatar, isAvatarDataUrl, useAvatarPicker } from '../../components/Avatar';
 import { Badge, Button, Card, InlineNotice } from '../../components/ui';
+import { TwoStepCard } from './TwoStepCard';
 
 export type ProfileUpdate = { name?: string; avatar?: string | null };
 
@@ -94,6 +95,8 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
           <InlineNotice tone="warning">No active session. Please sign in again.</InlineNotice>
         )}
       </Card>
+
+      {currentUser && <TwoStepCard enabled={!!currentUser.twoFactor} onChanged={onRefreshAll} />}
 
       <div className="text-[11px] text-[#7E93A6] inline-flex items-center gap-1.5"><UserCircle2 size={12} />Need a different role or email? Ask an administrator — they can change it under Settings → Users.</div>
     </div>

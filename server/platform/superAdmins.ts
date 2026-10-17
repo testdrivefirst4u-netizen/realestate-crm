@@ -16,6 +16,8 @@ import { randomPassword, randomToken, safeEqual, sha256Hex, truncate } from '../
 import { PCOLL } from './registry';
 import { ensurePlatformCounterAtLeast, nextPlatformId, pc, platformAudit, type SaCtx } from './base';
 import type { SuperAdmin } from './contract';
+import { generateTotpSecret, groupSecret, openTotpSecret, otpauthUri, sealTotpSecret, verifyTotp } from '../core/totp';
+import { TOTP_REQUIRED_MSG, TOTP_WRONG_MSG } from '../core/auth';
 
 export interface SuperAdminDoc {
   _id: string; // SA-0001
@@ -27,6 +29,9 @@ export interface SuperAdminDoc {
   mustChangePassword: boolean;
   createdAt: Date;
   lastLoginAt: Date | null;
+  /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
+  totpSecret?: string;
+  totpPending?: string;
 }
 
 interface SaSessionDoc {
@@ -62,6 +67,7 @@ export function publicSuperAdmin(d: SuperAdminDoc): SuperAdmin {
     createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : '',
     lastLoginAt: d.lastLoginAt ? new Date(d.lastLoginAt).toISOString() : '',
     mustChangePassword: !!d.mustChangePassword,
+    twoFactor: !!d.totpSecret,
   };
 }
 
@@ -175,6 +181,14 @@ export async function saLogin(d: any, ctx: Pick<SaCtx, 'ip' | 'userAgent'>): Pro
     await recordFailure(key);
     await platformAudit({ sa: null, ip: ctx.ip || '' }, 'Super Admin Login Failed', '', truncate(email, 200));
     throw fail('AUTH_FAILED', BAD_LOGIN);
+  }
+  if (u.totpSecret) {
+    if (!String(d?.code || '').trim()) throw fail('AUTH_FAILED', TOTP_REQUIRED_MSG, { totpRequired: true });
+    if (!verifyTotp(openTotpSecret(u.totpSecret), d?.code)) {
+      await recordFailure(key);
+      await platformAudit({ sa: null, ip: ctx.ip || '' }, 'Super Admin Login Failed', '', truncate(email + ' (wrong code)', 200));
+      throw fail('AUTH_FAILED', TOTP_WRONG_MSG, { totpRequired: true });
+    }
   }
   await (await attempts()).deleteOne({ key });
   const token = randomToken(32);
@@ -317,7 +331,8 @@ export async function resetSuperAdminPassword(d: any, ctx: SaCtx) {
   if (!u) throw fail('NOT_FOUND', 'Super admin not found');
   if (ctx.sa?.id === u._id) throw fail('VALIDATION', 'Use "Change password" for your own account');
   const pw = randomPassword(16);
-  await c.updateOne({ _id: u._id }, { $set: { passwordHash: await hashSaPassword(pw), mustChangePassword: true } });
+  // a reset is how a super admin who lost their phone gets back in: two-step sign-in starts over
+  await c.updateOne({ _id: u._id }, { $set: { passwordHash: await hashSaPassword(pw), mustChangePassword: true }, $unset: { totpSecret: '', totpPending: '' } });
   await revokeSaSessions(u._id);
   await platformAudit(ctx, 'Super Admin Password Reset', '', `${u._id} ${u.emailLower}`);
   return { temporaryPassword: pw };
@@ -363,4 +378,33 @@ export async function upsertSuperAdminCli(email: string, name: string, password:
   });
   await platformAudit(null, 'Super Admin Created (CLI)', '', `${id} ${e}`, 'CLI');
   return { created: true, id };
+}
+
+/* --------------------------- two-step sign-in --------------------------- */
+
+export async function saTotpSetup(ctx: SaCtx): Promise<{ secret: string; uri: string }> {
+  const secret = generateTotpSecret();
+  await (await admins()).updateOne({ _id: ctx.sa!.id }, { $set: { totpPending: sealTotpSecret(secret) } });
+  return { secret: groupSecret(secret), uri: otpauthUri('Broaddcast Super Admin', ctx.sa!.email, secret) };
+}
+
+export async function saTotpEnable(d: any, ctx: SaCtx): Promise<SuperAdmin> {
+  const c = await admins();
+  const me = await c.findOne({ _id: ctx.sa!.id });
+  const pending = openTotpSecret(me?.totpPending);
+  if (!me || !pending) throw fail('VALIDATION', 'Start the setup again');
+  if (!verifyTotp(pending, d?.code)) throw fail('VALIDATION', TOTP_WRONG_MSG);
+  await c.updateOne({ _id: me._id }, { $set: { totpSecret: me.totpPending }, $unset: { totpPending: '' } });
+  await platformAudit(ctx, 'Two-step Sign-in On', '', me.emailLower);
+  return publicSuperAdmin({ ...me, totpSecret: me.totpPending, totpPending: undefined });
+}
+
+export async function saTotpDisable(d: any, ctx: SaCtx): Promise<SuperAdmin> {
+  const c = await admins();
+  const me = await c.findOne({ _id: ctx.sa!.id });
+  if (!me) throw fail('AUTH_REQUIRED', 'Please sign in');
+  if (!(await bcrypt.compare(String(d?.password || ''), me.passwordHash || ''))) throw fail('VALIDATION', 'Password is incorrect');
+  await c.updateOne({ _id: me._id }, { $unset: { totpSecret: '', totpPending: '' } });
+  await platformAudit(ctx, 'Two-step Sign-in Off', '', me.emailLower);
+  return publicSuperAdmin({ ...me, totpSecret: undefined, totpPending: undefined });
 }

@@ -31,6 +31,9 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   saLogout: { fn: (_d, ctx) => SA.saLogout(ctx) },
   saMe: { fn: (_d, ctx) => ({ user: ctx.sa, expiresAt: ctx.expiresAt }) },
   saChangePassword: { fn: (d, ctx) => SA.saChangePassword(d, ctx) },
+  saTotpSetup: { fn: (_d, ctx) => SA.saTotpSetup(ctx) },
+  saTotpEnable: { fn: (d, ctx) => SA.saTotpEnable(d, ctx) },
+  saTotpDisable: { fn: (d, ctx) => SA.saTotpDisable(d, ctx) },
   /* companies */
   dashboard: { fn: () => CO.dashboard() },
   listCompanies: { fn: (d) => CO.listCompanies(d) },

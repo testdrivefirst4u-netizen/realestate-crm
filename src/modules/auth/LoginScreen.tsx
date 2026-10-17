@@ -10,7 +10,8 @@ import { platformProductName } from '../../core/tenant';
 interface Props {
   status: AuthStatus;
   lastError?: string;
-  onLogin: (email: string, password: string) => Promise<void>;
+  /** `code`: the authenticator code, once the server asked for it (two-step sign-in). */
+  onLogin: (email: string, password: string, code?: string) => Promise<void>;
   /** Photo for the left panel (e.g. `/login-photo.jpg` from public/); without one a building illustration is shown. */
   photoUrl?: string | null;
 }
@@ -52,15 +53,24 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The password was right and this account uses two-step sign-in: ask for the code. */
+  const [needCode, setNeedCode] = useState(false);
+  const [code, setCode] = useState('');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await onLogin(email, password);
+      await onLogin(email, password, needCode ? code : undefined);
     } catch (err) {
-      setError(toAppError(err).userMessage);
+      const e = toAppError(err);
+      if (e.details?.totpRequired) {
+        // first time: just show the code box; after a wrong code: show why
+        if (needCode) setError(e.userMessage);
+        setNeedCode(true);
+        setCode('');
+      } else setError(e.userMessage);
     } finally {
       setBusy(false);
     }
@@ -124,6 +134,14 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
                 </div>
               </div>
 
+              {needCode && (
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="login-code" className="text-sm font-medium">Authenticator code</label>
+                  <input id="login-code" className={fieldCls + ' tracking-[0.3em] text-lg'} inputMode="numeric" pattern="[0-9 ]{6,7}" maxLength={7} value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9 ]/g, ''))} required autoComplete="one-time-code" autoFocus placeholder="123 456" aria-describedby="login-code-hint" />
+                  <p id="login-code-hint" className="m-0 text-[13px] text-[#5E534B]">Open your authenticator app and type the 6-digit code shown for this account.</p>
+                </div>
+              )}
+
               {shown && (
                 <InlineNotice tone="warning">
                   {suspended ? (
@@ -143,7 +161,7 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
                 className="h-[50px] rounded-[10px] bg-[#7A5B37] hover:bg-[#6A4E2F] disabled:opacity-70 text-white text-base font-semibold flex items-center justify-center gap-2 transition-colors"
               >
                 {busy && <Loader2 size={18} className="animate-spin" />}
-                {busy ? 'Signing in…' : 'Sign in'}
+                {busy ? 'Signing in…' : needCode ? 'Verify and sign in' : 'Sign in'}
               </button>
               <p className="m-0 text-sm text-[#5E534B]">Accounts are created by your company administrator. Forgot your password? Ask them to reset it.</p>
             </form>

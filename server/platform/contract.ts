@@ -40,6 +40,8 @@ export interface SuperAdmin {
   lastLoginAt: string;
   /** True after the account was created/reset with a temporary password (backend addition). */
   mustChangePassword?: boolean;
+  /** Two-step sign-in (authenticator app) is on. */
+  twoFactor?: boolean;
 }
 
 export interface Plan {
@@ -175,11 +177,14 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   /* public */
   saStatus: { req: {}; res: { setupRequired: boolean; setupTokenRequired: boolean; platformName: string } };
   saSetup: { req: { name: string; email: string; password: string; setupToken?: string }; res: { user: SuperAdmin; expiresAt: string } };
-  saLogin: { req: { email: string; password: string }; res: { user: SuperAdmin; expiresAt: string } };
+  saLogin: { req: { email: string; password: string; code?: string }; res: { user: SuperAdmin; expiresAt: string } };
   /* signed in */
   saLogout: { req: {}; res: null };
   saMe: { req: {}; res: { user: SuperAdmin; expiresAt: string } };
   saChangePassword: { req: { currentPassword: string; newPassword: string }; res: null };
+  saTotpSetup: { req: {}; res: { secret: string; uri: string } };
+  saTotpEnable: { req: { code: string }; res: SuperAdmin };
+  saTotpDisable: { req: { password: string }; res: SuperAdmin };
   dashboard: {
     req: {};
     res: {

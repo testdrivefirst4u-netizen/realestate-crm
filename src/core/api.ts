@@ -174,6 +174,10 @@ export const api = {
     me: () => request<{ user: UserAccount; expiresAt: string }>('me'),
     logout: () => request<void>('logout'),
     changePassword: (currentPassword: string, newPassword: string) => request<void>('changePassword', { currentPassword, newPassword }),
+    /** Two-step sign-in (authenticator app): start, confirm with a code, turn off with the password. */
+    totpSetup: () => request<{ secret: string; uri: string }>('totpSetup', {}),
+    totpEnable: (code: string) => request<UserAccount>('totpEnable', { code }),
+    totpDisable: (password: string) => request<UserAccount>('totpDisable', { password }),
     /** Own display name / profile photo (photo = data URL ≤ 48 000 chars; null clears it). */
     updateProfile: (data: { name?: string; avatar?: string | null }) => request<UserAccount>('updateProfile', { data }),
   },

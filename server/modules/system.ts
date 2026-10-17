@@ -8,9 +8,10 @@
  */
 import type { ActionMap } from '../core/actions';
 import {
-  auditList, can, changePassword, createUser, Ctx, deleteUser, findUserById, hasUsers, listUsers, login, logout, normalizeRole, updateProfile, updateUser,
+  auditList, can, changePassword, createUser, Ctx, deleteUser, findUserById, hasUsers, listUsers, login, logout, normalizeRole, totpDisable, totpEnable, totpSetup, updateProfile, updateUser,
 } from '../core/auth';
 import { CFG } from '../core/config';
+import { currentTenant } from '../core/tenant';
 import { getVersion, isTestMode } from '../core/db';
 import { fail } from '../core/errors';
 import { eventsSince, lastEventId, listErrors, logError } from '../core/events';
@@ -95,7 +96,7 @@ export const actions: ActionMap = {
       return createFirstAdmin(d, ctx);
     },
   },
-  login: { public: true, fn: (d, ctx) => login(d.email, d.password, ctx) },
+  login: { public: true, fn: (d, ctx) => login(d.email, d.password, ctx, d.code) },
   logError: {
     public: true,
     fn: async (d, ctx) => {
@@ -109,6 +110,9 @@ export const actions: ActionMap = {
   me: { fn: (_d, ctx) => ({ user: ctx.user, expiresAt: ctx.session?.expiresAt }) },
   logout: { fn: (_d, ctx) => logout(ctx.token) },
   changePassword: { fn: (d, ctx) => changePassword(ctx, d.currentPassword, d.newPassword) },
+  totpSetup: { fn: (_d, ctx) => totpSetup(ctx, currentTenant()?.name ? `${currentTenant()!.name} CRM` : 'CRM') },
+  totpEnable: { fn: (d, ctx) => totpEnable(ctx, d?.code) },
+  totpDisable: { fn: (d, ctx) => totpDisable(ctx, d?.password) },
   updateProfile: { fn: (d, ctx) => updateProfile(ctx, d.data || d) },
 
   /* ---- data ---- */
