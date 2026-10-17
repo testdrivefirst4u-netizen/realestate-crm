@@ -7,7 +7,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
-import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Save, Sparkles, Trash2, User } from 'lucide-react';
+import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Save, Sparkles, User } from 'lucide-react';
 import { CRMConfig, CRMSettings, InventoryUnit, Lead, TaskItem, UserAccount } from '../../types/crm';
 import { F, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS } from '../../core/config';
 import { api } from '../../core/api';
@@ -36,9 +36,7 @@ export interface LeadDetailModalProps {
   onClose: () => void;
   onSaveLead: (id: string, patch: Partial<Lead>) => Promise<Lead | null>;
   onAppendRemark: (id: string, remark: string, nextFollowup?: string) => Promise<boolean>;
-  onTrashLead: (id: string) => Promise<boolean>;
   onAddTask: (task: Omit<TaskItem, 'id'>) => Promise<TaskItem | null>;
-  canTrash: boolean;
   canEdit: boolean;
   aiConfigured: boolean;
   chatEnabled: boolean;
@@ -69,14 +67,12 @@ type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead }
 
 const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY];
 
-const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onTrashLead, onAddTask, canTrash, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
+const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
   const id = String(lead[F.ID]);
   const [tab, setTab] = useState<TabId>('details');
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [confirmTrash, setConfirmTrash] = useState(false);
-  const [trashing, setTrashing] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [copied, setCopied] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -123,7 +119,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   /* ------------------------------- actions ------------------------------- */
 
   const requestClose = () => {
-    if (confirmTrash || confirmDiscard) return; // a confirmation dialog owns Escape/backdrop right now
+    if (confirmDiscard) return; // a confirmation dialog owns Escape/backdrop right now
     if (dirty) setConfirmDiscard(true);
     else onClose();
   };
@@ -150,17 +146,6 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
       toast('Booking recorded 🎉', `${name} is now Booked`, 'success');
     } else {
       toast('Enquiry updated', `${Object.keys(patch).length} ${Object.keys(patch).length === 1 ? 'field' : 'fields'} saved for ${name || id}`, 'success');
-    }
-  };
-
-  const trash = async () => {
-    setTrashing(true);
-    const ok = await onTrashLead(id);
-    setTrashing(false);
-    if (ok) {
-      setConfirmTrash(false);
-      toast('Moved to Trash', `${name || id} is hidden from every list and report. An admin can restore it from Settings.`, 'info');
-      onClose();
     }
   };
 
@@ -258,13 +243,6 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
 
   const footer = (
     <>
-      {canTrash && (
-        <div className="mr-auto">
-          <Button variant="danger" onClick={() => setConfirmTrash(true)} icon={<Trash2 size={13} />}>
-            Move to Trash
-          </Button>
-        </div>
-      )}
       <Button variant="ghost" onClick={requestClose}>
         {dirty ? 'Cancel' : 'Close'}
       </Button>
@@ -445,20 +423,6 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
         </div>
       </Modal>
 
-      <ConfirmDialog
-        open={confirmTrash}
-        title="Move to Trash?"
-        danger
-        confirmLabel="Move to Trash"
-        loading={trashing}
-        onCancel={() => setConfirmTrash(false)}
-        onConfirm={() => void trash()}
-        message={
-          <>
-            <strong>{name || id}</strong> ({id}) will disappear from every list, board and report. Nothing is deleted — an administrator can restore it from Settings → Trash.
-          </>
-        }
-      />
       <ConfirmDialog
         open={confirmDiscard}
         title="Discard unsaved changes?"

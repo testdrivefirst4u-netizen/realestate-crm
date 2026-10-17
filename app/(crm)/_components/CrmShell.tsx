@@ -346,9 +346,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 onClose={closeLead}
                 onSaveLead={engine.updateLead}
                 onAppendRemark={engine.appendRemark}
-                onTrashLead={engine.trashLead}
                 onAddTask={engine.addTask}
-                canTrash={engine.can('leads.trash')}
                 canEdit={engine.can('leads.edit')}
                 aiConfigured={aiConfigured}
                 chatEnabled={!!serverSettings?.chat360Configured}
