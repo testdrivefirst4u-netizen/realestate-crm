@@ -17,6 +17,7 @@ import * as LS from './leadSources';
 import * as GS from './sheets';
 import * as MA from './meta';
 import * as BR from './branding';
+import { platformHealth } from './health';
 
 type Handler = { public?: boolean; fn: (data: any, ctx: SaCtx) => Promise<unknown> | unknown };
 
@@ -72,6 +73,7 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   deleteSuperAdmin: { fn: (d, ctx) => SA.deleteSuperAdmin(d, ctx) },
   /* audit */
   auditLog: { fn: (d) => listPlatformAudit({ limit: d?.limit, companyId: d?.companyId }) },
+  platformHealth: { fn: () => platformHealth() },
   /* branding */
   getBranding: { fn: () => BR.getBranding() },
   saveBranding: { fn: (d, ctx) => BR.saveBranding(d, ctx) },

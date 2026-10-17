@@ -97,6 +97,29 @@ export interface PlatformAuditEntry {
   details: string;
 }
 
+/** Platform health (super admin): scheduled jobs, Meta lead queue, latest errors of every company. */
+export interface HealthJob {
+  id: string;
+  label: string;
+  path: string;
+  everyMin: number;
+  status: 'ok' | 'late' | 'failing' | 'never';
+  lastRunAt: string;
+  lastOkAt: string;
+  /** Last call with a missing or wrong CRON_SECRET. */
+  lastRejectedAt: string;
+  durationMs: number;
+  summary: string;
+  lastError: string;
+  history: Array<{ at: string; ok: boolean; ms: number; summary: string }>;
+}
+export interface PlatformHealth {
+  checkedAt: string;
+  jobs: HealthJob[];
+  metaQueue: { pending: number; failed: number; done24h: number };
+  errors: Array<{ at: string; company: string; companyId: string; scope: string; code: string; message: string }>;
+}
+
 /** Action → request data → response data. */
 /** Action → request data → response data (includes the per-company lead-source actions). */
 export interface PlatformActions extends PlatformLeadSourceActions, PlatformSheetActions, PlatformMetaActions {
@@ -155,6 +178,7 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   resetSuperAdminPassword: { req: { id: string }; res: { temporaryPassword: string } };
   deleteSuperAdmin: { req: { id: string }; res: { ok: true } };
   auditLog: { req: { limit?: number; companyId?: string }; res: PlatformAuditEntry[] };
+  platformHealth: { req: {}; res: PlatformHealth };
   /* branding & legal details (public legal pages) */
   getBranding: { req: {}; res: Branding };
   saveBranding: { req: BrandingInput; res: Branding };

@@ -7,6 +7,7 @@
  * has neither a Google service account nor an OAuth client.
  */
 import { NextResponse } from 'next/server';
+import { recordJobRejected, recordJobRun, summarize } from '@/server/platform/health';
 import { runWithTenant } from '@/server/core/tenant';
 import { listActiveTenants } from '@/server/platform/registry';
 import { googleStatus } from '@/server/integrations/google';
@@ -23,12 +24,16 @@ const BUDGET_MS = 240_000;
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret || !safeEqual(req.headers.get('authorization') || '', `Bearer ${secret}`)) {
+    await recordJobRejected('sheets');
     return NextResponse.json({ status: 'error', code: 'AUTH_REQUIRED', message: 'Unauthorized' }, { status: 401 });
   }
+  const started = Date.now();
   const google = await googleStatus();
   // links reach Google through the service account or a company's OAuth connection (needs the OAuth client)
   if (!google.configured && !google.oauthConfigured) {
-    return NextResponse.json({ status: 'success', data: { skipped: 'Google is not configured (no service account and no OAuth client)', companies: 0, failed: 0, results: {} } });
+    const data = { skipped: 'Google is not configured (no service account and no OAuth client)', companies: 0, failed: 0, results: {} };
+    await recordJobRun('sheets', started, true, summarize(data));
+    return NextResponse.json({ status: 'success', data });
   }
   const deadline = Date.now() + BUDGET_MS;
   const results: Record<string, unknown> = {};
@@ -43,5 +48,7 @@ export async function GET(req: Request) {
       console.error(`[cron:sheets] ${tenant.slug}`, e);
     }
   }
-  return NextResponse.json({ status: failed ? 'error' : 'success', data: { companies: Object.keys(results).length, failed, results } }, { status: failed ? 500 : 200 });
+  const data = { companies: Object.keys(results).length, failed, results };
+  await recordJobRun('sheets', started, !failed, summarize(data));
+  return NextResponse.json({ status: failed ? 'error' : 'success', data }, { status: failed ? 500 : 200 });
 }
