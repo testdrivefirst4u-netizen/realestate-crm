@@ -91,6 +91,10 @@ alias(L.UNIT_TYPE, ['unit', 'unit_type', 'bhk', 'configuration', 'unit_type_inte
 alias(CFG.LEAD_GEO.CITY, ['city', 'your_city', 'town', 'city_name', 'current_city', 'location_city']);
 alias(CFG.LEAD_GEO.STATE, ['state', 'province', 'region', 'state_province', 'your_state']);
 alias(CFG.LEAD_GEO.COUNTRY, ['country', 'your_country', 'country_name', 'country_of_residence']);
+alias(CFG.LEAD_AD.CAMPAIGN, ['meta_campaign']);
+alias(CFG.LEAD_AD.AD_SET, ['meta_ad_set']);
+alias(CFG.LEAD_AD.AD, ['meta_ad']);
+alias(CFG.LEAD_AD.FORM, ['meta_form']);
 // CRM headers themselves ('Phone Number', 'Purchase or Rent', …) are recognised too.
 for (const h of CFG.LEAD_BASE_HEADERS) ALIASES[normKey(h)] ||= h;
 const FIRST = new Set(['first_name', 'firstname', 'fname', 'given_name']);

@@ -46,6 +46,11 @@ export const F = {
   COUNTRY: 'Country',
   STATE: 'State',
   CITY: 'City',
+  /** Which Meta ad a lead came from (extra columns, filled by Meta Lead Ads intake). */
+  CAMPAIGN: 'Campaign',
+  AD_SET: 'Ad Set',
+  AD_NAME: 'Ad Name',
+  LEAD_FORM: 'Lead Form',
 } as const;
 
 export const MAX_FOLLOWUPS = 50;

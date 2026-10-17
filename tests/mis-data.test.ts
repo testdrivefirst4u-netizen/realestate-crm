@@ -102,4 +102,12 @@ describe('Meta lead forms', () => {
     );
     expect(out).toMatchObject({ city: 'Pune', state: 'Maharashtra', country: 'IN' });
   });
+
+  it('passes the campaign, ad set, ad and form through to intake', () => {
+    const out = mapMetaLead(
+      { id: '1', form_id: 'F1', created_time: '', campaign_name: 'Video_Sept2026', adset_name: 'Hyderabad_50+', ad_name: 'Lifestyle_Video', field_data: [{ name: 'phone_number', values: ['9876543210'] }] } as any,
+      { config: { meta: { forms: [{ id: 'F1', name: 'Rhythm_Aug26_v3', status: 'ACTIVE' }] } } } as any,
+    );
+    expect(out).toMatchObject({ meta_campaign: 'Video_Sept2026', meta_ad_set: 'Hyderabad_50+', meta_ad: 'Lifestyle_Video', meta_form: 'Rhythm_Aug26_v3' });
+  });
 });

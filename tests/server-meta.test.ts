@@ -507,6 +507,45 @@ describe('backfill, check and disconnect', () => {
     await expect(inCo(() => M.backfillMetaSource({ sourceId, days: 31 }, null))).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
+  it('quick check imports the leads of the last 2 hours the webhook missed, and counts them', async () => {
+    const { sourceId } = await connectDirect();
+    const now = Date.now();
+    leads['7101'] = lead('7101', { created_time: new Date(now - 40 * 60e3).toISOString() }); // missed by the webhook
+    leads['7102'] = lead('7102', { created_time: new Date(now - 60e3).toISOString(), field_data: [{ name: 'phone_number', values: ['+919800000002'] }] }); // webhook may still come
+    leads['7103'] = lead('7103', { created_time: new Date(now - 3 * 3600e3).toISOString(), field_data: [{ name: 'phone_number', values: ['+919800000003'] }] }); // the daily check's job
+    leads['7104'] = lead('7104', { created_time: new Date(now - 10 * 60e3).toISOString(), field_data: [{ name: 'phone_number', values: ['+919800000004'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['7104'])));
+    await Q.processQueueItem('7104'); // delivered by the webhook: not "recovered"
+
+    const src = () => inCo(() => M.findMetaSource(sourceId));
+    const r = await inCo(async () => M.runQuickSync(await src(), now));
+    expect(r).toEqual({ recovered: 1, message: '1 new, 1 already imported' });
+    expect(await leadsIn()).toHaveLength(2);
+    expect((await src()).config!.meta).toMatchObject({ recovered: 1, lastQuickSyncAt: new Date(now).toISOString(), lastRecoveredAt: new Date(now).toISOString() });
+    expect(await inCo(async () => M.runQuickSync(await src(), now))).toEqual({ recovered: 0, message: '2 already imported' });
+    expect((await src()).config!.meta!.recovered).toBe(1);
+  });
+
+  it('with chosen forms, takes forms created later but not the ones left unticked', async () => {
+    const meta = { formIds: [FORM_A], includeNewForms: true, knownFormIds: [FORM_A, FORM_B], forms: [] };
+    expect(M.formAllowed(meta, FORM_A)).toBe(true);
+    expect(M.formAllowed(meta, FORM_B)).toBe(false);
+    expect(M.formAllowed(meta, '9003')).toBe(true);
+    expect(M.formAllowed({ ...meta, includeNewForms: false }, '9003')).toBe(false);
+    expect(M.formAllowed({ ...meta, formIds: [] }, FORM_B)).toBe(true);
+    // chosen before knownFormIds existed: the cached form list stands in
+    expect(M.formAllowed({ formIds: [FORM_A], includeNewForms: true, knownFormIds: [], forms: forms[PAGE] }, '9003')).toBe(true);
+
+    // end to end: a webhook lead from a brand-new form is imported, one from the unticked form is skipped
+    await connectDirect(PAGE, 'CMP-test', [FORM_A]);
+    leads['7201'] = lead('7201', { form_id: '9003' });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['7201'], PAGE, '9003')));
+    expect(await Q.processQueueItem('7201')).toMatchObject({ status: 'done', result: 'created' });
+    leads['7202'] = lead('7202', { form_id: FORM_B, field_data: [{ name: 'phone_number', values: ['+919800000005'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['7202'], PAGE, FORM_B)));
+    expect(await Q.processQueueItem('7202')).toMatchObject({ status: 'skipped' });
+  });
+
   it('checkMetaSource refreshes forms and re-subscribes', async () => {
     const { sourceId } = await connectDirect();
     subscribed.delete(PAGE);
@@ -550,9 +589,27 @@ describe('cron /api/cron/meta', () => {
     await Q.enqueueLeadgen(JSON.parse(leadgenBody(['5001'])));
     const b1 = await (await cron()).json();
     expect(b1.data.queue).toEqual({ processed: 1, byStatus: { done: 1 } });
-    expect(b1.data.backfills.test).toEqual([{ id: sourceId, result: '1 already imported' }]);
+    expect(b1.data.backfills.test).toEqual([{ id: sourceId, check: 'daily', result: '1 already imported' }]);
     const b2 = await (await cron()).json();
     expect(b2.data).toEqual({ queue: { processed: 0, byStatus: {} }, backfills: {} });
+  });
+
+  it('runs the quick check between daily checks and re-subscribes a dropped Page daily', async () => {
+    const { sourceId } = await connectDirect();
+    const now = Date.now();
+    const srcs = async () => (await inCo(() => sourcesCol())) as any;
+    // daily check ran 3 hours ago, quick check 20 minutes ago → only the quick check is due
+    await (await srcs()).updateOne({ _id: sourceId }, { $set: { 'config.meta.lastBackfillAt': new Date(now - 3 * 3600e3).toISOString(), 'config.meta.lastQuickSyncAt': new Date(now - 20 * 60e3).toISOString() } });
+    leads['5101'] = lead('5101', { created_time: new Date(now - 30 * 60e3).toISOString() });
+    const r = await Q.runMetaCron({ now: new Date(now) });
+    expect(r.backfills.test).toEqual([{ id: sourceId, check: 'quick', result: '1 new', recovered: 1 }]);
+    expect((await Q.runMetaCron({ now: new Date(now) })).backfills).toEqual({}); // not due again yet
+
+    // a day later: the deep check, which also subscribes the Page again
+    subscribed.delete(PAGE);
+    const d = await Q.runMetaCron({ now: new Date(now + 86400e3) });
+    expect(d.backfills.test).toEqual([{ id: sourceId, check: 'daily', result: '1 already imported' }]);
+    expect(subscribed.has(PAGE)).toBe(true);
   });
 
   it('skips cleanly when Meta is not configured', async () => {

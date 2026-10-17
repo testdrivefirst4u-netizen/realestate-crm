@@ -11,7 +11,9 @@
  *   → Page token → Graph lead → ingestLead (idempotency key meta:<leadgen_id>).
  *   Statuses: pending → processing → done | skipped (paused source, form not selected, company without the plan)
  *   | orphan (no company has the Page) | failed (retried after 5/15/60/240 min) → dead after 5 attempts.
- * Cron (GET /api/cron/meta, every 5 min): due queue items (≤ 200 per run) and, once a day per source, a 2-day backfill.
+ * Cron (GET /api/cron/meta, every 10 min): due queue items (≤ 200 per run); per source a quick check of the last 2 hours
+ *   (runQuickSync) or, once a day, a 7-day deep check that also re-subscribes the Page when needed. Leads these checks
+ *   import were missed by the webhook: counted in config.meta.recovered and logged (WEBHOOK_MISSED).
  */
 import { ApiError, fail } from '../core/errors';
 import { logError } from '../core/events';
@@ -21,7 +23,7 @@ import { getLead, loadMetaConfig, TOKEN_EXPIRED_MSG, verifyHubSignature } from '
 import { pc } from '../platform/base';
 import { getTenantById, listActiveTenants, PCOLL } from '../platform/registry';
 import { sourcesCol } from './intake';
-import { errMsg, ingestMetaLead, metaPagesCol, pageTokenOf, runBackfill, type MetaSourceDoc } from './meta';
+import { defaultMetaSourceConfig, errMsg, formAllowed, ingestMetaLead, metaPagesCol, pageTokenOf, ensureMetaSubscription, runBackfill, runQuickSync, type MetaSourceDoc } from './meta';
 
 export type QueueStatus = 'pending' | 'processing' | 'done' | 'failed' | 'dead' | 'skipped' | 'orphan';
 
@@ -51,6 +53,11 @@ export const MAX_ATTEMPTS = 5;
 export const CRON_BATCH = 200;
 const PROCESS_LOCK_MS = 3 * 60 * 1000;
 const DAY_MS = 86400000;
+/** Quick check at most this often per Page (the cron runs every 10 minutes). */
+const QUICK_MS = 8 * 60 * 1000;
+/** Days the daily deep check looks back. */
+export const DEEP_DAYS = 7;
+const at = (iso?: string) => (iso ? new Date(iso).getTime() || 0 : 0);
 
 export const queueCol = () => pc<MetaQueueDoc>(PCOLL.META_QUEUE);
 
@@ -176,14 +183,14 @@ export async function processQueueItem(id: string, opts: { now?: Date } = {}): P
     const base = { companyId: tenant.id, sourceId: claim.sourceId };
     if (!src) return finish({ ...base, status: 'orphan', lastError: 'The lead source of this Page was deleted' });
     if (src.status !== 'Active') return finish({ ...base, status: 'skipped', lastError: 'Lead source paused' });
-    const formIds = src.config?.meta?.formIds || [];
-    if (formIds.length && item.formId && !formIds.includes(item.formId)) return finish({ ...base, status: 'skipped', lastError: `Form ${item.formId} is not selected for this source` });
+    const meta = { ...defaultMetaSourceConfig(), ...(src.config?.meta || {}) };
+    if (!formAllowed(meta, item.formId)) return finish({ ...base, status: 'skipped', lastError: `Form ${item.formId} is not selected for this source` });
     try {
       const token = pageTokenOf(src);
       if (!token) throw fail('VALIDATION', TOKEN_EXPIRED_MSG);
       const lead = await getLead(item._id, token);
       const formId = String(lead.form_id || item.formId || '');
-      if (formIds.length && formId && !formIds.includes(formId)) return finish({ ...base, status: 'skipped', lastError: `Form ${formId} is not selected for this source` });
+      if (!formAllowed(meta, formId)) return finish({ ...base, status: 'skipped', lastError: `Form ${formId} is not selected for this source` });
       const r = await ingestMetaLead(src, { ...lead, id: lead.id || item._id, form_id: formId, ad_id: lead.ad_id || item.adId || undefined });
       await sources.updateOne({ _id: src._id }, { $set: { 'config.meta.lastLeadAt': new Date().toISOString(), 'config.meta.lastError': '' } });
       return finish({ ...base, status: 'done', leadId: r.leadId, result: r.status, lastError: r.status === 'failed' || r.status === 'rejected' ? truncate(r.message, 300) : '', attempts: item.attempts + 1, nextAttemptAt: null });
@@ -225,7 +232,7 @@ export async function processQueueItems(ids: string[], opts: { deadline?: number
 export interface MetaCronResult {
   skipped?: string;
   queue: { processed: number; byStatus: Record<string, number> };
-  backfills: Record<string, Array<{ id: string; result?: string; error?: string; skipped?: string }>>;
+  backfills: Record<string, Array<{ id: string; check?: 'quick' | 'daily'; result?: string; recovered?: number; error?: string; skipped?: string }>>;
 }
 
 export async function runMetaCron(opts: { deadline?: number; now?: Date } = {}): Promise<MetaCronResult> {
@@ -249,7 +256,7 @@ export async function runMetaCron(opts: { deadline?: number; now?: Date } = {}):
     out.queue.processed++;
   }
 
-  // daily safety net: leads whose webhook never arrived (2 days, idempotent)
+  // safety nets for leads whose webhook never arrived (idempotent): every run the last 2 hours, once a day 7 days
   for (const tenant of await listActiveTenants()) {
     if (!tenant.features.metaLeads) continue;
     try {
@@ -257,16 +264,23 @@ export async function runMetaCron(opts: { deadline?: number; now?: Date } = {}):
         const list: MetaCronResult['backfills'][string] = [];
         const sources = (await (await sourcesCol()).find({ type: 'meta', status: 'Active' }).sort({ _id: 1 }).toArray()) as MetaSourceDoc[];
         for (const s of sources) {
-          const last = s.config?.meta?.lastBackfillAt ? new Date(s.config.meta.lastBackfillAt).getTime() : 0;
-          if (last && now.getTime() - last < DAY_MS) continue;
+          const deepDue = now.getTime() - at(s.config?.meta?.lastBackfillAt) >= DAY_MS;
+          const quickDue = now.getTime() - at(s.config?.meta?.lastQuickSyncAt) >= QUICK_MS;
+          if (!deepDue && !quickDue) continue;
           if (late()) {
             list.push({ id: s._id, skipped: 'time budget exhausted' });
             continue;
           }
           try {
-            list.push({ id: s._id, result: (await runBackfill(s, 2, now.getTime())).message });
+            if (deepDue) {
+              await ensureMetaSubscription(s);
+              list.push({ id: s._id, check: 'daily', result: (await runBackfill(s, DEEP_DAYS, now.getTime(), { scheduled: true })).message });
+            } else {
+              const r = await runQuickSync(s, now.getTime());
+              list.push({ id: s._id, check: 'quick', result: r.message, recovered: r.recovered });
+            }
           } catch (e: any) {
-            list.push({ id: s._id, error: errMsg(e) });
+            list.push({ id: s._id, check: deepDue ? 'daily' : 'quick', error: errMsg(e) });
           }
         }
         return list;

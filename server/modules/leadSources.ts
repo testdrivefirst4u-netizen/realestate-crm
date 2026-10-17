@@ -296,6 +296,12 @@ export async function updateLeadSource(d: Req<'updateLeadSource'>, ctx: Ctx | nu
           const known = meta.forms || [];
           if (known.length && ids.some((f) => !known.some((x) => x.id === f))) throw fail('VALIDATION', 'A chosen lead form does not belong to this Page (refresh the forms with "Check" first)');
           meta.formIds = ids;
+          // the forms the admin saw now: any form created later counts as new (includeNewForms)
+          meta.knownFormIds = ids.length ? [...new Set([...known.map((f) => f.id), ...ids])] : [];
+        }
+        if ((metaPatch as any).includeNewForms !== undefined) {
+          if (typeof (metaPatch as any).includeNewForms !== 'boolean') throw fail('VALIDATION', 'includeNewForms must be true or false');
+          meta.includeNewForms = (metaPatch as any).includeNewForms;
         }
       }
       set.config.meta = meta;

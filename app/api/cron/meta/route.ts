@@ -1,7 +1,8 @@
 /**
- * GET /api/cron/meta — every 5 minutes (Vercel Cron). Needs `Authorization: Bearer $CRON_SECRET`.
- * Processes due Meta lead-queue items (pending, and failed whose back-off elapsed; ≤ 200 per run) and, once a day
- * per connected Page, backfills the last 2 days (idempotent). Skips everything when no Meta app is configured.
+ * GET /api/cron/meta — every 10 minutes (Vercel Cron on Pro, or an external scheduler such as cron-job.org).
+ * Needs `Authorization: Bearer $CRON_SECRET`. Processes due Meta lead-queue items (pending, and failed whose back-off
+ * elapsed; ≤ 200 per run), then per connected Page a quick check of the last 2 hours or, once a day, a 7-day deep
+ * check (idempotent). Skips everything when no Meta app is configured.
  */
 import { NextResponse } from 'next/server';
 import { safeEqual } from '@/server/core/utils';

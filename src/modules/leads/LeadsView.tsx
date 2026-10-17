@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Download, Plus, RotateCcw, Search, Users } from 'lucide-react';
 import { CRMConfig, Lead, SyncState } from '../../types/crm';
 import { DEFAULT_CUSTOMIZATION, F } from '../../core/config';
-import { countedLeads, enquiryDate, followupCount, isActive, nextFollowupDate, searchLeads } from '../../core/analytics';
+import { countedLeads, enquiryDate, followupCount, followupEntries, isActive, nextFollowupDate, searchLeads } from '../../core/analytics';
 import { dateKey, formatDateTime, formatRelative, inRange } from '../../core/dates';
 import { formatPhone } from '../../core/phone';
 import { downloadText, toCsv } from '../../core/format';
@@ -67,6 +67,10 @@ const EXPORT_HEADERS: string[] = [
   F.BROCHURE,
   F.RELATIONSHIP,
   F.ENQUIRED_FOR,
+  F.CAMPAIGN,
+  F.AD_SET,
+  F.AD_NAME,
+  F.LEAD_FORM,
   F.NOTES,
   'Follow-ups',
 ];
@@ -78,6 +82,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   const [source, setSource] = useState('');
   const [unit, setUnit] = useState('');
   const [rm, setRm] = useState('');
+  const [campaign, setCampaign] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({ preset: 'all' });
   const [sortKey, setSortKey] = useState<SortKey>('enquiryDate');
   const [sortAsc, setSortAsc] = useState(false);
@@ -95,6 +100,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     return [...set];
   }, [config.options, base]);
 
+  const campaignOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of base) {
+      const v = String(l[F.CAMPAIGN] || '').trim();
+      if (v) set.add(v);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [base]);
+
   const filtered = useMemo(() => {
     const q = query.trim();
     let list = q ? searchLeads(base, q, base.length) : base;
@@ -102,19 +116,20 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     if (source) list = list.filter((l) => String(l[F.SOURCE] || '').trim() === source);
     if (unit) list = list.filter((l) => String(l[F.UNIT_TYPE] || '').trim() === unit);
     if (rm) list = list.filter((l) => String(l[F.RM] || '').trim() === rm);
+    if (campaign) list = list.filter((l) => String(l[F.CAMPAIGN] || '').trim() === campaign);
     if (range) list = list.filter((l) => inRange(enquiryDate(l), range));
     return list;
-  }, [base, query, stage, source, unit, rm, range]);
+  }, [base, query, stage, source, unit, rm, campaign, range]);
 
   const sorted = useMemo(() => sortLeads(filtered, sortKey, sortAsc), [filtered, sortKey, sortAsc]);
 
   // Reset pagination whenever the result set changes shape.
   useEffect(() => {
     setLimit(PAGE_SIZE);
-  }, [query, stage, source, unit, rm, range, sortKey, sortAsc]);
+  }, [query, stage, source, unit, rm, campaign, range, sortKey, sortAsc]);
 
   const visible = useMemo(() => sorted.slice(0, limit), [sorted, limit]);
-  const hasFilters = !!(query.trim() || stage || source || unit || rm || dateFilter.preset !== 'all');
+  const hasFilters = !!(query.trim() || stage || source || unit || rm || campaign || dateFilter.preset !== 'all');
 
   const clearFilters = () => {
     setQuery('');
@@ -122,6 +137,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     setSource('');
     setUnit('');
     setRm('');
+    setCampaign('');
     setDateFilter({ preset: 'all' });
   };
 
@@ -138,6 +154,12 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
 
   const exportCsv = () => {
     if (!sorted.length) return;
+    // "Remark N Date" / "Remark N" pairs, as many as the busiest exported lead has
+    const entries = new Map(sorted.map((l) => [l, followupEntries(l)]));
+    const maxRemarks = Math.max(0, ...[...entries.values()].map((e) => e.length));
+    const remarkHeaders: string[] = [];
+    for (let i = 1; i <= maxRemarks; i++) remarkHeaders.push(`Remark ${i} Date`, `Remark ${i}`);
+    const headers = [...EXPORT_HEADERS, ...remarkHeaders];
     const rows = sorted.map((l) => {
       const row: Record<string, unknown> = {};
       for (const h of EXPORT_HEADERS) {
@@ -146,9 +168,13 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         else if (EXPORT_DATE_FIELDS.includes(h)) row[h] = formatDateTime(l[h]);
         else row[h] = l[h] ?? '';
       }
+      entries.get(l)!.forEach((e, i) => {
+        row[`Remark ${i + 1} Date`] = e.date ? formatDateTime(e.date) : '';
+        row[`Remark ${i + 1}`] = e.text;
+      });
       return row;
     });
-    downloadText(`Leads_${dateKey(new Date())}.csv`, toCsv(EXPORT_HEADERS, rows));
+    downloadText(`Leads_${dateKey(new Date())}.csv`, toCsv(headers, rows));
   };
 
   /* ------------------------------- states -------------------------------- */
@@ -237,6 +263,22 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       render: (l: Lead) => <SourceLogo source={l[F.SOURCE]} />,
     },
     {
+      key: 'campaign',
+      label: 'Campaign',
+      className: 'min-w-[160px]',
+      render: (l: Lead) =>
+        l[F.CAMPAIGN] || l[F.AD_NAME] ? (
+          <div className="min-w-0 max-w-[220px]">
+            <div className="font-medium text-[#0B2A44] truncate" title={String(l[F.CAMPAIGN] || '')}>{l[F.CAMPAIGN] || '—'}</div>
+            <div className="text-[10px] text-[#7E93A6] mt-0.5 truncate" title={[l[F.AD_SET], l[F.AD_NAME], l[F.LEAD_FORM]].filter(Boolean).join(' · ')}>
+              {[l[F.AD_SET], l[F.AD_NAME]].filter(Boolean).join(' · ') || l[F.LEAD_FORM] || ''}
+            </div>
+          </div>
+        ) : (
+          <span className="text-[#7E93A6]">—</span>
+        ),
+    },
+    {
       key: 'enquiryDate',
       label: 'Enquiry Date',
       onSort: () => toggleSort('enquiryDate'),
@@ -298,6 +340,26 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       render: (l: Lead) => <LeadStars lead={l} />,
     },
     {
+      key: 'lastRemark',
+      label: 'Last Remark',
+      className: 'min-w-[200px]',
+      render: (l: Lead) => {
+        const list = followupEntries(l);
+        const last = list[list.length - 1];
+        if (!last) return <span className="text-[#7E93A6]">—</span>;
+        const all = list.map((e, i) => `Remark ${i + 1}${e.date ? ` (${formatDateTime(e.date)})` : ''}: ${e.text}`).join('\n');
+        return (
+          <div className="min-w-0 max-w-[260px]" title={all}>
+            <div className="text-[10px] text-[#7E93A6] whitespace-nowrap">
+              Remark {list.length}
+              {last.date ? ` · ${formatDateTime(last.date)}` : ''}
+            </div>
+            <div className="text-[11px] text-[#0B2A44] truncate">{last.text || '—'}</div>
+          </div>
+        );
+      },
+    },
+    {
       key: 'followups',
       label: 'Follow-ups',
       align: 'center' as const,
@@ -348,6 +410,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         <Select value={source} onChange={(e) => setSource(e.target.value)} options={config.options[F.SOURCE] || []} placeholder="All Sources" className="!w-auto" aria-label="Source" />
         <Select value={unit} onChange={(e) => setUnit(e.target.value)} options={config.options[F.UNIT_TYPE] || []} placeholder="All Units" className="!w-auto" aria-label="Unit type" />
         <Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All RMs" className="!w-auto" aria-label="Relationship manager" />
+        {campaignOptions.length > 0 && (
+          <Select value={campaign} onChange={(e) => setCampaign(e.target.value)} options={campaignOptions} placeholder="All Campaigns" className="!w-auto" aria-label="Campaign" />
+        )}
         <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
         <Button
           variant="secondary"

@@ -12,8 +12,9 @@
  *        X-Hub-Signature-256 = 'sha256=' + HMAC-SHA256(appSecret, raw body) — verified before parsing.
  *        Each leadgen is queued (platform `metaLeadQueue`, unique leadgen_id) and the request answers 200 at once;
  *        the lead is fetched from the Graph API with the Page token and passed to the intake pipeline
- *        (idempotency key `meta:<leadgen_id>`). GET /api/cron/meta (every 5 min) retries the queue; once a day it
- *        backfills the last 7 days from each connected form (leads are idempotent, so nothing is duplicated).
+ *        (idempotency key `meta:<leadgen_id>`). GET /api/cron/meta (every 10 min) retries the queue, pulls the
+ *        last 2 hours of each Page (quick check) and once a day the last 7 days (deep check) — leads are idempotent,
+ *        so nothing is duplicated; leads the webhook missed are counted in config.meta.recovered.
  *
  * Company: a lead source of type 'meta' per connected Page (LeadSource.config.meta). The Page id is claimed in the
  * platform (`metaPages` {_id: pageId, companyId, sourceId}) — one company per Page. The Page access token is stored
@@ -31,6 +32,10 @@ export interface MetaSourceConfig {
   pageName: string;
   /** Only these lead forms (empty = every form of the Page). */
   formIds: string[];
+  /** With formIds chosen: also take forms created after the choice (not in knownFormIds). */
+  includeNewForms: boolean;
+  /** Every form id the admin could see when formIds was chosen (tells new forms from unticked ones). */
+  knownFormIds: string[];
   /** Cached form list for the UI. */
   forms: Array<{ id: string; name: string; status: string }>;
   connectedBy: string;
@@ -39,6 +44,11 @@ export interface MetaSourceConfig {
   subscribed: boolean;
   lastLeadAt: string;
   lastBackfillAt: string;
+  /** Last 10-minute reconciliation (leads of the last 2 hours compared with the CRM). */
+  lastQuickSyncAt: string;
+  /** Leads the scheduled checks found that the webhook had not delivered (running total) and when the last was. */
+  recovered: number;
+  lastRecoveredAt: string;
   lastError: string;
 }
 

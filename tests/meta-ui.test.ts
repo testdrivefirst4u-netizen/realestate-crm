@@ -195,7 +195,7 @@ describe('meta — lead source type', () => {
       id: 'SRC-0009', type: 'meta', name: 'Facebook – Amaya', status: 'Active', keyPrefix: '',
       config: {
         sourceLabel: 'Facebook', defaultStage: 'New', assignment: { mode: 'unassigned', rm: '', rms: [] }, duplicates: 'remark', allowedOrigins: ['https://x.com'], fieldMap: {},
-        meta: { pageId: '111', pageName: 'Amaya', formIds: [], forms: [], connectedBy: 'a', connectedAt: '', subscribed: true, lastLeadAt: '', lastBackfillAt: '', lastError: '' },
+        meta: { pageId: '111', pageName: 'Amaya', formIds: [], includeNewForms: true, knownFormIds: [], forms: [], connectedBy: 'a', connectedAt: '', subscribed: true, lastLeadAt: '', lastBackfillAt: '', lastQuickSyncAt: '', recovered: 0, lastRecoveredAt: '', lastError: '' },
       },
       stats: { received: 0, created: 0, duplicates: 0, rejected: 0, failed: 0, lastReceivedAt: '', lastError: '' },
       createdAt: '', createdBy: '',

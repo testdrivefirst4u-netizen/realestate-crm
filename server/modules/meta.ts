@@ -87,7 +87,23 @@ export const connectionsCol = () => col<MetaConnectionDoc>(COLL_CONNECTIONS);
 const metaSources = async () => (await sourcesCol()) as unknown as import('mongodb').Collection<MetaSourceDoc>;
 
 export function defaultMetaSourceConfig(): MetaSourceConfig {
-  return { pageId: '', pageName: '', formIds: [], forms: [], connectedBy: '', connectedAt: '', subscribed: false, lastLeadAt: '', lastBackfillAt: '', lastError: '' };
+  return {
+    pageId: '', pageName: '', formIds: [], includeNewForms: true, knownFormIds: [], forms: [], connectedBy: '', connectedAt: '', subscribed: false,
+    lastLeadAt: '', lastBackfillAt: '', lastQuickSyncAt: '', recovered: 0, lastRecoveredAt: '', lastError: '',
+  };
+}
+
+/**
+ * Whether leads of this form belong to the source: every form when none are chosen; otherwise the chosen ones and —
+ * with includeNewForms — forms created after the choice (not among knownFormIds; sources chosen before that list
+ * existed fall back to the cached form list).
+ */
+export function formAllowed(meta: Pick<MetaSourceConfig, 'formIds' | 'includeNewForms' | 'knownFormIds' | 'forms'>, formId: string): boolean {
+  const chosen = meta.formIds || [];
+  if (!chosen.length || !formId || chosen.includes(formId)) return true;
+  if (meta.includeNewForms === false) return false;
+  const known = meta.knownFormIds?.length ? meta.knownFormIds : (meta.forms || []).map((f) => f.id);
+  return !known.includes(formId);
 }
 
 const ID_RE = /^\d{1,30}$/;
@@ -286,7 +302,7 @@ export async function connectPage(input: ConnectPageInput): Promise<{ sourceId: 
   const current = existing ? await (await metaSources()).findOne({ _id: existing.sourceId, type: 'meta' }) : null;
   if (current) {
     await subscribePage(input.pageId, input.pageToken, input.cfg);
-    await setMeta(current._id, { ...metaBase, ...(formIds.length ? { formIds } : {}), subscribed: true, lastError: '' }, { 'secret.pageToken': encryptSecret(input.pageToken), updatedAt: now });
+    await setMeta(current._id, { ...metaBase, ...(formIds.length ? { formIds, knownFormIds: input.forms.map((f) => f.id) } : {}), subscribed: true, lastError: '' }, { 'secret.pageToken': encryptSecret(input.pageToken), updatedAt: now });
     return { sourceId: current._id, reconnected: true };
   }
 
@@ -315,7 +331,7 @@ export async function connectPage(input: ConnectPageInput): Promise<{ sourceId: 
     name: truncate(`Facebook: ${input.pageName || input.pageId}`, 80),
     status: 'Active',
     keyPrefix: '',
-    config: { ...input.config, meta: { ...defaultMetaSourceConfig(), ...metaBase, formIds, subscribed: true } },
+    config: { ...input.config, meta: { ...defaultMetaSourceConfig(), ...metaBase, formIds, knownFormIds: formIds.length ? input.forms.map((f) => f.id) : [], subscribed: true } },
     stats: { received: 0, created: 0, duplicates: 0, rejected: 0, failed: 0, lastReceivedAt: null, lastError: '' },
     createdAt: now,
     createdBy: actorName(input.ctx),
@@ -398,6 +414,7 @@ export async function checkMetaSource(d: Req<'checkMetaSource'>, ctx: Ctx | null
   try {
     const cfg = await requireMetaConfig();
     const page = await getPage(meta.pageId, token, cfg);
+    await freezeKnownForms(src);
     const forms = (await listForms(meta.pageId, token, cfg)).slice(0, 200);
     let subscribed = await isPageSubscribed(meta.pageId, token, cfg);
     if (!subscribed) subscribed = await subscribePage(meta.pageId, token, cfg);
@@ -410,6 +427,29 @@ export async function checkMetaSource(d: Req<'checkMetaSource'>, ctx: Ctx | null
     if (!(e instanceof ApiError)) await logError('meta:check:' + src._id, 'INTERNAL', e?.message, e?.stack, src.name);
     await setMeta(src._id, { lastError: truncate(message, 300) });
     return { ok: false, message, forms: meta.forms, subscribed: meta.subscribed };
+  }
+}
+
+/**
+ * Daily check: make sure the app is still subscribed to the Page's leadgen webhook (re-subscribes when Facebook
+ * dropped it). Best effort — a failure is recorded on the source and never stops the lead checks.
+ */
+export async function ensureMetaSubscription(src: MetaSourceDoc): Promise<boolean> {
+  const meta = metaOf(src);
+  const token = pageTokenOf(src);
+  if (!token || !meta.pageId) return false;
+  try {
+    const cfg = await requireMetaConfig();
+    let subscribed = await isPageSubscribed(meta.pageId, token, cfg);
+    if (!subscribed) {
+      subscribed = await subscribePage(meta.pageId, token, cfg);
+      if (subscribed) await logError('meta:resubscribed:' + src._id, 'WEBHOOK_RESUBSCRIBED', 'The Page was no longer subscribed to new leads — subscribed it again', undefined, src.name);
+    }
+    if (subscribed !== meta.subscribed) await setMeta(src._id, { subscribed });
+    return subscribed;
+  } catch (e: any) {
+    await setMeta(src._id, { lastError: truncate(errMsg(e), 300) });
+    return false;
   }
 }
 
@@ -471,6 +511,11 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
   if (lead.is_organic) ad.push('Organic lead (not from a paid ad)');
   const message = [...notes, ...ad].join('\n');
   if (message) out.message = message;
+  // the ad behind the lead, as its own columns (intake aliases → Campaign / Ad Set / Ad Name / Lead Form)
+  if (lead.campaign_name) out.meta_campaign = String(lead.campaign_name);
+  if (lead.adset_name) out.meta_ad_set = String(lead.adset_name);
+  if (lead.ad_name || lead.ad_id) out.meta_ad = String(lead.ad_name || lead.ad_id);
+  if (formName || lead.form_id) out.meta_form = formName || String(lead.form_id);
   // kept in the intake log only (keys starting with "_" are not mapped)
   out._leadgen_id = String(lead.id || '');
   if (lead.form_id) out._form_id = String(lead.form_id);
@@ -502,48 +547,88 @@ async function withBackfillLock<T>(id: string, fn: () => Promise<T>): Promise<T>
   }
 }
 
-/** Pull leads of the last `days` days from the source's forms (all Page forms when none are chosen). */
-export async function runBackfill(src: MetaSourceDoc, days: number, nowMs = Date.now()): Promise<Res<'backfillMetaSource'>> {
+type Tally = { created: number; duplicates: number; rejected: number; failed: number; replayed: number };
+
+/** Leads of a pull that were new to the CRM (not replays of an earlier import or webhook). */
+const freshCount = (t: Tally) => t.created + t.duplicates + t.rejected;
+
+function tallyMessage(t: Tally): string {
+  return [
+    t.created ? `${t.created} new` : '',
+    t.duplicates ? `${t.duplicates} duplicate${t.duplicates === 1 ? '' : 's'}` : '',
+    t.rejected ? `${t.rejected} rejected` : '',
+    t.failed ? `${t.failed} failed` : '',
+    t.replayed ? `${t.replayed} already imported` : '',
+  ].filter(Boolean).join(', ');
+}
+
+/**
+ * Sources whose forms were chosen before `knownFormIds` existed: freeze the cached form list as the known forms
+ * before it is refreshed, so forms created later count as new (formAllowed) instead of becoming "known".
+ */
+async function freezeKnownForms(src: MetaSourceDoc): Promise<MetaSourceConfig> {
+  const meta = metaOf(src);
+  if (!meta.formIds.length || meta.knownFormIds.length) return meta;
+  const knownFormIds = [...new Set([...meta.forms.map((f) => f.id), ...meta.formIds])];
+  await setMeta(src._id, { knownFormIds });
+  return { ...meta, knownFormIds };
+}
+
+/**
+ * Pull the leads created after `sinceUnix` (and, when `untilUnix` is set, before it) from every form the source
+ * takes — the Page's form list is refreshed on the way — and ingest them (idempotent by leadgen id).
+ */
+async function pullLeads(src: MetaSourceDoc, sinceUnix: number, untilUnix = 0): Promise<{ tally: Tally; capped: boolean }> {
+  const meta = await freezeKnownForms(src);
+  const token = pageTokenOf(src);
+  if (!token) throw fail('VALIDATION', TOKEN_EXPIRED_MSG);
+  const cfg = await requireMetaConfig();
+  const forms = (await listForms(meta.pageId, token, cfg)).slice(0, 200);
+  await setMeta(src._id, { forms });
+  const current: MetaSourceDoc = { ...src, config: { ...src.config, meta: { ...meta, forms } } };
+  const formIds = forms.map((f) => f.id).filter((id) => formAllowed(meta, id));
+  const tally: Tally = { created: 0, duplicates: 0, rejected: 0, failed: 0, replayed: 0 };
+  let budget = MAX_BACKFILL_LEADS;
+  for (const formId of formIds) {
+    if (budget <= 0) break;
+    const leads = await listFormLeads(formId, token, sinceUnix, budget, cfg);
+    budget -= leads.length;
+    for (const lead of leads) {
+      if (!lead?.id) continue;
+      const created = Date.parse(String(lead.created_time || ''));
+      if (untilUnix && Number.isFinite(created) && created / 1000 >= untilUnix) continue; // its webhook may still be on the way
+      const r = await ingestMetaLead(current, { ...lead, form_id: lead.form_id || formId });
+      if (r.replay) tally.replayed++;
+      else if (r.status === 'created') tally.created++;
+      else if (r.status === 'duplicate') tally.duplicates++;
+      else if (r.status === 'rejected') tally.rejected++;
+      else tally.failed++;
+    }
+  }
+  return { tally, capped: budget <= 0 };
+}
+
+/** Scheduled checks only: count leads the webhook had not delivered, and log them for the admin. */
+async function noteRecovered(src: MetaSourceDoc, n: number, nowMs: number, check: string) {
+  if (!n) return;
+  await (await sourcesCol()).updateOne({ _id: src._id, type: 'meta' }, { $inc: { 'config.meta.recovered': n }, $set: { 'config.meta.lastRecoveredAt': new Date(nowMs).toISOString() } });
+  await logError('meta:recovered:' + src._id, 'WEBHOOK_MISSED', `${check} imported ${n} lead${n === 1 ? '' : 's'} that the Facebook webhook had not delivered`, undefined, src.name);
+}
+
+/**
+ * Pull leads of the last `days` days from the source's forms (all Page forms when none are chosen).
+ * `scheduled` (the daily deep check) counts the leads it had to import as missed by the webhook.
+ */
+export async function runBackfill(src: MetaSourceDoc, days: number, nowMs = Date.now(), opts: { scheduled?: boolean } = {}): Promise<Res<'backfillMetaSource'>> {
   return withBackfillLock(src._id, async () => {
-    const meta = metaOf(src);
-    const tally = { created: 0, duplicates: 0, rejected: 0, failed: 0, replayed: 0 };
     try {
-      const token = pageTokenOf(src);
-      if (!token) throw fail('VALIDATION', TOKEN_EXPIRED_MSG);
-      const cfg = await requireMetaConfig();
-      let formIds = meta.formIds;
-      if (!formIds.length) {
-        const forms = (await listForms(meta.pageId, token, cfg)).slice(0, 200);
-        await setMeta(src._id, { forms });
-        formIds = forms.map((f) => f.id);
-        src = { ...src, config: { ...src.config, meta: { ...meta, forms } } };
-      }
-      const since = Math.floor(nowMs / 1000) - days * 86400;
-      let budget = MAX_BACKFILL_LEADS;
-      for (const formId of formIds) {
-        if (budget <= 0) break;
-        const leads = await listFormLeads(formId, token, since, budget, cfg);
-        budget -= leads.length;
-        for (const lead of leads) {
-          if (!lead?.id) continue;
-          const r = await ingestMetaLead(src, { ...lead, form_id: lead.form_id || formId });
-          if (r.replay) tally.replayed++;
-          else if (r.status === 'created') tally.created++;
-          else if (r.status === 'duplicate') tally.duplicates++;
-          else if (r.status === 'rejected') tally.rejected++;
-          else tally.failed++;
-        }
-      }
-      const parts = [
-        tally.created ? `${tally.created} new` : '',
-        tally.duplicates ? `${tally.duplicates} duplicate${tally.duplicates === 1 ? '' : 's'}` : '',
-        tally.rejected ? `${tally.rejected} rejected` : '',
-        tally.failed ? `${tally.failed} failed` : '',
-        tally.replayed ? `${tally.replayed} already imported` : '',
-      ].filter(Boolean);
-      let message = parts.length ? parts.join(', ') : `No leads in the last ${days} day${days === 1 ? '' : 's'}`;
-      if (budget <= 0) message += ` (stopped at ${MAX_BACKFILL_LEADS} leads — run it again to continue)`;
-      await setMeta(src._id, { lastBackfillAt: new Date(nowMs).toISOString(), lastError: '', ...(tally.created ? { lastLeadAt: new Date(nowMs).toISOString() } : {}) });
+      const { tally, capped } = await pullLeads(src, Math.floor(nowMs / 1000) - days * 86400);
+      let message = tallyMessage(tally) || `No leads in the last ${days} day${days === 1 ? '' : 's'}`;
+      if (capped) message += ` (stopped at ${MAX_BACKFILL_LEADS} leads — run it again to continue)`;
+      const nowIso = new Date(nowMs).toISOString();
+      // the deep check covers the quick check's window too
+      await setMeta(src._id, { lastBackfillAt: nowIso, lastError: '', ...(opts.scheduled ? { lastQuickSyncAt: nowIso } : {}), ...(tally.created ? { lastLeadAt: nowIso } : {}) });
+      if (opts.scheduled) await noteRecovered(src, freshCount(tally), nowMs, 'The daily check');
       const { replayed: _r, ...counts } = tally;
       return { ...counts, message };
     } catch (e: any) {
@@ -553,6 +638,38 @@ export async function runBackfill(src: MetaSourceDoc, days: number, nowMs = Date
       throw e;
     }
   });
+}
+
+/** Quick check window: leads of the last 2 hours, except the last 3 minutes (their webhook may still be arriving). */
+export const QUICK_WINDOW_S = 2 * 3600;
+export const QUICK_SETTLE_S = 180;
+
+/**
+ * The 10-minute safety net: import the recent leads the webhook did not deliver. Skipped (not an error) while a
+ * backfill of the same Page is running.
+ */
+export async function runQuickSync(src: MetaSourceDoc, nowMs = Date.now()): Promise<{ recovered: number; message: string }> {
+  let locked = false;
+  try {
+    return await withBackfillLock(src._id, async () => {
+      locked = true;
+      const now = Math.floor(nowMs / 1000);
+      try {
+        const { tally } = await pullLeads(src, now - QUICK_WINDOW_S, now - QUICK_SETTLE_S);
+        const recovered = freshCount(tally);
+        await setMeta(src._id, { lastQuickSyncAt: new Date(nowMs).toISOString(), lastError: '', ...(tally.created ? { lastLeadAt: new Date(nowMs).toISOString() } : {}) });
+        await noteRecovered(src, recovered, nowMs, 'The 10-minute check');
+        return { recovered, message: tallyMessage(tally) || 'No leads in the last 2 hours' };
+      } catch (e: any) {
+        if (!(e instanceof ApiError)) await logError('meta:quick:' + src._id, 'INTERNAL', e?.message, e?.stack, src.name);
+        await setMeta(src._id, { lastQuickSyncAt: new Date(nowMs).toISOString(), lastError: truncate(errMsg(e), 300) });
+        throw e;
+      }
+    });
+  } catch (e: any) {
+    if (!locked && e instanceof ApiError && e.code === 'CONFLICT') return { recovered: 0, message: 'skipped: a backfill of this Page is running' };
+    throw e;
+  }
 }
 
 export async function backfillMetaSource(d: Req<'backfillMetaSource'>, ctx: Ctx | null): Promise<Res<'backfillMetaSource'>> {
