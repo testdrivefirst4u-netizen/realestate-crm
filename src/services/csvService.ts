@@ -13,8 +13,9 @@
  * non-empty fields it receives, so a blank cell must stay blank.
  */
 import { DEFAULT_CONFIG, F, LEAD_BASE_HEADERS, LEAD_DATE_FIELDS, MAX_FOLLOWUPS, STAGES, followupField } from '../core/config';
-import { addDays, dateKey, formatDateTime, getParts, normalizeDateValue, parseDate, toSheetDateTime } from '../core/dates';
+import { addDays, dateKey, formatDateTime, getParts, normalizeDateValue, parseDate, splitFollowupEntry, toSheetDateTime } from '../core/dates';
 import { downloadText, toCsv } from '../core/format';
+import { downloadXlsx } from '../core/xlsx';
 import { digitsOnly, last10 } from '../core/phone';
 import { Lead } from '../types/crm';
 import { normalizeUnitType } from '../core/units';
@@ -719,6 +720,53 @@ export function defaultExportFilename(prefix = 'Leads'): string {
 export function exportLeadsToCSV(leads: Lead[], filename: string = defaultExportFilename(), headers?: string[]): boolean {
   if (!leads.length) return false;
   downloadText(filename, buildLeadsCsv(leads, headers));
+  return true;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/**
+ * Every lead with every column, for a spreadsheet: the CRM columns, then each extra column present in the data
+ * (City, Campaign, Age, Budget…), the follow-up count, and each follow-up split into "Remark N Date" / "Remark N".
+ * Dates (CRM date columns and ISO dates in extra columns) are rendered with `formatDateTime`.
+ */
+export function buildLeadExportTable(leads: Lead[]): { headers: string[]; rows: string[][] } {
+  const all = collectExportHeaders(leads);
+  const base = all.filter((h) => !isFollowupHeader(h));
+  const followupCols = all.filter(isFollowupHeader);
+  const dateFields = new Set<string>(LEAD_DATE_FIELDS);
+  const remarks = leads.map((l) =>
+    followupCols
+      .map((h) => String((l as Record<string, unknown>)[h] ?? '').trim())
+      .filter(Boolean)
+      .map((raw) => splitFollowupEntry(raw))
+  );
+  const maxRemarks = remarks.reduce((m, r) => Math.max(m, r.length), 0);
+  const headers = [...base, 'Follow-ups'];
+  for (let i = 1; i <= maxRemarks; i++) headers.push(`Remark ${i} Date`, `Remark ${i}`);
+  const rows = leads.map((l, li) => {
+    const rec = l as Record<string, unknown>;
+    const row = base.map((h) => {
+      const v = rec[h];
+      if (v === undefined || v === null) return '';
+      const s = String(v);
+      return dateFields.has(h) || ISO_DATE.test(s) ? formatDateTime(s, s) : s;
+    });
+    row.push(String(remarks[li].length));
+    for (let i = 0; i < maxRemarks; i++) {
+      const e = remarks[li][i];
+      row.push(e?.date ? formatDateTime(e.date) : '', e?.text ?? '');
+    }
+    return row;
+  });
+  return { headers, rows };
+}
+
+/** Download leads as an Excel workbook with every column (see buildLeadExportTable). */
+export function exportLeadsToXlsx(leads: Lead[], filename = `Leads_${dateKey(new Date())}.xlsx`): boolean {
+  if (!leads.length) return false;
+  const { headers, rows } = buildLeadExportTable(leads);
+  downloadXlsx(filename, headers, rows, 'Leads');
   return true;
 }
 

@@ -32,8 +32,12 @@ import {
   collectExportHeaders,
   downloadSampleTemplate,
   exportLeadsToCSV,
+  exportLeadsToXlsx,
+  generateSampleCSVTemplate,
   parseAndAnalyzeCSV,
+  parseCsvText,
 } from '../services/csvService';
+import { downloadXlsx, readXlsxRows, rowsToCsv } from '../core/xlsx';
 import { sound } from '../services/sound';
 
 interface CsvImportExportModalProps {
@@ -42,6 +46,8 @@ interface CsvImportExportModalProps {
   leads: Lead[];
   onImport: (leads: Lead[], strategy: string) => Promise<{ created: number; updated: number } | null>;
   canImport: boolean;
+  /** Tab to open on (e.g. 'import' from the Leads page "Bulk upload" button). */
+  initialTab?: 'import' | 'export';
 }
 
 type TabId = 'import' | 'export';
@@ -64,8 +70,9 @@ const statusLabel = (row: CSVRowPreview) =>
 
 const confidenceLabel = { EXACT: 'Exact', FUZZY: 'Matched', NONE: 'Not in file' } as const;
 
-export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOpen, onClose, leads, onImport, canImport }) => {
-  const [activeTab, setActiveTab] = useState<TabId>(canImport ? 'import' : 'export');
+export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOpen, onClose, leads, onImport, canImport, initialTab }) => {
+  const startTab: TabId = initialTab === 'export' || !canImport ? 'export' : 'import';
+  const [activeTab, setActiveTab] = useState<TabId>(startTab);
 
   // Import — file & analysis
   const [fileName, setFileName] = useState('');
@@ -109,8 +116,8 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
     resetFileState();
     setOutcome(null);
     setIsImporting(false);
-    setActiveTab(canImport ? 'import' : 'export');
-  }, [resetFileState, canImport]);
+    setActiveTab(startTab);
+  }, [resetFileState, startTab]);
 
   // Reset everything whenever the modal closes (App unmounts it, but keep the guarantee).
   useEffect(() => {
@@ -136,18 +143,27 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
       setFileSize(file.size);
       setIsParsing(true);
       try {
-        const text = await file.text();
+        const lower = file.name.toLowerCase();
+        if (lower.endsWith('.xls')) throw new Error('Old .xls files cannot be read. In Excel use File → Save As → Excel Workbook (.xlsx), then upload it again.');
+        // an Excel workbook goes through the same pipeline as a CSV (first sheet, first row = headers)
+        const text = lower.endsWith('.xlsx') ? rowsToCsv(readXlsxRows(new Uint8Array(await file.arrayBuffer()))) : await file.text();
         const result = parseAndAnalyzeCSV(text, leads);
         setParseResult(result);
         if (!result.previewRows.length) setErrorMessage(result.errors[0] || 'No importable rows were found in this file.');
       } catch (err: any) {
-        setErrorMessage(err?.message || 'Could not read this file. Please make sure it is a valid CSV.');
+        setErrorMessage(err?.message || 'Could not read this file. Please upload an Excel (.xlsx) or CSV file.');
       } finally {
         setIsParsing(false);
       }
     },
     [leads, resetFileState]
   );
+
+  // the CSV template's columns and sample rows, as an Excel workbook
+  const downloadExcelTemplate = () => {
+    const [headers = [], ...rows] = parseCsvText(generateSampleCSVTemplate().replace(/^﻿/, ''));
+    downloadXlsx('Leads_Import_Template.xlsx', headers, rows, 'Leads');
+  };
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -216,7 +232,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
   if (!isOpen) return null;
 
   const tabs: Array<{ id: TabId; label: React.ReactNode; icon?: React.ReactNode; badge?: React.ReactNode }> = [
-    ...(canImport ? [{ id: 'import' as TabId, label: 'Import CSV', icon: <Upload size={13} /> }] : []),
+    ...(canImport ? [{ id: 'import' as TabId, label: 'Bulk upload', icon: <Upload size={13} /> }] : []),
     { id: 'export', label: 'Export', icon: <Download size={13} />, badge: leads.length },
   ];
 
@@ -253,7 +269,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
       title={
         <span className="inline-flex items-center gap-2">
           <FileSpreadsheet size={18} className="text-[#0B6BB0]" />
-          CSV Import & Export
+          Bulk upload & export
         </span>
       }
       subtitle="Preview the column mapping, duplicates and formatting notes before anything is written. The server assigns Enquiry IDs."
@@ -278,16 +294,19 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
             <section className="bg-white p-5 rounded-xl border border-[#D3E3F0] shadow-xs space-y-3">
               <div>
                 <span className={labelCls}>Full database export</span>
-                <h4 className="text-base font-bold text-[#0B2A44]">All leads as CSV</h4>
+                <h4 className="text-base font-bold text-[#0B2A44]">All leads as Excel</h4>
               </div>
               <p className="text-[#5E778C] leading-relaxed">
                 Exports every lead with all {exportHeaders.length} columns present in the data
                 {exportFollowupCount > 0 && <> — including {exportFollowupCount} Follow-up column{exportFollowupCount === 1 ? '' : 's'}</>}.
-                Dates are written as “01 Oct 2026, 05:30 PM” and the file is UTF-8 with BOM so Excel opens it correctly.
+                Every remark gets its own date and text columns, dates read “01 Oct 2026, 05:30 PM”, and phone numbers stay exactly as typed.
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Button variant="primary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => exportLeadsToCSV(leads)}>
-                  Download {leads.length} lead{leads.length === 1 ? '' : 's'}
+                <Button variant="primary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => exportLeadsToXlsx(leads)}>
+                  Download Excel ({leads.length} lead{leads.length === 1 ? '' : 's'})
+                </Button>
+                <Button variant="secondary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => exportLeadsToCSV(leads)}>
+                  CSV
                 </Button>
                 {!leads.length && <span className="text-[#7E93A6]">No leads to export yet.</span>}
               </div>
@@ -296,13 +315,16 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
             <section className="bg-white p-5 rounded-xl border border-[#D3E3F0] shadow-xs space-y-3">
               <div>
                 <span className={labelCls}>Import template</span>
-                <h4 className="text-base font-bold text-[#0B2A44]">Sample CSV with the expected columns</h4>
+                <h4 className="text-base font-bold text-[#0B2A44]">Sample file with the expected columns</h4>
               </div>
               <p className="text-[#5E778C] leading-relaxed">
                 Three sample rows using the configured stages, sources and unit types. Leave <strong>{F.ID}</strong> blank — the CRM assigns it. Only <strong>{F.NAME}</strong> is required; dates may be dd/MM/yyyy, yyyy-MM-dd HH:mm or the CRM display format.
               </p>
               <div className="pt-1">
-                <Button variant="secondary" size="md" icon={<FileDown size={14} />} onClick={() => downloadSampleTemplate()}>Download template</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="md" icon={<FileDown size={14} />} onClick={downloadExcelTemplate}>Excel template</Button>
+                  <Button variant="ghost" size="md" icon={<FileDown size={14} />} onClick={() => downloadSampleTemplate()}>CSV template</Button>
+                </div>
               </div>
             </section>
           </div>
@@ -311,7 +333,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
         {/* ------------------------------ IMPORT ------------------------------ */}
         {activeTab === 'import' && canImport && (
           <div className="space-y-4">
-            <input ref={fileInputRef} key={inputKey} type="file" accept=".csv,text/csv,text/plain" onChange={onFileInput} className="hidden" />
+            <input ref={fileInputRef} key={inputKey} type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain" onChange={onFileInput} className="hidden" />
 
             {/* Result of the last import */}
             {outcome && (
@@ -348,7 +370,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                 className={cx('block border-2 border-dashed rounded-xl p-8 text-center transition cursor-pointer focus:outline-none focus:border-[#0B6BB0]', dragging ? 'border-[#0B6BB0] bg-[#F2F7FB]' : 'border-[#A9BDCD] bg-[#F2F7FB]/50 hover:bg-[#F2F7FB]')}
               >
                 <Upload size={28} className="mx-auto text-[#0B6BB0] mb-2.5" />
-                <span className="text-base font-bold text-[#0B2A44] block mb-1.5">Choose a CSV file, or drop it here</span>
+                <span className="text-base font-bold text-[#0B2A44] block mb-1.5">Choose an Excel (.xlsx) or CSV file, or drop it here</span>
                 <p className="text-[#5E778C] max-w-md mx-auto mb-4 leading-relaxed">
                   We parse the headers, map them to CRM fields, normalise dates and stages, and flag duplicates — nothing is written until you confirm.
                 </p>
@@ -371,7 +393,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                 {/* File bar */}
                 <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-[#D3E3F0]">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-[#F2F7FB] text-[#0B2A44] flex items-center justify-center font-mono font-bold text-[10px] shrink-0">CSV</div>
+                    <div className="w-8 h-8 rounded-lg bg-[#F2F7FB] text-[#0B2A44] flex items-center justify-center font-mono font-bold text-[10px] shrink-0">{fileName.toLowerCase().endsWith('.xlsx') ? 'XLSX' : 'CSV'}</div>
                     <div className="min-w-0">
                       <div className="font-bold text-[#0B2A44] truncate">{fileName || 'Uploaded file'}</div>
                       <div className="text-[11px] text-[#5E778C]">
@@ -431,7 +453,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                   {showMapping && (
                     <div className="p-4 border-t border-[#D3E3F0] bg-[#FFFFFF] space-y-3">
                       <p className="text-[11px] text-[#5E778C]">
-                        Each CSV column feeds at most one CRM field. Fields that are not in the file stay blank — no defaults are invented, so an overwrite never erases existing data.
+                        Each column in the file feeds at most one CRM field. Fields that are not in the file stay blank — no defaults are invented, so an overwrite never erases existing data.
                       </p>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         {parseResult.columnMappings.map((m) => (
@@ -544,7 +566,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                   </div>
                   <div className="p-2.5 border-t border-[#D3E3F0] bg-[#FFFFFF] text-[11px] text-[#5E778C] flex items-center justify-between gap-2">
                     <span>Showing {displayedRows.length} of {filteredRows.length} rows{previewSearch && ` matching “${previewSearch}”`}</span>
-                    <span className="text-[10px] text-[#7E93A6] hidden sm:inline">Use the eye icon to compare a row with the original CSV values</span>
+                    <span className="text-[10px] text-[#7E93A6] hidden sm:inline">Use the eye icon to compare a row with the original file values</span>
                   </div>
                 </div>
 
@@ -592,7 +614,7 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                         </dl>
                       </div>
                       <div className="bg-white p-3 rounded-lg border border-[#D3E3F0] max-h-64 overflow-y-auto">
-                        <span className={cx(labelCls, 'border-b border-[#D3E3F0] pb-1 mb-2')}>Original CSV values</span>
+                        <span className={cx(labelCls, 'border-b border-[#D3E3F0] pb-1 mb-2')}>Original file values</span>
                         <div className="space-y-1 font-mono text-[10px]">
                           {Object.entries(selectedRow.raw).map(([key, val]) => (
                             <div key={key} className="flex items-start justify-between gap-2 border-b border-[#F2F7FB] py-0.5">

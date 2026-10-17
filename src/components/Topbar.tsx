@@ -161,8 +161,8 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
           </button>
         )}
         {(can('leads.import') || can('leads.export')) && (
-          <button onClick={onOpenCsvModal} className="hidden md:inline-flex items-center gap-2 px-4 h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="CSV import / export">
-            <FileSpreadsheet size={16} className="text-[#0B6BB0]" /><span>CSV</span>
+          <button onClick={onOpenCsvModal} className="hidden md:inline-flex items-center gap-2 px-4 h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Bulk upload &amp; export (Excel / CSV)">
+            <FileSpreadsheet size={16} className="text-[#0B6BB0]" /><span>Import / Export</span>
           </button>
         )}
         {libraryEnabled && (

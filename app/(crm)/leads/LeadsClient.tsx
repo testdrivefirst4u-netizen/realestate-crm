@@ -6,7 +6,7 @@ import { F } from '@/src/core/config';
 import { useCrm } from '../_components/CrmShell';
 
 export function LeadsClient() {
-  const { engine, openLead, openAddLead, leadFilter, clearLeadFilter } = useCrm();
+  const { engine, openLead, openAddLead, openImport, leadFilter, clearLeadFilter } = useCrm();
   const { data, sync } = engine;
   const leads = useMemo(() => (leadFilter ? data.leads.filter((l) => leadFilter.ids.has(l[F.ID])) : data.leads), [data.leads, leadFilter]);
   return (
@@ -18,6 +18,7 @@ export function LeadsClient() {
       onClearActiveFilter={clearLeadFilter}
       canExport={engine.can('leads.export')}
       onOpenAddLead={openAddLead}
+      onOpenImport={engine.can('leads.import') ? openImport : undefined}
       sync={sync}
     />
   );

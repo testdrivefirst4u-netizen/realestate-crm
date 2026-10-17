@@ -43,6 +43,8 @@ export interface CrmContextValue {
   /** Open a lead's detail drawer (`?lead=…` on the current screen). */
   openLead: (id: string) => void;
   openAddLead: () => void;
+  /** Opens the bulk upload (Excel / CSV import) window. */
+  openImport: () => void;
   openLibrary: (query?: string) => void;
   /** Undefined when the plan has no AI. */
   openCopilot: OpenCopilot | undefined;
@@ -188,6 +190,11 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryInitialQuery, setLibraryInitialQuery] = useState('');
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [csvModalTab, setCsvModalTab] = useState<'import' | 'export' | undefined>(undefined);
+  const openImport = useCallback(() => {
+    setCsvModalTab('import');
+    setIsCsvModalOpen(true);
+  }, []);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [copilotPrefill, setCopilotPrefill] = useState('');
   const [copilotContext, setCopilotContext] = useState<CopilotContext | undefined>(undefined);
@@ -278,8 +285,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   };
 
   const ctx = useMemo<CrmContextValue>(
-    () => ({ engine, openLead, openAddLead, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions }),
-    [engine, openLead, openAddLead, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions]
+    () => ({ engine, openLead, openAddLead, openImport, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions }),
+    [engine, openLead, openAddLead, openImport, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions]
   );
 
   const unreadCount = notifItems.filter((n) => !n.read).length;
@@ -314,7 +321,10 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               onOpenAddLead={openAddLead}
               onOpenLibrary={() => openLibrary('')}
               onOpenChatbot={(prefill) => openCopilotDrawer(prefill)}
-              onOpenCsvModal={() => setIsCsvModalOpen(true)}
+              onOpenCsvModal={() => {
+                setCsvModalTab(undefined);
+                setIsCsvModalOpen(true);
+              }}
               onSyncNow={refreshNow}
               sync={sync}
               unreadCount={unreadCount}
@@ -371,7 +381,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                     initialQuery={libraryInitialQuery}
                   />
                 )}
-                {isCsvModalOpen && <CsvImportExportModal isOpen={isCsvModalOpen} onClose={() => setIsCsvModalOpen(false)} leads={data.leads} onImport={engine.importLeads} canImport={engine.can('leads.import')} />}
+                {isCsvModalOpen && <CsvImportExportModal isOpen={isCsvModalOpen} onClose={() => setIsCsvModalOpen(false)} leads={data.leads} onImport={engine.importLeads} canImport={engine.can('leads.import')} initialTab={csvModalTab} />}
                 {aiOn && isChatbotOpen && (
                   <CopilotDrawer
                     isOpen={isChatbotOpen}

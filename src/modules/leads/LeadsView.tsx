@@ -8,13 +8,13 @@
  * by Created At, then Enquiry ID, so new ENQ rows never sink under older ones.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Download, Plus, RotateCcw, Search, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Download, Plus, RotateCcw, Search, Upload, Users } from 'lucide-react';
 import { CRMConfig, Lead, SyncState } from '../../types/crm';
 import { DEFAULT_CUSTOMIZATION, F } from '../../core/config';
 import { countedLeads, enquiryDate, followupCount, followupEntries, isActive, nextFollowupDate, searchLeads } from '../../core/analytics';
-import { dateKey, formatDateTime, formatRelative, inRange } from '../../core/dates';
+import { formatDateTime, formatRelative, inRange } from '../../core/dates';
 import { formatPhone } from '../../core/phone';
-import { downloadText, toCsv } from '../../core/format';
+import { exportLeadsToXlsx } from '../../services/csvService';
 import {
   Button,
   DataTable,
@@ -40,6 +40,8 @@ export interface LeadsViewProps {
   onClearActiveFilter?: () => void;
   canExport: boolean;
   onOpenAddLead: () => void;
+  /** Opens the bulk upload (Excel / CSV import); undefined when the role cannot import. */
+  onOpenImport?: () => void;
   sync: SyncState;
 }
 
@@ -48,35 +50,7 @@ type SortKey = Extract<LeadSortKey, 'id' | 'name' | 'enquiryDate' | 'stage' | 'u
 const DATE_SORT_KEYS: SortKey[] = ['enquiryDate', 'nextDue'];
 const PAGE_SIZE = 50;
 
-const EXPORT_HEADERS: string[] = [
-  F.ID,
-  F.ENQUIRY_DATE,
-  F.NAME,
-  F.PHONE,
-  F.EMAIL,
-  F.STAGE,
-  F.SOURCE,
-  F.UNIT_TYPE,
-  F.PURCHASE_OR_RENT,
-  F.SITE_VISIT_STATUS,
-  F.SITE_VISIT_DATE,
-  F.BOOKING_DATE,
-  F.NEXT_FOLLOWUP,
-  F.LAST_FOLLOWUP,
-  F.RM,
-  F.BROCHURE,
-  F.RELATIONSHIP,
-  F.ENQUIRED_FOR,
-  F.CAMPAIGN,
-  F.AD_SET,
-  F.AD_NAME,
-  F.LEAD_FORM,
-  F.NOTES,
-  'Follow-ups',
-];
-const EXPORT_DATE_FIELDS: string[] = [F.ENQUIRY_DATE, F.SITE_VISIT_DATE, F.BOOKING_DATE, F.NEXT_FOLLOWUP, F.LAST_FOLLOWUP];
-
-export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, sync }) => {
+export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, sync }) => {
   const [query, setQuery] = useState('');
   const [stage, setStage] = useState('');
   const [source, setSource] = useState('');
@@ -152,29 +126,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   const indicator = (key: SortKey) =>
     sortKey === key ? sortAsc ? <ArrowUp size={11} /> : <ArrowDown size={11} /> : <ArrowUpDown size={11} className="opacity-40" />;
 
-  const exportCsv = () => {
-    if (!sorted.length) return;
-    // "Remark N Date" / "Remark N" pairs, as many as the busiest exported lead has
-    const entries = new Map(sorted.map((l) => [l, followupEntries(l)]));
-    const maxRemarks = Math.max(0, ...[...entries.values()].map((e) => e.length));
-    const remarkHeaders: string[] = [];
-    for (let i = 1; i <= maxRemarks; i++) remarkHeaders.push(`Remark ${i} Date`, `Remark ${i}`);
-    const headers = [...EXPORT_HEADERS, ...remarkHeaders];
-    const rows = sorted.map((l) => {
-      const row: Record<string, unknown> = {};
-      for (const h of EXPORT_HEADERS) {
-        if (h === 'Follow-ups') row[h] = followupCount(l);
-        else if (h === F.ENQUIRY_DATE) row[h] = formatDateTime(enquiryDate(l));
-        else if (EXPORT_DATE_FIELDS.includes(h)) row[h] = formatDateTime(l[h]);
-        else row[h] = l[h] ?? '';
-      }
-      entries.get(l)!.forEach((e, i) => {
-        row[`Remark ${i + 1} Date`] = e.date ? formatDateTime(e.date) : '';
-        row[`Remark ${i + 1}`] = e.text;
-      });
-      return row;
-    });
-    downloadText(`Leads_${dateKey(new Date())}.csv`, toCsv(headers, rows));
+  // every column of the filtered list (CRM + extra columns + each remark with its date), as a real Excel file
+  const exportExcel = () => {
+    exportLeadsToXlsx(sorted);
   };
 
   /* ------------------------------- states -------------------------------- */
@@ -220,9 +174,16 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
                   Show all leads
                 </Button>
               ) : (
-                <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
-                  New Enquiry
-                </Button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {onOpenImport && (
+                    <Button variant="secondary" onClick={onOpenImport} icon={<Upload size={14} />}>
+                      Bulk upload
+                    </Button>
+                  )}
+                  <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
+                    New Enquiry
+                  </Button>
+                </div>
               )
             }
           />
@@ -379,10 +340,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
             {base.length} {base.length === 1 ? 'enquiry' : 'enquiries'} · click a row to open the full record
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenImport && (
+            <Button variant="secondary" onClick={onOpenImport} icon={<Upload size={13} />} title="Upload many leads at once from an Excel or CSV file">
+              Bulk upload
+            </Button>
+          )}
           {canExport && (
-            <Button variant="gold" onClick={exportCsv} disabled={!sorted.length} icon={<Download size={13} />} title="Download the filtered list as CSV">
-              Export CSV
+            <Button variant="gold" onClick={exportExcel} disabled={!sorted.length} icon={<Download size={13} />} title="Download the filtered list as an Excel file with every column">
+              Export Excel
             </Button>
           )}
           <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
