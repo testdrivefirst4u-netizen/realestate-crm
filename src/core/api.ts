@@ -69,6 +69,15 @@ let onAuthExpired: ((message?: string) => void) | null = null;
  * Only `onAuthExpired` is used. `url` / `token` are still accepted for compatibility and ignored:
  * the backend is always same-origin and the session travels in an httpOnly cookie.
  */
+/** A daily lead backup kept by the server (Settings › Backups). */
+export interface BackupInfo {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  count: number;
+  sizeKB: number;
+}
+
 export function configureApi(opts: { url?: string; token?: string | null; onAuthExpired?: (message?: string) => void }) {
   if (opts.onAuthExpired) onAuthExpired = opts.onAuthExpired;
 }
@@ -189,6 +198,12 @@ export const api = {
     timeline: (id: string) => request<TimelineEntry[]>('getLeadTimeline', { id }),
     merge: (keepId: string, mergeIds: string[]) => request<{ id: string; merged: string[]; version: string }>('mergeLeads', { keepId, mergeIds }),
     importBulk: (leads: Lead[], strategy: string) => request<{ created: number; updated: number; skipped?: number; version: string }>('importLeads', { leads, strategy }),
+  },
+
+  backups: {
+    list: () => request<BackupInfo[]>('listLeadBackups', {}),
+    get: (id: string) => request<{ id: string; createdAt: string; leads: Lead[] }>('getLeadBackup', { id }),
+    create: () => request<BackupInfo | null>('createLeadBackup', {}),
   },
 
   tasks: {

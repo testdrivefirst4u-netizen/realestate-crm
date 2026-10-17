@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
+import { Building2, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -11,6 +11,7 @@ import { ProfileSection } from './ProfileSection';
 import { UsersSection } from './UsersSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { RecycleBinSection } from './RecycleBinSection';
+import { BackupsSection } from './BackupsSection';
 import { CompanySection } from './CompanySection';
 import { LeadSourcesSection } from './leadSources/LeadSourcesSection';
 import { GoogleSheetsSection } from './sheets/GoogleSheetsSection';
@@ -49,7 +50,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'leadAlerts', 'visitBooking', 'googleSheets', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'leadAlerts', 'visitBooking', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -70,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'visitBooking', label: 'Visit booking', icon: <CalendarDays size={14} />, show: can('settings.view') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
+      { id: 'backups', label: 'Backups', icon: <DatabaseBackup size={14} />, show: can('settings.edit') },
       { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view'), badge: trashedLeads.length || undefined },
     ];
     return list.filter((s) => s.show);
@@ -137,6 +139,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}
           {active === 'visitBooking' && can('settings.view') && <VisitBookingSection {...base} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}
+          {active === 'backups' && can('settings.edit') && <BackupsSection />}
           {active === 'recycle' && can('settings.view') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
         </div>
       </div>

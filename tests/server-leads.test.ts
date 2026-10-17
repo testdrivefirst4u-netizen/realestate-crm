@@ -254,7 +254,10 @@ describe('jobs', () => {
     expect(evs[0].key).toMatch(new RegExp(`^followup_overdue:${a.id}:\\d{4}-\\d{2}-\\d{2}$`));
   });
 
-  it('daily job runs housekeeping and skips the digest without SMTP', async () => {
-    expect(await runDaily()).toEqual({ ok: true, digestSent: false, markedNotResponding: 0 });
+  it('daily job backs up the leads, runs housekeeping and skips the digest without SMTP', async () => {
+    const r = await runDaily();
+    expect(r).toMatchObject({ ok: true, digestSent: false, markedNotResponding: 0 });
+    expect(typeof r.backup).toBe('number');
+    expect((await runDaily()).backup).toBeUndefined(); // one backup per day
   });
 });
