@@ -91,6 +91,49 @@ export interface MetaActions {
   backfillMetaSource: { req: { sourceId: string; days?: number }; res: { created: number; duplicates: number; rejected: number; failed: number; message: string } };
   /** Unsubscribe the app from the Page, release the claim, delete the token and the source. */
   disconnectMetaSource: { req: { sourceId: string }; res: { ok: true } };
+  /** Facebook sync page: health per Page, Facebook vs CRM per form (compare: live Graph calls), recent leads, queue problems. */
+  metaSyncReport: { req: { compare?: boolean }; res: MetaSyncReport };
+  /** Queue failed / dead webhook leads of this company again and process them now. */
+  retryMetaLeads: { req: {}; res: { retried: number; results: Array<{ id: string; status: string }> } };
+}
+
+export interface MetaSyncForm {
+  id: string;
+  name: string;
+  status: string;
+  /** Leads on Facebook / in the CRM / on Facebook but not in the CRM — today (IST) and the last 7 days. */
+  fbToday: number;
+  fb7: number;
+  crmToday: number;
+  crm7: number;
+  missing7: number;
+}
+
+export interface MetaSyncPage {
+  sourceId: string;
+  name: string;
+  status: string;
+  pageId: string;
+  pageName: string;
+  subscribed: boolean;
+  lastLeadAt: string;
+  lastQuickSyncAt: string;
+  lastBackfillAt: string;
+  recovered: number;
+  lastRecoveredAt: string;
+  lastError: string;
+  /** null until compared (compare: true). */
+  forms: MetaSyncForm[] | null;
+  compareError: string;
+}
+
+export interface MetaSyncReport {
+  checkedAt: string;
+  pages: MetaSyncPage[];
+  /** Latest Facebook / Instagram leads that reached the CRM (webhook or checks). */
+  feed: Array<{ at: string; leadId: string; name: string; status: string; message: string; form: string; campaign: string; platform: string; delaySec: number | null }>;
+  /** Webhook leads that failed, are being retried or were skipped (last 7 days). */
+  problems: Array<{ id: string; status: string; error: string; receivedAt: string; attempts: number }>;
 }
 
 /** Super-admin actions (POST /api/platform/rpc). */

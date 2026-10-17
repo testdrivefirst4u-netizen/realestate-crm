@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
+import { Activity, Building2, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -12,6 +12,8 @@ import { UsersSection } from './UsersSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { RecycleBinSection } from './RecycleBinSection';
 import { BackupsSection } from './BackupsSection';
+import { MetaSyncSection } from './MetaSyncSection';
+import { useFeature } from '../../core/tenant';
 import { CompanySection } from './CompanySection';
 import { LeadSourcesSection } from './leadSources/LeadSourcesSection';
 import { GoogleSheetsSection } from './sheets/GoogleSheetsSection';
@@ -50,13 +52,14 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'leadAlerts', 'visitBooking', 'googleSheets', 'backups', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const { settings, serverSettings, sync, currentUser, can, users, rmOptions, trashedLeads, onUpdateLocalSettings, onApplyServerSettings, onRestoreLead, onPermanentlyDeleteLead, onSyncNow, onRefreshAll, onUpdateProfile, stageOptions, onOpenLead, link, onLinkConsumed } = props;
 
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const metaOn = useFeature('metaLeads');
 
   const sections = useMemo(() => {
     const list: Array<{ id: SectionId; label: string; icon: React.ReactNode; show: boolean; badge?: React.ReactNode }> = [
@@ -68,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'users', label: 'Team', icon: <Users size={14} />, show: can('users.manageAgents') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
+      { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('settings.view') },
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'visitBooking', label: 'Visit booking', icon: <CalendarDays size={14} />, show: can('settings.view') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
@@ -75,7 +79,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view'), badge: trashedLeads.length || undefined },
     ];
     return list.filter((s) => s.show);
-  }, [can, trashedLeads.length]);
+  }, [can, trashedLeads.length, metaOn]);
 
   const [active, setActive] = useState<SectionId>(() => initialSettingsSection<SectionId>(link, SECTION_IDS, 'profile'));
   useEffect(() => {
@@ -136,6 +140,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'users' && can('users.manageAgents') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}
+          {active === 'metaSync' && metaOn && can('settings.view') && <MetaSyncSection canEdit={can('settings.edit')} />}
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}
           {active === 'visitBooking' && can('settings.view') && <VisitBookingSection {...base} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}

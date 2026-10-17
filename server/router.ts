@@ -29,6 +29,7 @@ import { actions as reportActions } from './modules/reports';
 import { actions as leadSourceActions } from './modules/leadSources';
 import { actions as sheetActions } from './modules/sheets';
 import { actions as metaActions } from './modules/meta';
+import { actions as metaSyncActions } from './modules/metaSync';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -46,6 +47,7 @@ export const registry: ActionMap = {
   ...leadSourceActions,
   ...sheetActions,
   ...metaActions,
+  ...metaSyncActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -72,7 +74,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   // googleStatus is not gated (it only says whether the platform is configured and which e-mail to share with)
   [/^(checkSheet|syncSheetImport|listGoogleConnections|disconnectGoogleConnection)$|SheetExport/, 'googleSheets', 'Google Sheets sync features'],
   // metaStatus is not gated (it only says whether the platform has a Meta app)
-  [/^(getMetaPendingConnection|connectMetaPages|checkMetaSource|backfillMetaSource|disconnectMetaSource)$/, 'metaLeads', 'Meta (Facebook / Instagram) Lead Ads'],
+  [/^(getMetaPendingConnection|connectMetaPages|checkMetaSource|backfillMetaSource|disconnectMetaSource|metaSyncReport|retryMetaLeads)$/, 'metaLeads', 'Meta (Facebook / Instagram) Lead Ads'],
 ];
 
 /** Public actions that need no company (answered without touching any company database). */

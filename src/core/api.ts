@@ -321,6 +321,9 @@ export const api = {
     check: (sourceId: string) => request<MtRes<'checkMetaSource'>>('checkMetaSource', { sourceId }, { timeoutMs: 60000 }),
     backfill: (sourceId: string, days?: number) => request<MtRes<'backfillMetaSource'>>('backfillMetaSource', { sourceId, ...(days ? { days } : {}) }, { timeoutMs: 180000 }),
     disconnect: (sourceId: string) => request<MtRes<'disconnectMetaSource'>>('disconnectMetaSource', { sourceId }, { timeoutMs: 60000 }),
+    /** Facebook sync page; compare = read the forms from Facebook (slower). */
+    syncReport: (compare = false) => request<MtRes<'metaSyncReport'>>('metaSyncReport', { compare }, { timeoutMs: compare ? 120000 : 30000 }),
+    retryLeads: () => request<MtRes<'retryMetaLeads'>>('retryMetaLeads', {}, { timeoutMs: 90000 }),
   },
 
   /** Retired Developer Mode actions — kept for API compatibility; the server answers with an explanatory error. */

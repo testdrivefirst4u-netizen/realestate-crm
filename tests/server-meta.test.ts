@@ -16,6 +16,7 @@ import { sha256Hex } from '../server/core/utils';
 import * as LS from '../server/modules/leadSources';
 import * as M from '../server/modules/meta';
 import * as Q from '../server/modules/metaQueue';
+import * as MS from '../server/modules/metaSync';
 import * as leadsModule from '../server/modules/leads';
 import { sourcesCol } from '../server/modules/intake';
 import { appSecretProof, graph, TOKEN_EXPIRED_MSG, __setMetaRetryDelay } from '../server/integrations/meta';
@@ -544,6 +545,38 @@ describe('backfill, check and disconnect', () => {
     leads['7202'] = lead('7202', { form_id: FORM_B, field_data: [{ name: 'phone_number', values: ['+919800000005'] }] });
     await Q.enqueueLeadgen(JSON.parse(leadgenBody(['7202'], PAGE, FORM_B)));
     expect(await Q.processQueueItem('7202')).toMatchObject({ status: 'skipped' });
+  });
+
+  it('Facebook sync report: Facebook vs CRM per form, recent leads with arrival time, retry of failed leads', async () => {
+    const { sourceId } = await connectDirect();
+    leads['8101'] = lead('8101', { created_time: new Date(Date.now() - 20 * 60e3).toISOString() });
+    leads['8102'] = lead('8102', { created_time: new Date(Date.now() - 5 * 60e3).toISOString(), field_data: [{ name: 'phone_number', values: ['+919800000081'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8102'])));
+    await Q.processQueueItem('8102'); // arrived through the webhook; 8101 never did
+
+    const quick = await inCo(() => MS.metaSyncReport({}));
+    expect(quick.pages).toHaveLength(1);
+    expect(quick.pages[0]).toMatchObject({ sourceId, pageName: 'Amaya Living', subscribed: true, forms: null });
+    expect(quick.feed.map((r) => r.leadId)).toEqual(['ENQ-0001']);
+    expect(quick.feed[0].delaySec).not.toBeNull();
+
+    const cmp = await inCo(() => MS.metaSyncReport({ compare: true }));
+    const formA = cmp.pages[0].forms!.find((x) => x.id === FORM_A)!;
+    expect(formA).toMatchObject({ fb7: 2, crm7: 1, missing7: 1 });
+
+    await inCo(() => M.backfillMetaSource({ sourceId, days: 7 }, null));
+    const after = await inCo(() => MS.metaSyncReport({ compare: true }));
+    expect(after.pages[0].forms!.find((x) => x.id === FORM_A)).toMatchObject({ fb7: 2, crm7: 2, missing7: 0 });
+
+    // a failed webhook lead shows up as a problem and is imported by Retry
+    leads['8103'] = lead('8103', { field_data: [{ name: 'phone_number', values: ['+919800000083'] }] });
+    failLead['8103'] = { status: 500, error: { message: 'temporary', code: 2 } };
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8103'])));
+    await Q.processQueueItem('8103');
+    expect((await inCo(() => MS.metaSyncReport({}))).problems.map((p) => [p.id, p.status])).toEqual([['8103', 'failed']]);
+    delete failLead['8103'];
+    const r = await inCo(() => MS.retryMetaLeads(null));
+    expect(r).toMatchObject({ retried: 1, results: [{ id: '8103', status: 'done' }] });
   });
 
   it('checkMetaSource refreshes forms and re-subscribes', async () => {
