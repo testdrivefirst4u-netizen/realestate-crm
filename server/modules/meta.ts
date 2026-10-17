@@ -36,6 +36,7 @@ import {
 } from '../integrations/meta';
 import { mapLimit, pc } from '../platform/base';
 import { PCOLL } from '../platform/registry';
+import { notifyAdmins } from './adminAlerts';
 import { ingestLead, normKey, sourcesCol, type IngestResult, type SourceDoc } from './intake';
 import { defaultConfig, mergeConfig, toSource } from './leadSources';
 
@@ -443,7 +444,10 @@ export async function ensureMetaSubscription(src: MetaSourceDoc): Promise<boolea
     let subscribed = await isPageSubscribed(meta.pageId, token, cfg);
     if (!subscribed) {
       subscribed = await subscribePage(meta.pageId, token, cfg);
-      if (subscribed) await logError('meta:resubscribed:' + src._id, 'WEBHOOK_RESUBSCRIBED', 'The Page was no longer subscribed to new leads — subscribed it again', undefined, src.name);
+      if (subscribed) {
+        await logError('meta:resubscribed:' + src._id, 'WEBHOOK_RESUBSCRIBED', 'The Page was no longer subscribed to new leads — subscribed it again', undefined, src.name);
+        await notifyAdmins('meta-resub:' + src._id, 'Facebook Page re-connected for new leads', `"${meta.pageName || src.name}" had stopped sending new leads to the CRM and was subscribed again automatically. Leads from the gap were picked up by the backup check.`);
+      }
     }
     if (subscribed !== meta.subscribed) await setMeta(src._id, { subscribed });
     return subscribed;
@@ -609,10 +613,19 @@ async function pullLeads(src: MetaSourceDoc, sinceUnix: number, untilUnix = 0): 
 }
 
 /** Scheduled checks only: count leads the webhook had not delivered, and log them for the admin. */
+const syncFailedText = (src: MetaSourceDoc, message: string) =>
+  `The scheduled check of "${metaOf(src).pageName || src.name}" failed: ${message} New Facebook leads may be delayed or missed until this is fixed. Open Settings › Lead sources › the Facebook Page and click Check (or connect with Facebook again).`;
+
 async function noteRecovered(src: MetaSourceDoc, n: number, nowMs: number, check: string) {
   if (!n) return;
   await (await sourcesCol()).updateOne({ _id: src._id, type: 'meta' }, { $inc: { 'config.meta.recovered': n }, $set: { 'config.meta.lastRecoveredAt': new Date(nowMs).toISOString() } });
   await logError('meta:recovered:' + src._id, 'WEBHOOK_MISSED', `${check} imported ${n} lead${n === 1 ? '' : 's'} that the Facebook webhook had not delivered`, undefined, src.name);
+  await notifyAdmins(
+    'meta-missed:' + src._id,
+    `Facebook leads were delayed (${n})`,
+    `${check} found ${n} lead${n === 1 ? '' : 's'} on "${metaOf(src).pageName || src.name}" that Facebook had not delivered instantly. ${n === 1 ? 'It is' : 'They are'} in the CRM now. If this keeps happening, open Settings › Lead sources and click Check on the Facebook Page.`,
+    nowMs
+  );
 }
 
 /**
@@ -634,6 +647,7 @@ export async function runBackfill(src: MetaSourceDoc, days: number, nowMs = Date
     } catch (e: any) {
       const message = errMsg(e);
       if (!(e instanceof ApiError)) await logError('meta:backfill:' + src._id, 'INTERNAL', e?.message, e?.stack, src.name);
+      if (opts.scheduled) await notifyAdmins('meta-sync-failed:' + src._id, 'Facebook lead sync is failing', syncFailedText(src, message), nowMs);
       await setMeta(src._id, { lastBackfillAt: new Date(nowMs).toISOString(), lastError: truncate(message, 300) });
       throw e;
     }
@@ -662,6 +676,7 @@ export async function runQuickSync(src: MetaSourceDoc, nowMs = Date.now()): Prom
         return { recovered, message: tallyMessage(tally) || 'No leads in the last 2 hours' };
       } catch (e: any) {
         if (!(e instanceof ApiError)) await logError('meta:quick:' + src._id, 'INTERNAL', e?.message, e?.stack, src.name);
+        await notifyAdmins('meta-sync-failed:' + src._id, 'Facebook lead sync is failing', syncFailedText(src, errMsg(e)), nowMs);
         await setMeta(src._id, { lastQuickSyncAt: new Date(nowMs).toISOString(), lastError: truncate(errMsg(e), 300) });
         throw e;
       }

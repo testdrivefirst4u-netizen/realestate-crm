@@ -94,6 +94,7 @@ const EVENT_TYPE_MAP: Record<string, { type: 'info' | 'success' | 'warning' | 'a
   task_created: { type: 'info' },
   task_completed: { type: 'success' },
   followup_overdue: { type: 'alert', audio: true },
+  integration_alert: { type: 'alert', audio: true },
   chat_received: { type: 'info', audio: true },
   call_logged: { type: 'info' },
   inventory_status: { type: 'info' },

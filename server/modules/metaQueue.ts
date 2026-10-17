@@ -22,6 +22,7 @@ import { safeEqual, truncate } from '../core/utils';
 import { getLead, loadMetaConfig, TOKEN_EXPIRED_MSG, verifyHubSignature } from '../integrations/meta';
 import { pc } from '../platform/base';
 import { getTenantById, listActiveTenants, PCOLL } from '../platform/registry';
+import { notifyAdmins } from './adminAlerts';
 import { sourcesCol } from './intake';
 import { defaultMetaSourceConfig, errMsg, formAllowed, ingestMetaLead, metaPagesCol, pageTokenOf, ensureMetaSubscription, runBackfill, runQuickSync, type MetaSourceDoc } from './meta';
 
@@ -200,6 +201,7 @@ export async function processQueueItem(id: string, opts: { now?: Date } = {}): P
       const message = truncate(errMsg(e), 300);
       if (!(e instanceof ApiError)) await logError('meta:lead:' + item._id, 'INTERNAL', e?.message, e?.stack, src.name);
       await sources.updateOne({ _id: src._id }, { $set: { 'config.meta.lastError': message, 'stats.lastError': truncate('meta: ' + message, 300) } });
+      if (dead) await notifyAdmins('meta-dead:' + src._id, 'A Facebook lead could not be imported', `Lead ${item._id} from "${src.name}" failed ${attempts} times: ${message} The backup check retries it; if it stays missing, open Settings › Lead sources and click Check.`);
       return finish({
         ...base,
         status: dead ? 'dead' : 'failed',

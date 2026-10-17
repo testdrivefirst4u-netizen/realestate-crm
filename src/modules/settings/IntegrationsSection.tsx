@@ -631,7 +631,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
 
       {/* Modules & notifications */}
       {canEdit && (
-        <Card title="Modules & notifications" subtitle="Switch optional modules on or off for everyone, and choose who receives the daily digest">
+        <Card title="Modules & notifications" subtitle="Switch optional modules on or off for everyone, and choose who receives the daily digest and integration alerts">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="space-y-3">
               <div className="space-y-2">
@@ -646,7 +646,7 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
               <div className="text-[10px] text-[#7E93A6]">A module that is switched off disappears from the sidebar for every user after their next refresh. Role permissions still apply. Modules your company’s plan does not include stay off whatever is set here.</div>
             </div>
             <div className="space-y-3">
-              <Field label="Daily digest email" hint={<>Sent at about 06:00 IST by the daily scheduled job: new enquiries yesterday, follow-ups due today and overdue follow-ups. Separate several addresses with commas; leave blank to turn the digest off.</>}>
+              <Field label="Daily digest & alert email" hint={<>Sent at about 06:00 IST by the daily scheduled job: new enquiries yesterday, follow-ups due today and overdue follow-ups. The same addresses get an immediate alert when Facebook lead sync fails or a lead had to be recovered (at most once every 6 hours per problem). Separate several addresses with commas; leave blank to turn both off.</>}>
                 <div className="flex gap-2">
                   <input type="email" multiple className={inputCls} value={digestEmail} onChange={(e) => { setDigestEmail(e.target.value); setDigestError(null); }} placeholder="sales@amaya.example" autoComplete="off" />
                   <Button variant="primary" onClick={saveDigest} loading={digestBusy} disabled={digestEmail.trim() === (s.dailyDigestEmail || '')} icon={<Mail size={12} />} className="flex-shrink-0">Save</Button>
