@@ -28,18 +28,18 @@ function PayloadViewer({ entry }: { entry: InboundLogEntry }) {
   return (
     <div className="space-y-3">
       {fields.length === 0 ? (
-        <p className="text-[13.5px] text-[#7A6F64]">No fields were received.</p>
+        <p className="text-[13.5px] text-[#5E778C]">No fields were received.</p>
       ) : (
         <dl className="grid gap-x-6 gap-y-1.5 text-[13px] sm:grid-cols-[minmax(8rem,max-content)_1fr]">
           {fields.map(([k, v]) => (
             <Fragment key={k}>
-              <dt className="font-mono text-[#7A6F64]">{k}</dt>
-              <dd className="min-w-0 break-words font-mono text-[#26211E]">{v === '' ? <span className="text-[#9A8F84]">(empty)</span> : v}</dd>
+              <dt className="font-mono text-[#5E778C]">{k}</dt>
+              <dd className="min-w-0 break-words font-mono text-[#0F2233]">{v === '' ? <span className="text-[#7E93A6]">(empty)</span> : v}</dd>
             </Fragment>
           ))}
         </dl>
       )}
-      <p className="text-[12.5px] text-[#7A6F64]">
+      <p className="text-[12.5px] text-[#5E778C]">
         Entry <span className="font-mono">{entry.id}</span>
         {entry.ip && (
           <>
@@ -73,9 +73,9 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
           </Button>
         }
       />
-      <div className="flex flex-wrap items-end gap-3 border-b border-[#EFE9E2] px-5 py-3">
+      <div className="flex flex-wrap items-end gap-3 border-b border-[#E3EDF5] px-5 py-3">
         <div className="flex flex-col gap-1">
-          <label htmlFor={`${uid}-src`} className="text-[12.5px] font-medium text-[#3B342E]">
+          <label htmlFor={`${uid}-src`} className="text-[12.5px] font-medium text-[#233B50]">
             Source
           </label>
           <select id={`${uid}-src`} className={cx(toolbarControl, 'w-56')} value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
@@ -88,7 +88,7 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor={`${uid}-st`} className="text-[12.5px] font-medium text-[#3B342E]">
+          <label htmlFor={`${uid}-st`} className="text-[12.5px] font-medium text-[#233B50]">
             Status
           </label>
           <select id={`${uid}-st`} className={cx(toolbarControl, 'w-44')} value={status} onChange={(e) => setStatus(e.target.value as InboundStatus | '')}>
@@ -113,7 +113,7 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
             Clear filters
           </Button>
         )}
-        <p className="ml-auto self-center text-[13px] text-[#7A6F64]" aria-live="polite">
+        <p className="ml-auto self-center text-[13px] text-[#5E778C]" aria-live="polite">
           {log.loading ? 'Loading…' : `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}`}
         </p>
       </div>
@@ -129,8 +129,8 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
         />
       ) : rows.length > 0 ? (
         <Table label="Intake log">
-          <thead className="bg-[#FBF9F6]">
-            <tr className="border-b border-[#EFE9E2]">
+          <thead className="bg-[#F7FAFD]">
+            <tr className="border-b border-[#E3EDF5]">
               <th scope="col" className={cx(th, 'w-10')}>
                 <span className="sr-only">Details</span>
               </th>
@@ -142,13 +142,13 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
               <th scope="col" className={th}>Origin</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#F1ECE6]">
+          <tbody className="divide-y divide-[#E6EFF6]">
             {rows.map((r) => {
               const expanded = open === r.id;
               const panelId = `${uid}-p-${r.id}`;
               return (
                 <Fragment key={r.id}>
-                  <tr className={cx('hover:bg-[#FBF9F6]', expanded && 'bg-[#FBF9F6]')}>
+                  <tr className={cx('hover:bg-[#F7FAFD]', expanded && 'bg-[#F7FAFD]')}>
                     <td className={cx(td, 'py-2 pr-0')}>
                       <button
                         type="button"
@@ -156,12 +156,12 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
                         aria-controls={panelId}
                         aria-label={`${expanded ? 'Hide' : 'Show'} payload of the ${fmtDateTimeSec(r.receivedAt)} submission`}
                         onClick={() => setOpen(expanded ? null : r.id)}
-                        className={cx('rounded-md p-1 text-[#7A6F64] hover:bg-[#EFE9E2] hover:text-[#1D2F3F]', focusRing)}
+                        className={cx('rounded-md p-1 text-[#5E778C] hover:bg-[#E3EDF5] hover:text-[#0B2A44]', focusRing)}
                       >
                         {expanded ? <ChevronDown className="h-4 w-4" aria-hidden /> : <ChevronRight className="h-4 w-4" aria-hidden />}
                       </button>
                     </td>
-                    <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#5E554D]')}>{fmtDateTimeSec(r.receivedAt)}</td>
+                    <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#3F5A70]')}>{fmtDateTimeSec(r.receivedAt)}</td>
                     <td className={cx(td, 'text-[13.5px]')}>
                       <span className="block max-w-[14rem] truncate" title={r.sourceName}>
                         {r.sourceName || r.sourceId}
@@ -171,10 +171,10 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
                       <InboundStatusBadge status={r.status} />
                     </td>
                     <td className={cx(td, 'whitespace-nowrap font-mono text-[13px]')}>{r.leadId || '—'}</td>
-                    <td className={cx(td, 'text-[13.5px] text-[#4A423B]')}>
+                    <td className={cx(td, 'text-[13.5px] text-[#2E4A62]')}>
                       <span className="block max-w-[22rem] break-words">{r.message || '—'}</span>
                     </td>
-                    <td className={cx(td, 'text-[13px] text-[#5E554D]')}>
+                    <td className={cx(td, 'text-[13px] text-[#3F5A70]')}>
                       <span className="block max-w-[14rem] truncate font-mono" title={r.origin}>
                         {r.origin || '—'}
                       </span>
@@ -182,8 +182,8 @@ export function InboundLogSection({ companyId, sources }: { companyId: string; s
                   </tr>
                   {expanded && (
                     <tr id={panelId}>
-                      <td colSpan={7} className="bg-[#FBF9F6] px-5 pb-4 pt-1">
-                        <div className="rounded-lg border border-[#E4DCD2] bg-white px-4 py-3">
+                      <td colSpan={7} className="bg-[#F7FAFD] px-5 pb-4 pt-1">
+                        <div className="rounded-lg border border-[#D3E3F0] bg-white px-4 py-3">
                           <PayloadViewer entry={r} />
                         </div>
                       </td>

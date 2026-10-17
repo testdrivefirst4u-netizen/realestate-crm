@@ -92,8 +92,8 @@ export function AdminsClient() {
           <EmptyState icon={<ShieldCheck className="h-5 w-5" aria-hidden />} title="No super admins" />
         ) : rows ? (
           <Table label="Super admins">
-            <thead className="bg-[#FBF9F6]">
-              <tr className="border-b border-[#EFE9E2]">
+            <thead className="bg-[#F7FAFD]">
+              <tr className="border-b border-[#E3EDF5]">
                 <th scope="col" className={th}>Name</th>
                 <th scope="col" className={th}>Status</th>
                 <th scope="col" className={th}>Last login</th>
@@ -103,30 +103,30 @@ export function AdminsClient() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F1ECE6]">
+            <tbody className="divide-y divide-[#E6EFF6]">
               {rows.map((a) => {
                 const self = a.id === me?.id;
                 return (
-                  <tr key={a.id} className="hover:bg-[#FBF9F6]">
+                  <tr key={a.id} className="hover:bg-[#F7FAFD]">
                     <td className={td}>
                       <div className="flex items-center gap-3">
-                        <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F4EEE7] text-[12.5px] font-semibold text-[#6B4F33]">
+                        <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4F9] text-[12.5px] font-semibold text-[#16466E]">
                           {initials(a.name)}
                         </span>
                         <div className="min-w-0">
                           <p className="font-medium">
                             {a.name}
-                            {self && <span className="ml-2 rounded bg-[#E8EDF2] px-1.5 py-0.5 text-[12px] font-medium text-[#1D2F3F]">You</span>}
+                            {self && <span className="ml-2 rounded bg-[#E8EDF2] px-1.5 py-0.5 text-[12px] font-medium text-[#0B2A44]">You</span>}
                           </p>
-                          <p className="text-[13px] text-[#7A6F64]">{a.email}</p>
+                          <p className="text-[13px] text-[#5E778C]">{a.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className={td}>
                       <StatusBadge status={a.status} />
                     </td>
-                    <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#5E554D]')}>{a.lastLoginAt ? fmtDateTime(a.lastLoginAt) : 'Never'}</td>
-                    <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#5E554D]')}>{fmtDate(a.createdAt)}</td>
+                    <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#3F5A70]')}>{a.lastLoginAt ? fmtDateTime(a.lastLoginAt) : 'Never'}</td>
+                    <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#3F5A70]')}>{fmtDate(a.createdAt)}</td>
                     <td className={cx(td, 'whitespace-nowrap text-right')}>
                       <div className="inline-flex flex-wrap justify-end gap-1.5">
                         <Button variant="ghost" size="sm" icon={<Pencil className="h-3.5 w-3.5" aria-hidden />} onClick={() => setDialog({ admin: a })} aria-label={`Edit ${a.name}`}>

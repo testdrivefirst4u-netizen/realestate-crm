@@ -28,7 +28,7 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
       onClick={copy}
       aria-label={copied ? 'Copied' : label}
       className={cx(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#D9D0C5] bg-white px-2.5 text-[13px] font-medium text-[#1D2F3F] hover:bg-[#F8F5F1]',
+        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#C4D6E6] bg-white px-2.5 text-[13px] font-medium text-[#0B2A44] hover:bg-[#F7FAFD]',
         focusRing,
       )}
     >
@@ -42,9 +42,9 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
 export function CopyRow({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[12.5px] font-medium uppercase tracking-wide text-[#7A6F64]">{label}</span>
-      <div className="flex items-center gap-2 rounded-lg border border-[#E4DCD2] bg-[#FBF9F6] py-1.5 pl-3 pr-1.5">
-        <span className={cx('min-w-0 flex-1 break-all text-[14px] text-[#14202B]', mono && 'font-mono')}>{value}</span>
+      <span className="text-[12.5px] font-medium uppercase tracking-wide text-[#5E778C]">{label}</span>
+      <div className="flex items-center gap-2 rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] py-1.5 pl-3 pr-1.5">
+        <span className={cx('min-w-0 flex-1 break-all text-[14px] text-[#0A1F33]', mono && 'font-mono')}>{value}</span>
         <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />
       </div>
     </div>
@@ -55,8 +55,8 @@ export function CopyRow({ label, value, mono = true }: { label: string; value: s
 export function TempPasswordPanel({ email, password, note }: { email?: string; password: string; note?: string }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-3 rounded-lg border border-[#F3DFC1] bg-[#FFF8EC] px-3.5 py-3 text-[13.5px] text-[#6B4F33]">
-        <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-[#A9825A]" aria-hidden />
+      <div className="flex items-start gap-3 rounded-lg border border-[#DCE8F2] bg-[#EEF6FC] px-3.5 py-3 text-[13.5px] text-[#16466E]">
+        <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-[#0B6BB0]" aria-hidden />
         <p>{note || 'This temporary password is shown only once. Copy it now and share it securely — it cannot be retrieved later.'}</p>
       </div>
       {email && <CopyRow label="E-mail" value={email} mono={false} />}
@@ -69,8 +69,8 @@ export function TempPasswordPanel({ email, password, note }: { email?: string; p
 export function OneTimeSecretPanel({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-3 rounded-lg border border-[#F3DFC1] bg-[#FFF8EC] px-3.5 py-3 text-[13.5px] text-[#6B4F33]">
-        <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-[#A9825A]" aria-hidden />
+      <div className="flex items-start gap-3 rounded-lg border border-[#DCE8F2] bg-[#EEF6FC] px-3.5 py-3 text-[13.5px] text-[#16466E]">
+        <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-[#0B6BB0]" aria-hidden />
         <p>{note || `This ${label.toLowerCase()} is shown only once. Copy it now and share it securely — it cannot be retrieved later.`}</p>
       </div>
       <CopyRow label={label} value={value} />

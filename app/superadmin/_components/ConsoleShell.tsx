@@ -40,10 +40,10 @@ function NavLinks({ onNavigate, vertical = false }: { onNavigate?: () => void; v
                 'flex items-center gap-2.5 rounded-lg text-[14px] font-medium transition-colors',
                 vertical ? 'px-3 py-2.5' : 'h-10 px-3.5',
                 active ? 'bg-white/10 text-white' : 'text-[#C9D3DC] hover:bg-white/5 hover:text-white',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]',
               )}
             >
-              {vertical && <Icon className={cx('h-[18px] w-[18px]', active ? 'text-[#D4B28C]' : 'text-[#8FA0AF]')} aria-hidden />}
+              {vertical && <Icon className={cx('h-[18px] w-[18px]', active ? 'text-[#36B3F2]' : 'text-[#8FA0AF]')} aria-hidden />}
               {label}
             </Link>
           </li>
@@ -55,10 +55,10 @@ function NavLinks({ onNavigate, vertical = false }: { onNavigate?: () => void; v
 
 function Brand() {
   return (
-    <Link href="/superadmin" className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]">
+    <Link href="/superadmin" className="flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/broaddcast_logo-white.svg" alt="Broaddcast" className="h-9 w-auto" />
-      <span className="hidden border-l border-white/20 pl-3 text-[11px] uppercase tracking-[0.14em] text-[#D4B28C] sm:inline">Super admin</span>
+      <span className="hidden border-l border-white/20 pl-3 text-[11px] uppercase tracking-[0.14em] text-[#36B3F2] sm:inline">Super admin</span>
     </Link>
   );
 }
@@ -111,7 +111,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
 
   if (!admin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F4F0EB] p-6">
+      <div className="flex min-h-screen items-center justify-center bg-[#F2F7FB] p-6">
         {error ? (
           <div className="w-full max-w-md">
             <ErrorBox message={error} onRetry={() => setAttempt((a) => a + 1)} />
@@ -129,8 +129,8 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         <a href="#sa-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">
           Skip to content
         </a>
-        <div className="min-h-screen bg-[#FDFCFA]">
-          <header className="sticky top-0 z-20 bg-[#1D2F3F] text-white">
+        <div className="min-h-screen bg-[#FFFFFF]">
+          <header className="sticky top-0 z-20 bg-[#0B2A44] text-white">
             <div className="mx-auto flex min-h-16 max-w-[1320px] items-center gap-6 px-4 sm:px-8">
               <button
                 type="button"
@@ -138,7 +138,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                 aria-label="Open navigation"
                 aria-expanded={drawer}
                 aria-controls="sa-drawer"
-                className="-ml-1 rounded-md p-2 text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A] lg:hidden"
+                className="-ml-1 rounded-md p-2 text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0] lg:hidden"
               >
                 <Menu className="h-5 w-5" aria-hidden />
               </button>
@@ -158,7 +158,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                   type="button"
                   onClick={signOut}
                   disabled={signingOut}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#3A5266] px-3 text-[13.5px] font-medium text-[#C9D3DC] hover:bg-white/10 hover:text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#3A5266] px-3 text-[13.5px] font-medium text-[#C9D3DC] hover:bg-white/10 hover:text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]"
                 >
                   <LogOut className="h-4 w-4" aria-hidden />
                   <span className="hidden md:inline">{signingOut ? 'Signing out…' : 'Sign out'}</span>
@@ -171,11 +171,11 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           {/* Mobile drawer */}
           {drawer && (
             <div className="fixed inset-0 z-40 lg:hidden">
-              <div aria-hidden className="animate-in fade-in absolute inset-0 bg-[#14202B]/50" onClick={() => setDrawer(false)} />
-              <aside id="sa-drawer" aria-label="Console navigation" className="animate-in slide-in-from-right absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-[#1D2F3F] px-3 py-5">
+              <div aria-hidden className="animate-in fade-in absolute inset-0 bg-[#0A1F33]/50" onClick={() => setDrawer(false)} />
+              <aside id="sa-drawer" aria-label="Console navigation" className="animate-in slide-in-from-right absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-[#0B2A44] px-3 py-5">
                 <div className="flex items-center justify-between px-2">
                   <Brand />
-                  <button type="button" onClick={() => setDrawer(false)} aria-label="Close navigation" className="rounded-md p-2 text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A]">
+                  <button type="button" onClick={() => setDrawer(false)} aria-label="Close navigation" className="rounded-md p-2 text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0]">
                     <X className="h-5 w-5" aria-hidden />
                   </button>
                 </div>

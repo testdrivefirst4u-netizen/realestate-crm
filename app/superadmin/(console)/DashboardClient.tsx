@@ -16,34 +16,34 @@ function CompanyCard({ c, plans }: { c: CompanySummary; plans: Plan[] | null }) 
   const pct = limited ? Math.min(100, Math.round((c.activeUsers / c.maxUsers) * 100)) : 0;
   const full = limited && c.activeUsers >= c.maxUsers;
   return (
-    <article className="relative flex flex-col gap-3.5 rounded-2xl border border-[#E4DCD2] bg-white p-[18px] transition-shadow hover:shadow-[0_6px_20px_rgba(29,47,63,0.08)]">
+    <article className="relative flex flex-col gap-3.5 rounded-2xl border border-[#D3E3F0] bg-white p-[18px] transition-shadow hover:shadow-[0_6px_20px_rgba(11,42,68,0.08)]">
       <div className="flex items-center gap-3">
-        <div aria-hidden className="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[10px] bg-[#1D2F3F] text-[15px] font-bold text-white">
+        <div aria-hidden className="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[10px] bg-[#0B2A44] text-[15px] font-bold text-white">
           {initials(c.name)}
         </div>
         <div className="min-w-0 flex-1">
           {/* The link covers the card (after:inset-0), so the whole card is one keyboard stop. */}
-          <Link href={href} className={cx('block truncate rounded text-[16px] font-semibold text-[#14202B] after:absolute after:inset-0 after:rounded-2xl', focusRing)}>
+          <Link href={href} className={cx('block truncate rounded text-[16px] font-semibold text-[#0A1F33] after:absolute after:inset-0 after:rounded-2xl', focusRing)}>
             {c.name}
           </Link>
-          <span className="block truncate font-mono text-[12px] text-[#7A6F64]">{c.slug}</span>
+          <span className="block truncate font-mono text-[12px] text-[#5E778C]">{c.slug}</span>
         </div>
         <StatusBadge status={c.status} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <div className="flex justify-between text-[13px] text-[#6B6158]">
+        <div className="flex justify-between text-[13px] text-[#4E6779]">
           <span>Seats</span>
           <span className={cx('tabular-nums', full && 'font-medium text-[#B54708]')}>
             {limited ? `${fmtNum(c.activeUsers)} of ${fmtNum(c.maxUsers)}` : `${fmtNum(c.activeUsers)} · no limit`}
           </span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-[#EFE8DF]" aria-hidden>
-          {limited && <div className={cx('h-1.5 rounded-full', full ? 'bg-[#C9781F]' : 'bg-[#A9825A]')} style={{ width: `${Math.max(pct, 4)}%` }} />}
+          {limited && <div className={cx('h-1.5 rounded-full', full ? 'bg-[#C9781F]' : 'bg-[#0B6BB0]')} style={{ width: `${Math.max(pct, 4)}%` }} />}
         </div>
       </div>
-      <div className="flex items-center justify-between border-t border-[#F1EBE3] pt-3 text-[13px] text-[#6B6158]">
+      <div className="flex items-center justify-between border-t border-[#F1EBE3] pt-3 text-[13px] text-[#4E6779]">
         <span>
-          <strong className="font-semibold tabular-nums text-[#14202B]">{fmtNum(c.leads)}</strong> leads · {fmtMB(c.storageMB)}
+          <strong className="font-semibold tabular-nums text-[#0A1F33]">{fmtNum(c.leads)}</strong> leads · {fmtMB(c.storageMB)}
         </span>
         <Pill>{planName(plans, c.plan)}</Pill>
       </div>
@@ -78,10 +78,10 @@ export function DashboardClient() {
   return (
     <>
       {/* Summary strip */}
-      <div className="border-b border-[#E4DCD2] bg-[#F4F0EB]">
+      <div className="border-b border-[#D3E3F0] bg-[#F2F7FB]">
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-6 px-4 py-8 sm:px-8">
           <div>
-            <h1 className="text-[1.75rem] font-semibold leading-tight text-[#14202B] sm:text-[1.9rem]">{firstName ? `Welcome back, ${firstName}` : 'Dashboard'}</h1>
+            <h1 className="text-[1.75rem] font-semibold leading-tight text-[#0A1F33] sm:text-[1.9rem]">{firstName ? `Welcome back, ${firstName}` : 'Dashboard'}</h1>
             <div className="mt-1.5 text-[15px] text-[#5E534B]">
               {d ? `${fmtNum(d.companies.total)} companies · ${fmtNum(d.companies.active)} active · ${fmtNum(d.companies.suspended)} suspended` : <Skeleton className="inline-block h-4 w-56 align-middle" />}
             </div>
@@ -89,8 +89,8 @@ export function DashboardClient() {
           <dl className="flex flex-wrap gap-x-8 gap-y-4">
             {(totals || Array.from({ length: 4 }, (_, i) => ({ label: String(i), value: '' }))).map((t) => (
               <div key={t.label} className="flex flex-col-reverse gap-0.5">
-                <dt className="text-[13px] text-[#6B6158]">{totals ? t.label : <Skeleton className="h-3.5 w-12" />}</dt>
-                <dd className="text-[1.6rem] font-semibold leading-tight tabular-nums text-[#14202B]">{totals ? t.value : <Skeleton className="h-7 w-14" />}</dd>
+                <dt className="text-[13px] text-[#4E6779]">{totals ? t.label : <Skeleton className="h-3.5 w-12" />}</dt>
+                <dd className="text-[1.6rem] font-semibold leading-tight tabular-nums text-[#0A1F33]">{totals ? t.value : <Skeleton className="h-7 w-14" />}</dd>
               </div>
             ))}
           </dl>
@@ -102,7 +102,7 @@ export function DashboardClient() {
 
         <section aria-labelledby="dash-companies" className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="dash-companies" className="text-[20px] font-semibold text-[#14202B]">
+            <h2 id="dash-companies" className="text-[20px] font-semibold text-[#0A1F33]">
               Companies
             </h2>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -110,14 +110,14 @@ export function DashboardClient() {
                 <label htmlFor="dash-search" className="sr-only">
                   Search companies
                 </label>
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A7F77]" aria-hidden />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7E93A6]" aria-hidden />
                 <input
                   id="dash-search"
                   type="search"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Search companies"
-                  className="h-11 w-64 max-w-full rounded-[10px] border border-[#C9BEB2] bg-white pl-10 pr-3.5 text-[14px] text-[#26211E] placeholder:text-[#8A7F77] focus:border-[#A9825A] focus:outline-none focus:ring-2 focus:ring-[#A9825A]/40"
+                  className="h-11 w-64 max-w-full rounded-[10px] border border-[#C9BEB2] bg-white pl-10 pr-3.5 text-[14px] text-[#0F2233] placeholder:text-[#7E93A6] focus:border-[#0B6BB0] focus:outline-none focus:ring-2 focus:ring-[#0B6BB0]/40"
                 />
               </div>
               <LinkButton href="/superadmin/companies/new" icon={<Plus className="h-4 w-4" aria-hidden />}>
@@ -154,7 +154,7 @@ export function DashboardClient() {
                   title="No companies yet"
                   description="Create the first company to give its team a CRM workspace."
                   action={
-                    <Link href="/superadmin/companies/new" className={cx('rounded text-[14px] font-medium text-[#8F6C49] underline underline-offset-2', focusRing)}>
+                    <Link href="/superadmin/companies/new" className={cx('rounded text-[14px] font-medium text-[#0B5E9C] underline underline-offset-2', focusRing)}>
                       Create a company
                     </Link>
                   }
@@ -169,7 +169,7 @@ export function DashboardClient() {
             id="dash-recent-audit"
             title="Recent activity"
             actions={
-              <Link href="/superadmin/audit" className={cx('inline-flex items-center gap-1 rounded text-[13.5px] font-medium text-[#8F6C49] hover:underline underline-offset-2', focusRing)}>
+              <Link href="/superadmin/audit" className={cx('inline-flex items-center gap-1 rounded text-[13.5px] font-medium text-[#0B5E9C] hover:underline underline-offset-2', focusRing)}>
                 Audit log <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             }

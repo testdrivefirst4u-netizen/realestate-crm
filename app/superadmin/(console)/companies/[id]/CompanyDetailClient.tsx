@@ -64,7 +64,7 @@ export function CompanyDetailClient() {
   };
 
   const back = (
-    <Link href="/superadmin/companies" className={cx('inline-flex items-center gap-1.5 rounded text-[13.5px] font-medium text-[#6B6158] hover:text-[#1D2F3F]', focusRing)}>
+    <Link href="/superadmin/companies" className={cx('inline-flex items-center gap-1.5 rounded text-[13.5px] font-medium text-[#4E6779] hover:text-[#0B2A44]', focusRing)}>
       <ArrowLeft className="h-4 w-4" aria-hidden /> Companies
     </Link>
   );
@@ -96,12 +96,12 @@ export function CompanyDetailClient() {
     <>
       <div className="mb-3">{back}</div>
       <header className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E4DCD2] bg-white">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#D3E3F0] bg-white">
           {c.logo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.logo} alt="" className="max-h-full max-w-full object-contain" />
           ) : (
-            <span aria-hidden className="text-[17px] font-semibold text-[#8F6C49]">
+            <span aria-hidden className="text-[17px] font-semibold text-[#0B5E9C]">
               {initials(c.name)}
             </span>
           )}
@@ -111,7 +111,7 @@ export function CompanyDetailClient() {
             <h1 className="text-[1.5rem]">{c.name}</h1>
             <StatusBadge status={c.status} />
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[#6B6158]">
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[#4E6779]">
             <span className="font-mono">{c.slug}</span>
             <span aria-hidden>·</span>
             <span>
@@ -176,7 +176,7 @@ function OpenSettingsButton({ companyId, disabled }: { companyId: string; disabl
       <Button onClick={open} loading={busy} disabled={disabled} icon={<Settings2 className="h-4 w-4" aria-hidden />}>
         Open company settings
       </Button>
-      <span className="text-[12px] text-[#7A6F64]">{error || 'Integrations, lead sources, alerts, visit booking, keys'}</span>
+      <span className="text-[12px] text-[#5E778C]">{error || 'Integrations, lead sources, alerts, visit booking, keys'}</span>
     </div>
   );
 }

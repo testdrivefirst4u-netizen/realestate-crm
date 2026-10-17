@@ -19,13 +19,13 @@ const NUMERIC_ID = /^\d{5,25}$/;
 
 /** Only numeric Page ids become links (never anything taken verbatim from stored data). */
 function PageLink({ pageId, name }: { pageId: string; name: string }) {
-  if (!NUMERIC_ID.test(pageId)) return <span className="font-mono text-[12px] text-[#7A6F64]">{pageId || '—'}</span>;
+  if (!NUMERIC_ID.test(pageId)) return <span className="font-mono text-[12px] text-[#5E778C]">{pageId || '—'}</span>;
   return (
     <a
       href={`https://facebook.com/${pageId}`}
       target="_blank"
       rel="noopener noreferrer"
-      className={cx('inline-flex items-center gap-1 rounded font-mono text-[12px] text-[#1D2F3F] underline-offset-2 hover:underline', focusRing)}
+      className={cx('inline-flex items-center gap-1 rounded font-mono text-[12px] text-[#0B2A44] underline-offset-2 hover:underline', focusRing)}
       aria-label={`Open the Facebook Page ${name} (opens in a new tab)`}
     >
       {pageId} <ExternalLink className="h-3 w-3" aria-hidden />
@@ -35,10 +35,10 @@ function PageLink({ pageId, name }: { pageId: string; name: string }) {
 
 function FormsCell({ meta }: { meta: MetaPageRow['meta'] }) {
   const ids = meta?.formIds || [];
-  if (!ids.length) return <span className="text-[#6B6158]">All forms{meta?.forms?.length ? ` (${meta.forms.length})` : ''}</span>;
+  if (!ids.length) return <span className="text-[#4E6779]">All forms{meta?.forms?.length ? ` (${meta.forms.length})` : ''}</span>;
   const names = ids.map((id) => meta.forms?.find((f) => f.id === id)?.name || id);
   return (
-    <span className="block max-w-[16rem] break-words text-[13px] text-[#3B342E]" title={names.join(', ')}>
+    <span className="block max-w-[16rem] break-words text-[13px] text-[#233B50]" title={names.join(', ')}>
       {names.length} selected: {names.join(', ')}
     </span>
   );
@@ -61,7 +61,7 @@ function SubscribedBadge({ subscribed }: { subscribed: boolean }) {
 function PagesTable({ rows }: { rows: MetaPageRow[] }) {
   return (
     <Table label="Connected Facebook Pages">
-      <thead className="bg-[#FBF9F6]">
+      <thead className="bg-[#F7FAFD]">
         <tr>
           <th scope="col" className={th}>Page</th>
           <th scope="col" className={th}>Forms</th>
@@ -75,19 +75,19 @@ function PagesTable({ rows }: { rows: MetaPageRow[] }) {
           <th scope="col" className={th}>Last error</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#F1ECE6]">
+      <tbody className="divide-y divide-[#E6EFF6]">
         {rows.map((r) => {
           const m = r.meta;
           const lastLead = m?.lastLeadAt || r.stats?.lastReceivedAt;
           return (
             <tr key={r.sourceId}>
               <td className={td}>
-                <span className="font-medium text-[#14202B]">{m?.pageName || r.name}</span>
+                <span className="font-medium text-[#0A1F33]">{m?.pageName || r.name}</span>
                 <span className="block">
                   <PageLink pageId={m?.pageId || ''} name={m?.pageName || r.name} />
                 </span>
                 {m?.connectedAt && (
-                  <span className="block text-[12px] text-[#7A6F64]">
+                  <span className="block text-[12px] text-[#5E778C]">
                     Connected {fmtDateTime(m.connectedAt)}
                     {m.connectedBy ? ` by ${m.connectedBy}` : ''}
                   </span>
@@ -114,7 +114,7 @@ function PagesTable({ rows }: { rows: MetaPageRow[] }) {
                     {m.lastError}
                   </span>
                 ) : (
-                  <span className="text-[#7A6F64]">—</span>
+                  <span className="text-[#5E778C]">—</span>
                 )}
               </td>
             </tr>
@@ -218,12 +218,12 @@ function ConnectPageDialog({ open, onClose, company, onConnected }: { open: bool
       }
     >
       <form id="connect-meta-page" onSubmit={submit} noValidate className="space-y-4">
-        <div className="rounded-lg border border-[#E4DCD2] bg-[#FBF9F6] px-4 py-3 text-[13.5px] leading-relaxed text-[#3B342E]">
-          <p className="font-medium text-[#1D2F3F]">How to get a Page access token</p>
+        <div className="rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] px-4 py-3 text-[13.5px] leading-relaxed text-[#233B50]">
+          <p className="font-medium text-[#0B2A44]">How to get a Page access token</p>
           <ol className="mt-1.5 list-decimal space-y-1 pl-5">
             <li>
               Sign in to Facebook as someone with full control of the company&apos;s Page and open{' '}
-              <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className={cx('rounded font-medium text-[#1D2F3F] underline underline-offset-2', focusRing)}>
+              <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className={cx('rounded font-medium text-[#0B2A44] underline underline-offset-2', focusRing)}>
                 Graph API Explorer
               </a>
               .
@@ -232,7 +232,7 @@ function ConnectPageDialog({ open, onClose, company, onConnected }: { open: bool
           </ol>
           <ul className="my-1.5 flex flex-wrap gap-1.5 pl-5">
             {META_TOKEN_PERMISSIONS.map((p) => (
-              <li key={p} className="rounded bg-white px-1.5 py-0.5 font-mono text-[12px] text-[#26211E] ring-1 ring-inset ring-[#E4DCD2]">
+              <li key={p} className="rounded bg-white px-1.5 py-0.5 font-mono text-[12px] text-[#0F2233] ring-1 ring-inset ring-[#D3E3F0]">
                 {p}
               </li>
             ))}
@@ -373,7 +373,7 @@ export function MetaSection({ company, onSaved, onSourcesChanged }: { company: C
 
       <div className="space-y-3 px-5 pt-4">
         {featureOn ? (
-          <p className="flex items-center gap-2 text-[13.5px] text-[#3B342E]">
+          <p className="flex items-center gap-2 text-[13.5px] text-[#233B50]">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-[#067647]" aria-hidden />
             Plan feature “{FEATURE_LABELS.metaLeads}”: <span className="font-medium text-[#067647]">on for this company</span>
           </p>

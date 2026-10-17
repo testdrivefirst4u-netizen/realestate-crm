@@ -50,10 +50,10 @@ export function FeaturesTab({ company, plans, onSaved }: { company: CompanyDetai
       <div className="px-5 py-3">
         <FeatureToggles value={value} onChange={setValue} disabled={busy} legend="Modules" columns={1} />
       </div>
-      <div className="space-y-3 border-t border-[#EFE9E2] px-5 py-3">
+      <div className="space-y-3 border-t border-[#E3EDF5] px-5 py-3">
         <ErrorBox message={error} />
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {dirty && <span className="mr-auto text-[13px] text-[#8F6C49]">Unsaved changes</span>}
+          {dirty && <span className="mr-auto text-[13px] text-[#0B5E9C]">Unsaved changes</span>}
           <Button variant="secondary" disabled={!dirty || busy} onClick={() => setValue(initial)}>
             Discard
           </Button>

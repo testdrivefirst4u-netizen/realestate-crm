@@ -16,11 +16,11 @@ const CLIENT_ID_RE = /^\d+-[a-z0-9_]+\.apps\.googleusercontent\.com$/i;
 const LOCAL_REDIRECT_URI = 'http://localhost:3000/api/integrations/google/callback';
 
 const B = ({ children }: { children: ReactNode }) => <strong className="font-medium">{children}</strong>;
-const Code = ({ children }: { children: ReactNode }) => <span className="rounded bg-white px-1 font-mono text-[12.5px] ring-1 ring-inset ring-[#E4DCD2]">{children}</span>;
+const Code = ({ children }: { children: ReactNode }) => <span className="rounded bg-white px-1 font-mono text-[12.5px] ring-1 ring-inset ring-[#D3E3F0]">{children}</span>;
 
 function ExtLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={cx('rounded font-medium text-[#1D2F3F] underline underline-offset-2', focusRing)}>
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cx('rounded font-medium text-[#0B2A44] underline underline-offset-2', focusRing)}>
       {children}
     </a>
   );
@@ -54,7 +54,7 @@ function OAuthGuide({ redirectUri }: { redirectUri: string }) {
           Copy the <B>Client ID</B> and the <B>Client Secret</B> into the form above and save.
         </li>
       </ol>
-      <div className="mt-3 space-y-2 text-[13px] text-[#6B6158]">
+      <div className="mt-3 space-y-2 text-[13px] text-[#4E6779]">
         <p>
           <B>Testing mode:</B> while the consent screen is in Testing, Google expires the access after <B>7 days</B> — companies then have to reconnect. Publish the app to avoid this.
         </p>
@@ -139,32 +139,32 @@ export function GoogleOAuthSection({ s, onUpdated }: { s: GoogleSettings; onUpda
   };
 
   return (
-    <section aria-labelledby={`${uid}-h`} className="border-t border-[#EFE9E2]">
+    <section aria-labelledby={`${uid}-h`} className="border-t border-[#E3EDF5]">
       <div className="space-y-4 p-5">
         <div>
-          <h3 id={`${uid}-h`} className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-[#14202B]">
-            <LogIn className="h-4 w-4 text-[#A9825A]" aria-hidden />
+          <h3 id={`${uid}-h`} className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-[#0A1F33]">
+            <LogIn className="h-4 w-4 text-[#0B6BB0]" aria-hidden />
             Connect with Google
             <Pill>Recommended — no key file</Pill>
           </h3>
-          <p className="mt-1 text-[13.5px] text-[#6B6158]">
+          <p className="mt-1 text-[13.5px] text-[#4E6779]">
             Company admins sign in with their own Google account and pick their sheets — nothing to share with a service account. Needs one Google OAuth client for the platform.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill configured={s.oauthConfigured} />
-          {s.oauthSource === 'env' && <span className="text-[13px] text-[#6B6158]">from the environment</span>}
-          {s.oauthSource === 'platform' && <span className="text-[13px] text-[#6B6158]">stored in the platform (Client Secret encrypted)</span>}
+          {s.oauthSource === 'env' && <span className="text-[13px] text-[#4E6779]">from the environment</span>}
+          {s.oauthSource === 'platform' && <span className="text-[13px] text-[#4E6779]">stored in the platform (Client Secret encrypted)</span>}
         </div>
 
         {fromEnv ? (
-          <p className="rounded-lg border border-[#E4DCD2] bg-[#FBF9F6] px-4 py-3 text-[13.5px] text-[#3B342E]">
+          <p className="rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] px-4 py-3 text-[13.5px] text-[#233B50]">
             Set by the <span className="font-mono">GOOGLE_OAUTH_CLIENT_ID</span> and <span className="font-mono">GOOGLE_OAUTH_CLIENT_SECRET</span> environment variables — change them there.
             They cannot be edited from this console.
           </p>
         ) : !s.oauthConfigured ? (
-          <p className="text-[13.5px] text-[#6B6158]">No OAuth client yet. Until one is added, companies cannot connect a Google account. Follow the guide below, then save the Client ID and Client Secret.</p>
+          <p className="text-[13.5px] text-[#4E6779]">No OAuth client yet. Until one is added, companies cannot connect a Google account. Follow the guide below, then save the Client ID and Client Secret.</p>
         ) : null}
 
         <dl className="grid gap-4 sm:grid-cols-2">
@@ -183,8 +183,8 @@ export function GoogleOAuthSection({ s, onUpdated }: { s: GoogleSettings; onUpda
         {s.oauthRedirectUri && (
           <div className="space-y-1.5">
             <CopyRow label="Authorised redirect URI" value={s.oauthRedirectUri} />
-            <p className="text-[13px] text-[#6B6158]">
-              Add this under the OAuth client&apos;s <strong className="font-medium text-[#3B342E]">Authorised redirect URIs</strong>.
+            <p className="text-[13px] text-[#4E6779]">
+              Add this under the OAuth client&apos;s <strong className="font-medium text-[#233B50]">Authorised redirect URIs</strong>.
               {s.oauthRedirectUri !== LOCAL_REDIRECT_URI && (
                 <>
                   {' '}
@@ -198,8 +198,8 @@ export function GoogleOAuthSection({ s, onUpdated }: { s: GoogleSettings; onUpda
       </div>
 
       {!fromEnv && (
-        <form onSubmit={save} noValidate className="space-y-4 border-t border-[#EFE9E2] p-5" aria-labelledby={`${uid}-f`}>
-          <h4 id={`${uid}-f`} className="text-[14px] font-semibold text-[#14202B]">
+        <form onSubmit={save} noValidate className="space-y-4 border-t border-[#E3EDF5] p-5" aria-labelledby={`${uid}-f`}>
+          <h4 id={`${uid}-f`} className="text-[14px] font-semibold text-[#0A1F33]">
             {s.oauthConfigured ? 'OAuth client' : 'Add the OAuth client'}
           </h4>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -253,7 +253,7 @@ export function GoogleOAuthSection({ s, onUpdated }: { s: GoogleSettings; onUpda
         </form>
       )}
 
-      <div className="border-t border-[#EFE9E2] p-5">
+      <div className="border-t border-[#E3EDF5] p-5">
         <OAuthGuide redirectUri={s.oauthRedirectUri} />
       </div>
 

@@ -41,7 +41,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             role={t.tone === 'error' ? 'alert' : 'status'}
             className={cx(
               'animate-in slide-in-from-bottom-2 pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-[14px] shadow-lg',
-              t.tone === 'success' ? 'border-[#C9E9D6] bg-white text-[#14202B]' : 'border-[#F7C5BF] bg-[#FEF3F2] text-[#912018]',
+              t.tone === 'success' ? 'border-[#C9E9D6] bg-white text-[#0A1F33]' : 'border-[#F7C5BF] bg-[#FEF3F2] text-[#912018]',
             )}
           >
             {t.tone === 'success' ? (

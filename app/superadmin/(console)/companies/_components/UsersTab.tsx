@@ -68,8 +68,8 @@ export function UsersTab({ company, onChange }: { company: CompanyDetail; onChan
         <EmptyState icon={<Users className="h-5 w-5" aria-hidden />} title="No users yet" description="Add the first user to this company." />
       ) : (
         <Table label={`Users of ${company.name}`}>
-          <thead className="bg-[#FBF9F6]">
-            <tr className="border-b border-[#EFE9E2]">
+          <thead className="bg-[#F7FAFD]">
+            <tr className="border-b border-[#E3EDF5]">
               <th scope="col" className={th}>Name</th>
               <th scope="col" className={th}>E-mail</th>
               <th scope="col" className={th}>Role</th>
@@ -80,9 +80,9 @@ export function UsersTab({ company, onChange }: { company: CompanyDetail; onChan
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#F1ECE6]">
+          <tbody className="divide-y divide-[#E6EFF6]">
             {users.map((u) => (
-              <tr key={u.id} className="hover:bg-[#FBF9F6]">
+              <tr key={u.id} className="hover:bg-[#F7FAFD]">
                 <td className={cx(td, 'font-medium')}>{u.name}</td>
                 <td className={cx(td, 'text-[13.5px]')}>{u.email}</td>
                 <td className={td}>
@@ -91,7 +91,7 @@ export function UsersTab({ company, onChange }: { company: CompanyDetail; onChan
                 <td className={td}>
                   <StatusBadge status={u.status} />
                 </td>
-                <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#5E554D]')}>{u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : 'Never'}</td>
+                <td className={cx(td, 'whitespace-nowrap text-[13.5px] text-[#3F5A70]')}>{u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : 'Never'}</td>
                 <td className={cx(td, 'whitespace-nowrap text-right')}>
                   <div className="inline-flex gap-1.5">
                     <Button variant="secondary" size="sm" icon={<KeyRound className="h-3.5 w-3.5" aria-hidden />} onClick={() => setPending({ kind: 'reset', user: u })} aria-label={`Reset password for ${u.name}`}>

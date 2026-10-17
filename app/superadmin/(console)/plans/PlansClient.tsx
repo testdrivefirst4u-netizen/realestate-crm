@@ -85,23 +85,23 @@ export function PlansClient() {
                 <div className="flex items-start justify-between gap-3 px-5 pt-5">
                   <div className="min-w-0">
                     <h2 className="text-[16px] font-semibold">{p.name}</h2>
-                    <p className="font-mono text-[12.5px] text-[#7A6F64]">{p.id}</p>
+                    <p className="font-mono text-[12.5px] text-[#5E778C]">{p.id}</p>
                   </div>
                   <p className="text-right">
-                    <span className="block text-[1.25rem] font-semibold text-[#14202B] tabular-nums">{fmtPrice(p.priceMonthly, p.currency)}</span>
-                    <span className="text-[12.5px] text-[#7A6F64]">per month</span>
+                    <span className="block text-[1.25rem] font-semibold text-[#0A1F33] tabular-nums">{fmtPrice(p.priceMonthly, p.currency)}</span>
+                    <span className="text-[12.5px] text-[#5E778C]">per month</span>
                   </p>
                 </div>
-                {p.description && <p className="px-5 pt-2 text-[13.5px] text-[#5E554D]">{p.description}</p>}
-                <p className="mx-5 mt-3 inline-flex items-center gap-1.5 text-[13.5px] font-medium text-[#1D2F3F]">
-                  <Users className="h-4 w-4 text-[#A9825A]" aria-hidden />
+                {p.description && <p className="px-5 pt-2 text-[13.5px] text-[#3F5A70]">{p.description}</p>}
+                <p className="mx-5 mt-3 inline-flex items-center gap-1.5 text-[13.5px] font-medium text-[#0B2A44]">
+                  <Users className="h-4 w-4 text-[#0B6BB0]" aria-hidden />
                   {p.maxUsers === 0 ? 'Unlimited users' : `Up to ${p.maxUsers} users`}
                 </p>
                 <ul className="mt-3 flex-1 space-y-1.5 px-5 pb-4" aria-label={`Features in ${p.name}`}>
                   {FEATURE_KEYS.map((k) => {
                     const on = Boolean(p.features?.[k]);
                     return (
-                      <li key={k} className={on ? 'flex items-center gap-2 text-[13.5px] text-[#26211E]' : 'flex items-center gap-2 text-[13.5px] text-[#A39888]'}>
+                      <li key={k} className={on ? 'flex items-center gap-2 text-[13.5px] text-[#0F2233]' : 'flex items-center gap-2 text-[13.5px] text-[#A39888]'}>
                         {on ? <Check className="h-3.5 w-3.5 text-[#067647]" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
                         <span>
                           {FEATURE_LABELS[k]}
@@ -111,7 +111,7 @@ export function PlansClient() {
                     );
                   })}
                 </ul>
-                <div className="flex justify-end gap-2 border-t border-[#EFE9E2] bg-[#FBF9F6] px-5 py-3 rounded-b-xl">
+                <div className="flex justify-end gap-2 border-t border-[#E3EDF5] bg-[#F7FAFD] px-5 py-3 rounded-b-xl">
                   <Button variant="ghost" size="sm" icon={<Trash2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => setDeleting(p)} aria-label={`Delete plan ${p.name}`}>
                     Delete
                   </Button>

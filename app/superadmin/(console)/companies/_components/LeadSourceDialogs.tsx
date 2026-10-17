@@ -62,13 +62,13 @@ export function KeyReveal({ source, apiKey }: { source: LeadSource; apiKey: stri
       <CopyRow label="Endpoint (POST)" value={endpoint} />
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[12.5px] font-medium uppercase tracking-wide text-[#7A6F64]">Example request</span>
+          <span className="text-[12.5px] font-medium uppercase tracking-wide text-[#5E778C]">Example request</span>
           <CopyButton value={curl} label="Copy example request" />
         </div>
-        <pre className="max-h-56 overflow-auto rounded-lg border border-[#E4DCD2] bg-[#14202B] px-3 py-2.5 font-mono text-[12.5px] leading-relaxed text-[#F4EEE7]">
+        <pre className="max-h-56 overflow-auto rounded-lg border border-[#D3E3F0] bg-[#0A1F33] px-3 py-2.5 font-mono text-[12.5px] leading-relaxed text-[#EEF4F9]">
           <code>{curl}</code>
         </pre>
-        <p className="text-[12.5px] text-[#7A6F64]">
+        <p className="text-[12.5px] text-[#5E778C]">
           The key can also be sent as an <span className="font-mono">X-Api-Key</span> header or a <span className="font-mono">_key</span> field. JSON, URL-encoded and multipart form bodies are accepted.
         </p>
       </div>

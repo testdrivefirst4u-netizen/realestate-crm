@@ -23,7 +23,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, idPrefix }: { ta
     refs.current[n]?.focus();
   };
   return (
-    <div role="tablist" aria-label="Company sections" className="-mx-1 flex gap-1 overflow-x-auto border-b border-[#E4DCD2] px-1">
+    <div role="tablist" aria-label="Company sections" className="-mx-1 flex gap-1 overflow-x-auto border-b border-[#D3E3F0] px-1">
       {tabs.map((t, i) => {
         const selected = t.id === value;
         return (
@@ -45,8 +45,8 @@ export function Tabs<T extends string>({ tabs, value, onChange, idPrefix }: { ta
               selected
                 ? t.danger
                   ? 'border-[#B42318] text-[#912018]'
-                  : 'border-[#A9825A] text-[#14202B]'
-                : 'border-transparent text-[#6B6158] hover:border-[#D9D0C5] hover:text-[#1D2F3F]',
+                  : 'border-[#0B6BB0] text-[#0A1F33]'
+                : 'border-transparent text-[#4E6779] hover:border-[#C4D6E6] hover:text-[#0B2A44]',
               focusRing,
             )}
           >

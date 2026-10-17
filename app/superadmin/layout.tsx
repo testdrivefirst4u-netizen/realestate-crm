@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-[#F4F0EB] text-[#26211E]">{children}</div>;
+  return <div className="crm-ocean min-h-screen bg-[#F2F7FB] text-[#0F2233]">{children}</div>;
 }

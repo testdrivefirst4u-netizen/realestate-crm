@@ -102,7 +102,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
         aria-hidden
-        className="animate-in fade-in absolute inset-0 bg-[#14202B]/50 backdrop-blur-[2px]"
+        className="animate-in fade-in absolute inset-0 bg-[#0A1F33]/50 backdrop-blur-[2px]"
         onMouseDown={() => {
           if (!busy) onClose();
         }}
@@ -119,13 +119,13 @@ export function Modal({
           width,
         )}
       >
-        <div className={cx('flex items-start justify-between gap-4 border-b px-5 py-4', tone === 'danger' ? 'border-[#F7D9D5]' : 'border-[#EFE9E2]')}>
+        <div className={cx('flex items-start justify-between gap-4 border-b px-5 py-4', tone === 'danger' ? 'border-[#F7D9D5]' : 'border-[#E3EDF5]')}>
           <div className="min-w-0">
             <h2 id={titleId} className={cx('!text-[1.05rem]', tone === 'danger' && '!text-[#912018]')}>
               {title}
             </h2>
             {description && (
-              <p id={descId} className="mt-1 text-[13.5px] text-[#6B6158]">
+              <p id={descId} className="mt-1 text-[13.5px] text-[#4E6779]">
                 {description}
               </p>
             )}
@@ -135,7 +135,7 @@ export function Modal({
             onClick={onClose}
             disabled={busy}
             aria-label="Close dialog"
-            className={cx('-mr-1 rounded-md p-1.5 text-[#7A6F64] hover:bg-[#F4F0EB] hover:text-[#1D2F3F] disabled:opacity-50', focusRing)}
+            className={cx('-mr-1 rounded-md p-1.5 text-[#5E778C] hover:bg-[#F2F7FB] hover:text-[#0B2A44] disabled:opacity-50', focusRing)}
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -143,7 +143,7 @@ export function Modal({
         <div data-modal-body className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {children}
         </div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-[#EFE9E2] bg-[#FBF9F6] px-5 py-3 sm:rounded-b-2xl">{footer}</div>}
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-[#E3EDF5] bg-[#F7FAFD] px-5 py-3 sm:rounded-b-2xl">{footer}</div>}
       </div>
     </div>,
     document.body,

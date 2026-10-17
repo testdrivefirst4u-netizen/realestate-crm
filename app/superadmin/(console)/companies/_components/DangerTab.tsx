@@ -62,7 +62,7 @@ export function DangerTab({ company, onSaved }: { company: CompanyDetail; onSave
       <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-[15px] font-semibold">{suspended ? 'Reactivate company' : 'Suspend company'}</h2>
-          <p className="mt-1 text-[13.5px] text-[#6B6158]">
+          <p className="mt-1 text-[13.5px] text-[#4E6779]">
             {suspended
               ? 'Users will be able to sign in to the CRM again. No data was removed while suspended.'
               : 'All users are signed out and cannot sign in until the company is reactivated. Data is kept.'}
@@ -80,7 +80,7 @@ export function DangerTab({ company, onSaved }: { company: CompanyDetail; onSave
       <Card className="flex flex-col gap-4 border-[#F7C5BF] p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-[15px] font-semibold text-[#912018]">Delete company</h2>
-          <p className="mt-1 text-[13.5px] text-[#6B6158]">Permanently removes the company, its users and its CRM data. This cannot be undone.</p>
+          <p className="mt-1 text-[13.5px] text-[#4E6779]">Permanently removes the company, its users and its CRM data. This cannot be undone.</p>
         </div>
         <Button variant="danger" icon={<Trash2 className="h-4 w-4" aria-hidden />} onClick={() => setDeleteOpen(true)}>
           Delete company

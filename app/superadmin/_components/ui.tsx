@@ -8,16 +8,16 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 }
 
 export const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A] focus-visible:ring-offset-2 focus-visible:ring-offset-white';
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0] focus-visible:ring-offset-2 focus-visible:ring-offset-white';
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
 type Variant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger' | 'danger-outline';
 const variants: Record<Variant, string> = {
-  primary: 'bg-[#1D2F3F] text-white hover:bg-[#14202B] shadow-sm',
-  accent: 'bg-[#A9825A] text-white hover:bg-[#8F6C49] shadow-sm',
-  secondary: 'bg-white text-[#1D2F3F] border border-[#D9D0C5] hover:bg-[#F8F5F1] hover:border-[#C7BBAD]',
-  ghost: 'text-[#1D2F3F] hover:bg-[#EFE9E2]',
+  primary: 'bg-[#0B2A44] text-white hover:bg-[#0A1F33] shadow-sm',
+  accent: 'bg-[#0B6BB0] text-white hover:bg-[#0B5E9C] shadow-sm',
+  secondary: 'bg-white text-[#0B2A44] border border-[#C4D6E6] hover:bg-[#F7FAFD] hover:border-[#C7BBAD]',
+  ghost: 'text-[#0B2A44] hover:bg-[#E3EDF5]',
   danger: 'bg-[#B42318] text-white hover:bg-[#912018] shadow-sm',
   'danger-outline': 'bg-white text-[#B42318] border border-[#F1C4BF] hover:bg-[#FEF3F2]',
 };
@@ -84,8 +84,8 @@ export function Button({
 /* ── Form fields ─────────────────────────────────────────────────────────── */
 
 const controlBase =
-  'w-full rounded-lg border bg-white px-3 text-[14px] text-[#26211E] placeholder:text-[#9A8F84] transition-colors focus:outline-none focus:ring-2 disabled:bg-[#F4F0EB] disabled:text-[#7A6F64]';
-const controlOk = 'border-[#D9D0C5] focus:border-[#A9825A] focus:ring-[#A9825A]/30';
+  'w-full rounded-lg border bg-white px-3 text-[14px] text-[#0F2233] placeholder:text-[#7E93A6] transition-colors focus:outline-none focus:ring-2 disabled:bg-[#F2F7FB] disabled:text-[#5E778C]';
+const controlOk = 'border-[#C4D6E6] focus:border-[#0B6BB0] focus:ring-[#0B6BB0]/30';
 const controlErr = 'border-[#E5847A] focus:border-[#B42318] focus:ring-[#B42318]/20';
 
 interface FieldMeta {
@@ -99,7 +99,7 @@ interface FieldMeta {
 function FieldShell({ id, label, hint, error, required, className, children }: FieldMeta & { id: string; children: ReactNode }) {
   return (
     <div className={cx('flex flex-col gap-1.5', className)}>
-      <label htmlFor={id} className="text-[13px] font-medium text-[#3B342E]">
+      <label htmlFor={id} className="text-[13px] font-medium text-[#233B50]">
         {label}
         {required && (
           <span className="ml-0.5 text-[#B42318]" aria-hidden>
@@ -114,7 +114,7 @@ function FieldShell({ id, label, hint, error, required, className, children }: F
           {error}
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="text-[13px] text-[#7A6F64]">
+        <p id={`${id}-hint`} className="text-[13px] text-[#5E778C]">
           {hint}
         </p>
       ) : null}
@@ -227,11 +227,11 @@ export function Switch({
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <div className="min-w-0">
-        <span id={`${id}-l`} className="block text-[14px] font-medium text-[#26211E]">
+        <span id={`${id}-l`} className="block text-[14px] font-medium text-[#0F2233]">
           {label}
         </span>
         {description && (
-          <span id={`${id}-d`} className="block text-[13px] text-[#7A6F64]">
+          <span id={`${id}-d`} className="block text-[13px] text-[#5E778C]">
             {description}
           </span>
         )}
@@ -246,7 +246,7 @@ export function Switch({
         onClick={() => onChange(!checked)}
         className={cx(
           'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-          checked ? 'bg-[#1D2F3F]' : 'bg-[#CFC6BB]',
+          checked ? 'bg-[#0B2A44]' : 'bg-[#CFC6BB]',
           focusRing,
         )}
       >
@@ -266,7 +266,7 @@ export function Switch({
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cx('rounded-xl border border-[#E4DCD2] bg-white shadow-[0_1px_2px_rgba(29,47,63,0.04)]', className)} {...rest}>
+    <section className={cx('rounded-xl border border-[#D3E3F0] bg-white shadow-[0_1px_2px_rgba(11,42,68,0.04)]', className)} {...rest}>
       {children}
     </section>
   );
@@ -274,12 +274,12 @@ export function Card({ className, children, ...rest }: { className?: string; chi
 
 export function CardHeader({ title, description, actions, id }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; id?: string }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EFE9E2] px-5 py-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E3EDF5] px-5 py-4">
       <div className="min-w-0">
-        <h2 id={id} className="text-[15px] font-semibold text-[#14202B]">
+        <h2 id={id} className="text-[15px] font-semibold text-[#0A1F33]">
           {title}
         </h2>
-        {description && <p className="mt-0.5 text-[13px] text-[#7A6F64]">{description}</p>}
+        {description && <p className="mt-0.5 text-[13px] text-[#5E778C]">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -289,7 +289,7 @@ export function CardHeader({ title, description, actions, id }: { title: ReactNo
 const badgeTones: Record<string, string> = {
   Active: 'bg-[#ECFDF3] text-[#067647] ring-[#ABEFC6]',
   Suspended: 'bg-[#FFFAEB] text-[#B54708] ring-[#FEDF89]',
-  Disabled: 'bg-[#F2F0EE] text-[#5E554D] ring-[#DDD6CE]',
+  Disabled: 'bg-[#EEF4F9] text-[#3F5A70] ring-[#DDD6CE]',
   Error: 'bg-[#FEF3F2] text-[#B42318] ring-[#FECDCA]',
 };
 
@@ -309,7 +309,7 @@ export function StatusBadge({ status }: { status: string }) {
 
 export function Pill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-md bg-[#F4EEE7] px-2 py-0.5 text-[12.5px] font-medium text-[#6B4F33] ring-1 ring-inset ring-[#E7DCCF] whitespace-nowrap">
+    <span className="inline-flex items-center rounded-md bg-[#EEF4F9] px-2 py-0.5 text-[12.5px] font-medium text-[#16466E] ring-1 ring-inset ring-[#DCE8F2] whitespace-nowrap">
       {children}
     </span>
   );
@@ -317,8 +317,8 @@ export function Pill({ children }: { children: ReactNode }) {
 
 export function Spinner({ label = 'Loading…', className }: { label?: string; className?: string }) {
   return (
-    <div role="status" className={cx('flex items-center justify-center gap-2 py-10 text-[14px] text-[#7A6F64]', className)}>
-      <Loader2 className="h-5 w-5 animate-spin text-[#A9825A]" aria-hidden />
+    <div role="status" className={cx('flex items-center justify-center gap-2 py-10 text-[14px] text-[#5E778C]', className)}>
+      <Loader2 className="h-5 w-5 animate-spin text-[#0B6BB0]" aria-hidden />
       <span>{label}</span>
     </div>
   );
@@ -330,7 +330,7 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
   return (
-    <div role="status" aria-label="Loading" className="divide-y divide-[#F1ECE6]">
+    <div role="status" aria-label="Loading" className="divide-y divide-[#E6EFF6]">
       {Array.from({ length: rows }).map((_, r) => (
         <div key={r} className="flex items-center gap-4 px-5 py-3.5">
           {Array.from({ length: cols }).map((__, c) => (
@@ -360,9 +360,9 @@ export function ErrorBox({ message, onRetry, className }: { message: string; onR
 export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: string; description?: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      {icon && <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-[#F4EEE7] text-[#A9825A]">{icon}</div>}
-      <p className="text-[15px] font-semibold text-[#1D2F3F]">{title}</p>
-      {description && <p className="max-w-sm text-[13.5px] text-[#7A6F64]">{description}</p>}
+      {icon && <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF4F9] text-[#0B6BB0]">{icon}</div>}
+      <p className="text-[15px] font-semibold text-[#0B2A44]">{title}</p>
+      {description && <p className="max-w-sm text-[13.5px] text-[#5E778C]">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -375,7 +375,7 @@ export function PageHeader({ title, description, actions, back }: { title: React
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[1.5rem]">{title}</h1>
-          {description && <p className="mt-1 text-[14px] text-[#6B6158]">{description}</p>}
+          {description && <p className="mt-1 text-[14px] text-[#4E6779]">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
@@ -385,8 +385,8 @@ export function PageHeader({ title, description, actions, back }: { title: React
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 
-export const th = 'px-4 py-3 text-left text-[12px] font-semibold uppercase tracking-wide text-[#7A6F64] whitespace-nowrap';
-export const td = 'px-4 py-3 align-middle text-[14px] text-[#26211E]';
+export const th = 'px-4 py-3 text-left text-[12px] font-semibold uppercase tracking-wide text-[#5E778C] whitespace-nowrap';
+export const td = 'px-4 py-3 align-middle text-[14px] text-[#0F2233]';
 
 export function Table({ children, label }: { children: ReactNode; label: string }) {
   return (

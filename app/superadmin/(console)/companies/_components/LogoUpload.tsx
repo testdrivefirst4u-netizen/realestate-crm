@@ -84,11 +84,11 @@ export function LogoUpload({ value, onChange, name, disabled }: { value: string;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span id={`${id}-l`} className="text-[13px] font-medium text-[#3B342E]">
+      <span id={`${id}-l`} className="text-[13px] font-medium text-[#233B50]">
         Logo
       </span>
       <div className="flex items-center gap-4">
-        <div className={cx('flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E4DCD2] bg-[#FBF9F6]', !value && 'border-dashed')}>
+        <div className={cx('flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#D3E3F0] bg-[#F7FAFD]', !value && 'border-dashed')}>
           {value ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt={`${name} logo`} className="max-h-full max-w-full object-contain" />
@@ -124,7 +124,7 @@ export function LogoUpload({ value, onChange, name, disabled }: { value: string;
           {error}
         </p>
       ) : (
-        <p id={`${id}-h`} className="text-[13px] text-[#7A6F64]">
+        <p id={`${id}-h`} className="text-[13px] text-[#5E778C]">
           A wide logo on a transparent background works best (about 400 × 120 px). It replaces the company name at the top of the CRM sidebar.
         </p>
       )}

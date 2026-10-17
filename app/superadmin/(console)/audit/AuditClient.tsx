@@ -24,16 +24,16 @@ export function AuditClient() {
     <>
       <PageHeader title="Audit log" description="Every change made from this console. Times are shown in IST (Asia/Kolkata)." />
       <Card>
-        <div className="flex flex-col gap-3 border-b border-[#EFE9E2] p-4 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 border-b border-[#E3EDF5] p-4 sm:flex-row sm:items-center">
           <div role="search" className="relative flex-1">
             <label htmlFor="audit-filter" className="sr-only">
               Filter entries
             </label>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9A8F84]" aria-hidden />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7E93A6]" aria-hidden />
             <input id="audit-filter" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by actor, action, company or details" className={cx(toolbarControl, 'pl-9')} />
           </div>
           <div className="flex items-center gap-2">
-            <label htmlFor="audit-limit" className="text-[13px] font-medium whitespace-nowrap text-[#3B342E]">
+            <label htmlFor="audit-limit" className="text-[13px] font-medium whitespace-nowrap text-[#233B50]">
               Show
             </label>
             <select id="audit-limit" value={limit} onChange={(e) => setLimit(Number(e.target.value))} className={cx(toolbarControl, 'w-32')}>
@@ -53,7 +53,7 @@ export function AuditClient() {
           <AuditTable entries={filtered} loading={audit.loading} companyNames={names} />
         </div>
         {filtered && audit.data && (
-          <p aria-live="polite" className="border-t border-[#EFE9E2] px-4 py-3 text-[13px] text-[#7A6F64]">
+          <p aria-live="polite" className="border-t border-[#E3EDF5] px-4 py-3 text-[13px] text-[#5E778C]">
             {q.trim() ? `${filtered.length} of ${audit.data.length} entries` : `${audit.data.length} entries`}
           </p>
         )}

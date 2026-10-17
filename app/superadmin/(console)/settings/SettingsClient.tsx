@@ -56,16 +56,16 @@ function StatusPanel({ s }: { s: GoogleSettings }) {
     <div className="space-y-4 px-5 pb-5 pt-4">
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill configured={s.configured} />
-        {s.source === 'env' && <span className="text-[13px] text-[#6B6158]">from the environment</span>}
-        {s.source === 'platform' && <span className="text-[13px] text-[#6B6158]">stored encrypted in the platform</span>}
+        {s.source === 'env' && <span className="text-[13px] text-[#4E6779]">from the environment</span>}
+        {s.source === 'platform' && <span className="text-[13px] text-[#4E6779]">stored encrypted in the platform</span>}
       </div>
 
       {s.source === 'env' ? (
-        <p className="rounded-lg border border-[#E4DCD2] bg-[#FBF9F6] px-4 py-3 text-[13.5px] text-[#3B342E]">
+        <p className="rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] px-4 py-3 text-[13.5px] text-[#233B50]">
           Set by the <span className="font-mono">GOOGLE_SERVICE_ACCOUNT_JSON</span> environment variable — change it there. It cannot be edited from this console.
         </p>
       ) : s.source === 'none' || !s.configured ? (
-        <p className="text-[13.5px] text-[#6B6158]">
+        <p className="text-[13.5px] text-[#4E6779]">
           No service account yet. Companies can still use “Connect with Google” when the OAuth client above is configured.
         </p>
       ) : null}
@@ -73,9 +73,9 @@ function StatusPanel({ s }: { s: GoogleSettings }) {
       {s.configured && s.serviceAccountEmail && (
         <>
           <CopyRow label="Service-account e-mail" value={s.serviceAccountEmail} />
-          <p className="text-[13px] text-[#6B6158]">
-            Companies share their sheets with this address — <strong className="font-medium text-[#3B342E]">Viewer</strong> to import leads,{' '}
-            <strong className="font-medium text-[#3B342E]">Editor</strong> to export leads or write the import status column.
+          <p className="text-[13px] text-[#4E6779]">
+            Companies share their sheets with this address — <strong className="font-medium text-[#233B50]">Viewer</strong> to import leads,{' '}
+            <strong className="font-medium text-[#233B50]">Editor</strong> to export leads or write the import status column.
           </p>
         </>
       )}
@@ -97,7 +97,7 @@ function HowToGuide() {
         <ol className="list-decimal space-y-1.5 pl-5">
           <li>
             Open the{' '}
-            <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="font-medium text-[#1D2F3F] underline underline-offset-2">
+            <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0B2A44] underline underline-offset-2">
               Google Cloud Console
             </a>{' '}
             and create a project (or select an existing one).
@@ -116,7 +116,7 @@ function HowToGuide() {
             Companies then share their Google Sheets with the service-account e-mail shown above — <strong className="font-medium">Viewer</strong> is enough to import leads; <strong className="font-medium">Editor</strong> is needed to export leads or to write the import status back.
           </li>
         </ol>
-        <p className="mt-3 text-[13px] text-[#6B6158]">Keep the key file private and delete the downloaded copy once it is saved here — it is stored encrypted.</p>
+        <p className="mt-3 text-[13px] text-[#4E6779]">Keep the key file private and delete the downloaded copy once it is saved here — it is stored encrypted.</p>
     </Guide>
   );
 }
@@ -210,14 +210,14 @@ export function SettingsClient() {
         {s && <GoogleOAuthSection s={s} onUpdated={settings.setData} />}
 
         {s && (
-          <section aria-labelledby={`${uid}-sa`} className="border-t border-[#EFE9E2]">
+          <section aria-labelledby={`${uid}-sa`} className="border-t border-[#E3EDF5]">
             <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
               <div className="min-w-0">
-                <h3 id={`${uid}-sa`} className="flex items-center gap-2 text-[15px] font-semibold text-[#14202B]">
-                  <FileKey2 className="h-4 w-4 text-[#A9825A]" aria-hidden />
+                <h3 id={`${uid}-sa`} className="flex items-center gap-2 text-[15px] font-semibold text-[#0A1F33]">
+                  <FileKey2 className="h-4 w-4 text-[#0B6BB0]" aria-hidden />
                   Service account (alternative)
                 </h3>
-                <p className="mt-1 text-[13.5px] text-[#6B6158]">One Google service account; companies share their sheets with its e-mail address.</p>
+                <p className="mt-1 text-[13.5px] text-[#4E6779]">One Google service account; companies share their sheets with its e-mail address.</p>
               </div>
               {s.configured ? (
                 <Button variant="secondary" size="sm" loading={testing} onClick={runTest} icon={<PlugZap className="h-3.5 w-3.5" aria-hidden />}>
@@ -231,8 +231,8 @@ export function SettingsClient() {
             {test && <TestResult test={test} />}
 
             {editable && (
-              <form onSubmit={save} noValidate className="space-y-4 border-t border-[#EFE9E2] p-5" aria-labelledby={`${uid}-f`}>
-                <h4 id={`${uid}-f`} className="text-[14px] font-semibold text-[#14202B]">
+              <form onSubmit={save} noValidate className="space-y-4 border-t border-[#E3EDF5] p-5" aria-labelledby={`${uid}-f`}>
+                <h4 id={`${uid}-f`} className="text-[14px] font-semibold text-[#0A1F33]">
                   {s.configured ? 'Replace the JSON key' : 'Add the JSON key'}
                 </h4>
                 <TextAreaField
@@ -269,7 +269,7 @@ export function SettingsClient() {
               </form>
             )}
 
-            <div className="border-t border-[#EFE9E2] p-5">
+            <div className="border-t border-[#E3EDF5] p-5">
               <HowToGuide />
             </div>
           </section>

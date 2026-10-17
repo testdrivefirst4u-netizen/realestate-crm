@@ -39,25 +39,25 @@ export function LoginClient() {
   return (
     <div className="flex min-h-screen">
       {/* Brand panel */}
-      <aside className="relative hidden w-[44%] max-w-xl flex-col justify-between overflow-hidden bg-[#1D2F3F] p-10 text-white lg:flex">
-        <div aria-hidden className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#A9825A]/20 blur-2xl" />
+      <aside className="relative hidden w-[44%] max-w-xl flex-col justify-between overflow-hidden bg-[#0B2A44] p-10 text-white lg:flex">
+        <div aria-hidden className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#0B6BB0]/20 blur-2xl" />
         <div aria-hidden className="absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-white/5 blur-2xl" />
         <div className="relative flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#A9825A] text-[16px] font-bold">A</div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0B6BB0] text-[16px] font-bold">A</div>
           <p className="text-[16px] font-semibold">{platformName}</p>
         </div>
         <div className="relative">
-          <p className="text-[12.5px] font-medium uppercase tracking-[0.18em] text-[#D4B28C]">Super Admin console</p>
+          <p className="text-[12.5px] font-medium uppercase tracking-[0.18em] text-[#36B3F2]">Super Admin console</p>
           <h2 className="mt-3 text-[2rem] leading-tight text-white">Run every company workspace from one place.</h2>
           <ul className="mt-8 space-y-4 text-[14.5px] text-[#C9D3DC]">
             <li className="flex items-center gap-3">
-              <Building2 className="h-5 w-5 text-[#D4B28C]" aria-hidden /> Provision companies and their first administrators
+              <Building2 className="h-5 w-5 text-[#36B3F2]" aria-hidden /> Provision companies and their first administrators
             </li>
             <li className="flex items-center gap-3">
-              <Layers className="h-5 w-5 text-[#D4B28C]" aria-hidden /> Manage plans, seats and feature access
+              <Layers className="h-5 w-5 text-[#36B3F2]" aria-hidden /> Manage plans, seats and feature access
             </li>
             <li className="flex items-center gap-3">
-              <ShieldCheck className="h-5 w-5 text-[#D4B28C]" aria-hidden /> Every action is recorded in the audit log
+              <ShieldCheck className="h-5 w-5 text-[#36B3F2]" aria-hidden /> Every action is recorded in the audit log
             </li>
           </ul>
         </div>
@@ -68,13 +68,13 @@ export function LoginClient() {
       <main className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1D2F3F] text-[16px] font-bold text-white">A</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0B2A44] text-[16px] font-bold text-white">A</div>
             <div className="leading-tight">
-              <p className="text-[16px] font-semibold text-[#14202B]">{platformName}</p>
-              <p className="text-[12px] uppercase tracking-[0.14em] text-[#A9825A]">Super Admin</p>
+              <p className="text-[16px] font-semibold text-[#0A1F33]">{platformName}</p>
+              <p className="text-[12px] uppercase tracking-[0.14em] text-[#0B6BB0]">Super Admin</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-[#E4DCD2] bg-white p-6 shadow-[0_8px_30px_rgba(29,47,63,0.06)] sm:p-8">
+          <div className="rounded-2xl border border-[#D3E3F0] bg-white p-6 shadow-[0_8px_30px_rgba(11,42,68,0.06)] sm:p-8">
             {loadError ? (
               <ErrorBox message={loadError} onRetry={() => setAttempt((a) => a + 1)} />
             ) : !status ? (
@@ -117,7 +117,7 @@ function SignInForm({ platformName, onDone }: { platformName: string; onDone: ()
     <form onSubmit={submit} noValidate className="space-y-5">
       <div>
         <h1 className="text-[1.4rem]">Sign in</h1>
-        <p className="mt-1 text-[14px] text-[#6B6158]">to the {platformName} super admin console.</p>
+        <p className="mt-1 text-[14px] text-[#4E6779]">to the {platformName} super admin console.</p>
       </div>
       <TextField
         label="E-mail"
@@ -185,9 +185,9 @@ function SetupForm({ tokenRequired, platformName, onDone }: { tokenRequired: boo
   return (
     <form onSubmit={submit} noValidate className="space-y-4">
       <div>
-        <p className="text-[12.5px] font-medium uppercase tracking-[0.14em] text-[#A9825A]">First-time setup</p>
+        <p className="text-[12.5px] font-medium uppercase tracking-[0.14em] text-[#0B6BB0]">First-time setup</p>
         <h1 className="mt-1 text-[1.4rem]">Create the first super admin</h1>
-        <p className="mt-1 text-[14px] text-[#6B6158]">This account will have full control of {platformName}. You can add more super admins later.</p>
+        <p className="mt-1 text-[14px] text-[#4E6779]">This account will have full control of {platformName}. You can add more super admins later.</p>
       </div>
       <TextField label="Full name" autoComplete="name" autoFocus value={f.name} onChange={set('name')} required error={show('name')} />
       <TextField label="E-mail" type="email" autoComplete="username" value={f.email} onChange={set('email')} required error={show('email')} />

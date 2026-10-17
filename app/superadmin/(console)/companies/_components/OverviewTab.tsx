@@ -8,14 +8,14 @@ import { EditCompanyForm } from './EditCompanyForm';
 
 function Usage({ label, value, icon }: { label: string; value: ReactNode; icon: ReactNode }) {
   return (
-    <div className="rounded-xl border border-[#E4DCD2] bg-white p-4">
-      <div className="flex items-center gap-2 text-[13px] font-medium text-[#6B6158]">
-        <span aria-hidden className="text-[#A9825A]">
+    <div className="rounded-xl border border-[#D3E3F0] bg-white p-4">
+      <div className="flex items-center gap-2 text-[13px] font-medium text-[#4E6779]">
+        <span aria-hidden className="text-[#0B6BB0]">
           {icon}
         </span>
         {label}
       </div>
-      <p className="mt-1.5 text-[1.3rem] font-semibold text-[#14202B] tabular-nums">{value}</p>
+      <p className="mt-1.5 text-[1.3rem] font-semibold text-[#0A1F33] tabular-nums">{value}</p>
     </div>
   );
 }
@@ -23,8 +23,8 @@ function Usage({ label, value, icon }: { label: string; value: ReactNode; icon: 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex justify-between gap-4 py-2">
-      <dt className="text-[13px] text-[#7A6F64]">{label}</dt>
-      <dd className="min-w-0 text-right text-[13.5px] text-[#26211E] safe-text-wrap">{children || '—'}</dd>
+      <dt className="text-[13px] text-[#5E778C]">{label}</dt>
+      <dd className="min-w-0 text-right text-[13.5px] text-[#0F2233] safe-text-wrap">{children || '—'}</dd>
     </div>
   );
 }
@@ -49,7 +49,7 @@ export function OverviewTab({ company, plans, onSaved }: { company: CompanyDetai
         <div className="space-y-6">
           <Card>
             <CardHeader title="At a glance" />
-            <dl className="divide-y divide-[#F1ECE6] px-5 py-2">
+            <dl className="divide-y divide-[#E6EFF6] px-5 py-2">
               <Row label="Company ID">
                 <span className="font-mono">{company.id}</span>
               </Row>
@@ -61,7 +61,7 @@ export function OverviewTab({ company, plans, onSaved }: { company: CompanyDetai
               <Row label="Updated">{fmtDateTime(company.updatedAt)}</Row>
               <Row label="Last activity">
                 <span className="inline-flex items-center gap-1">
-                  <Activity className="h-3.5 w-3.5 text-[#A9825A]" aria-hidden />
+                  <Activity className="h-3.5 w-3.5 text-[#0B6BB0]" aria-hidden />
                   {fmtDateTime(u?.lastActivityAt)}
                 </span>
               </Row>
@@ -69,27 +69,27 @@ export function OverviewTab({ company, plans, onSaved }: { company: CompanyDetai
           </Card>
           <Card>
             <CardHeader title="Contact" />
-            <dl className="divide-y divide-[#F1ECE6] px-5 py-2">
+            <dl className="divide-y divide-[#E6EFF6] px-5 py-2">
               <Row label="Name">{company.contactName}</Row>
               <Row label="E-mail">
                 {company.contactEmail ? (
-                  <a href={`mailto:${company.contactEmail}`} className="text-[#1D2F3F] underline underline-offset-2">
+                  <a href={`mailto:${company.contactEmail}`} className="text-[#0B2A44] underline underline-offset-2">
                     {company.contactEmail}
                   </a>
                 ) : null}
               </Row>
               <Row label="Phone">
                 {company.contactPhone ? (
-                  <a href={`tel:${company.contactPhone}`} className="text-[#1D2F3F] underline underline-offset-2">
+                  <a href={`tel:${company.contactPhone}`} className="text-[#0B2A44] underline underline-offset-2">
                     {company.contactPhone}
                   </a>
                 ) : null}
               </Row>
             </dl>
             {company.notes && (
-              <div className="border-t border-[#EFE9E2] px-5 py-3">
-                <p className="text-[12.5px] font-medium uppercase tracking-wide text-[#7A6F64]">Notes</p>
-                <p className="mt-1 whitespace-pre-wrap text-[13.5px] text-[#4A423B] safe-text-wrap">{company.notes}</p>
+              <div className="border-t border-[#E3EDF5] px-5 py-3">
+                <p className="text-[12.5px] font-medium uppercase tracking-wide text-[#5E778C]">Notes</p>
+                <p className="mt-1 whitespace-pre-wrap text-[13.5px] text-[#2E4A62] safe-text-wrap">{company.notes}</p>
               </div>
             )}
           </Card>

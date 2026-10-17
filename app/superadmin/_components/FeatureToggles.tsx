@@ -30,15 +30,15 @@ export function FeatureToggles({
   const on = FEATURE_KEYS.filter((k) => value[k]).length;
   return (
     <fieldset disabled={disabled}>
-      <legend className="flex w-full items-center justify-between text-[13px] font-medium text-[#3B342E]">
+      <legend className="flex w-full items-center justify-between text-[13px] font-medium text-[#233B50]">
         <span>{legend}</span>
-        <span className="text-[12.5px] font-normal text-[#7A6F64]">
+        <span className="text-[12.5px] font-normal text-[#5E778C]">
           {on} of {FEATURE_KEYS.length} enabled
         </span>
       </legend>
       <div className={columns === 2 ? 'mt-1 grid gap-x-8 sm:grid-cols-2' : 'mt-1'}>
         {FEATURE_KEYS.map((k) => (
-          <div key={k} className="border-b border-[#F1ECE6]">
+          <div key={k} className="border-b border-[#E6EFF6]">
             <Switch label={FEATURE_LABELS[k]} checked={value[k]} disabled={disabled} onChange={(v) => onChange({ ...value, [k]: v })} />
           </div>
         ))}

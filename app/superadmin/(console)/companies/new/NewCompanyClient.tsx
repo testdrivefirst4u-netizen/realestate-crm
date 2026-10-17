@@ -14,7 +14,7 @@ export function NewCompanyClient() {
     <>
       <PageHeader
         back={
-          <Link href="/superadmin/companies" className={cx('inline-flex items-center gap-1.5 rounded text-[13.5px] font-medium text-[#6B6158] hover:text-[#1D2F3F]', focusRing)}>
+          <Link href="/superadmin/companies" className={cx('inline-flex items-center gap-1.5 rounded text-[13.5px] font-medium text-[#4E6779] hover:text-[#0B2A44]', focusRing)}>
             <ArrowLeft className="h-4 w-4" aria-hidden /> Companies
           </Link>
         }

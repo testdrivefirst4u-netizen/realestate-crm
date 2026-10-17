@@ -61,7 +61,7 @@ export function BrandingCard() {
         <form onSubmit={save} className="space-y-4 px-5 pb-5 pt-4" noValidate>
           <ErrorBox message={branding.error} onRetry={branding.reload} />
           {missing.length > 0 && (
-            <p className="rounded-lg border border-[#F2D5A8] bg-[#FFF8EC] px-4 py-3 text-[13.5px] text-[#7A4A0C]">
+            <p className="rounded-lg border border-[#F2D5A8] bg-[#EEF6FC] px-4 py-3 text-[13.5px] text-[#7A4A0C]">
               The legal pages still show placeholders for {missing.length} field{missing.length === 1 ? '' : 's'}. Fill them in before submitting the Meta app for review.
             </p>
           )}
@@ -76,10 +76,10 @@ export function BrandingCard() {
           <ErrorBox message={error} />
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" loading={saving} icon={<Save className="h-4 w-4" aria-hidden />}>Save</Button>
-            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13.5px] font-medium text-[#8F6C49] underline-offset-2 hover:underline">
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13.5px] font-medium text-[#0B5E9C] underline-offset-2 hover:underline">
               View Privacy page <ExternalLink className="h-3.5 w-3.5" aria-hidden />
             </a>
-            {b?.updatedAt && <span className="text-[12.5px] text-[#7A6F64]">Last saved {fmtDateTime(b.updatedAt)}{b.updatedBy ? ` by ${b.updatedBy}` : ''}</span>}
+            {b?.updatedAt && <span className="text-[12.5px] text-[#5E778C]">Last saved {fmtDateTime(b.updatedAt)}{b.updatedBy ? ` by ${b.updatedBy}` : ''}</span>}
           </div>
         </form>
       )}

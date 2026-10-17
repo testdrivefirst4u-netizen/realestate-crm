@@ -116,8 +116,8 @@ export function EditCompanyForm({ company, plans, onSaved }: { company: CompanyD
             hint={seatWarning || '0 = unlimited'}
           />
           {planChanged && (
-            <label className="flex items-start gap-2.5 rounded-lg border border-[#E7DCCF] bg-[#FBF7F2] px-3 py-2.5 text-[13.5px] text-[#4A423B] sm:col-span-2">
-              <input type="checkbox" checked={applyPlanFeatures} onChange={(e) => setApplyPlanFeatures(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#1D2F3F]" />
+            <label className="flex items-start gap-2.5 rounded-lg border border-[#DCE8F2] bg-[#F7FAFD] px-3 py-2.5 text-[13.5px] text-[#2E4A62] sm:col-span-2">
+              <input type="checkbox" checked={applyPlanFeatures} onChange={(e) => setApplyPlanFeatures(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0B2A44]" />
               <span>Also apply the new plan&apos;s feature set (replaces the current feature toggles).</span>
             </label>
           )}
@@ -126,10 +126,10 @@ export function EditCompanyForm({ company, plans, onSaved }: { company: CompanyD
           <TextField label="Contact phone" type="tel" value={f.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} />
           <TextAreaField label="Notes" className="sm:col-span-2" value={f.notes} onChange={(e) => set('notes', e.target.value)} hint="Internal only — not visible to the company." />
         </div>
-        <div className="space-y-3 border-t border-[#EFE9E2] px-5 py-3">
+        <div className="space-y-3 border-t border-[#E3EDF5] px-5 py-3">
           <ErrorBox message={error} />
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {dirty && <span className="mr-auto text-[13px] text-[#8F6C49]">Unsaved changes</span>}
+            {dirty && <span className="mr-auto text-[13px] text-[#0B5E9C]">Unsaved changes</span>}
             <Button
               variant="secondary"
               disabled={!dirty || busy}

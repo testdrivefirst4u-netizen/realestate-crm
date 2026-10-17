@@ -18,8 +18,8 @@ type Pending = { kind: 'rotate' | 'delete'; source: LeadSource } | null;
 function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11.5px] font-medium uppercase tracking-wide text-[#7A6F64]">{label}</dt>
-      <dd className={cx('mt-0.5 text-[15px] font-semibold tabular-nums text-[#14202B]', value > 0 && tone)}>{fmtNum(value)}</dd>
+      <dt className="text-[11.5px] font-medium uppercase tracking-wide text-[#5E778C]">{label}</dt>
+      <dd className={cx('mt-0.5 text-[15px] font-semibold tabular-nums text-[#0A1F33]', value > 0 && tone)}>{fmtNum(value)}</dd>
     </div>
   );
 }
@@ -45,22 +45,22 @@ function SourceRow({
     <li className="px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F4EEE7] text-[#A9825A]">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EEF4F9] text-[#0B6BB0]">
             <TypeIcon className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[14.5px] font-semibold text-[#14202B]">{source.name}</h3>
+              <h3 className="text-[14.5px] font-semibold text-[#0A1F33]">{source.name}</h3>
               <StatusBadge status={source.status} />
               <Pill>{SOURCE_TYPE_LABELS[source.type] || source.type}</Pill>
             </div>
-            <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-[#6B6158]">
+            <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-[#4E6779]">
               <span className="font-mono">{source.id}</span>
               <span aria-hidden>·</span>
               {keyed && source.keyPrefix && (
                 <>
                   <span>
-                    Key <span className="font-mono text-[#26211E]">{source.keyPrefix}…</span>
+                    Key <span className="font-mono text-[#0F2233]">{source.keyPrefix}…</span>
                   </span>
                   <span aria-hidden>·</span>
                 </>
@@ -73,7 +73,7 @@ function SourceRow({
                 </>
               )}
             </p>
-            <p className="mt-0.5 text-[12.5px] text-[#7A6F64]">
+            <p className="mt-0.5 text-[12.5px] text-[#5E778C]">
               {keyed
                 ? cfg?.allowedOrigins?.length
                   ? `Allowed websites: ${cfg.allowedOrigins.join(', ')}`
@@ -108,15 +108,15 @@ function SourceRow({
         </div>
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-3 rounded-lg border border-[#EFE9E2] bg-[#FBF9F6] px-4 py-3 sm:grid-cols-5">
+      <dl className="mt-3 grid grid-cols-3 gap-3 rounded-lg border border-[#E3EDF5] bg-[#F7FAFD] px-4 py-3 sm:grid-cols-5">
         <Stat label="Received" value={s?.received ?? 0} />
         <Stat label="Created" value={s?.created ?? 0} tone="text-[#067647]" />
         <Stat label="Duplicates" value={s?.duplicates ?? 0} tone="text-[#3538CD]" />
         <Stat label="Rejected" value={s?.rejected ?? 0} tone="text-[#B54708]" />
         <Stat label="Failed" value={s?.failed ?? 0} tone="text-[#B42318]" />
       </dl>
-      <p className="mt-2 text-[13px] text-[#6B6158]">
-        Last received: <span className="text-[#26211E]">{s?.lastReceivedAt ? fmtDateTime(s.lastReceivedAt) : 'Never'}</span>
+      <p className="mt-2 text-[13px] text-[#4E6779]">
+        Last received: <span className="text-[#0F2233]">{s?.lastReceivedAt ? fmtDateTime(s.lastReceivedAt) : 'Never'}</span>
       </p>
       {s?.lastError && (
         <p className="mt-1 flex items-start gap-1.5 text-[13px] text-[#912018]">
@@ -235,7 +235,7 @@ export function IntegrationsTab({ company, onSaved }: { company: CompanyDetail; 
         />
         <ErrorBox message={sources.error} onRetry={sources.reload} className="m-4" />
         {sources.loading && !sources.data ? (
-          <div role="status" aria-label="Loading lead sources" className="divide-y divide-[#F1ECE6]">
+          <div role="status" aria-label="Loading lead sources" className="divide-y divide-[#E6EFF6]">
             {[0, 1].map((i) => (
               <div key={i} className="space-y-3 px-5 py-4">
                 <div className="flex items-center gap-3">
@@ -257,7 +257,7 @@ export function IntegrationsTab({ company, onSaved }: { company: CompanyDetail; 
             action={createButton}
           />
         ) : (
-          <ul className="divide-y divide-[#F1ECE6]">
+          <ul className="divide-y divide-[#E6EFF6]">
             {list.map((s) => (
               <SourceRow
                 key={s.id}

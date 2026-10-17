@@ -211,7 +211,7 @@ export function CreateCompanyForm({ onCreated }: { onCreated: (c: CompanyDetail,
               hint="Leave blank to generate a temporary password, shown once after creation."
             />
           </div>
-          <div className="space-y-3 border-t border-[#EFE9E2] p-5">
+          <div className="space-y-3 border-t border-[#E3EDF5] p-5">
             <ErrorBox message={error} />
             {submitted && Object.values(errs).some(Boolean) && !error && (
               <p role="alert" className="text-[13.5px] text-[#B42318]">

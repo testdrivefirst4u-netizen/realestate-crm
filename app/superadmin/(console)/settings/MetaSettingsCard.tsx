@@ -33,14 +33,14 @@ function formFrom(s: MetaSettings | null): Form {
 
 function ExtLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={cx('rounded font-medium text-[#1D2F3F] underline underline-offset-2', focusRing)}>
+    <a href={href} target="_blank" rel="noopener noreferrer" className={cx('rounded font-medium text-[#0B2A44] underline underline-offset-2', focusRing)}>
       {children}
     </a>
   );
 }
 
 const B = ({ children }: { children: ReactNode }) => <strong className="font-medium">{children}</strong>;
-const Code = ({ children }: { children: ReactNode }) => <span className="rounded bg-white px-1 font-mono text-[12.5px] ring-1 ring-inset ring-[#E4DCD2]">{children}</span>;
+const Code = ({ children }: { children: ReactNode }) => <span className="rounded bg-white px-1 font-mono text-[12.5px] ring-1 ring-inset ring-[#D3E3F0]">{children}</span>;
 
 function MetaGuide() {
   return (
@@ -81,7 +81,7 @@ function MetaGuide() {
       <p className="mt-3">
         Test it end-to-end with the <ExtLink href="https://developers.facebook.com/tools/lead-ads-testing">Lead Ads Testing Tool</ExtLink>: pick a connected Page and form, create a test lead and check that it appears in the company&apos;s CRM.
       </p>
-      <p className="mt-2 text-[13px] text-[#6B6158]">
+      <p className="mt-2 text-[13px] text-[#4E6779]">
         Companies whose Business uses the <B>Leads Access Manager</B> must allow this app: <B>Meta Business Suite › Settings › Integrations › Leads access</B> → choose the Page → <B>CRMs</B> → add the app. Otherwise Meta refuses to hand over their leads.
       </p>
     </Guide>
@@ -107,8 +107,8 @@ function MetaSkeleton() {
 function QueueStat({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11.5px] font-medium uppercase tracking-wide text-[#7A6F64]">{label}</dt>
-      <dd className={cx('mt-0.5 text-[15px] font-semibold tabular-nums text-[#14202B]', value > 0 && tone)}>{fmtNum(value)}</dd>
+      <dt className="text-[11.5px] font-medium uppercase tracking-wide text-[#5E778C]">{label}</dt>
+      <dd className={cx('mt-0.5 text-[15px] font-semibold tabular-nums text-[#0A1F33]', value > 0 && tone)}>{fmtNum(value)}</dd>
     </div>
   );
 }
@@ -262,17 +262,17 @@ export function MetaSettingsCard() {
           {/* Status */}
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill configured={s.configured} />
-            {s.source === 'env' && <span className="text-[13px] text-[#6B6158]">from the environment</span>}
-            {s.source === 'platform' && <span className="text-[13px] text-[#6B6158]">stored in the platform (App Secret encrypted)</span>}
+            {s.source === 'env' && <span className="text-[13px] text-[#4E6779]">from the environment</span>}
+            {s.source === 'platform' && <span className="text-[13px] text-[#4E6779]">stored in the platform (App Secret encrypted)</span>}
           </div>
 
           {s.source === 'env' ? (
-            <p className="rounded-lg border border-[#E4DCD2] bg-[#FBF9F6] px-4 py-3 text-[13.5px] text-[#3B342E]">
+            <p className="rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] px-4 py-3 text-[13.5px] text-[#233B50]">
               Set by the <span className="font-mono">META_APP_ID</span>, <span className="font-mono">META_APP_SECRET</span>, <span className="font-mono">META_VERIFY_TOKEN</span>,{' '}
               <span className="font-mono">META_GRAPH_VERSION</span> and <span className="font-mono">META_LOGIN_CONFIG_ID</span> environment variables — change them there. They cannot be edited from this console.
             </p>
           ) : !s.configured ? (
-            <p className="text-[13.5px] text-[#6B6158]">
+            <p className="text-[13.5px] text-[#4E6779]">
               No Meta app yet. Until one is added, companies cannot connect Facebook Pages and no Lead Ads are received. Follow the guide below, then save the App ID and App Secret.
             </p>
           ) : null}
@@ -287,9 +287,9 @@ export function MetaSettingsCard() {
 
           {/* Lead queue */}
           {queue && (
-            <section aria-labelledby={`${uid}-q`} className="rounded-lg border border-[#EFE9E2] bg-[#FBF9F6] px-4 py-3">
+            <section aria-labelledby={`${uid}-q`} className="rounded-lg border border-[#E3EDF5] bg-[#F7FAFD] px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 id={`${uid}-q`} className="text-[13px] font-semibold uppercase tracking-wide text-[#6B6158]">
+                <h3 id={`${uid}-q`} className="text-[13px] font-semibold uppercase tracking-wide text-[#4E6779]">
                   Lead queue (all companies)
                 </h3>
                 <Button variant="secondary" size="sm" loading={retrying} onClick={retry} disabled={!queue.failed} icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}>
@@ -307,10 +307,10 @@ export function MetaSettingsCard() {
           {/* Values for the Meta app dashboard */}
           <section aria-labelledby={`${uid}-v`} className="space-y-3">
             <div>
-              <h3 id={`${uid}-v`} className="text-[14px] font-semibold text-[#14202B]">
+              <h3 id={`${uid}-v`} className="text-[14px] font-semibold text-[#0A1F33]">
                 Paste into the Meta app dashboard
               </h3>
-              <p className="mt-0.5 text-[13px] text-[#7A6F64]">Webhooks › Page (field <span className="font-mono">leadgen</span>) and Facebook Login › Settings.</p>
+              <p className="mt-0.5 text-[13px] text-[#5E778C]">Webhooks › Page (field <span className="font-mono">leadgen</span>) and Facebook Login › Settings.</p>
             </div>
             {s.webhookUrl && <CopyRow label="Webhook callback URL" value={s.webhookUrl} />}
             {s.verifyToken ? (
@@ -323,7 +323,7 @@ export function MetaSettingsCard() {
                 )}
               </div>
             ) : (
-              editable && <p className="text-[13.5px] text-[#6B6158]">No verify token yet — one is generated when the app is saved.</p>
+              editable && <p className="text-[13.5px] text-[#4E6779]">No verify token yet — one is generated when the app is saved.</p>
             )}
             {s.oauthRedirectUri && <CopyRow label="OAuth redirect URI" value={s.oauthRedirectUri} />}
           </section>
@@ -333,9 +333,9 @@ export function MetaSettingsCard() {
       {test && <TestResult test={test} okLabel="The Meta app works. " failLabel="The Meta app check failed. " />}
 
       {s && editable && (
-        <form onSubmit={save} noValidate className="space-y-4 border-t border-[#EFE9E2] p-5" aria-labelledby={`${uid}-f`}>
-          <h3 id={`${uid}-f`} className="flex items-center gap-2 text-[14px] font-semibold text-[#14202B]">
-            <Settings2 className="h-4 w-4 text-[#A9825A]" aria-hidden />
+        <form onSubmit={save} noValidate className="space-y-4 border-t border-[#E3EDF5] p-5" aria-labelledby={`${uid}-f`}>
+          <h3 id={`${uid}-f`} className="flex items-center gap-2 text-[14px] font-semibold text-[#0A1F33]">
+            <Settings2 className="h-4 w-4 text-[#0B6BB0]" aria-hidden />
             {s.configured ? 'Meta app' : 'Add the Meta app'}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -404,7 +404,7 @@ export function MetaSettingsCard() {
         </form>
       )}
 
-      <div className="border-t border-[#EFE9E2] p-5">
+      <div className="border-t border-[#E3EDF5] p-5">
         <MetaGuide />
       </div>
 

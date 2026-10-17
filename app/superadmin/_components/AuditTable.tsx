@@ -24,8 +24,8 @@ export function AuditTable({
 
   return (
     <Table label="Audit log">
-      <thead className="bg-[#FBF9F6]">
-        <tr className="border-b border-[#EFE9E2]">
+      <thead className="bg-[#F7FAFD]">
+        <tr className="border-b border-[#E3EDF5]">
           <th scope="col" className={th}>
             Time (IST)
           </th>
@@ -45,30 +45,30 @@ export function AuditTable({
           </th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#F1ECE6]">
+      <tbody className="divide-y divide-[#E6EFF6]">
         {entries.map((e) => (
-          <tr key={e.id} className="hover:bg-[#FBF9F6]">
-            <td className={cx(td, 'whitespace-nowrap text-[13px] text-[#5E554D] tabular-nums')}>{fmtDateTime(e.timestamp)}</td>
+          <tr key={e.id} className="hover:bg-[#F7FAFD]">
+            <td className={cx(td, 'whitespace-nowrap text-[13px] text-[#3F5A70] tabular-nums')}>{fmtDateTime(e.timestamp)}</td>
             <td className={cx(td, 'max-w-[220px] text-[13.5px]')}>
               <span className="block truncate" title={e.actor}>
                 {e.actor || '—'}
               </span>
             </td>
             <td className={td}>
-              <code className="rounded bg-[#F4EEE7] px-1.5 py-0.5 text-[12.5px] text-[#6B4F33]">{e.action}</code>
+              <code className="rounded bg-[#EEF4F9] px-1.5 py-0.5 text-[12.5px] text-[#16466E]">{e.action}</code>
             </td>
             {!hideCompany && (
               <td className={cx(td, 'whitespace-nowrap text-[13.5px]')}>
                 {e.companyId ? (
-                  <Link href={`/superadmin/companies/${encodeURIComponent(e.companyId)}`} className={cx('rounded text-[#1D2F3F] underline-offset-2 hover:underline', focusRing)}>
+                  <Link href={`/superadmin/companies/${encodeURIComponent(e.companyId)}`} className={cx('rounded text-[#0B2A44] underline-offset-2 hover:underline', focusRing)}>
                     {companyNames?.[e.companyId] || e.companyId}
                   </Link>
                 ) : (
-                  <span className="text-[#9A8F84]">—</span>
+                  <span className="text-[#7E93A6]">—</span>
                 )}
               </td>
             )}
-            <td className={cx(td, 'min-w-[200px] text-[13.5px] text-[#4A423B]', compact && 'max-w-[320px]')}>
+            <td className={cx(td, 'min-w-[200px] text-[13.5px] text-[#2E4A62]', compact && 'max-w-[320px]')}>
               <span className={cx('block safe-text-wrap', compact && 'line-clamp-2')} title={e.details}>
                 {e.details || '—'}
               </span>

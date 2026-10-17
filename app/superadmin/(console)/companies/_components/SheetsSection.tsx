@@ -33,13 +33,13 @@ function safeSheetUrl(url: string, spreadsheetId?: string): string {
 
 function SheetLink({ url, spreadsheetId, name }: { url: string; spreadsheetId?: string; name: string }) {
   const href = safeSheetUrl(url, spreadsheetId);
-  if (!href) return <span className="text-[#7A6F64]">—</span>;
+  if (!href) return <span className="text-[#5E778C]">—</span>;
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cx('inline-flex items-center gap-1 rounded font-medium text-[#1D2F3F] underline-offset-2 hover:underline', focusRing)}
+      className={cx('inline-flex items-center gap-1 rounded font-medium text-[#0B2A44] underline-offset-2 hover:underline', focusRing)}
       aria-label={`Open the sheet of ${name} (opens in a new tab)`}
     >
       Open sheet <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -48,9 +48,9 @@ function SheetLink({ url, spreadsheetId, name }: { url: string; spreadsheetId?: 
 }
 
 function ResultText({ text, error }: { text: string; error?: boolean }) {
-  if (!text) return <span className="text-[#7A6F64]">—</span>;
+  if (!text) return <span className="text-[#5E778C]">—</span>;
   return (
-    <span className={cx('block max-w-[22rem] break-words text-[13px]', error ? 'text-[#912018]' : 'text-[#3B342E]')}>
+    <span className={cx('block max-w-[22rem] break-words text-[13px]', error ? 'text-[#912018]' : 'text-[#233B50]')}>
       {error && <AlertTriangle className="mr-1 inline h-3.5 w-3.5 -translate-y-px" aria-hidden />}
       {text}
     </span>
@@ -67,23 +67,23 @@ function AccessMode({ auth, connections }: { auth?: SheetAuth; connections: Conn
     const conn = connections.get(auth.connectionId);
     return (
       <span className="inline-flex min-w-0 items-start gap-1.5 text-[13px]">
-        <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#A9825A]" aria-hidden />
+        <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0B6BB0]" aria-hidden />
         <span className="min-w-0">
           <span className="sr-only">Google account: </span>
           {conn ? (
-            <span className="break-all text-[#14202B]">{conn.email}</span>
+            <span className="break-all text-[#0A1F33]">{conn.email}</span>
           ) : (
             <span className="text-[#912018]">Disconnected account</span>
           )}
           {conn?.status === 'Error' && <span className="block text-[12px] text-[#912018]">Connection error</span>}
-          <span className="block font-mono text-[12px] text-[#7A6F64]">{auth.connectionId}</span>
+          <span className="block font-mono text-[12px] text-[#5E778C]">{auth.connectionId}</span>
         </span>
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] text-[#3B342E]">
-      <FileKey2 className="h-3.5 w-3.5 shrink-0 text-[#7A6F64]" aria-hidden />
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] text-[#233B50]">
+      <FileKey2 className="h-3.5 w-3.5 shrink-0 text-[#5E778C]" aria-hidden />
       Service account
     </span>
   );
@@ -92,7 +92,7 @@ function AccessMode({ auth, connections }: { auth?: SheetAuth; connections: Conn
 function ConnectionsTable({ rows }: { rows: GoogleConnection[] }) {
   return (
     <Table label="Connected Google accounts">
-      <thead className="bg-[#FBF9F6]">
+      <thead className="bg-[#F7FAFD]">
         <tr>
           <th scope="col" className={th}>Google account</th>
           <th scope="col" className={th}>Status</th>
@@ -102,12 +102,12 @@ function ConnectionsTable({ rows }: { rows: GoogleConnection[] }) {
           <th scope="col" className={cx(th, 'text-right')}>Used by</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#F1ECE6]">
+      <tbody className="divide-y divide-[#E6EFF6]">
         {rows.map((c) => (
           <tr key={c.id}>
             <td className={td}>
-              <span className="font-medium break-all text-[#14202B]">{c.email || '—'}</span>
-              <span className="block font-mono text-[12px] text-[#7A6F64]">{c.id}</span>
+              <span className="font-medium break-all text-[#0A1F33]">{c.email || '—'}</span>
+              <span className="block font-mono text-[12px] text-[#5E778C]">{c.id}</span>
             </td>
             <td className={td}>
               <StatusBadge status={c.status} />
@@ -118,7 +118,7 @@ function ConnectionsTable({ rows }: { rows: GoogleConnection[] }) {
             <td className={td}>{c.connectedBy || '—'}</td>
             <td className={cx(td, 'whitespace-nowrap')}>{c.connectedAt ? fmtDateTime(c.connectedAt) : '—'}</td>
             <td className={cx(td, 'text-right tabular-nums whitespace-nowrap')}>
-              {fmtNum(c.usedBy)} <span className="text-[#7A6F64]">{c.usedBy === 1 ? 'link' : 'links'}</span>
+              {fmtNum(c.usedBy)} <span className="text-[#5E778C]">{c.usedBy === 1 ? 'link' : 'links'}</span>
             </td>
           </tr>
         ))}
@@ -130,7 +130,7 @@ function ConnectionsTable({ rows }: { rows: GoogleConnection[] }) {
 function ImportsTable({ rows, connections }: { rows: SheetImportRow[]; connections: ConnectionMap }) {
   return (
     <Table label="Google Sheet imports">
-      <thead className="bg-[#FBF9F6]">
+      <thead className="bg-[#F7FAFD]">
         <tr>
           <th scope="col" className={th}>Name</th>
           <th scope="col" className={th}>Access</th>
@@ -141,12 +141,12 @@ function ImportsTable({ rows, connections }: { rows: SheetImportRow[]; connectio
           <th scope="col" className={th}>Last result</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#F1ECE6]">
+      <tbody className="divide-y divide-[#E6EFF6]">
         {rows.map((r) => (
           <tr key={r.sourceId}>
             <td className={td}>
-              <span className="font-medium text-[#14202B]">{r.name}</span>
-              <span className="block font-mono text-[12px] text-[#7A6F64]">{r.sourceId}</span>
+              <span className="font-medium text-[#0A1F33]">{r.name}</span>
+              <span className="block font-mono text-[12px] text-[#5E778C]">{r.sourceId}</span>
             </td>
             <td className={td}>
               <AccessMode auth={r.auth} connections={connections} />
@@ -154,7 +154,7 @@ function ImportsTable({ rows, connections }: { rows: SheetImportRow[]; connectio
             <td className={td}>
               <SheetLink url={r.spreadsheetUrl} name={r.name} />
             </td>
-            <td className={td}>{r.tab || <span className="text-[#7A6F64]">First tab</span>}</td>
+            <td className={td}>{r.tab || <span className="text-[#5E778C]">First tab</span>}</td>
             <td className={td}>
               <StatusBadge status={r.status} />
             </td>
@@ -172,7 +172,7 @@ function ImportsTable({ rows, connections }: { rows: SheetImportRow[]; connectio
 function ExportsTable({ rows, connections }: { rows: SheetExport[]; connections: ConnectionMap }) {
   return (
     <Table label="Google Sheet exports">
-      <thead className="bg-[#FBF9F6]">
+      <thead className="bg-[#F7FAFD]">
         <tr>
           <th scope="col" className={th}>Name</th>
           <th scope="col" className={th}>Access</th>
@@ -185,12 +185,12 @@ function ExportsTable({ rows, connections }: { rows: SheetExport[]; connections:
           <th scope="col" className={th}>Last error</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-[#F1ECE6]">
+      <tbody className="divide-y divide-[#E6EFF6]">
         {rows.map((x) => (
           <tr key={x.id}>
             <td className={td}>
-              <span className="font-medium text-[#14202B]">{x.name}</span>
-              <span className="block font-mono text-[12px] text-[#7A6F64]">{x.id}</span>
+              <span className="font-medium text-[#0A1F33]">{x.name}</span>
+              <span className="block font-mono text-[12px] text-[#5E778C]">{x.id}</span>
             </td>
             <td className={td}>
               <AccessMode auth={x.auth} connections={connections} />
@@ -217,9 +217,9 @@ function ExportsTable({ rows, connections }: { rows: SheetExport[]; connections:
 
 function SubHeading({ id, title, count }: { id: string; title: string; count?: number }) {
   return (
-    <h3 id={id} className="flex items-center gap-2 px-5 pb-2 pt-4 text-[13px] font-semibold uppercase tracking-wide text-[#6B6158]">
+    <h3 id={id} className="flex items-center gap-2 px-5 pb-2 pt-4 text-[13px] font-semibold uppercase tracking-wide text-[#4E6779]">
       {title}
-      {typeof count === 'number' && <span className="rounded-full bg-[#F4EEE7] px-2 py-0.5 text-[12px] font-medium normal-case tracking-normal text-[#6B4F33]">{count}</span>}
+      {typeof count === 'number' && <span className="rounded-full bg-[#EEF4F9] px-2 py-0.5 text-[12px] font-medium normal-case tracking-normal text-[#16466E]">{count}</span>}
     </h3>
   );
 }
@@ -283,7 +283,7 @@ export function SheetsSection({ company, onSaved }: { company: CompanyDetail; on
       <div className="space-y-3 px-5 pt-4">
         {/* Plan feature state */}
         {featureOn ? (
-          <p className="flex items-center gap-2 text-[13.5px] text-[#3B342E]">
+          <p className="flex items-center gap-2 text-[13.5px] text-[#233B50]">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-[#067647]" aria-hidden />
             Plan feature “{FEATURE_LABELS.googleSheets}”: <span className="font-medium text-[#067647]">on for this company</span>
           </p>
@@ -319,11 +319,11 @@ export function SheetsSection({ company, onSaved }: { company: CompanyDetail; on
             </Link>
           </div>
         ) : g ? (
-          <ul className="space-y-1 text-[13px] text-[#6B6158]">
+          <ul className="space-y-1 text-[13px] text-[#4E6779]">
             <li>
               Connect with Google:{' '}
               {g.oauthConfigured ? (
-                <span className="text-[#3B342E]">available — company admins sign in with their own Google account.</span>
+                <span className="text-[#233B50]">available — company admins sign in with their own Google account.</span>
               ) : (
                 <span>not set up on the platform.</span>
               )}
@@ -332,7 +332,7 @@ export function SheetsSection({ company, onSaved }: { company: CompanyDetail; on
               Service account:{' '}
               {g.configured && g.serviceAccountEmail ? (
                 <>
-                  sheets are shared with <span className="font-mono text-[#26211E] break-all">{g.serviceAccountEmail}</span> (Viewer to import, Editor to export).
+                  sheets are shared with <span className="font-mono text-[#0F2233] break-all">{g.serviceAccountEmail}</span> (Viewer to import, Editor to export).
                 </>
               ) : (
                 <span>not set up on the platform.</span>
@@ -361,23 +361,23 @@ export function SheetsSection({ company, onSaved }: { company: CompanyDetail; on
             {connections.length ? (
               <ConnectionsTable rows={connections} />
             ) : (
-              <p className="px-5 pb-3 text-[13.5px] text-[#7A6F64]">No Google account connected. Sheets are reached through the platform service account only.</p>
+              <p className="px-5 pb-3 text-[13.5px] text-[#5E778C]">No Google account connected. Sheets are reached through the platform service account only.</p>
             )}
           </section>
-          <section aria-labelledby={`${uid}-imp`} className="border-t border-[#EFE9E2]">
+          <section aria-labelledby={`${uid}-imp`} className="border-t border-[#E3EDF5]">
             <SubHeading id={`${uid}-imp`} title="Imports" count={imports.length} />
             {imports.length ? (
               <ImportsTable rows={imports} connections={connectionMap} />
             ) : (
-              <p className="px-5 pb-3 text-[13.5px] text-[#7A6F64]">No sheet imports. Leads are not pulled from any sheet.</p>
+              <p className="px-5 pb-3 text-[13.5px] text-[#5E778C]">No sheet imports. Leads are not pulled from any sheet.</p>
             )}
           </section>
-          <section aria-labelledby={`${uid}-exp`} className="border-t border-[#EFE9E2]">
+          <section aria-labelledby={`${uid}-exp`} className="border-t border-[#E3EDF5]">
             <SubHeading id={`${uid}-exp`} title="Exports" count={exports.length} />
             {exports.length ? (
               <ExportsTable rows={exports} connections={connectionMap} />
             ) : (
-              <p className="px-5 pb-3 text-[13.5px] text-[#7A6F64]">No sheet exports. Leads are not copied to any sheet.</p>
+              <p className="px-5 pb-3 text-[13.5px] text-[#5E778C]">No sheet exports. Leads are not copied to any sheet.</p>
             )}
           </section>
         </div>

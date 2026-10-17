@@ -7,8 +7,8 @@ import { cx } from '../../_components/ui';
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[12.5px] font-medium uppercase tracking-wide text-[#7A6F64]">{label}</dt>
-      <dd className="mt-1 text-[14px] text-[#14202B] break-words">{children}</dd>
+      <dt className="text-[12.5px] font-medium uppercase tracking-wide text-[#5E778C]">{label}</dt>
+      <dd className="mt-1 text-[14px] text-[#0A1F33] break-words">{children}</dd>
     </div>
   );
 }
@@ -49,12 +49,12 @@ export function TestResult({ test, okLabel = 'Connection works. ', failLabel = '
 /** A collapsible step-by-step guide. */
 export function Guide({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className="group rounded-lg border border-[#E4DCD2] bg-[#FBF9F6]">
-      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-4 py-3 text-[14px] font-medium text-[#1D2F3F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A9825A] [&::-webkit-details-marker]:hidden">
+    <details className="group rounded-lg border border-[#D3E3F0] bg-[#F7FAFD]">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-4 py-3 text-[14px] font-medium text-[#0B2A44] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6BB0] [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" aria-hidden />
         {title}
       </summary>
-      <div className="border-t border-[#EFE9E2] px-4 py-3 text-[13.5px] leading-relaxed text-[#3B342E]">{children}</div>
+      <div className="border-t border-[#E3EDF5] px-4 py-3 text-[13.5px] leading-relaxed text-[#233B50]">{children}</div>
     </details>
   );
 }
