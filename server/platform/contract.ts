@@ -97,6 +97,55 @@ export interface PlatformAuditEntry {
   details: string;
 }
 
+/** Billing (super admin): subscriptions and invoices kept by hand until a payment gateway is connected. */
+export interface BillingSubscription {
+  companyId: string;
+  companyName: string;
+  companyStatus: string;
+  plan: string;
+  planName: string;
+  /** false: nothing saved yet — amount/currency are the plan's suggestion. */
+  configured: boolean;
+  amount: number;
+  currency: string;
+  cycle: 'monthly' | 'yearly';
+  status: 'trial' | 'active' | 'overdue' | 'complimentary' | 'cancelled';
+  startedOn: string;
+  /** Renewal date (trial end for trials), yyyy-mm-dd. */
+  renewsOn: string;
+  notes: string;
+}
+export interface BillingInvoice {
+  id: string;
+  companyId: string;
+  companyName: string;
+  amount: number;
+  currency: string;
+  description: string;
+  periodFrom: string;
+  periodTo: string;
+  issuedOn: string;
+  dueOn: string;
+  status: 'due' | 'paid' | 'void';
+  overdue: boolean;
+  paidOn: string;
+  method: string;
+  reference: string;
+}
+export interface BillingOverview {
+  currency: string;
+  mrr: number;
+  payingCompanies: number;
+  dueNext30: number;
+  renewalsNext30: number;
+  overdue: number;
+  overdueCount: number;
+  trialsEnding: number;
+  subscriptions: BillingSubscription[];
+  invoices: BillingInvoice[];
+  paymentMethods: string[];
+}
+
 /** Platform health (super admin): scheduled jobs, Meta lead queue, latest errors of every company. */
 export interface HealthJob {
   id: string;
@@ -179,6 +228,10 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   deleteSuperAdmin: { req: { id: string }; res: { ok: true } };
   auditLog: { req: { limit?: number; companyId?: string }; res: PlatformAuditEntry[] };
   platformHealth: { req: {}; res: PlatformHealth };
+  billingOverview: { req: {}; res: BillingOverview };
+  saveSubscription: { req: { companyId: string; amount: number; currency: string; cycle: 'monthly' | 'yearly'; status: BillingSubscription['status']; startedOn?: string; renewsOn?: string; notes?: string }; res: BillingSubscription };
+  createInvoice: { req: { companyId: string; amount: number; currency: string; description?: string; periodFrom?: string; periodTo?: string; issuedOn?: string; dueOn?: string }; res: BillingInvoice };
+  setInvoiceStatus: { req: { id: string; status: 'due' | 'paid' | 'void'; method?: string; reference?: string; paidOn?: string }; res: BillingInvoice };
   /* branding & legal details (public legal pages) */
   getBranding: { req: {}; res: Branding };
   saveBranding: { req: BrandingInput; res: Branding };

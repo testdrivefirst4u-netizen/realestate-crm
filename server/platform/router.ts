@@ -18,6 +18,7 @@ import * as GS from './sheets';
 import * as MA from './meta';
 import * as BR from './branding';
 import { platformHealth } from './health';
+import * as BI from './billing';
 
 type Handler = { public?: boolean; fn: (data: any, ctx: SaCtx) => Promise<unknown> | unknown };
 
@@ -74,6 +75,11 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   /* audit */
   auditLog: { fn: (d) => listPlatformAudit({ limit: d?.limit, companyId: d?.companyId }) },
   platformHealth: { fn: () => platformHealth() },
+  /* billing */
+  billingOverview: { fn: () => BI.billingOverview() },
+  saveSubscription: { fn: (d, ctx) => BI.saveSubscription(d, ctx) },
+  createInvoice: { fn: (d, ctx) => BI.createInvoice(d, ctx) },
+  setInvoiceStatus: { fn: (d, ctx) => BI.setInvoiceStatus(d, ctx) },
   /* branding */
   getBranding: { fn: () => BR.getBranding() },
   saveBranding: { fn: (d, ctx) => BR.saveBranding(d, ctx) },
