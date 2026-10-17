@@ -438,12 +438,31 @@ const CritRow: React.FC<{ label: string; n: number }> = ({ label, n }) => (
 
 const FUNNEL_COLOURS = ['#74889A', '#5B8DB8', '#0E8A7D', '#3B5BDB', '#7B4BC4', '#1F7A4D'];
 
+/** How the funnel table splits leads: by source, or by the Meta campaign / ad set / ad behind them. */
+type FunnelBy = 'source' | 'campaign' | 'adSet' | 'ad';
+const FUNNEL_BY: Array<{ id: FunnelBy; label: string; column: string }> = [
+  { id: 'source', label: 'By lead source', column: 'Lead source' },
+  { id: 'campaign', label: 'By campaign', column: 'Campaign' },
+  { id: 'adSet', label: 'By ad set', column: 'Ad set' },
+  { id: 'ad', label: 'By ad', column: 'Ad' },
+];
+
 const Funnel: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; rangeText: string; show: (label: string, ls: MisLead[]) => void }> = ({ list, order, period, rangeText, show }) => {
+  const [by, setBy] = useState<FunnelBy>('source');
   const steps = funnelCounts(list);
   const atStep = (ls: MisLead[], i: number) => ls.filter((l) => funnelStep(l) >= i);
-  const rows: Array<[string, MisLead[]]> = order.map((s) => [s, list.filter((l) => l.source === s)] as [string, MisLead[]]).filter(([, ls]) => ls.length);
-  const blank = list.filter((l) => !l.source);
+  let rows: Array<[string, MisLead[]]>;
+  if (by === 'source') {
+    rows = order.map((s) => [s, list.filter((l) => l.source === s)] as [string, MisLead[]]).filter(([, ls]) => ls.length);
+  } else {
+    // campaigns / ad sets / ads present in the selection, most leads first
+    const groups = new Map<string, MisLead[]>();
+    for (const l of list) if (l[by]) (groups.get(l[by]) || groups.set(l[by], []).get(l[by])!).push(l);
+    rows = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  }
+  const blank = list.filter((l) => !l[by]);
   if (blank.length) rows.push([BLANK, blank]);
+  const byMeta = FUNNEL_BY.find((x) => x.id === by)!;
   // Weakest step = the biggest drop between two steps, called out so the team knows where to look.
   let weakest = -1, worst = 101;
   for (let i = 1; i < steps.length; i++) {
@@ -484,12 +503,25 @@ const Funnel: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; ran
             </p>
           )}
 
-          <h4 className="text-sm font-bold text-[#0B2A44] mt-2 mb-2">By lead source</h4>
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 mb-2">
+            <h4 className="text-sm font-bold text-[#0B2A44]">{byMeta.label}</h4>
+            <div role="group" aria-label="Split the funnel" className="inline-flex flex-wrap rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] p-0.5">
+              {FUNNEL_BY.map((o) => (
+                <button key={o.id} type="button" aria-pressed={by === o.id} onClick={() => setBy(o.id)}
+                  className={cx('min-h-[32px] px-3 rounded-md text-xs font-semibold', by === o.id ? 'bg-white text-[#0B6BB0] shadow-xs' : 'text-[#5E778C] hover:text-[#0B2A44]')}>
+                  {o.label.replace('By ', '')}
+                </button>
+              ))}
+            </div>
+          </div>
+          {by !== 'source' && !rows.some(([k]) => k !== BLANK) && (
+            <p className="text-xs text-[#7E93A6] mb-2">No {byMeta.column.toLowerCase()} recorded for these leads yet — it is filled in for new Facebook / Instagram leads.</p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr>
-                  <th className={cx(th, first)}>Lead source</th>
+                  <th className={cx(th, first)}>{byMeta.column}</th>
                   {FUNNEL_STEPS.map((s, i) => <th key={s} className={th}><Dot color={FUNNEL_COLOURS[i]} square />{s}</th>)}
                   <th className={cx(th, 'border-l-2 border-[#D3E3F0]')}>Lead to booking</th>
                 </tr>
@@ -499,7 +531,7 @@ const Funnel: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; ran
                   const c = funnelCounts(ls);
                   return (
                     <tr key={src} className="hover:bg-[#F7FAFD]">
-                      <td className={cx(td, first)}>{src === BLANK ? <span className="text-[#7E93A6]">{BLANK}</span> : <SourceLogo source={src} />}</td>
+                      <td className={cx(td, first)}>{src === BLANK ? <span className="text-[#7E93A6]">{BLANK}</span> : by === 'source' ? <SourceLogo source={src} /> : <span className="font-medium text-[#0B2A44] break-words">{src}</span>}</td>
                       {c.map((n, i) => <td key={i} className={cx(td, i === 0 && 'font-semibold')}><NumBtn n={n} of={i ? c[0] : undefined} onClick={() => show(`${src} · ${FUNNEL_STEPS[i]}`, atStep(ls, i))} /></td>)}
                       <td className={cx(td, 'border-l-2 border-[#D3E3F0] font-bold', c[5] ? 'text-[#1F7A4D]' : zero)}>{pct(c[5], c[0])}</td>
                     </tr>
@@ -508,7 +540,7 @@ const Funnel: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; ran
               </tbody>
               <tfoot>
                 <tr>
-                  <td className={cx(foot, first)}>All sources</td>
+                  <td className={cx(foot, first)}>{by === 'source' ? 'All sources' : 'All leads'}</td>
                   {steps.map((n, i) => <td key={i} className={foot}>{n}{i > 0 && <Pc n={n} of={steps[0]} />}</td>)}
                   <td className={cx(foot, 'border-l-2 border-[#D3E3F0] text-[#1F7A4D]')}>{pct(steps[5], steps[0])}</td>
                 </tr>

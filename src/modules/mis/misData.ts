@@ -75,6 +75,10 @@ export interface MisLead {
   country: string;
   state: string;
   city: string;
+  /** The Meta ad behind the lead (extra columns filled by Meta Lead Ads intake; '' otherwise). */
+  campaign: string;
+  adSet: string;
+  ad: string;
 }
 
 const pick = (l: Lead, ...keys: string[]) => {
@@ -169,6 +173,9 @@ export function toMisLeads(leads: Lead[], firstCall: Map<string, Date>): MisLead
       country: canonCountry(pick(lead, F.COUNTRY, 'country')),
       state: pick(lead, F.STATE, 'state'),
       city: pick(lead, F.CITY, 'city'),
+      campaign: pick(lead, F.CAMPAIGN),
+      adSet: pick(lead, F.AD_SET),
+      ad: pick(lead, F.AD_NAME),
     };
   });
 }

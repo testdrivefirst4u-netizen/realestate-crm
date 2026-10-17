@@ -64,6 +64,12 @@ describe('source logos', () => {
 describe('MIS funnel and trends', () => {
   const mis = (l: Lead) => toMisLeads([l], new Map())[0];
 
+  it('carries the Meta campaign, ad set and ad for the campaign funnel', () => {
+    const m = mis(lead('c', STAGES.NEW, { [F.CAMPAIGN]: 'Video_Sept2026', [F.AD_SET]: 'Hyderabad_50+', [F.AD_NAME]: 'Lifestyle_Video' }));
+    expect(m).toMatchObject({ campaign: 'Video_Sept2026', adSet: 'Hyderabad_50+', ad: 'Lifestyle_Video' });
+    expect(mis(lead('d', STAGES.NEW))).toMatchObject({ campaign: '', adSet: '', ad: '' });
+  });
+
   it('places each lead at the furthest step it reached, counting earlier steps too', () => {
     const list = [
       mis(lead('a', STAGES.NEW)),
