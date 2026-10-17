@@ -133,6 +133,8 @@ export interface CrmEngine {
   restoreLead: (id: string) => Promise<boolean>;
   deleteLeadPermanently: (id: string) => Promise<boolean>;
   importLeads: (leads: Lead[], strategy: string) => Promise<{ created: number; updated: number } | null>;
+  /** Merge duplicate leads into `keepId` (the others are archived). */
+  mergeLeads: (keepId: string, mergeIds: string[]) => Promise<boolean>;
 
   addTask: (task: Omit<TaskItem, 'id'>) => Promise<TaskItem | null>;
   updateTask: (id: string, patch: Partial<TaskItem>) => Promise<boolean>;
@@ -761,6 +763,21 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     [refresh]
   );
 
+  const mergeLeads = useCallback(
+    async (keepId: string, mergeIds: string[]) => {
+      try {
+        const res = await write(() => api.leads.merge(keepId, mergeIds));
+        toast('Duplicates merged', `${res.merged.length} lead${res.merged.length === 1 ? '' : 's'} merged into ${res.id}`, 'success');
+        await refresh({ silent: true, force: true });
+        return true;
+      } catch (e) {
+        failToast('leads.merge', e);
+        return false;
+      }
+    },
+    [refresh]
+  );
+
   /* -------------------------------- tasks ------------------------------- */
 
   const addTask = useCallback(
@@ -1018,13 +1035,13 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     () => ({
       data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, can: canDo,
       login, logout, updateProfile, refresh, updateLocalSettings,
-      addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads,
+      addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads,
       addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm,
       updateUnit, addUnit, importInventory,
       saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist,
       createSegment, updateSegment, deleteSegment, applyServerSettings,
     }),
-    [data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, canDo, login, logout, updateProfile, refresh, updateLocalSettings, addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm, updateUnit, addUnit, importInventory, saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist, createSegment, updateSegment, deleteSegment, applyServerSettings]
+    [data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, canDo, login, logout, updateProfile, refresh, updateLocalSettings, addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm, updateUnit, addUnit, importInventory, saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist, createSegment, updateSegment, deleteSegment, applyServerSettings]
   );
 }
 

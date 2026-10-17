@@ -456,7 +456,7 @@ export async function appendRemark(
 
 let txSupport: Promise<boolean> | null = null;
 /** Transactions need a replica set or mongos (Atlas: yes; a standalone dev/test mongod: no). */
-function supportsTransactions(): Promise<boolean> {
+export function supportsTransactions(): Promise<boolean> {
   txSupport ||= (async () => {
     try {
       const client = await getClient();

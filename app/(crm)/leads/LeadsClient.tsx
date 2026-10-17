@@ -19,6 +19,7 @@ export function LeadsClient() {
       canExport={engine.can('leads.export')}
       onOpenAddLead={openAddLead}
       onOpenImport={engine.can('leads.import') ? openImport : undefined}
+      onMergeLeads={engine.can('leads.delete') ? engine.mergeLeads : undefined}
       sync={sync}
     />
   );

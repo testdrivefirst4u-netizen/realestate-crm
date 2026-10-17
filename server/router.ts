@@ -16,6 +16,7 @@ import { logError } from './core/events';
 
 import { actions as systemActions } from './modules/system';
 import { actions as leadActions } from './modules/leads';
+import { actions as leadMergeActions } from './modules/leadMerge';
 import { actions as taskActions } from './modules/tasks';
 import { actions as inventoryActions } from './modules/inventory';
 import { actions as recordActions } from './modules/records';
@@ -31,6 +32,7 @@ import { actions as metaActions } from './modules/meta';
 export const registry: ActionMap = {
   ...systemActions,
   ...leadActions,
+  ...leadMergeActions,
   ...taskActions,
   ...inventoryActions,
   ...recordActions,

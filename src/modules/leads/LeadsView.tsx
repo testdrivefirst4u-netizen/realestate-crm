@@ -8,7 +8,7 @@
  * by Created At, then Enquiry ID, so new ENQ rows never sink under older ones.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Download, Plus, RotateCcw, Search, Upload, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Download, GitMerge, Plus, RotateCcw, Search, Upload, Users } from 'lucide-react';
 import { CRMConfig, Lead, SyncState } from '../../types/crm';
 import { DEFAULT_CUSTOMIZATION, F } from '../../core/config';
 import { countedLeads, enquiryDate, followupCount, followupEntries, isActive, nextFollowupDate, searchLeads } from '../../core/analytics';
@@ -31,6 +31,7 @@ import { LeadStars } from './shared';
 import { SourceLogo } from './SourceLogo';
 import { LeadSortKey, sortLeads } from './sorting';
 import { PageSkeleton } from '../../components/Skeletons';
+import { DuplicatesModal, findDuplicateGroups } from './DuplicatesModal';
 
 export interface LeadsViewProps {
   leads: Lead[];
@@ -42,6 +43,8 @@ export interface LeadsViewProps {
   onOpenAddLead: () => void;
   /** Opens the bulk upload (Excel / CSV import); undefined when the role cannot import. */
   onOpenImport?: () => void;
+  /** Merges duplicate leads; undefined when the role cannot delete leads. */
+  onMergeLeads?: (keepId: string, mergeIds: string[]) => Promise<boolean>;
   sync: SyncState;
 }
 
@@ -50,7 +53,9 @@ type SortKey = Extract<LeadSortKey, 'id' | 'name' | 'enquiryDate' | 'stage' | 'u
 const DATE_SORT_KEYS: SortKey[] = ['enquiryDate', 'nextDue'];
 const PAGE_SIZE = 50;
 
-export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, sync }) => {
+export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, onMergeLeads, sync }) => {
+  const [dupOpen, setDupOpen] = useState(false);
+  const dupCount = useMemo(() => (onMergeLeads ? findDuplicateGroups(leads).length : 0), [leads, onMergeLeads]);
   const [query, setQuery] = useState('');
   const [stage, setStage] = useState('');
   const [source, setSource] = useState('');
@@ -341,6 +346,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {onMergeLeads && dupCount > 0 && (
+            <Button variant="secondary" onClick={() => setDupOpen(true)} icon={<GitMerge size={13} />} title="People who appear more than once (same phone number) — review and merge">
+              Duplicates ({dupCount})
+            </Button>
+          )}
           {onOpenImport && (
             <Button variant="secondary" onClick={onOpenImport} icon={<Upload size={13} />} title="Upload many leads at once from an Excel or CSV file">
               Bulk upload
@@ -358,6 +368,10 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       </div>
 
       {filterBanner}
+
+      {onMergeLeads && dupOpen && (
+        <DuplicatesModal open={dupOpen} onClose={() => setDupOpen(false)} leads={leads} onMerge={onMergeLeads} onOpenLead={(id) => { setDupOpen(false); onOpenLead(id); }} />
+      )}
 
       {/* Toolbar */}
       <div className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] shadow-2xs flex flex-wrap items-center gap-2">

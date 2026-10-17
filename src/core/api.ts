@@ -187,6 +187,7 @@ export const api = {
     restore: (id: string) => request<{ version: string }>('restoreLead', { id }),
     remove: (id: string) => request<{ version: string }>('deleteLead', { id }),
     timeline: (id: string) => request<TimelineEntry[]>('getLeadTimeline', { id }),
+    merge: (keepId: string, mergeIds: string[]) => request<{ id: string; merged: string[]; version: string }>('mergeLeads', { keepId, mergeIds }),
     importBulk: (leads: Lead[], strategy: string) => request<{ created: number; updated: number; skipped?: number; version: string }>('importLeads', { leads, strategy }),
   },
 
