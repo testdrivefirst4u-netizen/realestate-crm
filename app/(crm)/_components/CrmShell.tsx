@@ -12,6 +12,7 @@ import React, { Suspense, createContext, lazy, useCallback, useContext, useEffec
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/src/components/Sidebar';
 import { MobileTabBar } from '@/src/components/MobileTabBar';
+import { NotificationPrompt } from '@/src/components/NotificationPrompt';
 import { registerServiceWorker } from '@/src/core/pushClient';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -355,6 +356,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               tasksPending={sidebarCounts.tasksPending}
               onMore={() => setIsMobileSidebarOpen(true)}
             />
+            {mounted && <NotificationPrompt />}
           </div>
 
           {mounted && (
