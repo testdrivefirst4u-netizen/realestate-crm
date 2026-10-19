@@ -310,7 +310,6 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
             features={features}
             onLogout={handleLogout}
             counts={sidebarCounts}
-            onNewEnquiry={engine.can('leads.create') ? openAddLead : undefined}
           />
 
           <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">

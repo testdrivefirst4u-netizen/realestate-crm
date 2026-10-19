@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Users, MessageCircle, CheckSquare, Settings, Plus, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
+  LayoutDashboard, Users, MessageCircle, CheckSquare, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
@@ -38,7 +38,6 @@ interface SidebarProps {
   /** Resolved feature switches (see core/tenant.tsx); missing keys fall back to the defaults. */
   features: Record<string, boolean>;
   onLogout: () => void;
-  onNewEnquiry?: () => void;
   counts?: SidebarCounts;
   /** @deprecated Use `counts.unreadChats`. */
   unreadChats?: number;
@@ -63,7 +62,7 @@ const Count: React.FC<{ item: Item; dark?: boolean }> = ({ item, dark }) =>
     <span className={`text-[11px] font-extrabold rounded-full px-2 py-px ${item.urgent ? 'bg-[#FFE6DD] text-[#A1301A]' : dark ? 'bg-[#1D5585] text-[#E6F1FA]' : 'bg-[#EEF4F9] text-[#5E778C]'}`}>{item.count > 999 ? '999+' : item.count}</span>
   ) : null;
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, onNewEnquiry, counts = {}, unreadChats }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, counts = {}, unreadChats }) => {
   const company = useCompany();
   const logo = useLogoSrc();
   const allowed = (v: ViewId) => viewAllowed(v, { features }, can);
@@ -139,9 +138,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       <Link href={viewHref('dashboard')} onClick={go} className="mb-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
         <AppLogo size="sm" />
       </Link>
-      {!expanded && onNewEnquiry && (
-        <button type="button" onClick={() => { go(); onNewEnquiry(); }} className="mb-2 w-11 h-11 rounded-[14px] bg-[#36B3F2] text-[#04263D] flex items-center justify-center hover:brightness-110" aria-label="New Enquiry" title="New Enquiry"><Plus size={20} strokeWidth={2.6} /></button>
-      )}
       {groups.map((g) => railGroup(g, expanded))}
       <div className="flex-1" />
       {!expanded && (
@@ -181,11 +177,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         )}
         {mobile && <button type="button" onClick={onCloseMobile} className="w-11 h-11 -mr-2 -mt-2 flex items-center justify-center rounded-lg text-[#5E778C] hover:text-[#0A1F33] hover:bg-[#F2F7FB]" aria-label="Close menu"><X size={20} /></button>}
       </div>
-      {onNewEnquiry && (
-        <button type="button" onClick={() => { go(); onNewEnquiry(); }} className="mt-3 h-11 flex-none rounded-xl bg-[#36B3F2] text-[#04263D] text-[13.5px] font-extrabold flex items-center justify-center gap-2 hover:brightness-105">
-          <Plus size={17} strokeWidth={2.6} />New Enquiry
-        </button>
-      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2 mt-1 pb-2">
         {groups.map((g) => (
