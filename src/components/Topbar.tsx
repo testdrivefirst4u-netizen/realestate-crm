@@ -166,8 +166,8 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
           </button>
         )}
         {libraryEnabled && (
-        <button onClick={onOpenLibrary} className="hidden md:inline-flex items-center gap-2 px-4 h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Project knowledge library">
-          <BookOpen size={16} className="text-[#0B6BB0]" /><span>Library</span>
+        <button onClick={onOpenLibrary} className="inline-flex flex-none items-center justify-center gap-2 w-11 md:w-auto md:px-4 h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Project knowledge library" aria-label="Library">
+          <BookOpen size={16} className="text-[#0B6BB0]" /><span className="hidden md:inline">Library</span>
         </button>
         )}
         <button onClick={onToggleNotificationDrawer} className="relative w-11 h-11 rounded-xl border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB] flex items-center justify-center" title="Notifications" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
