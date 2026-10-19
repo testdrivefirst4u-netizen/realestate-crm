@@ -8,6 +8,7 @@ import { getClient, PLATFORM_DB } from '../server/core/db';
 import { platformDispatch } from '../server/platform/router';
 import { dispatch } from '../server/router';
 import { POST } from '../app/api/platform/rpc/route';
+import { POST as companyRpc } from '../app/api/platform/company-rpc/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 const IP = '10.0.0.9';
@@ -179,6 +180,30 @@ describe('route handler & cookie', () => {
     expect(s.status).toBe(200);
     // without a super admin session it is refused
     expect((await POST(req('openCompanySupport', { companyId: co.id }))).status).toBe(401);
+  });
+
+  it('company settings in the console: runs settings actions in the company, never other actions, and needs a console session', async () => {
+    const sa = await setupSa();
+    const co = await newCompany(sa, 'cset');
+    const call = (action: string, data: any = {}, cookie = 'platform_session=' + sa) =>
+      companyRpc(new Request('http://localhost/api/platform/company-rpc?company=' + co.id, { method: 'POST', headers: { host: 'localhost', cookie, 'user-agent': 'vitest' }, body: JSON.stringify({ action, data }) }));
+
+    const first = await call('getSettings');
+    expect(first.status).toBe(200);
+    const sc = first.headers.get('set-cookie') || '';
+    const m = sc.match(new RegExp('company_support=' + co.id + '\\.([0-9a-f]{64})'));
+    expect(m, sc).toBeTruthy();
+    expect(sc).toMatch(/Path=\/api\/platform\/company-rpc/i);
+    expect(sc).not.toContain('amaya_session'); // the CRM session cookie is not touched
+
+    // a change lands in that company; the support cookie is reused (no new session)
+    const saved = await call('updateSettings', { data: { salesOps: { reassignAfterMin: 15 } } }, 'platform_session=' + sa + '; company_support=' + co.id + '.' + m![1]);
+    expect(saved.status).toBe(200);
+    expect(saved.headers.get('set-cookie')).toBeNull();
+    expect((await saved.json()).data.salesOps.reassignAfterMin).toBe(15);
+
+    expect((await call('getAllLeads')).status).toBe(403); // only settings actions
+    expect((await call('getSettings', {}, '')).status).toBe(401); // no console session
   });
 
   it('rejects bodies over 1 MB and bad JSON', async () => {

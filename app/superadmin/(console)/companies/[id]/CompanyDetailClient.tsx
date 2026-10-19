@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Settings2 } from 'lucide-react';
 import type { CompanyDetail, CompanyUser } from '@/server/platform/contract';
-import { call, errorMessage, useResource } from '../../../_lib/api';
+import { call, useResource } from '../../../_lib/api';
 import { initials, planName } from '../../../_lib/format';
 import { AuditTable } from '../../../_components/AuditTable';
 import { Button, Card, ErrorBox, Pill, Skeleton, StatusBadge, cx, focusRing } from '../../../_components/ui';
@@ -14,10 +14,12 @@ import { IntegrationsTab } from '../_components/IntegrationsTab';
 import { OverviewTab } from '../_components/OverviewTab';
 import { Tabs, type TabDef } from '../_components/Tabs';
 import { UsersTab } from '../_components/UsersTab';
+import { CompanySettingsTab } from '../_components/CompanySettingsTab';
 
-type TabId = 'overview' | 'features' | 'integrations' | 'users' | 'audit' | 'danger';
+type TabId = 'overview' | 'settings' | 'features' | 'integrations' | 'users' | 'audit' | 'danger';
 const TABS: TabDef<TabId>[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'settings', label: 'Settings' },
   { id: 'features', label: 'Features' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'users', label: 'Users' },
@@ -125,7 +127,9 @@ export function CompanyDetailClient() {
             )}
           </p>
         </div>
-        <OpenSettingsButton companyId={c.id} disabled={c.status !== 'Active'} />
+        <Button onClick={() => selectTab('settings')} variant={tab === 'settings' ? 'secondary' : 'primary'} icon={<Settings2 className="h-4 w-4" aria-hidden />}>
+          Company settings
+        </Button>
       </header>
 
       {c.status === 'Suspended' && (
@@ -138,6 +142,7 @@ export function CompanyDetailClient() {
       <Tabs tabs={TABS} value={tab} onChange={selectTab} idPrefix="co" />
       <div role="tabpanel" id={`co-panel-${tab}`} aria-labelledby={`co-tab-${tab}`} tabIndex={-1} className="pt-6 outline-none">
         {tab === 'overview' && <OverviewTab company={c} plans={plans.data || []} onSaved={onSaved} />}
+        {tab === 'settings' && <CompanySettingsTab company={c} />}
         {tab === 'features' && <FeaturesTab company={c} plans={plans.data || []} onSaved={onSaved} />}
         {tab === 'integrations' && <IntegrationsTab company={c} onSaved={onSaved} />}
         {tab === 'users' && <UsersTab company={c} onChange={onUsers} />}
@@ -145,38 +150,5 @@ export function CompanyDetailClient() {
         {tab === 'danger' && <DangerTab company={c} onSaved={onSaved} />}
       </div>
     </>
-  );
-}
-
-/**
- * Opens the company's CRM Settings (all sections) in a new tab as its hidden "Platform support" account —
- * a 2-hour session; changes are recorded in the company audit log under your name.
- */
-function OpenSettingsButton({ companyId, disabled }: { companyId: string; disabled: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const open = async () => {
-    setBusy(true);
-    setError('');
-    // open the tab first (a popup opened after an await is blocked), then point it at the CRM
-    const tab = window.open('about:blank', '_blank');
-    try {
-      const r = await call('openCompanySupport', { companyId });
-      if (tab) tab.location.href = r.redirect;
-      else window.location.assign(r.redirect);
-    } catch (e) {
-      tab?.close();
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <Button onClick={open} loading={busy} disabled={disabled} icon={<Settings2 className="h-4 w-4" aria-hidden />}>
-        Open company settings
-      </Button>
-      <span className="text-[12px] text-[#5E778C]">{error || 'Integrations, lead sources, alerts, visit booking, keys'}</span>
-    </div>
   );
 }

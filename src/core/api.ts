@@ -84,8 +84,12 @@ export interface BackupInfo {
 export interface LeaderRow { rm: string; followups: number; calls: number; visits: number; bookings: number }
 export interface SpendRow { campaign: string; month: string; amount: number }
 
+/** Where requests go: the CRM's /api/rpc, or the Super Admin console's company proxy (company settings in the console). */
+let rpcPath: string = API.rpcPath;
+
 export function configureApi(opts: { url?: string; token?: string | null; onAuthExpired?: (message?: string) => void }) {
   if (opts.onAuthExpired) onAuthExpired = opts.onAuthExpired;
+  if (opts.url !== undefined) rpcPath = opts.url || API.rpcPath;
 }
 
 function mapCode(code?: string, isAuth?: boolean): ErrorCode {
@@ -128,7 +132,7 @@ async function request<T>(action: string, data: Record<string, any> = {}, opts: 
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs || SYNC.requestTimeoutMs);
 
   try {
-    const res = await fetch(API.rpcPath, {
+    const res = await fetch(rpcPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, data }),
