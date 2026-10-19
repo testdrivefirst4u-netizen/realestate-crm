@@ -15,6 +15,8 @@ export function MisClient() {
       canSeeCalls={on('calls') && engine.can('calls.view')}
       onRefresh={() => engine.refresh({ silent: false, force: true })}
       onShowLeads={showLeads}
+      canSeeSpend={engine.can('reports.view')}
+      canEditSpend={engine.can('settings.edit')}
     />
   );
 }

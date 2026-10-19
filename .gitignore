@@ -7,3 +7,7 @@ coverage/
 .env*
 !.env.example
 next-env.d.ts
+
+# one-off data import (customer names, local paths) — kept out of git
+scripts/import-sales-tracker.ts
+tsconfig.tsbuildinfo

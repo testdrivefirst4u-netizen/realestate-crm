@@ -17,8 +17,9 @@ import { SourceLogo } from '../leads/SourceLogo';
 import {
   BLANK, CallDay, FUNNEL_STEPS, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_STATUSES, UNASSIGNED,
   addDaysKey, avgResp, callDays, changePct, funnelCounts, funnelStep, previousRange, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
-  pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
+  pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedBuckets, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
 } from './misData';
+import { SITE_VISIT_DONE } from '../../core/config';
 
 export interface MisViewProps {
   leads: Lead[];
@@ -28,6 +29,9 @@ export interface MisViewProps {
   canSeeCalls: boolean;
   onRefresh: () => void;
   onShowLeads: (label: string, ids: string[]) => void;
+  /** May see / enter ad spend per campaign (reports.view / settings.edit). */
+  canSeeSpend?: boolean;
+  canEditSpend?: boolean;
 }
 
 const CALL_POLL_MS = 60_000;
@@ -112,7 +116,7 @@ const foot = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums font-bold bo
 
 /* --------------------------------- view ---------------------------------- */
 
-export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads }) => {
+export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads, canSeeSpend, canEditSpend }) => {
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [callsState, setCallsState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [saved] = useState(loadFilters);
@@ -268,11 +272,20 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
 
       <DqBySource list={list} order={order} period={period} rangeText={rangeText} reasons={dqReasons(all)} show={show} />
 
+      {canSeeSpend && all.some((l) => l.campaign) && <CampaignCost all={all} today={today} canEdit={!!canEditSpend} show={show} />}
+
       <SourceByStage list={list} order={source ? (source === BLANK ? [] : [source]) : order} show={show} />
 
       <Panel title="Sales team" hint="First response time runs from when the enquiry came in to the representative's first follow-up or call. Leads without either are left out of the average.">
         <h4 className="text-sm font-bold text-[#0B2A44] mt-1 mb-2">Average first response time</h4>
         <ResponseTable nonDate={nonDate} today={today} />
+
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-6 mb-1">
+          <h4 className="text-sm font-bold text-[#0B2A44]">Speed to lead</h4>
+          <PeriodButtons value={teamPeriod} options={['today', 'week', 'month', 'all']} onChange={setTeamPeriod} label="Period for speed to lead" />
+        </div>
+        <p className="text-xs text-[#5E778C] mb-2">How quickly each new lead got its first call or follow-up. Leads called within 5 minutes convert far better. "Not contacted" counts open leads with no call or follow-up yet.</p>
+        <SpeedTable nonDate={nonDate} range={periodRange(teamPeriod, custom, today)} show={show} />
 
         <h4 className="text-sm font-bold text-[#0B2A44] mt-6 mb-1">Call duration</h4>
         <p className="text-xs text-[#5E778C] mb-2">
@@ -612,13 +625,34 @@ const SourceHead: React.FC<{ s: string; order: string[] }> = ({ s, order }) => (
 );
 
 const DqBySource: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; rangeText: string; reasons: string[]; show: (label: string, ls: MisLead[]) => void }> = ({ list, order, period, rangeText, reasons, show }) => {
+  const [by, setBy] = useState<'source' | 'campaign'>('source');
+  const hasCampaigns = list.some((l) => l.campaign);
+  const dim = hasCampaigns ? by : 'source';
   const dq = list.filter((l) => l.stage === 'disqualified');
-  const srcOf = (l: MisLead) => l.source || BLANK;
-  const cols = order.filter((s, i) => i < 4 || dq.some((l) => l.source === s)).filter((s) => list.some((l) => l.source === s));
-  if (dq.some((l) => !l.source)) cols.push(BLANK);
+  const srcOf = (l: MisLead) => (dim === 'campaign' ? l.campaign : l.source) || BLANK;
+  let cols: string[];
+  if (dim === 'campaign') {
+    // campaigns with the most disqualified leads first (at most 8)
+    const n = new Map<string, number>();
+    for (const l of dq) if (l.campaign) n.set(l.campaign, (n.get(l.campaign) || 0) + 1);
+    cols = [...n.keys()].sort((a, b) => (n.get(b) || 0) - (n.get(a) || 0)).slice(0, 8);
+  } else {
+    cols = order.filter((s, i) => i < 4 || dq.some((l) => l.source === s)).filter((s) => list.some((l) => l.source === s));
+  }
+  if (dq.some((l) => !(dim === 'campaign' ? l.campaign : l.source))) cols.push(BLANK);
   const rows = reasons.filter((r) => r !== NO_REASON || dq.some((l) => l.reason === r));
   return (
-    <Panel title="Reasons for disqualification by source" hint={`${PERIOD_NAME[period]}, ${rangeText}. ${dq.length} of ${list.length} leads disqualified. Each total shows its share of all disqualified leads.`}>
+    <Panel
+      title={dim === 'campaign' ? 'Why leads are lost, by ad campaign' : 'Reasons for disqualification by source'}
+      hint={`${PERIOD_NAME[period]}, ${rangeText}. ${dq.length} of ${list.length} leads disqualified or lost. Each total shows its share of all of them${dim === 'campaign' ? '; the bottom row shows the share of each campaign\'s leads — high numbers point to ads bringing the wrong people' : ''}.`}
+      actions={hasCampaigns ? (
+        <div className="flex rounded-lg border border-[#D3E3F0] overflow-hidden text-xs font-semibold" role="group" aria-label="Group by">
+          {(['source', 'campaign'] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setBy(k)} aria-pressed={by === k} className={cx('px-3 py-1.5', by === k ? 'bg-[#0B2A44] text-white' : 'bg-white text-[#3F5A70] hover:bg-[#F2F7FB]')}>{k === 'source' ? 'By source' : 'By campaign'}</button>
+          ))}
+        </div>
+      ) : undefined}
+    >
       {!list.length ? <p className="text-center text-sm text-[#7E93A6] py-6">No leads in this selection.</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
@@ -626,7 +660,7 @@ const DqBySource: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId;
               <tr>
                 <th className={cx(th, first)}>Reason</th>
                 <th className={th}>Total</th>
-                {cols.map((s) => <th key={s} className={th}><SourceHead s={s} order={order} /></th>)}
+                {cols.map((s) => <th key={s} className={th}>{dim === 'campaign' ? <span className="inline-block max-w-[140px] truncate align-bottom" title={s}>{s}</span> : <SourceHead s={s} order={order} />}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -647,7 +681,7 @@ const DqBySource: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId;
                 <td className={foot}>{dq.length}</td>
                 {cols.map((s) => {
                   const n = dq.filter((l) => srcOf(l) === s).length, tot = list.filter((l) => srcOf(l) === s).length;
-                  return <td key={s} className={foot} title={`${n} of ${tot} leads from this source`}>{n}<Pc n={n} of={tot} suffix=" of source" /></td>;
+                  return <td key={s} className={foot} title={`${n} of ${tot} leads from this ${dim}`}>{n}<Pc n={n} of={tot} suffix={` of ${dim}`} /></td>;
                 })}
               </tr>
             </tfoot>
@@ -719,6 +753,145 @@ function repsOf(list: MisLead[]): string[] {
   return list.some((l) => !l.rm) ? r.concat(UNASSIGNED) : r;
 }
 const repLeads = (list: MisLead[], r: string) => list.filter((l) => (r === UNASSIGNED ? !l.rm : l.rm === r));
+
+const SpeedTable: React.FC<{ nonDate: MisLead[]; range: Range; show: (label: string, ls: MisLead[]) => void }> = ({ nonDate, range, show }) => {
+  const inP = nonDate.filter((l) => inRange(l.day, range));
+  const reps = repsOf(inP);
+  if (!reps.length) return <p className="text-center text-sm text-[#7E93A6] py-6">No leads with a sales representative in this period.</p>;
+  const row = (label: string, ls: MisLead[], foot2 = false) => {
+    const b = speedBuckets(ls);
+    const cls = foot2 ? foot : td;
+    const notYet = ls.filter((l) => !l.responded && l.stage !== 'disqualified' && l.stage !== 'booked');
+    return (
+      <tr key={label} className={foot2 ? '' : 'hover:bg-[#F7FAFD]'}>
+        <td className={cx(cls, first)}>{label}</td>
+        <td className={cls}>{b.total}</td>
+        <td className={cx(cls, b.m5 ? 'text-[#0E8A7D] font-bold' : zero)}>{b.m5}<Pc n={b.m5} of={b.total} /></td>
+        <td className={cx(cls, !b.h1 && zero)}>{b.h1}<Pc n={b.h1} of={b.total} /></td>
+        <td className={cx(cls, !b.later && zero)}>{b.later}<Pc n={b.later} of={b.total} /></td>
+        <td className={cx(cls, b.none ? 'text-[#D92D3A] font-bold' : zero)}>{b.none ? <NumBtn n={b.none} onClick={() => show(`Not contacted yet · ${label}`, notYet)} /> : 0}</td>
+      </tr>
+    );
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead><tr><th className={cx(th, first)}>Sales representative</th><th className={th}>Leads</th><th className={th}>Within 5 min</th><th className={th}>5–60 min</th><th className={th}>Over 1 hour</th><th className={th}>Not contacted</th></tr></thead>
+        <tbody>{reps.map((r) => row(r, repLeads(inP, r)))}</tbody>
+        <tfoot>{row('Whole team', inP, true)}</tfoot>
+      </table>
+    </div>
+  );
+};
+
+/* ------------------------------ campaign cost ----------------------------- */
+
+const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
+
+const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; show: (label: string, ls: MisLead[]) => void }> = ({ all, today, canEdit, show }) => {
+  const months = useMemo(() => uniq(all.filter((l) => l.campaign && l.day).map((l) => l.day.slice(0, 7))).sort().reverse(), [all]);
+  const [month, setMonth] = useState(() => today.slice(0, 7));
+  const [spend, setSpend] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<Array<{ campaign: string; month: string; amount: number }>>([]);
+  const [state, setState] = useState<'loading' | 'ready' | 'error' | 'saving'>('loading');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    api.team.spend().then((r) => { if (live) { setSaved(r.rows); setState('ready'); } }, () => { if (live) setState('error'); });
+    return () => { live = false; };
+  }, []);
+  useEffect(() => {
+    setSpend(Object.fromEntries(saved.filter((r) => r.month === month).map((r) => [r.campaign, String(r.amount)])));
+    setMsg('');
+  }, [saved, month]);
+
+  const inMonth = all.filter((l) => l.campaign && l.day.startsWith(month));
+  const camps = uniq([...inMonth.map((l) => l.campaign), ...Object.keys(spend).filter((c) => Number(spend[c]) > 0)]).sort((a, b) => a.localeCompare(b));
+  const visited = (l: MisLead) => SITE_VISIT_DONE.includes(l.sv);
+  const cost = (amt: number, n: number) => (amt > 0 && n > 0 ? inr(amt / n) : '—');
+  const dirty = camps.some((c) => (Number(spend[c]) || 0) !== (saved.find((r) => r.month === month && r.campaign === c)?.amount || 0));
+
+  const save = async () => {
+    setState('saving');
+    try {
+      const r = await api.team.saveSpend(month, camps.map((c) => ({ campaign: c, amount: Number(spend[c]) || 0 })));
+      setSaved(r.rows);
+      setMsg('Spend saved.');
+    } catch (e) {
+      setMsg(reportError('mis.saveSpend', e).userMessage);
+    }
+    setState('ready');
+  };
+
+  let tSpend = 0, tLeads = 0, tVisits = 0, tBooked = 0;
+  const monthOpts = uniq([today.slice(0, 7), ...months]).sort().reverse();
+  return (
+    <Panel
+      title="Cost per lead, site visit and booking"
+      hint={`Leads by enquiry month and ad campaign (Facebook / Instagram). Enter what each campaign cost that month — from Meta Ads Manager — to see what a lead, a site visit and a booking really cost.${canEdit ? '' : ' Only administrators can enter spend.'}`}
+      actions={
+        <select className="text-xs px-2.5 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
+          {monthOpts.map((m) => <option key={m} value={m}>{monthNameOf(m + '-01')} {m.slice(0, 4)}</option>)}
+        </select>
+      }
+    >
+      {state === 'loading' ? <p className="text-center text-sm text-[#7E93A6] py-6">Loading…</p> : !camps.length ? (
+        <p className="text-center text-sm text-[#7E93A6] py-6">No leads from ad campaigns in this month.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead><tr><th className={cx(th, first)}>Campaign</th><th className={th}>Ad spend</th><th className={th}>Leads</th><th className={th}>Cost per lead</th><th className={th}>Site visits</th><th className={th}>Cost per visit</th><th className={th}>Bookings</th><th className={th}>Cost per booking</th></tr></thead>
+            <tbody>
+              {camps.map((c) => {
+                const ls = inMonth.filter((l) => l.campaign === c);
+                const vs = ls.filter(visited), bs = ls.filter((l) => l.stage === 'booked');
+                const amt = Number(spend[c]) || 0;
+                tSpend += amt; tLeads += ls.length; tVisits += vs.length; tBooked += bs.length;
+                return (
+                  <tr key={c} className="hover:bg-[#F7FAFD]">
+                    <td className={cx(td, first, 'max-w-[260px] truncate')} title={c}>{c}</td>
+                    <td className={td}>
+                      {canEdit ? (
+                        <input type="number" min={0} step={100} inputMode="decimal" value={spend[c] ?? ''} placeholder="0" onChange={(e) => setSpend((x) => ({ ...x, [c]: e.target.value }))}
+                          className="w-28 text-right text-xs px-2 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" aria-label={`Ad spend for ${c}`} />
+                      ) : amt ? inr(amt) : '—'}
+                    </td>
+                    <td className={td}><NumBtn n={ls.length} onClick={() => show(`Campaign: ${c}`, ls)} /></td>
+                    <td className={cx(td, 'font-semibold')}>{cost(amt, ls.length)}</td>
+                    <td className={td}><NumBtn n={vs.length} onClick={() => show(`Site visits · ${c}`, vs)} /></td>
+                    <td className={td}>{cost(amt, vs.length)}</td>
+                    <td className={td}><NumBtn n={bs.length} onClick={() => show(`Bookings · ${c}`, bs)} /></td>
+                    <td className={cx(td, 'font-semibold')}>{cost(amt, bs.length)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className={cx(foot, first)}>All campaigns</td>
+                <td className={foot}>{tSpend ? inr(tSpend) : '—'}</td>
+                <td className={foot}>{tLeads}</td>
+                <td className={foot}>{cost(tSpend, tLeads)}</td>
+                <td className={foot}>{tVisits}</td>
+                <td className={foot}>{cost(tSpend, tVisits)}</td>
+                <td className={foot}>{tBooked}</td>
+                <td className={foot}>{cost(tSpend, tBooked)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+      {canEdit && camps.length > 0 && (
+        <div className="flex items-center justify-end gap-3 mt-3">
+          {msg && <span className="text-xs text-[#5E778C]">{msg}</span>}
+          {state === 'error' && <span className="text-xs text-[#B54708]">Saved spend could not be loaded.</span>}
+          <Button variant="primary" onClick={() => void save()} loading={state === 'saving'} disabled={!dirty || state === 'saving'}>Save spend</Button>
+        </div>
+      )}
+    </Panel>
+  );
+};
 
 const ResponseTable: React.FC<{ nonDate: MisLead[]; today: string }> = ({ nonDate, today }) => {
   const ps: PeriodId[] = ['yesterday', 'week', 'month', 'all'];

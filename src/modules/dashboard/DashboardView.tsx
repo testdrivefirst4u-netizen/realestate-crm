@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, RefreshCw, Trophy, Users } from 'lucide-react';
+import { api, type LeaderRow } from '../../core/api';
 import { Lead, TaskItem, SyncState } from '../../types/crm';
 import { F } from '../../core/config';
 import { computeKpis, monthlySeries, siteVisitDate } from '../../core/analytics';
@@ -274,11 +275,74 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
           </div>
         </Panel>
       </div>
+
+      <Leaderboard />
     </div>
   );
 };
 
 /* ------------------------------- pieces --------------------------------- */
+
+const MEDALS = ['#D4A017', '#9AA5B1', '#B87333'];
+
+/** RM leaderboard from the server: follow-ups logged, calls, completed site visits and bookings. */
+const Leaderboard: React.FC = () => {
+  const [days, setDays] = useState(7);
+  const [rows, setRows] = useState<LeaderRow[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setFailed(false);
+    api.team.leaderboard(days).then((r) => { if (live) setRows(r.rows); }, () => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [days]);
+  const max = (k: keyof Omit<LeaderRow, 'rm'>) => Math.max(1, ...(rows || []).map((r) => r[k]));
+  const cell = (r: LeaderRow, k: keyof Omit<LeaderRow, 'rm'>, strong = false) => (
+    <td className={`px-3 py-3 text-right tabular-nums ${r[k] ? (strong ? 'font-extrabold text-[#14653F]' : 'font-semibold text-[#0F2233]') : 'text-[#C5D3DF]'}`}>
+      {r[k]}
+      {r[k] > 0 && r[k] === max(k) && <span className="sr-only"> (top)</span>}
+    </td>
+  );
+  return (
+    <Panel flush title={<span className="inline-flex items-center gap-2"><Trophy size={16} className="text-[#D4A017]" />Leaderboard</span>}
+      subtitle="Bookings count most, then completed site visits, calls and follow-ups logged"
+      actions={
+        <div className="flex rounded-lg border border-[#DCE8F2] overflow-hidden text-xs font-semibold" role="group" aria-label="Period">
+          {[7, 30].map((d) => <button key={d} type="button" aria-pressed={days === d} onClick={() => setDays(d)} className={`px-3 py-1.5 ${days === d ? 'bg-[#0A1F33] text-white' : 'bg-white text-[#3F5A70] hover:bg-[#F2F7FB]'}`}>{d === 7 ? 'This week' : '30 days'}</button>)}
+        </div>
+      }>
+      {failed ? <p className="px-5 py-6 text-center text-sm text-[#7E93A6]">The leaderboard could not load.</p> : !rows ? <p className="px-5 py-6 text-center text-sm text-[#7E93A6]">Loading…</p> : !rows.length ? (
+        <p className="px-5 py-6 text-center text-sm text-[#7E93A6]">No RMs yet — add users with the RM role under Settings › Team.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13.5px]">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide font-bold text-[#5E778C]">
+                <th className="text-left px-5 pb-2.5">#</th><th className="text-left px-3 pb-2.5">RM</th><th className="text-right px-3 pb-2.5">Follow-ups</th><th className="text-right px-3 pb-2.5">Calls</th><th className="text-right px-3 pb-2.5">Site visits</th><th className="text-right px-5 pb-2.5">Bookings</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.rm} className="border-t border-[#EEF4F9] hover:bg-[#F7FAFD]">
+                  <td className="px-5 py-3 w-12">
+                    {i < 3 && (r.bookings || r.visits || r.calls || r.followups)
+                      ? <span className="inline-flex w-6 h-6 rounded-full items-center justify-center text-[11px] font-extrabold text-white" style={{ background: MEDALS[i] }}>{i + 1}</span>
+                      : <span className="text-[#7E93A6] font-semibold pl-1.5">{i + 1}</span>}
+                  </td>
+                  <td className="px-3 py-3 font-bold text-[#0F2233] truncate max-w-[180px]">{r.rm}</td>
+                  {cell(r, 'followups')}
+                  {cell(r, 'calls')}
+                  {cell(r, 'visits')}
+                  <td className={`px-5 py-3 text-right tabular-nums ${r.bookings ? 'font-extrabold text-[#14653F]' : 'text-[#C5D3DF]'}`}>{r.bookings}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+};
 
 const Legend: React.FC<{ color: string; label: string }> = ({ color, label }) => (
   <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: color }} />{label}</span>
@@ -355,7 +419,10 @@ const VisitCalendar: React.FC<{ leads: Lead[]; rm: string; onOpenLead: (id: stri
     const date = new Date(month.getFullYear(), month.getMonth(), i - first + 1);
     cells.push({ n: date.getDate(), muted: date.getMonth() !== month.getMonth(), date });
   }
-  const todays = (visits.get(dayKey(now)) || []).slice().sort((a, b) => (siteVisitDate(a)?.getTime() || 0) - (siteVisitDate(b)?.getTime() || 0));
+  const [picked, setPicked] = useState<string>(() => dayKey(now));
+  const pickedDate = cells.find((c) => dayKey(c.date) === picked)?.date || now;
+  const todays = (visits.get(picked) || []).slice().sort((a, b) => (siteVisitDate(a)?.getTime() || 0) - (siteVisitDate(b)?.getTime() || 0));
+  const pickedLabel = picked === dayKey(now) ? 'Today' : pickedDate.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
   const title = month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
   return (
@@ -369,21 +436,32 @@ const VisitCalendar: React.FC<{ leads: Lead[]; rm: string; onOpenLead: (id: stri
         {cells.map((c, i) => {
           const n = visits.get(dayKey(c.date))?.length || 0;
           const isToday = dayKey(c.date) === dayKey(now);
+          const isPicked = dayKey(c.date) === picked;
           const cls = isToday ? 'bg-[#0B6BB0] text-white font-extrabold' : c.muted ? 'text-[#B5C8D8]' : n ? 'bg-[#E0F0FF] text-[#0B5E9C] font-extrabold' : 'text-[#0F2233]';
-          return <div key={i} className={`text-[13px] py-2 rounded-[10px] ${cls}`} title={n ? `${n} site visit${n > 1 ? 's' : ''}` : undefined}>{c.n}</div>;
+          return (
+            <button key={i} type="button" onClick={() => setPicked(dayKey(c.date))} aria-pressed={isPicked}
+              className={`relative text-[13px] py-2 rounded-[10px] hover:ring-2 hover:ring-[#9CC9EE] ${cls} ${isPicked && !isToday ? 'ring-2 ring-[#0B6BB0]' : ''}`}
+              title={n ? `${n} site visit${n > 1 ? 's' : ''}` : 'No site visits'}>
+              {c.n}
+              {n > 1 && <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${isToday ? 'text-white' : 'text-[#0B6BB0]'}`}>{n}</span>}
+            </button>
+          );
         })}
       </div>
       <div className="mt-3 rounded-xl bg-[#F2F7FB] px-3 py-2.5 text-[12.5px]">
-        {todays.length === 0 ? <span className="text-[#5E778C]">No site visits today</span> : (
-          <>
-            <strong className="text-[#0F2233]">Today:</strong>{' '}
-            {todays.map((l, i) => (
-              <React.Fragment key={l[F.ID]}>
-                {i > 0 && ' · '}
-                <button type="button" onClick={() => onOpenLead(l[F.ID])} className="text-[#0B5E9C] font-semibold hover:underline">{l[F.NAME]} {formatTime(l[F.SITE_VISIT_DATE])}</button>
-              </React.Fragment>
+        <strong className="block text-[#0F2233] mb-1">{pickedLabel}</strong>
+        {todays.length === 0 ? <span className="text-[#5E778C]">No site visits</span> : (
+          <ul className="space-y-1">
+            {todays.map((l) => (
+              <li key={l[F.ID]}>
+                <button type="button" onClick={() => onOpenLead(l[F.ID])} className="w-full flex items-center gap-2 text-left rounded-md px-1 py-0.5 hover:bg-white">
+                  <span className="tabular-nums font-bold text-[#0B5E9C] w-16 flex-none">{formatTime(l[F.SITE_VISIT_DATE])}</span>
+                  <span className="font-semibold text-[#0F2233] truncate">{l[F.NAME]}</span>
+                  <span className="ml-auto text-[11px] text-[#5E778C] truncate">{[l[F.RM], String(l[F.SITE_VISIT_STATUS] || '').replace(/^Site Visit - /, '')].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
             ))}
-          </>
+          </ul>
         )}
       </div>
     </Panel>

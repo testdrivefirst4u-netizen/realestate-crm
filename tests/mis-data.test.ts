@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { F, SITE_VISIT, STAGES } from '../src/core/config';
-import { addDaysKey, changePct, firstCallByLead, funnelCounts, funnelStep, periodRange, previousRange, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
+import { addDaysKey, changePct, firstCallByLead, funnelCounts, funnelStep, periodRange, previousRange, speedBuckets, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
 import { mapMetaLead } from '../server/modules/meta';
 import { sourceKind } from '../src/modules/leads/SourceLogo';
 import { canonicalStage, classifyStage } from '../src/core/analytics';
@@ -125,5 +125,13 @@ describe('Meta lead forms', () => {
       { config: { meta: { forms: [{ id: 'F1', name: 'Rhythm_Aug26_v3', status: 'ACTIVE' }] } } } as any,
     );
     expect(out).toMatchObject({ meta_campaign: 'Video_Sept2026', meta_ad_set: 'Hyderabad_50+', meta_ad: 'Lifestyle_Video', meta_form: 'Rhythm_Aug26_v3' });
+  });
+});
+
+describe('speed to lead', () => {
+  it('buckets leads by minutes to first response; open leads without one are "not contacted"', () => {
+    const m = (respMins: number | null, responded: boolean, stage = 'open') => ({ respMins, responded, stage }) as any;
+    expect(speedBuckets([m(3, true), m(5, true), m(40, true), m(200, true), m(null, false), m(null, false, 'disqualified'), m(null, true)]))
+      .toEqual({ total: 7, m5: 2, h1: 1, later: 1, none: 1 });
   });
 });

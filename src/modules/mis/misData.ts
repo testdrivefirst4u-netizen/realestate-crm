@@ -318,6 +318,20 @@ export function fmtDur(m: number): string {
   return `${d} d${h ? ` ${h} h` : ''}`;
 }
 
+/** Speed to lead: how many leads got their first call / follow-up within 5 minutes, within an hour, later, or not yet. */
+export function speedBuckets(list: MisLead[]): { total: number; m5: number; h1: number; later: number; none: number } {
+  const out = { total: list.length, m5: 0, h1: 0, later: 0, none: 0 };
+  for (const l of list) {
+    if (!l.responded) { if (l.stage !== 'disqualified' && l.stage !== 'booked') out.none++; continue; }
+    const m = l.respMins;
+    if (m == null) continue;
+    if (m <= 5) out.m5++;
+    else if (m <= 60) out.h1++;
+    else out.later++;
+  }
+  return out;
+}
+
 export const speedTone = (m: number | null | undefined) => (m == null ? '' : m <= 30 ? 'text-[#0E8A7D] font-bold' : m > 240 ? 'text-[#D92D3A] font-bold' : '');
 
 export interface CallDay { day: string; rep: string; secs: number; calls: number }
