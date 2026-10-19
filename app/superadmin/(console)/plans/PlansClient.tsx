@@ -43,7 +43,7 @@ export function PlansClient() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Customers" icon={<Layers className="h-6 w-6" />}
         title="Plans"
         description="Templates for seat limits and feature access. Prices are for display only."
         actions={

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Settings2 } from 'lucide-react';
 import type { CompanyDetail, CompanyUser } from '@/server/platform/contract';
 import { call, useResource } from '../../../_lib/api';
-import { initials, planName } from '../../../_lib/format';
+import { fmtDate, fmtMB, fmtNum, initials, planName } from '../../../_lib/format';
 import { AuditTable } from '../../../_components/AuditTable';
 import { Button, Card, ErrorBox, Pill, Skeleton, StatusBadge, cx, focusRing } from '../../../_components/ui';
 import { DangerTab } from '../_components/DangerTab';
@@ -97,39 +97,53 @@ export function CompanyDetailClient() {
   return (
     <>
       <div className="mb-3">{back}</div>
-      <header className="mb-6 flex flex-wrap items-center gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#D3E3F0] bg-white">
-          {c.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.logo} alt="" className="max-h-full max-w-full object-contain" />
-          ) : (
-            <span aria-hidden className="text-[17px] font-semibold text-[#0B5E9C]">
-              {initials(c.name)}
-            </span>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-[1.5rem]">{c.name}</h1>
-            <StatusBadge status={c.status} />
-          </div>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[#4E6779]">
-            <span className="font-mono">{c.slug}</span>
-            <span aria-hidden>·</span>
-            <span>
-              Plan <Pill>{planName(plans.data, c.plan)}</Pill>
-            </span>
-            {c.tagline && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="italic">{c.tagline}</span>
-              </>
+      <header className="mb-6 overflow-hidden rounded-3xl border border-[#DCE8F2] bg-white shadow-[0_1px_3px_rgba(10,31,51,0.05),0_12px_30px_-18px_rgba(10,31,51,0.2)]">
+        <div className="flex flex-wrap items-center gap-4 bg-[#0A1F33] px-5 py-5 sm:px-6">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]">
+            {c.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={c.logo} alt="" className="max-h-full max-w-full object-contain p-1.5" />
+            ) : (
+              <span aria-hidden className="text-[19px] font-bold text-[#0B5E9C]">
+                {initials(c.name)}
+              </span>
             )}
-          </p>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight !text-white">{c.name}</h1>
+              <StatusBadge status={c.status} />
+            </div>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[#B9D4EA]">
+              <span className="font-mono">{c.slug}</span>
+              <span aria-hidden>·</span>
+              <span>{planName(plans.data, c.plan)} plan</span>
+              {c.tagline && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="italic">{c.tagline}</span>
+                </>
+              )}
+            </p>
+          </div>
+          <Button onClick={() => selectTab('settings')} variant="sky" icon={<Settings2 className="h-4 w-4" aria-hidden />} aria-pressed={tab === 'settings'}>
+            Company settings
+          </Button>
         </div>
-        <Button onClick={() => selectTab('settings')} variant={tab === 'settings' ? 'secondary' : 'primary'} icon={<Settings2 className="h-4 w-4" aria-hidden />}>
-          Company settings
-        </Button>
+        <dl className="grid grid-cols-2 divide-[#EEF4F9] sm:grid-cols-4 sm:divide-x">
+          {[
+            { label: 'Users', value: c.maxUsers > 0 ? `${fmtNum(c.activeUsers)} / ${fmtNum(c.maxUsers)}` : fmtNum(c.activeUsers), note: c.maxUsers > 0 && c.activeUsers >= c.maxUsers ? 'Every seat used' : c.maxUsers > 0 ? `${fmtNum(c.maxUsers - c.activeUsers)} seats free` : 'No seat limit' },
+            { label: 'Leads', value: fmtNum(c.usage?.leads ?? c.leads), note: `${fmtNum(c.usage?.calls ?? 0)} calls · ${fmtNum(c.usage?.messages ?? 0)} WhatsApp messages` },
+            { label: 'Storage', value: fmtMB(c.usage?.storageMB ?? c.storageMB), note: `${fmtNum(c.usage?.tasks ?? 0)} tasks · ${fmtNum(c.usage?.units ?? 0)} units` },
+            { label: 'Last activity', value: c.usage?.lastActivityAt ? fmtDate(c.usage.lastActivityAt) : '—', note: `Customer since ${fmtDate(c.createdAt)}` },
+          ].map((x) => (
+            <div key={x.label} className="px-5 py-4 sm:px-6">
+              <dt className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#5E778C]">{x.label}</dt>
+              <dd className="mt-1 text-[1.25rem] font-bold tabular-nums text-[#0A1F33]">{x.value}</dd>
+              <dd className="mt-0.5 truncate text-[12.5px] text-[#5E778C]">{x.note}</dd>
+            </div>
+          ))}
+        </dl>
       </header>
 
       {c.status === 'Suspended' && (

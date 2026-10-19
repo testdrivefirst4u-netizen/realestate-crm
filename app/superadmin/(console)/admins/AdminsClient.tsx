@@ -75,7 +75,7 @@ export function AdminsClient() {
   const rows = list.data;
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Security" icon={<ShieldCheck className="h-6 w-6" />}
         title="Super admins"
         description="People with full access to this console."
         actions={

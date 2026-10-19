@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Activity, RefreshCw } from 'lucide-react';
 import type { HealthJob } from '@/server/platform/contract';
 import { call, useResource } from '../../_lib/api';
 import { fmtDateTime } from '../../_lib/format';
@@ -31,7 +31,7 @@ export function HealthClient() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Overview" icon={<Activity className="h-6 w-6" />}
         title="Platform health"
         description="Scheduled jobs, the Facebook lead queue and the latest errors of every company. Refreshes every minute."
         actions={<Button variant="secondary" onClick={reload} loading={health.loading && Boolean(d)} icon={<RefreshCw className="h-4 w-4" aria-hidden />}>Refresh</Button>}

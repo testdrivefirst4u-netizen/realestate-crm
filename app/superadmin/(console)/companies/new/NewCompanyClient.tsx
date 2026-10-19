@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Building2 } from 'lucide-react';
 import type { CompanyDetail } from '@/server/platform/contract';
 import { PageHeader, cx, focusRing } from '../../../_components/ui';
 import { CreateCompanyForm } from './CreateCompanyForm';
@@ -12,7 +12,7 @@ export function NewCompanyClient() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Customers" icon={<Building2 className="h-6 w-6" />}
         back={
           <Link href="/superadmin/companies" className={cx('inline-flex items-center gap-1.5 rounded text-[13.5px] font-medium text-[#4E6779] hover:text-[#0B2A44]', focusRing)}>
             <ArrowLeft className="h-4 w-4" aria-hidden /> Companies

@@ -24,7 +24,7 @@ export function CompaniesClient() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Customers" icon={<Building2 className="h-6 w-6" />}
         title="Companies"
         description="Every tenant workspace on the platform."
         actions={

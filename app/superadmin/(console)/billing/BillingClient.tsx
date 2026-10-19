@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { CheckCircle2, FilePlus2, Pencil, RefreshCw } from 'lucide-react';
+import { CheckCircle2, FilePlus2, Pencil, Receipt, RefreshCw } from 'lucide-react';
 import type { BillingInvoice, BillingSubscription } from '@/server/platform/contract';
 import { call, errorMessage, useResource } from '../../_lib/api';
 import { fmtPrice } from '../../_lib/format';
@@ -55,7 +55,7 @@ export function BillingClient() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader eyebrow="Customers" icon={<Receipt className="h-6 w-6" />}
         title="Billing"
         description="Subscriptions and invoices for every company. Payments are recorded by hand until a payment gateway is connected."
         actions={<Button variant="secondary" onClick={data.reload} loading={data.loading && Boolean(d)} icon={<RefreshCw className="h-4 w-4" aria-hidden />}>Refresh</Button>}

@@ -121,8 +121,6 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
-  /** The dashboard draws its own full-width summary strip under the top bar. */
-  const fullBleed = pathname === '/superadmin';
 
   useEffect(() => {
     let alive = true;
@@ -212,7 +210,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           )}
 
           <main id="sa-main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
-            {fullBleed ? children : <div className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-8 lg:py-8">{children}</div>}
+            <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-8 lg:py-8">{children}</div>
           </main>
         </div>
       </ToastProvider>

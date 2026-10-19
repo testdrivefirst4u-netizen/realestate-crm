@@ -1,6 +1,6 @@
 'use client';
 import { useId, useState, type FormEvent } from 'react';
-import { FileKey2, PlugZap, Save, Trash2 } from 'lucide-react';
+import { FileKey2, PlugZap, Save, Settings2, Trash2 } from 'lucide-react';
 import type { PlatformActions } from '@/server/platform/contract';
 import { call, errorMessage, useResource } from '../../_lib/api';
 import { fmtDateTime } from '../../_lib/format';
@@ -193,7 +193,7 @@ export function SettingsClient() {
 
   return (
     <>
-      <PageHeader title="Platform settings" description="Settings that apply to every company on the platform." />
+      <PageHeader eyebrow="Platform" icon={<Settings2 className="h-6 w-6" />} title="Platform settings" description="Settings that apply to every company on the platform." />
 
       <AccountSecurityCard />
 

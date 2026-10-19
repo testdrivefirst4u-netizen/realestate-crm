@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { RefreshCw, Search } from 'lucide-react';
+import { RefreshCw, ScrollText, Search } from 'lucide-react';
 import { call, useResource } from '../../_lib/api';
 import { AuditTable } from '../../_components/AuditTable';
 import { Button, Card, ErrorBox, PageHeader, cx, toolbarControl } from '../../_components/ui';
@@ -22,7 +22,7 @@ export function AuditClient() {
 
   return (
     <>
-      <PageHeader title="Audit log" description="Every change made from this console. Times are shown in IST (Asia/Kolkata)." />
+      <PageHeader eyebrow="Security" icon={<ScrollText className="h-6 w-6" />} title="Audit log" description="Every change made from this console. Times are shown in IST (Asia/Kolkata)." />
       <Card>
         <div className="flex flex-col gap-3 border-b border-[#E3EDF5] p-4 sm:flex-row sm:items-center">
           <div role="search" className="relative flex-1">

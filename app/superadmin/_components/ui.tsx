@@ -12,9 +12,10 @@ export const focusRing =
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
-type Variant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger' | 'danger-outline';
+type Variant = 'primary' | 'accent' | 'sky' | 'secondary' | 'ghost' | 'danger' | 'danger-outline';
 const variants: Record<Variant, string> = {
-  primary: 'bg-[#0B2A44] text-white hover:bg-[#0A1F33] shadow-sm',
+  primary: 'bg-[#0A1F33] text-white hover:bg-[#16466E] shadow-[0_4px_12px_rgba(10,31,51,0.18)]',
+  sky: 'bg-[#36B3F2] text-[#04263D] font-semibold hover:brightness-105 shadow-[0_6px_16px_rgba(54,179,242,0.35)]',
   accent: 'bg-[#0B6BB0] text-white hover:bg-[#0B5E9C] shadow-sm',
   secondary: 'bg-white text-[#0B2A44] border border-[#C4D6E6] hover:bg-[#F7FAFD] hover:border-[#B4C6D6]',
   ghost: 'text-[#0B2A44] hover:bg-[#E3EDF5]',
@@ -24,8 +25,8 @@ const variants: Record<Variant, string> = {
 
 export function buttonClasses(variant: Variant = 'primary', size: 'sm' | 'md' = 'md', className?: string) {
   return cx(
-    'inline-flex items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-    size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-[14px]',
+    'inline-flex items-center justify-center gap-2 rounded-xl font-medium whitespace-nowrap transition-all disabled:cursor-not-allowed disabled:opacity-60',
+    size === 'sm' ? 'h-9 px-3.5 text-[13px]' : 'h-11 px-4 text-[14px]',
     variants[variant],
     focusRing,
     className,
@@ -84,7 +85,7 @@ export function Button({
 /* ── Form fields ─────────────────────────────────────────────────────────── */
 
 const controlBase =
-  'w-full rounded-lg border bg-white px-3 text-[14px] text-[#0F2233] placeholder:text-[#7E93A6] transition-colors focus:outline-none focus:ring-2 disabled:bg-[#F2F7FB] disabled:text-[#5E778C]';
+  'w-full rounded-xl border bg-white px-3 text-[14px] text-[#0F2233] placeholder:text-[#7E93A6] transition-colors focus:outline-none focus:ring-2 disabled:bg-[#F2F7FB] disabled:text-[#5E778C]';
 const controlOk = 'border-[#C4D6E6] focus:border-[#0B6BB0] focus:ring-[#0B6BB0]/30';
 const controlErr = 'border-[#E5847A] focus:border-[#B42318] focus:ring-[#B42318]/20';
 
@@ -144,7 +145,7 @@ export function TextField({
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(id, error, hint)}
-        className={cx(controlBase, 'h-10', error ? controlErr : controlOk)}
+        className={cx(controlBase, 'h-11', error ? controlErr : controlOk)}
         {...input}
       />
     </FieldShell>
@@ -196,7 +197,7 @@ export function SelectField({
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(id, error, hint)}
-        className={cx(controlBase, 'h-10 pr-8', error ? controlErr : controlOk)}
+        className={cx(controlBase, 'h-11 pr-8', error ? controlErr : controlOk)}
         {...input}
       >
         {children}
@@ -206,7 +207,7 @@ export function SelectField({
 }
 
 /** A bare select / input for toolbars (label is visually hidden or provided by the caller). */
-export const toolbarControl = cx(controlBase, controlOk, 'h-10');
+export const toolbarControl = cx(controlBase, controlOk, 'h-11');
 
 /* ── Switch ──────────────────────────────────────────────────────────────── */
 
@@ -266,20 +267,23 @@ export function Switch({
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cx('rounded-xl border border-[#D3E3F0] bg-white shadow-[0_1px_2px_rgba(11,42,68,0.04)]', className)} {...rest}>
+    <section className={cx('rounded-2xl border border-[#DCE8F2] bg-white shadow-[0_1px_3px_rgba(10,31,51,0.05),0_8px_24px_-12px_rgba(10,31,51,0.08)]', className)} {...rest}>
       {children}
     </section>
   );
 }
 
-export function CardHeader({ title, description, actions, id }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; id?: string }) {
+export function CardHeader({ title, description, actions, id, icon }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; id?: string; icon?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E3EDF5] px-5 py-4">
-      <div className="min-w-0">
-        <h2 id={id} className="text-[15px] font-semibold text-[#0A1F33]">
-          {title}
-        </h2>
-        {description && <p className="mt-0.5 text-[13px] text-[#5E778C]">{description}</p>}
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E6EFF6] px-5 py-4">
+      <div className="flex min-w-0 items-start gap-3">
+        {icon && <span aria-hidden className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[#EAF5FD] text-[#0B6BB0]">{icon}</span>}
+        <div className="min-w-0">
+          <h2 id={id} className="text-[15.5px] font-semibold text-[#0A1F33]">
+            {title}
+          </h2>
+          {description && <p className="mt-0.5 text-[13px] text-[#5E778C]">{description}</p>}
+        </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -309,7 +313,7 @@ export function StatusBadge({ status }: { status: string }) {
 
 export function Pill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-md bg-[#EEF4F9] px-2 py-0.5 text-[12.5px] font-medium text-[#16466E] ring-1 ring-inset ring-[#DCE8F2] whitespace-nowrap">
+    <span className="inline-flex items-center rounded-full bg-[#EAF5FD] px-2.5 py-0.5 text-[12.5px] font-semibold text-[#0B4F86] ring-1 ring-inset ring-[#CDE7F8] whitespace-nowrap">
       {children}
     </span>
   );
@@ -325,7 +329,7 @@ export function Spinner({ label = 'Loading…', className }: { label?: string; c
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cx('animate-pulse rounded-md bg-[#E3EDF5]', className)} />;
+  return <div aria-hidden className={cx('animate-pulse rounded-lg bg-[#E3EDF5]', className)} />;
 }
 
 export function TableSkeleton({ rows = 5, cols = 5 }: { rows?: number; cols?: number }) {
@@ -360,7 +364,7 @@ export function ErrorBox({ message, onRetry, className }: { message: string; onR
 export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: string; description?: string; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      {icon && <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF4F9] text-[#0B6BB0]">{icon}</div>}
+      {icon && <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF5FD] text-[#0B6BB0]">{icon}</div>}
       <p className="text-[15px] font-semibold text-[#0B2A44]">{title}</p>
       {description && <p className="max-w-sm text-[13.5px] text-[#5E778C]">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
@@ -368,14 +372,18 @@ export function EmptyState({ icon, title, description, action }: { icon?: ReactN
   );
 }
 
-export function PageHeader({ title, description, actions, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; back?: ReactNode }) {
+export function PageHeader({ title, description, actions, back, eyebrow, icon }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; back?: ReactNode; eyebrow?: ReactNode; icon?: ReactNode }) {
   return (
-    <header className="mb-6">
+    <header className="mb-7">
       {back && <div className="mb-3">{back}</div>}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-[1.5rem]">{title}</h1>
-          {description && <p className="mt-1 text-[14px] text-[#4E6779]">{description}</p>}
+        <div className="flex min-w-0 items-center gap-4">
+          {icon && <span aria-hidden className="hidden h-12 w-12 flex-none items-center justify-center rounded-2xl bg-[#0A1F33] text-[#36B3F2] shadow-[0_6px_16px_rgba(10,31,51,0.2)] sm:flex">{icon}</span>}
+          <div className="min-w-0">
+            {eyebrow && <div className="mb-0.5 text-[11.5px] font-bold uppercase tracking-[0.12em] text-[#0B6BB0]">{eyebrow}</div>}
+            <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.75rem]">{title}</h1>
+            {description && <p className="mt-1 max-w-2xl text-[14px] text-[#4E6779]">{description}</p>}
+          </div>
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
@@ -385,8 +393,8 @@ export function PageHeader({ title, description, actions, back }: { title: React
 
 /* ── Tables ──────────────────────────────────────────────────────────────── */
 
-export const th = 'px-4 py-3 text-left text-[12px] font-semibold uppercase tracking-wide text-[#5E778C] whitespace-nowrap';
-export const td = 'px-4 py-3 align-middle text-[14px] text-[#0F2233]';
+export const th = 'bg-[#F7FAFD] px-4 py-3 text-left text-[11.5px] font-bold uppercase tracking-[0.06em] text-[#5E778C] whitespace-nowrap first:pl-5 last:pr-5';
+export const td = 'px-4 py-3.5 align-middle text-[14px] text-[#0F2233] first:pl-5 last:pr-5';
 
 export function Table({ children, label }: { children: ReactNode; label: string }) {
   return (
@@ -395,5 +403,35 @@ export function Table({ children, label }: { children: ReactNode; label: string 
         {children}
       </table>
     </div>
+  );
+}
+
+/* ── Stats ───────────────────────────────────────────────────────────────── */
+
+const statTones = {
+  blue: 'bg-[#EAF5FD] text-[#0B6BB0]',
+  green: 'bg-[#E7F7EF] text-[#067647]',
+  amber: 'bg-[#FFF4E0] text-[#B54708]',
+  red: 'bg-[#FEF0EE] text-[#B42318]',
+  navy: 'bg-[#E4EDF4] text-[#0A1F33]',
+} as const;
+
+/** A number with its label and icon; optional note underneath and link. */
+export function StatCard({ label, value, note, icon, tone = 'blue', href, loading }: { label: string; value: ReactNode; note?: ReactNode; icon: ReactNode; tone?: keyof typeof statTones; href?: string; loading?: boolean }) {
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[13px] font-medium text-[#4E6779]">{label}</span>
+        <span aria-hidden className={cx('flex h-9 w-9 flex-none items-center justify-center rounded-xl', statTones[tone])}>{icon}</span>
+      </div>
+      <div className="mt-2 text-[1.75rem] font-bold leading-none tabular-nums tracking-tight text-[#0A1F33]">{loading ? <Skeleton className="h-7 w-20" /> : value}</div>
+      {note && <div className="mt-2 text-[12.5px] text-[#5E778C]">{loading ? <Skeleton className="h-3.5 w-28" /> : note}</div>}
+    </>
+  );
+  const cls = 'block rounded-2xl border border-[#DCE8F2] bg-white p-4 shadow-[0_1px_3px_rgba(10,31,51,0.05)] sm:p-5';
+  return href ? (
+    <Link href={href} className={cx(cls, 'transition-shadow hover:shadow-[0_10px_24px_-10px_rgba(10,31,51,0.18)]', focusRing)}>{body}</Link>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }

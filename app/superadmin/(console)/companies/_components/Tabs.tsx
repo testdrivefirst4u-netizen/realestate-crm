@@ -23,7 +23,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, idPrefix }: { ta
     refs.current[n]?.focus();
   };
   return (
-    <div role="tablist" aria-label="Company sections" className="-mx-1 flex gap-1 overflow-x-auto border-b border-[#D3E3F0] px-1">
+    <div role="tablist" aria-label="Company sections" className="flex gap-1 overflow-x-auto rounded-2xl border border-[#DCE8F2] bg-white p-1.5 shadow-[0_1px_3px_rgba(10,31,51,0.05)]">
       {tabs.map((t, i) => {
         const selected = t.id === value;
         return (
@@ -41,12 +41,14 @@ export function Tabs<T extends string>({ tabs, value, onChange, idPrefix }: { ta
             onClick={() => onChange(t.id)}
             onKeyDown={(e) => onKey(e, i)}
             className={cx(
-              '-mb-px whitespace-nowrap rounded-t-md border-b-2 px-3.5 py-2.5 text-[14px] font-medium transition-colors',
+              'whitespace-nowrap rounded-xl px-4 py-2.5 text-[14px] font-semibold transition-colors',
               selected
                 ? t.danger
-                  ? 'border-[#B42318] text-[#912018]'
-                  : 'border-[#0B6BB0] text-[#0A1F33]'
-                : 'border-transparent text-[#4E6779] hover:border-[#C4D6E6] hover:text-[#0B2A44]',
+                  ? 'bg-[#FEF0EE] text-[#912018]'
+                  : 'bg-[#0A1F33] text-white shadow-[0_4px_12px_rgba(10,31,51,0.2)]'
+                : t.danger
+                  ? 'text-[#B42318] hover:bg-[#FEF3F2]'
+                  : 'text-[#4E6779] hover:bg-[#F2F7FB] hover:text-[#0B2A44]',
               focusRing,
             )}
           >
