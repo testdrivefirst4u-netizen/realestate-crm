@@ -131,6 +131,21 @@ export function fmtDate(v: unknown) {
   return `${pad(p.d)} ${MONTHS[p.mo - 1]} ${p.y}`;
 }
 
+/** Hour of day (0–23) in the CRM zone. */
+export function localHour(v: unknown) {
+  const d = parseDate(v);
+  return d ? zonedParts(d).h : 0;
+}
+
+/** 'hh:mm AM' in the CRM zone. */
+export function fmtTime(v: unknown) {
+  const d = parseDate(v);
+  if (!d) return '';
+  const p = zonedParts(d);
+  const h12 = p.h % 12 === 0 ? 12 : p.h % 12;
+  return `${pad(h12)}:${pad(p.mi)} ${p.h < 12 ? 'AM' : 'PM'}`;
+}
+
 /** 'yyyy-MM-dd' in the CRM zone. */
 export function dateKey(v: unknown) {
   const d = parseDate(v);

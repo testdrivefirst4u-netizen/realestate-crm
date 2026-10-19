@@ -42,6 +42,11 @@ export interface LeadDoc {
   followups: FollowupEntry[];
   /** Any non-base header (extra sheet columns) so nothing is lost. */
   extra: Record<string, string>;
+  /** When the current RM was given the lead (new lead or reassignment); drives auto-reassignment. */
+  assignedAt?: Date | null;
+  /** Times the lead was moved on automatically because nobody acted on it, and from whom. */
+  reassignCount?: number;
+  reassignedFrom?: string[];
 }
 
 export interface ArchivedLeadDoc extends LeadDoc {

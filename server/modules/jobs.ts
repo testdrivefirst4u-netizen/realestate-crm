@@ -13,7 +13,7 @@ import { settingsAll } from '../core/settings';
 import { dateKey, fmtDate, fmtHuman, makeZoned, truncate } from '../core/utils';
 import { updateLead } from './leads';
 import { parseSequence, STALE_STAGES } from './sequences';
-import { createLeadBackup } from './backups';
+import { createLeadBackup, verifyLatestBackup } from './backups';
 
 const S = CFG.STAGES;
 /** Stages that never get overdue reminders (TRIGGER_followups). */
@@ -143,6 +143,7 @@ export async function runDaily(): Promise<{ ok: true; digestSent: boolean; marke
   let backup: number | undefined;
   // back up first, before the stale-lead rule changes anything
   try { backup = (await createLeadBackup({ onlyIfMissing: true }))?.count; } catch (e: any) { await logError('trigger.daily.backup', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
+  try { await verifyLatestBackup(); } catch (e: any) { await logError('trigger.daily.backupVerify', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   let markedNotResponding = 0;
   try { markedNotResponding = await markStaleLeads(); } catch (e: any) { await logError('trigger.daily.stale', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { await cleanupSessions(); } catch (e: any) { await logError('trigger.daily.sessions', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }

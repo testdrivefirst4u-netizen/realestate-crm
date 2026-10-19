@@ -6,6 +6,7 @@
     { "path": "/api/cron/daily", "schedule": "30 0 * * *" },
     { "path": "/api/cron/followups", "schedule": "0 3 * * *" },
     { "path": "/api/cron/sheets", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/meta", "schedule": "0 5 * * *" }
+    { "path": "/api/cron/meta", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/watch", "schedule": "0 13 * * *" }
   ]
 }

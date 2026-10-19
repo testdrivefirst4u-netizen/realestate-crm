@@ -252,6 +252,7 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   let id = await resolveSuppliedId('ENQ', 4, obj[L.ID], leadIdTaken);
   const now = new Date();
   let doc = buildNewDoc(id, obj, actor, now);
+  if (doc.assignedRm) doc.assignedAt = now;
   // follow-up sequence: a new open lead without a date gets its first follow-up (Settings › Alerts & follow-ups)
   const autoFollowup = firstFollowup(parseSequence((await settingsAll()).followupSequence), doc, now);
   if (autoFollowup) doc.nextFollowupAt = autoFollowup;
@@ -400,7 +401,8 @@ export async function updateLead(
     if (!plan) return { lead: toUiLead(before)!, version: await getVersion(), unchanged: true };
 
     // conditional write: only if nobody saved in between
-    const res = await leads.updateOne({ _id: before._id, updatedAt: before.updatedAt ?? null } as any, { $set: plan.set });
+    // a new RM starts a fresh "first action" clock (auto-reassignment)
+    const res = await leads.updateOne({ _id: before._id, updatedAt: before.updatedAt ?? null } as any, { $set: plan.rm ? { ...plan.set, assignedAt: new Date() } : plan.set });
     if (!res.matchedCount) continue; // re-read and re-check (a stale expectedUpdatedAt then fails above)
 
     const after = toUiLead(plan.next)!;

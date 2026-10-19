@@ -30,6 +30,7 @@ import { actions as leadSourceActions } from './modules/leadSources';
 import { actions as sheetActions } from './modules/sheets';
 import { actions as metaActions } from './modules/meta';
 import { actions as metaSyncActions } from './modules/metaSync';
+import { actions as salesOpsActions } from './modules/salesOps';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -48,6 +49,7 @@ export const registry: ActionMap = {
   ...sheetActions,
   ...metaActions,
   ...metaSyncActions,
+  ...salesOpsActions,
 };
 
 const STATUS: Record<string, number> = {

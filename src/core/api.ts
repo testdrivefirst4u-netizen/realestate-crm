@@ -76,7 +76,13 @@ export interface BackupInfo {
   createdBy: string;
   count: number;
   sizeKB: number;
+  /** Restore test: 'ok', 'failed' or '' (not tested yet). */
+  verified?: '' | 'ok' | 'failed';
+  verifyNote?: string;
 }
+
+export interface LeaderRow { rm: string; followups: number; calls: number; visits: number; bookings: number }
+export interface SpendRow { campaign: string; month: string; amount: number }
 
 export function configureApi(opts: { url?: string; token?: string | null; onAuthExpired?: (message?: string) => void }) {
   if (opts.onAuthExpired) onAuthExpired = opts.onAuthExpired;
@@ -208,6 +214,13 @@ export const api = {
     list: () => request<BackupInfo[]>('listLeadBackups', {}),
     get: (id: string) => request<{ id: string; createdAt: string; leads: Lead[] }>('getLeadBackup', { id }),
     create: () => request<BackupInfo | null>('createLeadBackup', {}),
+    verify: () => request<{ id: string; ok: boolean; note: string } | null>('verifyLeadBackup', {}),
+  },
+
+  team: {
+    leaderboard: (days = 7) => request<{ from: string; to: string; rows: LeaderRow[] }>('leaderboard', { days }),
+    spend: () => request<{ rows: SpendRow[] }>('getCampaignSpend', {}),
+    saveSpend: (month: string, rows: Array<{ campaign: string; amount: number }>) => request<{ rows: SpendRow[] }>('saveCampaignSpend', { month, rows }),
   },
 
   tasks: {

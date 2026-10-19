@@ -71,6 +71,8 @@ interface UserForm {
   email: string;
   /** WhatsApp number for lead alerts. */
   phone: string;
+  /** The number when the form was opened — sent only when changed (the fallback user list has no numbers). */
+  initialPhone: string;
   role: UserRole;
   status: 'Active' | 'Disabled';
   password: string;
@@ -80,7 +82,7 @@ interface UserForm {
   initialAvatar: string;
 }
 
-const emptyUser = (): UserForm => ({ name: '', email: '', phone: '', role: 'RM', status: 'Active', password: '', avatar: '', initialAvatar: '' });
+const emptyUser = (): UserForm => ({ name: '', email: '', phone: '', initialPhone: '', role: 'RM', status: 'Active', password: '', avatar: '', initialAvatar: '' });
 
 export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers, currentUser, onRefreshAll, onUpdateProfile }) => {
   const [rows, setRows] = useState<UserAccount[] | null>(null);
@@ -154,7 +156,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
   };
 
   const openEdit = (u: UserAccount) => {
-    setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', role: normalizeRole(u.role), status: u.status === 'Disabled' ? 'Disabled' : 'Active', password: '', avatar: u.avatar || '', initialAvatar: u.avatar || '' });
+    setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', initialPhone: u.phone || '', role: normalizeRole(u.role), status: u.status === 'Disabled' ? 'Disabled' : 'Active', password: '', avatar: u.avatar || '', initialAvatar: u.avatar || '' });
     setFormError(null);
     setShowPw(false);
     setEditOpen(true);
@@ -181,7 +183,8 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
     // your own photo goes through the profile call so the signed-in session (sidebar) updates at once.
     const photoSeparately = photoChanged && (!form.id || ownViaProfile);
     try {
-      const payload: Partial<UserAccount> & { password?: string } = { id: form.id, name, email, phone: form.phone.trim(), role: form.role, status: form.status };
+      const payload: Partial<UserAccount> & { password?: string } = { id: form.id, name, email, role: form.role, status: form.status };
+      if (form.phone.trim() !== form.initialPhone) payload.phone = form.phone.trim();
       if (form.password) payload.password = form.password;
       if (photoChanged && !photoSeparately) payload.avatar = form.avatar; // '' removes the photo
       const saved = await api.settings.users.save(payload);

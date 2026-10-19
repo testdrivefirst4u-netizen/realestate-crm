@@ -22,6 +22,7 @@ export const JOB_RUNS = 'jobRuns';
 export const JOBS: Array<{ id: string; label: string; path: string; everyMin: number }> = [
   { id: 'meta', label: 'Facebook lead backup check', path: '/api/cron/meta', everyMin: 10 },
   { id: 'sheets', label: 'Google Sheets sync', path: '/api/cron/sheets', everyMin: 10 },
+  { id: 'watch', label: 'Lead watch (reassign, visit reminders, summary)', path: '/api/cron/watch', everyMin: 10 },
   { id: 'followups', label: 'Follow-up reminders', path: '/api/cron/followups', everyMin: 60 },
   { id: 'daily', label: 'Daily digest & clean-up', path: '/api/cron/daily', everyMin: 24 * 60 },
 ];

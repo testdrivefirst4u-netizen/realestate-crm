@@ -26,6 +26,10 @@ interface BackupDoc {
   count: number;
   bytes: number;
   data: Binary;
+  /** Restore test: the backup was unpacked and every lead read back. */
+  verifiedAt?: Date;
+  verifyOk?: boolean;
+  verifyNote?: string;
 }
 
 const backupsCol = () => col<BackupDoc>(COLL_BACKUPS);
@@ -36,9 +40,45 @@ export interface BackupInfo {
   createdBy: string;
   count: number;
   sizeKB: number;
+  /** Restore test result: 'ok', 'failed' or '' (not tested yet). */
+  verified: '' | 'ok' | 'failed';
+  verifyNote: string;
 }
 
-const info = (d: Omit<BackupDoc, 'data'>): BackupInfo => ({ id: d._id, createdAt: new Date(d.createdAt).toISOString(), createdBy: d.createdBy, count: d.count, sizeKB: Math.max(1, Math.round(d.bytes / 1024)) });
+const info = (d: Omit<BackupDoc, 'data'>): BackupInfo => ({
+  id: d._id, createdAt: new Date(d.createdAt).toISOString(), createdBy: d.createdBy, count: d.count, sizeKB: Math.max(1, Math.round(d.bytes / 1024)),
+  verified: d.verifiedAt ? (d.verifyOk ? 'ok' : 'failed') : '', verifyNote: d.verifyNote || '',
+});
+
+/**
+ * Restore test of the newest backup: unpack it, read every lead back and check it is complete (same count, every lead
+ * has its id, no id twice, dates still dates, and not far fewer leads than the CRM has now). The result is stored on
+ * the backup; a failure alerts the administrators.
+ */
+export async function verifyLatestBackup(): Promise<{ id: string; ok: boolean; note: string } | null> {
+  const c = await backupsCol();
+  const d = await c.find({}).sort({ _id: -1 }).limit(1).next();
+  if (!d) return null;
+  let ok = false, note = '';
+  try {
+    const docs = BSON.EJSON.parse(gunzipSync(Buffer.from(d.data.buffer)).toString('utf8'), { relaxed: false }) as LeadDoc[];
+    const ids = new Set(docs.map((x) => x?._id).filter(Boolean));
+    const live = await (await col(CFG.COLL.LEADS)).countDocuments({});
+    if (docs.length !== d.count) note = `Backup says ${d.count} leads but holds ${docs.length}`;
+    else if (ids.size !== docs.length) note = 'Some leads are missing their id or appear twice';
+    else if (docs.some((x) => x.createdAt != null && !(x.createdAt instanceof Date))) note = 'Dates did not come back as dates';
+    else if (live > 20 && docs.length < live * 0.8) note = `Only ${docs.length} leads backed up but the CRM has ${live}`;
+    else { ok = true; note = `All ${docs.length} leads read back`; }
+  } catch (e: any) {
+    note = 'Could not unpack the backup: ' + (e?.message || e);
+  }
+  await c.updateOne({ _id: d._id }, { $set: { verifiedAt: new Date(), verifyOk: ok, verifyNote: note.slice(0, 300) } });
+  if (!ok) {
+    const { notifyAdmins } = await import('./adminAlerts');
+    await notifyAdmins('backup-verify', 'Lead backup failed its restore test', `The backup of ${d._id} could not be read back: ${note}. Open Settings › Backups and click Back up now.`);
+  }
+  return { id: d._id, ok, note };
+}
 
 /** Back up every lead. `onlyIfMissing`: the daily job skips a day that already has a backup. */
 export async function createLeadBackup(opts: { by?: string; onlyIfMissing?: boolean; now?: Date } = {}): Promise<BackupInfo | null> {
@@ -75,6 +115,7 @@ export async function getLeadBackup(id: unknown, ctx: Ctx | null): Promise<{ id:
 export const actions: ActionMap = {
   listLeadBackups: { fn: () => listLeadBackups(), perm: 'settings.edit' },
   getLeadBackup: { fn: (d, ctx) => getLeadBackup(d?.id, ctx), perm: 'settings.edit' },
+  verifyLeadBackup: { fn: () => verifyLatestBackup(), perm: 'settings.edit' },
   createLeadBackup: {
     fn: async (_d, ctx) => {
       const r = await createLeadBackup({ by: ctx?.user?.name || 'Admin' });

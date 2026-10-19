@@ -1,6 +1,7 @@
 # Frequent background jobs. Vercel's Hobby plan only allows once-a-day cron jobs (vercel.json keeps a
 # daily run of each as a backstop), so GitHub Actions calls the endpoints on their real schedule:
-#   every 5 minutes  → /api/cron/sheets, /api/cron/meta
+#   every 5 minutes  → /api/cron/sheets, /api/cron/meta, /api/cron/watch, plus an uptime check of /api/health
+#                      (a failed run e-mails the repository owner, so a site or database outage is noticed)
 #   every hour       → /api/cron/followups
 # Repository settings → Secrets and variables → Actions:
 #   secret   CRON_SECRET  same value as the CRON_SECRET environment variable on Vercel
@@ -34,9 +35,12 @@ jobs:
             exit 0
           fi
           if [ "$SCHEDULE" = "0 * * * *" ]; then paths="followups"
-          elif [ -n "$SCHEDULE" ]; then paths="sheets meta"
-          else paths="followups sheets meta"; fi
+          elif [ -n "$SCHEDULE" ]; then paths="sheets meta watch"
+          else paths="followups sheets meta watch"; fi
           status=0
+          health=$(curl -sS -o /tmp/health -w '%{http_code}' --max-time 30 "${APP_URL%/}/api/health") || health=000
+          echo "/api/health → HTTP $health: $(head -c 200 /tmp/health 2>/dev/null)"
+          if [ "$health" != "200" ]; then echo "::error::The CRM is down or cannot reach its database (HTTP $health)"; status=1; fi
           for p in $paths; do
             code=$(curl -sS -o /tmp/out -w '%{http_code}' --max-time 320 \
               -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron/$p") || code=000

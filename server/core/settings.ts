@@ -179,6 +179,7 @@ export async function getSettings(ctx: Ctx) {
     leadAlerts: (await import('../modules/leadAlerts')).parseLeadAlerts(s.leadAlerts),
     followupSequence: (await import('../modules/sequences')).parseSequence(s.followupSequence),
     visitBooking: (await import('../modules/visits')).parseVisitBooking(s.visitBooking),
+    salesOps: (await import('../modules/salesOps')).parseSalesOps(s.salesOps),
     mailConfigured: !!(process.env.SMTP_URL?.trim() && process.env.MAIL_FROM?.trim()),
     scriptId: '', webAppUrl: appUrl(),
     storage: 'MongoDB GridFS',
@@ -187,7 +188,7 @@ export async function getSettings(ctx: Ctx) {
 
 const EDITABLE = ['appName', 'timeZone', 'aiModel', 'aiFastModel', 'aiTranscribeModel', 'chat360BaseUrl', 'chat360SendPath', 'chat360TemplatePath',
   'chat360BusinessNumber', 'chat360LoginEmail', 'chat360AutoCreateLeads', 'chat360DefaultRM', 'chat360DefaultSource', 'telephonyFieldMap',
-  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking'];
+  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking', 'salesOps'];
 
 /** Hosts the Chat360 base URL may point at — stops an admin from redirecting the stored API key. */
 const CHAT360_HOSTS = [/(^|\.)chat360\.io$/i];
@@ -238,6 +239,7 @@ export async function updateSettings(patch: any, ctx: Ctx) {
     }
     if (k === 'rmLeadVisibility' && !['own', 'own_unassigned', 'all'].includes(v)) throw fail('VALIDATION', 'Lead visibility must be own, own_unassigned or all');
     if (k === 'visitBooking') v = (await import('../modules/visits')).validateVisitBooking(patch[k]);
+    if (k === 'salesOps') v = await (await import('../modules/salesOps')).validateSalesOps(patch[k]);
     if (k === 'followupSequence') v = (await import('../modules/sequences')).validateSequence(patch[k]);
     if (k === 'leadAlerts') {
       const { validateLeadAlerts } = await import('../modules/leadAlerts'); // lazy: avoids a settings ↔ modules import cycle
