@@ -174,7 +174,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
           <Bell size={18} />
           {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF8A65] text-[#3A1205] text-[10px] font-extrabold flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>}
         </button>
-        {/* New Enquiry: here on larger screens; phones use the "+" of the bottom tab bar */}
+        {/* New Enquiry: here on larger screens; on phones it is on the Leads screen */}
         {can('leads.create') && (
           <button onClick={onOpenAddLead} className="hidden lg:inline-flex items-center gap-2 px-4 h-11 rounded-xl bg-[#36B3F2] text-[#04263D] text-[13.5px] font-extrabold hover:brightness-105" title="New Enquiry">
             <Plus size={17} strokeWidth={2.6} /><span>New Enquiry</span>

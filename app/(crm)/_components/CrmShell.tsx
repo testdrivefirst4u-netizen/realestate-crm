@@ -349,7 +349,6 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               followupsToday={sidebarCounts.followupsToday}
               tasksPending={sidebarCounts.tasksPending}
               onMore={() => setIsMobileSidebarOpen(true)}
-              onAdd={engine.can('leads.create') ? openAddLead : undefined}
             />
           </div>
 

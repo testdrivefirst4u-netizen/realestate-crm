@@ -365,11 +365,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
               Export Excel
             </Button>
           )}
-          <span className="hidden lg:contents">
-            <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
-              New Enquiry
-            </Button>
-          </span>
+          <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
+            New Enquiry
+          </Button>
         </div>
       </div>
 
