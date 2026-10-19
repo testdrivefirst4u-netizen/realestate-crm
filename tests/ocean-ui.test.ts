@@ -67,3 +67,18 @@ describe('dashboard', () => {
     expect(html).toContain('3 enquiries by source');
   });
 });
+
+describe('phone tab bar', () => {
+  it('shows Home, Leads, Follow-ups (with count), WhatsApp or Tasks, More and the + button', async () => {
+    const { MobileTabBar } = await import('../src/components/MobileTabBar');
+    const render = (p: Record<string, unknown>) => renderToStaticMarkup(createElement(MobileTabBar, { currentView: 'leads', showChats: true, onMore: () => {}, onAdd: () => {}, ...p } as any));
+    const html = render({ followupsToday: 5 });
+    for (const l of ['Home', 'Leads', 'Follow-ups', 'WhatsApp', 'More screens', 'New enquiry']) expect(html).toContain(`aria-label="${l}"`);
+    expect(html).toMatch(/aria-label="Leads" aria-current="page"/);
+    expect(html).toContain('>5</span>');
+    const noChat = render({ showChats: false, onAdd: undefined, tasksPending: 3 });
+    expect(noChat).toContain('aria-label="Tasks"');
+    expect(noChat).not.toContain('aria-label="WhatsApp"');
+    expect(noChat).not.toContain('New enquiry');
+  });
+});

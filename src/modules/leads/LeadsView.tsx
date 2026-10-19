@@ -8,12 +8,12 @@
  * by Created At, then Enquiry ID, so new ENQ rows never sink under older ones.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Download, GitMerge, Plus, RotateCcw, Search, Upload, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Download, GitMerge, MessageCircle, Phone, Plus, RotateCcw, Search, SlidersHorizontal, Upload, Users } from 'lucide-react';
 import { CRMConfig, Lead, SyncState } from '../../types/crm';
 import { DEFAULT_CUSTOMIZATION, F } from '../../core/config';
 import { countedLeads, enquiryDate, followupCount, followupEntries, isActive, nextFollowupDate, searchLeads } from '../../core/analytics';
 import { formatDateTime, formatRelative, inRange } from '../../core/dates';
-import { formatPhone } from '../../core/phone';
+import { formatPhone, telLink, whatsappLink } from '../../core/phone';
 import { exportLeadsToXlsx } from '../../services/csvService';
 import {
   Button,
@@ -66,6 +66,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   const [sortKey, setSortKey] = useState<SortKey>('enquiryDate');
   const [sortAsc, setSortAsc] = useState(false);
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const range = useMemo(() => resolveDateFilter(dateFilter), [dateFilter]);
   const base = useMemo(() => countedLeads(leads), [leads]);
@@ -109,6 +110,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
 
   const visible = useMemo(() => sorted.slice(0, limit), [sorted, limit]);
   const hasFilters = !!(query.trim() || stage || source || unit || rm || campaign || dateFilter.preset !== 'all');
+  const moreFilters = [source, unit, rm, campaign].filter(Boolean).length + (dateFilter.preset !== 'all' ? 1 : 0);
+  // quick stage chips on phones (the stages this company actually uses)
+  const quickStages = useMemo(() => ['New', 'Hot', 'Warm', 'Qualified', 'Booked'].filter((x) => (config.options[F.STAGE] || []).includes(x)), [config.options]);
 
   const clearFilters = () => {
     setQuery('');
@@ -361,9 +365,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
               Export Excel
             </Button>
           )}
-          <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
-            New Enquiry
-          </Button>
+          <span className="hidden lg:contents">
+            <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
+              New Enquiry
+            </Button>
+          </span>
         </div>
       </div>
 
@@ -375,7 +381,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
 
       {/* Toolbar */}
       <div className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] shadow-2xs flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1 max-w-sm">
+        <div className="relative min-w-[200px] flex-1 md:max-w-sm">
           <Search size={14} className="absolute left-3 top-2.5 text-[#7E93A6]" />
           <input
             type="search"
@@ -386,6 +392,10 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
             aria-label="Search leads"
           />
         </div>
+        <button type="button" onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen} className={cx('md:hidden inline-flex items-center gap-1.5 h-[34px] px-3 rounded-lg border text-xs font-semibold', filtersOpen || moreFilters ? 'bg-[#0A1F33] border-[#0A1F33] text-white' : 'bg-white border-[#A9BDCD] text-[#0B2A44]')}>
+          <SlidersHorizontal size={13} />Filters{moreFilters ? ` (${moreFilters})` : ''}
+        </button>
+        <div className={cx(filtersOpen ? 'flex flex-wrap gap-2 w-full' : 'hidden', 'md:contents')}>
         <Select value={stage} onChange={(e) => setStage(e.target.value)} options={config.options[F.STAGE] || []} placeholder="All Stages" className="!w-auto" aria-label="Stage" />
         <Select value={source} onChange={(e) => setSource(e.target.value)} options={config.options[F.SOURCE] || []} placeholder="All Sources" className="!w-auto" aria-label="Source" />
         <Select value={unit} onChange={(e) => setUnit(e.target.value)} options={config.options[F.UNIT_TYPE] || []} placeholder="All Units" className="!w-auto" aria-label="Unit type" />
@@ -403,12 +413,13 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         >
           {sortKey === 'enquiryDate' && sortAsc ? 'Oldest → Newest' : 'Newest → Oldest'}
         </Button>
+        </div>
         {hasFilters && (
           <Button variant="ghost" onClick={clearFilters} icon={<RotateCcw size={12} />} title="Clear all filters">
             Clear
           </Button>
         )}
-        <span className="ml-auto text-xs text-[#5E778C] font-medium whitespace-nowrap">
+        <span className="hidden md:inline ml-auto text-xs text-[#5E778C] font-medium whitespace-nowrap">
           {sorted.length === base.length ? (
             <>
               <strong className="text-[#0B2A44]">{sorted.length}</strong> {sorted.length === 1 ? 'lead' : 'leads'}
@@ -422,8 +433,36 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         </span>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs overflow-hidden">
+      {/* Phones: quick stage chips and lead cards */}
+      <div className="md:hidden -mx-4 px-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Stage">
+        {['', ...quickStages].map((st) => {
+          const on = stage === st;
+          const n = st ? base.filter((l) => String(l[F.STAGE] || '').trim() === st).length : base.length;
+          return (
+            <button key={st || 'all'} type="button" onClick={() => setStage(st)} aria-pressed={on}
+              className={cx('flex-none h-10 px-4 rounded-full inline-flex items-center gap-1.5 text-[13px] font-semibold border', on ? 'bg-[#0A1F33] border-[#0A1F33] text-white' : 'bg-white border-[#D3E3F0] text-[#0B2A44]')}>
+              {st || 'All'}<span className={on ? 'text-[#9CC9EE]' : 'text-[#7E93A6]'}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="md:hidden space-y-2.5">
+        <p className="text-xs text-[#5E778C]"><strong className="text-[#0B2A44]">{sorted.length}</strong> {sorted.length === 1 ? 'lead' : 'leads'}{sorted.length !== base.length ? ` of ${base.length}` : ''}</p>
+        {visible.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-[#D3E3F0] p-6 text-center text-sm text-[#5E778C] space-y-2">
+            <div>No leads match the current filters.</div>
+            {hasFilters && <Button variant="secondary" size="xs" onClick={clearFilters} icon={<RotateCcw size={11} />}>Clear filters</Button>}
+          </div>
+        ) : visible.map((l) => <LeadCard key={String(l[F.ID])} lead={l} onOpen={() => onOpenLead(String(l[F.ID]))} />)}
+        {sorted.length > visible.length && (
+          <Button variant="secondary" className="w-full" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+            Show {Math.min(PAGE_SIZE, sorted.length - visible.length)} more
+          </Button>
+        )}
+      </div>
+
+      {/* Table (tablets and up) */}
+      <div className="hidden md:block bg-white rounded-2xl border border-[#D3E3F0] shadow-xs overflow-hidden">
         <DataTable<Lead>
           columns={columns}
           rows={visible}
@@ -451,6 +490,46 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+/* ------------------------------ phone card ------------------------------ */
+
+const AVATAR = [['#DCEBFA', '#0B4F86'], ['#DDF1EE', '#0E5E55'], ['#E9E4F7', '#47308A'], ['#FCE9DC', '#8A3E14'], ['#E4EDF4', '#29465E']];
+
+/** One lead on a phone: initials, name and stage, what it is, what's next, and Call / WhatsApp. */
+const LeadCard: React.FC<{ lead: Lead; onOpen: () => void }> = ({ lead, onOpen }) => {
+  const name = String(lead[F.NAME] || 'Unnamed');
+  const phone = String(lead[F.PHONE] || '');
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '?';
+  const [bg, ink] = AVATAR[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR.length];
+  const next = nextFollowupDate(lead);
+  const overdue = !!next && next.getTime() < Date.now();
+  const remarks = followupEntries(lead);
+  const last = remarks[remarks.length - 1];
+  const meta = [lead[F.UNIT_TYPE], lead[F.SOURCE], lead[F.RM]].map((x) => String(x || '').trim()).filter(Boolean).join(' · ');
+  return (
+    <div className="bg-white rounded-[20px] border border-[#E6EFF6] shadow-[0_1px_3px_rgba(10,31,51,0.06)] p-3.5 flex items-center gap-3">
+      <button type="button" onClick={onOpen} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+        <span className="w-11 h-11 flex-none rounded-full flex items-center justify-center text-sm font-extrabold" style={{ background: bg, color: ink }}>{initials}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="text-[15px] font-bold text-[#0A1F33] truncate">{name}</span>
+            <span className="flex-none"><StageBadge stage={String(lead[F.STAGE] || '')} /></span>
+          </span>
+          {meta && <span className="block text-[12.5px] text-[#5E778C] truncate mt-0.5">{meta}</span>}
+          <span className={cx('block text-[12px] mt-0.5 truncate font-medium', overdue ? 'text-[#B42318]' : next ? 'text-[#0B6BB0]' : 'text-[#7E93A6]')}>
+            {next ? `Follow-up ${overdue ? 'overdue · ' : ''}${formatRelative(next.toISOString())}` : last?.text ? `Remark ${remarks.length}: ${last.text}` : `Enquired ${formatRelative(String(lead[F.ENQUIRY_DATE] || ''))}`}
+          </span>
+        </span>
+      </button>
+      {phone && (
+        <div className="flex gap-1.5 flex-none">
+          <a href={telLink(phone)} aria-label={`Call ${name}`} title={formatPhone(phone)} className="w-11 h-11 rounded-full bg-[#F2F7FB] text-[#0A1F33] flex items-center justify-center active:scale-95"><Phone size={17} /></a>
+          <a href={whatsappLink(phone)} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${name}`} className="w-11 h-11 rounded-full bg-[#0A1F33] text-white flex items-center justify-center active:scale-95"><MessageCircle size={17} /></a>
+        </div>
+      )}
     </div>
   );
 };

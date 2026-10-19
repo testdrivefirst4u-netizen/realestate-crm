@@ -11,6 +11,7 @@
 import React, { Suspense, createContext, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/src/components/Sidebar';
+import { MobileTabBar } from '@/src/components/MobileTabBar';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { Toasts } from '@/src/components/Toasts';
@@ -337,11 +338,19 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               onSearchShowAll={onSearchShowAll}
             />
 
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto pb-28 lg:pb-0">
               <ErrorBoundary scope={`view:${currentView || pathname}`} inline resetKey={pathname}>
                 {mounted ? children : <PageSkeleton variant={currentView ? VIEW_SKELETON[currentView] : undefined} />}
               </ErrorBoundary>
             </main>
+            <MobileTabBar
+              currentView={currentView}
+              showChats={on('chat360') && engine.can('chat.view')}
+              followupsToday={sidebarCounts.followupsToday}
+              tasksPending={sidebarCounts.tasksPending}
+              onMore={() => setIsMobileSidebarOpen(true)}
+              onAdd={engine.can('leads.create') ? openAddLead : undefined}
+            />
           </div>
 
           {mounted && (
