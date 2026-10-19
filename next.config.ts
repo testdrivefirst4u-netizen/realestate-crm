@@ -41,9 +41,13 @@ const nextConfig: NextConfig = {
   // The repository root holds the original Vite app (with its own lockfile): pin the workspace to next-app/.
   turbopack: { root: path.resolve(__dirname) },
   // The MongoDB driver and its optional native deps must stay server-side and unbundled.
-  serverExternalPackages: ['mongodb', 'mongodb-memory-server', 'bcryptjs', 'nodemailer'],
+  serverExternalPackages: ['mongodb', 'mongodb-memory-server', 'bcryptjs', 'nodemailer', 'web-push'],
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      // the phone-notification service worker must never be cached, or updates would not reach installed phones
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }, { key: 'Content-Type', value: 'application/javascript; charset=utf-8' }] },
+    ];
   },
   // Each CRM screen is its own route under app/(crm)/; `/` opens the dashboard (the query, e.g. ?lead=…, is kept).
   async redirects() {

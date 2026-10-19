@@ -9,11 +9,14 @@ export const metadata: Metadata = {
   description,
   openGraph: { title, description, type: 'website' },
   twitter: { card: 'summary_large_image' },
+  // iPhone: "Add to Home Screen" opens full-screen like an app (phone notifications need it)
+  appleWebApp: { capable: true, title, statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  themeColor: '#0A1F33',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

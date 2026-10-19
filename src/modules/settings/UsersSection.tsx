@@ -381,9 +381,6 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
           <Field label="Email">
             <input type="email" className={inputCls} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoComplete="off" />
           </Field>
-          <Field label="WhatsApp number (optional)" hint="For new-lead alerts on WhatsApp (Settings › Alerts & follow-ups). 10 digits for India, or + country code.">
-            <input type="tel" inputMode="tel" className={inputCls} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="98765 43210" autoComplete="off" maxLength={20} />
-          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Role" hint={roleDescription}>
               <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })} options={roleOptions} />

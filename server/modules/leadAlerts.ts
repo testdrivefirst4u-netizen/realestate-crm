@@ -1,80 +1,48 @@
 /**
- * Instant lead alerts (company setting `leadAlerts`, Settings › Lead alerts).
+ * Instant lead alerts (company setting `leadAlerts`, Settings › Alerts & follow-ups). Free only — no WhatsApp/SMS.
  *
  * When a lead is created (any source: CRM, website form, webhook, Google Sheet, Meta, WhatsApp) or reassigned:
- *   - e-mail the assigned RM (matched by name to an active CRM user) and any extra CRM users listed;
- *   - for a new lead only, send a WhatsApp template through Chat360 as an automatic first reply;
- *   - WhatsApp the assigned RM (their number from Settings › Users / My profile) with an approved template.
+ *   - phone notification (Web Push, ./push.ts) to the assigned RM and to the extra CRM users listed;
+ *   - e-mail to the same people (when the server has SMTP).
  * Runs after the response is sent (next/server `after`), so creating a lead never waits for or fails because of
- * an alert; problems go to the error log and the lead timeline. Bulk imports do not alert.
+ * an alert; problems go to the error log. Bulk imports do not alert.
  */
 import nodemailer from 'nodemailer';
 import { after } from 'next/server';
-import { listUsers, SYSTEM_CTX, type Ctx, type PublicUser } from '../core/auth';
+import { listUsers, type PublicUser } from '../core/auth';
 import { CFG } from '../core/config';
 import { fail } from '../core/errors';
 import { addTimeline, logError } from '../core/events';
-import { appUrl, getSecret, settingsAll } from '../core/settings';
+import { appUrl, settingsAll } from '../core/settings';
 import { currentTenant, runWithTenant } from '../core/tenant';
 import { safeJsonParse, truncate } from '../core/utils';
+import { idsByEmail, idsByName, sendPush } from './push';
 
 const L = CFG.LEAD;
 
 export interface LeadAlertConfig {
+  /** Phone notification to the assigned RM. */
+  pushRm: boolean;
   /** E-mail the assigned RM. */
   emailRm: boolean;
-  /** Extra recipients (comma-separated e-mails of active CRM users), e.g. the sales manager. */
+  /** Extra recipients (comma-separated e-mails of active CRM users), e.g. the sales manager: notified of every new lead. */
   emailAlso: string;
-  /** Send a WhatsApp template to every new lead that has a phone number. */
-  whatsappAuto: boolean;
-  /** Approved Chat360 / WhatsApp template name. */
-  whatsappTemplate: string;
-  whatsappLanguage: string;
-  /** Template parameters, comma-separated; tokens: {name} {first_name} {company} {unit} {rm} {source}. */
-  whatsappParams: string;
-  /** WhatsApp the assigned RM (new lead or reassigned) with an approved template. */
-  whatsappRm: boolean;
-  whatsappRmTemplate: string;
-  whatsappRmLanguage: string;
-  /** Tokens as above plus {phone} (the lead's number) and {link} (opens the lead in the CRM). */
-  whatsappRmParams: string;
 }
 
-export const LEAD_ALERT_DEFAULTS: LeadAlertConfig = {
-  emailRm: true,
-  emailAlso: '',
-  whatsappAuto: false,
-  whatsappTemplate: '',
-  whatsappLanguage: 'en',
-  whatsappParams: '{first_name}',
-  whatsappRm: false,
-  whatsappRmTemplate: '',
-  whatsappRmLanguage: 'en',
-  whatsappRmParams: '{rm}, {name}, {phone}, {source}',
-};
+export const LEAD_ALERT_DEFAULTS: LeadAlertConfig = { pushRm: true, emailRm: true, emailAlso: '' };
+
+const flag = (v: unknown, d: boolean) => (v === undefined || v === null || v === '' ? d : v === true || v === 'true');
 
 export function parseLeadAlerts(raw: unknown): LeadAlertConfig {
   const o = (typeof raw === 'string' ? safeJsonParse<Record<string, unknown>>(raw, {}) : raw) as Record<string, unknown> | null;
-  const s = (k: keyof LeadAlertConfig) => String(o?.[k] ?? LEAD_ALERT_DEFAULTS[k]).trim();
   return {
-    emailRm: o?.emailRm === undefined ? LEAD_ALERT_DEFAULTS.emailRm : o.emailRm === true || o.emailRm === 'true',
-    emailAlso: s('emailAlso'),
-    whatsappAuto: o?.whatsappAuto === true || o?.whatsappAuto === 'true',
-    whatsappTemplate: s('whatsappTemplate'),
-    whatsappLanguage: s('whatsappLanguage') || 'en',
-    whatsappParams: s('whatsappParams'),
-    whatsappRm: o?.whatsappRm === true || o?.whatsappRm === 'true',
-    whatsappRmTemplate: s('whatsappRmTemplate'),
-    whatsappRmLanguage: s('whatsappRmLanguage') || 'en',
-    whatsappRmParams: s('whatsappRmParams'),
+    pushRm: flag(o?.pushRm, LEAD_ALERT_DEFAULTS.pushRm),
+    emailRm: flag(o?.emailRm, LEAD_ALERT_DEFAULTS.emailRm),
+    emailAlso: String(o?.emailAlso ?? '').trim(),
   };
 }
 
 const EMAIL_LIST = (s: string) => s.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
-const TOKEN = /\{(name|first_name|company|unit|rm|source|phone|link)\}/g;
-const TEMPLATE_RE = /^([a-z0-9_]{1,100}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const LANG_RE = /^[a-zA-Z]{2,3}([_-][a-zA-Z]{2})?$/;
-const tooManyParams = (spec: string) => { const p = spec ? spec.split(',') : []; return p.length > 10 || p.some((x) => x.trim().length > 200); };
 
 /** Validate a settings patch; returns the normalised JSON string to store. */
 export async function validateLeadAlerts(raw: unknown): Promise<string> {
@@ -83,26 +51,7 @@ export async function validateLeadAlerts(raw: unknown): Promise<string> {
   for (const e of EMAIL_LIST(c.emailAlso)) {
     if (!active.has(e)) throw fail('VALIDATION', `Alert recipients must be active CRM users (${e} is not)`);
   }
-  // Chat360 sends templates by id; the name works too (looked up when sending).
-  if (c.whatsappAuto && !TEMPLATE_RE.test(c.whatsappTemplate)) {
-    throw fail('VALIDATION', 'Enter the approved WhatsApp template name (lower-case letters, digits and _) or its Chat360 template ID');
-  }
-  if (c.whatsappRm && !TEMPLATE_RE.test(c.whatsappRmTemplate)) {
-    throw fail('VALIDATION', 'Enter the approved WhatsApp template for the RM alert (name or Chat360 template ID)');
-  }
-  if (!LANG_RE.test(c.whatsappLanguage) || !LANG_RE.test(c.whatsappRmLanguage)) throw fail('VALIDATION', 'Template language must be a code such as en or en_US');
-  if (tooManyParams(c.whatsappParams) || tooManyParams(c.whatsappRmParams)) throw fail('VALIDATION', 'Use at most 10 template parameters of up to 200 characters');
   return JSON.stringify({ ...c, emailAlso: EMAIL_LIST(c.emailAlso).join(', ') });
-}
-
-/** Template parameters for a lead ({tokens} replaced; unknown text kept). */
-export function renderParams(spec: string, lead: Record<string, string>, company: string, link = ''): string[] {
-  const name = String(lead[L.NAME] || '').trim();
-  const values: Record<string, string> = {
-    name, first_name: name.split(/\s+/)[0] || name, company, unit: lead[L.UNIT_TYPE] || '', rm: lead[L.RM] || '', source: lead[L.SOURCE] || '',
-    phone: lead[L.PHONE] || '', link,
-  };
-  return (spec ? spec.split(',') : []).map((p) => truncate(p.trim().replace(TOKEN, (_, k) => values[k] || ''), 200));
 }
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -119,11 +68,21 @@ export function alertRecipients(cfg: LeadAlertConfig, rm: string, users: PublicU
   return [...out];
 }
 
-/** The assigned RM's WhatsApp number (active user matched by name, with a number set), or ''. */
-export function rmWhatsappNumber(rm: string, users: PublicUser[]): string {
-  if (!rm.trim()) return '';
-  const u = users.find((x) => x.status !== 'Disabled' && sameName(x.name, rm) && x.phone);
-  return u?.phone || '';
+/** Users to notify on their phones: the assigned RM (when on) and the extra recipients. */
+export function pushRecipients(cfg: LeadAlertConfig, rm: string, users: PublicUser[]): string[] {
+  return [...new Set([...(cfg.pushRm && rm.trim() ? idsByName([rm], users) : []), ...idsByEmail(EMAIL_LIST(cfg.emailAlso), users)])];
+}
+
+/** The phone notification for a lead. */
+export function alertPush(lead: Record<string, string>, kind: 'created' | 'assigned') {
+  const name = lead[L.NAME] || 'Lead';
+  const bits = [lead[L.SOURCE], lead[L.UNIT_TYPE], lead[L.RM] ? `RM ${lead[L.RM]}` : 'Unassigned'].filter(Boolean);
+  return {
+    title: kind === 'created' ? `New lead: ${name}` : `Lead assigned to you: ${name}`,
+    body: [bits.join(' · '), lead[L.PHONE] ? `Call ${lead[L.PHONE]}` : ''].filter(Boolean).join('\n'),
+    url: `/leads?lead=${encodeURIComponent(lead[L.ID] || '')}`,
+    tag: `lead-${lead[L.ID] || ''}`,
+  };
 }
 
 export function alertEmail(lead: Record<string, string>, kind: 'created' | 'assigned', link: string, company: string) {
@@ -148,65 +107,31 @@ export function alertEmail(lead: Record<string, string>, kind: 'created' | 'assi
 }
 
 /** Send the alerts for one lead now (inside the lead's company). Never throws. */
-export async function sendLeadAlerts(lead: Record<string, string>, kind: 'created' | 'assigned'): Promise<{ emailed: number; whatsapp: boolean; whatsappRm: boolean }> {
-  const result = { emailed: 0, whatsapp: false, whatsappRm: false };
+export async function sendLeadAlerts(lead: Record<string, string>, kind: 'created' | 'assigned'): Promise<{ emailed: number; pushed: number }> {
+  const result = { emailed: 0, pushed: 0 };
   const id = lead[L.ID];
   try {
     const cfg = parseLeadAlerts((await settingsAll()).leadAlerts);
-    const tenant = currentTenant();
-    const company = tenant?.name || '';
-    const link = `${appUrl()}/leads?lead=${encodeURIComponent(id)}`;
-    let allUsers: PublicUser[] | null = null;
-    const usersOnce = async () => (allUsers ??= await listUsers());
+    const users = await listUsers();
+    const rm = String(lead[L.RM] || '');
 
-    // 1. e-mail
+    // 1. phone notifications (free)
+    const ids = pushRecipients(cfg, rm, users);
+    if (ids.length) result.pushed = (await sendPush(ids, alertPush(lead, kind))).sent;
+
+    // 2. e-mail
     const smtp = process.env.SMTP_URL?.trim();
     const from = process.env.MAIL_FROM?.trim();
     if (smtp && from && (cfg.emailRm || cfg.emailAlso)) {
-      const to = alertRecipients(cfg, String(lead[L.RM] || ''), await usersOnce());
+      const to = alertRecipients(cfg, rm, users);
       if (to.length) {
         try {
-          const { subject, text } = alertEmail(lead, kind, link, company);
+          const { subject, text } = alertEmail(lead, kind, `${appUrl()}/leads?lead=${encodeURIComponent(id)}`, currentTenant()?.name || '');
           await nodemailer.createTransport(smtp).sendMail({ from, to: to.join(', '), subject, text });
           result.emailed = to.length;
           await addTimeline(id, 'alert_sent', 'Lead alert e-mailed', to.join(', '), 'System');
         } catch (e: any) {
           await logError('leadAlerts.email', 'UPSTREAM', e?.message, e?.stack, '', { leadId: id });
-        }
-      }
-    }
-
-    // 2. automatic WhatsApp first reply (new leads only; plan feature chat360 + a configured Chat360 key)
-    const planAllows = !tenant || tenant.features.chat360;
-    if (kind === 'created' && cfg.whatsappAuto && cfg.whatsappTemplate && planAllows && lead[L.PHONE] && (await getSecret('CHAT360_API_KEY'))) {
-      try {
-        const { send } = await import('./chat360'); // lazy: chat360 imports leads, which imports this module
-        const ctx: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Auto-reply' }, action: 'leadAlerts' };
-        await send({ phone: lead[L.PHONE], leadId: id, templateName: cfg.whatsappTemplate, language: cfg.whatsappLanguage, params: renderParams(cfg.whatsappParams, lead, company) }, ctx);
-        result.whatsapp = true;
-      } catch (e: any) {
-        await logError('leadAlerts.whatsapp', 'UPSTREAM', e?.message, e?.stack, '', { leadId: id });
-        await addTimeline(id, 'alert_failed', 'Automatic WhatsApp reply failed', truncate(e?.message || String(e), 300), 'System');
-      }
-    }
-
-    // 3. WhatsApp the assigned RM (new lead or reassigned)
-    const rm = String(lead[L.RM] || '');
-    if (cfg.whatsappRm && cfg.whatsappRmTemplate && planAllows && rm.trim() && (await getSecret('CHAT360_API_KEY'))) {
-      const rmPhone = rmWhatsappNumber(rm, await usersOnce());
-      if (!rmPhone) {
-        await addTimeline(id, 'alert_failed', 'RM WhatsApp alert not sent', `${rm} has no WhatsApp number — add it under Settings › Users`, 'System');
-      } else {
-        try {
-          const { send } = await import('./chat360');
-          const ctx: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'RM alert' }, action: 'leadAlerts' };
-          // no leadId: the message goes to the RM, not the customer, so it is not filed on the lead's chat
-          await send({ phone: rmPhone, templateName: cfg.whatsappRmTemplate, language: cfg.whatsappRmLanguage, params: renderParams(cfg.whatsappRmParams, lead, company, link) }, ctx);
-          result.whatsappRm = true;
-          await addTimeline(id, 'alert_sent', 'RM alerted on WhatsApp', rm, 'System');
-        } catch (e: any) {
-          await logError('leadAlerts.whatsappRm', 'UPSTREAM', e?.message, e?.stack, '', { leadId: id });
-          await addTimeline(id, 'alert_failed', 'RM WhatsApp alert failed', truncate(e?.message || String(e), 300), 'System');
         }
       }
     }

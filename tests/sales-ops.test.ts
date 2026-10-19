@@ -1,18 +1,26 @@
 /**
  * Sales automation: auto-reassign of untouched new leads (working hours, once per RM, managers told), site-visit
- * WhatsApp reminders (day before / 2 hours before, once each), the evening WhatsApp summary, the RM leaderboard,
- * campaign spend and the backup restore test.
+ * reminders to the RM's phone (day before / 2 hours before, once each), the evening summary notification, the RM
+ * leaderboard, campaign spend and the backup restore test. Everything is free — no WhatsApp is sent.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/server', () => ({ after: () => {} }));
 const chatSend = vi.fn(async () => ({ message: { id: 'wa1' } }));
 vi.mock('../server/modules/chat360', async (orig) => ({ ...(await orig<typeof import('../server/modules/chat360')>()), send: chatSend }));
+const pushSent: Array<{ endpoint: string; body: any }> = [];
+vi.mock('web-push', () => ({
+  default: {
+    setVapidDetails: () => {},
+    sendNotification: async (sub: { endpoint: string }, body: string) => { pushSent.push({ endpoint: sub.endpoint, body: JSON.parse(body) }); return { statusCode: 201 }; },
+  },
+}));
 
 import { startTestDb } from './helpers/mongo';
 import { CFG } from '../server/core/config';
 import { col } from '../server/core/db';
-import { setSecret, updateSettings } from '../server/core/settings';
+import { updateSettings } from '../server/core/settings';
+import { pushSubscribe } from '../server/modules/push';
 import { updateProfile, type Ctx } from '../server/core/auth';
 import { makeZoned } from '../server/core/utils';
 import { addLead, appendRemark, getLead, timelineForLead } from '../server/modules/leads';
@@ -36,7 +44,11 @@ beforeEach(async () => {
   priya = await t.ctx('RM', 'Priya Sharma');
   ravi = await t.ctx('RM', 'Ravi Kumar');
   chatSend.mockClear();
+  pushSent.length = 0;
+  process.env.VAPID_PUBLIC_KEY = 'test-public-key';
+  process.env.VAPID_PRIVATE_KEY = 'test-private-key';
 });
+const device = (n: number) => ({ subscription: { endpoint: `https://push.example/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
 
 const leads = () => col<any>(CFG.COLL.LEADS);
 const noon = makeZoned(2026, 10, 19, 12, 0);
@@ -88,49 +100,52 @@ describe('auto-reassign', () => {
   it('settings: at least 5 minutes, valid hours and templates', async () => {
     await expect(updateSettings({ salesOps: { reassignAfterMin: 2 } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
     await expect(updateSettings({ salesOps: { workStartHour: 18, workEndHour: 9 } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
-    await expect(updateSettings({ salesOps: { visitReminders: true, visitTemplate: '' } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
-    await expect(updateSettings({ salesOps: { summaryWhatsapp: true, summaryTemplate: 'daily_numbers', summaryTo: 'nobody@x.in' } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
-    const s = await updateSettings({ salesOps: { reassignAfterMin: 20, summaryWhatsapp: true, summaryTemplate: 'daily_numbers', summaryTo: admin.user!.email } }, admin);
-    expect(s.salesOps).toMatchObject({ reassignAfterMin: 20, summaryWhatsapp: true, summaryTo: admin.user!.email });
+    await expect(updateSettings({ salesOps: { summaryPush: true, summaryTo: 'nobody@x.in' } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(updateSettings({ salesOps: { summaryPush: true, summaryTo: '' } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    const s = await updateSettings({ salesOps: { reassignAfterMin: 20, summaryPush: true, summaryTo: admin.user!.email } }, admin);
+    expect(s.salesOps).toMatchObject({ reassignAfterMin: 20, visitReminders: true, summaryPush: true, summaryTo: admin.user!.email });
   });
 });
 
-describe('site-visit reminders', () => {
-  it('sends the day-before reminder from 10 AM and the 2-hour one, each once', async () => {
-    await setSecret('CHAT360_API_KEY', 'test-key', admin);
+describe('site-visit reminders (to the RM, free)', () => {
+  it('notifies the RM the day before from 10 AM and 2 hours before, each once — the customer gets no WhatsApp', async () => {
+    await pushSubscribe(device(1), priya);
     const visitAt = makeZoned(2026, 10, 20, 11, 30);
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876500009', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: visitAt.toISOString() }, admin);
-    const c = cfg({ reassignAfterMin: 0, visitReminders: true, visitTemplate: 'visit_reminder' });
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: visitAt.toISOString() }, admin);
+    const c = cfg({ reassignAfterMin: 0, visitReminders: true });
 
     expect(await SO.sendVisitReminders(c, makeZoned(2026, 10, 19, 8, 0))).toEqual({ sent: 0, failed: 0 }); // before 10 AM
     expect(await SO.sendVisitReminders(c, makeZoned(2026, 10, 19, 10, 5))).toEqual({ sent: 1, failed: 0 });
     expect(await SO.sendVisitReminders(c, makeZoned(2026, 10, 19, 15, 0))).toEqual({ sent: 0, failed: 0 });
-    expect(chatSend).toHaveBeenLastCalledWith(expect.objectContaining({ phone: '9876500009', leadId: lead[L.ID], templateName: 'visit_reminder', params: ['Meera', '20 Oct 2026', '11:30 AM'] }), expect.anything());
+    expect(pushSent[0].body).toMatchObject({ title: 'Tomorrow: site visit with Meera Kapoor', url: `/leads?lead=${lead[L.ID]}` });
+    expect(pushSent[0].body.body).toContain('20 Oct 2026 at 11:30 AM');
     expect(await SO.sendVisitReminders(c, makeZoned(2026, 10, 20, 9, 45))).toEqual({ sent: 1, failed: 0 });
+    expect(pushSent[1].body.title).toBe('Site visit at 11:30 AM: Meera Kapoor');
     expect(await SO.sendVisitReminders(c, makeZoned(2026, 10, 20, 10, 0))).toEqual({ sent: 0, failed: 0 });
-    expect(chatSend).toHaveBeenCalledTimes(2);
+    expect(pushSent).toHaveLength(2);
+    expect(chatSend).not.toHaveBeenCalled();
   });
 
-  it('sends nothing without Chat360 or when off', async () => {
-    await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876500009', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: new Date(noon.getTime() + 60 * 60000).toISOString() }, admin);
-    expect((await SO.sendVisitReminders(cfg({ visitReminders: true, visitTemplate: 'visit_reminder' }), noon)).sent).toBe(0);
-    await setSecret('CHAT360_API_KEY', 'test-key', admin);
-    expect((await SO.sendVisitReminders(cfg(), noon)).sent).toBe(0);
+  it('sends nothing when off or when the lead has no RM', async () => {
+    await pushSubscribe(device(1), priya);
+    await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: new Date(noon.getTime() + 60 * 60000).toISOString() }, admin);
+    await addLead({ [L.NAME]: 'Nobody', [L.PHONE]: '9876500008', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: new Date(noon.getTime() + 60 * 60000).toISOString() }, admin);
+    expect((await SO.sendVisitReminders(cfg({ visitReminders: false }), noon)).sent).toBe(0);
+    expect((await SO.sendVisitReminders(cfg(), noon)).sent).toBe(1);
   });
 });
 
 describe('evening summary', () => {
-  it('sends the day numbers once, after the chosen hour, to users with a WhatsApp number', async () => {
-    await setSecret('CHAT360_API_KEY', 'test-key', admin);
-    await updateProfile(admin, { phone: '9876511111' });
+  it('sends the day numbers once, after the chosen hour, as a phone notification', async () => {
+    await pushSubscribe(device(9), admin);
     const today = new Date();
     await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876500009', [L.ENQUIRY_DATE]: today.toISOString() }, admin);
-    const c = cfg({ summaryWhatsapp: true, summaryTemplate: 'daily_numbers', summaryParams: '{date}, {new}, {overdue}', summaryHour: 0, summaryTo: admin.user!.email });
+    const c = cfg({ summaryPush: true, summaryHour: 0, summaryTo: admin.user!.email });
     expect(await SO.sendEveningSummary(c, today)).toEqual({ sent: 1 });
-    const [arg] = chatSend.mock.calls[0] as unknown as [any];
-    expect(arg).toMatchObject({ phone: '919876511111', templateName: 'daily_numbers' });
-    expect(arg.params[1]).toBe('1');
+    expect(pushSent[0].body.title).toMatch(/^Today in the CRM · /);
+    expect(pushSent[0].body.body).toMatch(/^1 new leads · /);
     expect(await SO.sendEveningSummary(c, today)).toMatchObject({ sent: 0, skipped: 'already sent' });
+    expect(chatSend).not.toHaveBeenCalled();
   });
 });
 

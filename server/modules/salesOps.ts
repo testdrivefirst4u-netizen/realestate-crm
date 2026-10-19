@@ -4,8 +4,9 @@
  * runLeadWatch(now) — every few minutes (cron /api/cron/watch):
  *   - auto-reassign: a fresh New lead nobody has acted on (no follow-up, call, WhatsApp or stage change) within
  *     `reassignAfterMin` working minutes moves to the next RM, who is alerted as usual; managers are told;
- *   - site-visit reminders: WhatsApp template to the customer the day before (from 10 AM) and 2 hours before;
- *   - evening summary: once a day at `summaryHour`, a WhatsApp template with the day's numbers to chosen users.
+ *   - site-visit reminders: a phone notification to the assigned RM the day before (from 10 AM) and 2 hours before;
+ *   - evening summary: once a day at `summaryHour`, a phone notification with the day's numbers to chosen users.
+ * Everything is free (Web Push and e-mail) — no WhatsApp or SMS.
  * leaderboard({ days }) — follow-ups, calls, site visits and bookings per RM.
  * campaignSpend — ad spend per campaign and month (entered by hand) for cost per lead / visit / booking in MIS.
  */
@@ -16,11 +17,11 @@ import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { addEvent, addTimeline, logError } from '../core/events';
 import type { LeadDoc } from '../core/leadShape';
-import { getSecret, settingSet, settingsAll } from '../core/settings';
+import { settingSet, settingsAll } from '../core/settings';
 import { currentTenant } from '../core/tenant';
-import { dateKey, fmtDate, fmtTime, localHour, makeZoned, safeJsonParse, truncate } from '../core/utils';
+import { dateKey, fmtDate, fmtTime, localHour, makeZoned, safeJsonParse } from '../core/utils';
 import { notifyAdmins } from './adminAlerts';
-import { renderParams } from './leadAlerts';
+import { idsByEmail, idsByName, sendPush } from './push';
 import { updateLead } from './leads';
 
 const S = CFG.STAGES;
@@ -37,18 +38,10 @@ export interface SalesOps {
   /** Working hours (local): the clock only runs between these hours. */
   workStartHour: number;
   workEndHour: number;
-  /** WhatsApp reminder to the customer before a scheduled site visit. */
+  /** Phone notification to the assigned RM before a scheduled site visit. */
   visitReminders: boolean;
-  visitTemplate: string;
-  visitLanguage: string;
-  /** Tokens as in lead alerts plus {visit_date} {visit_time}. */
-  visitParams: string;
-  /** Evening WhatsApp summary to chosen users (their WhatsApp number from the user profile). */
-  summaryWhatsapp: boolean;
-  summaryTemplate: string;
-  summaryLanguage: string;
-  /** Tokens: {date} {new} {followups} {calls} {visits_today} {visits_tomorrow} {overdue} {booked}. */
-  summaryParams: string;
+  /** Evening phone notification with the day's numbers to chosen users. */
+  summaryPush: boolean;
   summaryHour: number;
   /** E-mails of the users who get the summary. */
   summaryTo: string;
@@ -56,9 +49,7 @@ export interface SalesOps {
 
 export const SALES_OPS_DEFAULTS: SalesOps = {
   reassignAfterMin: 0, reassignMax: 1, workStartHour: 9, workEndHour: 20,
-  visitReminders: false, visitTemplate: '', visitLanguage: 'en', visitParams: '{first_name}, {visit_date}, {visit_time}',
-  summaryWhatsapp: false, summaryTemplate: '', summaryLanguage: 'en',
-  summaryParams: '{date}, {new}, {followups}, {calls}, {visits_today}, {overdue}', summaryHour: 19, summaryTo: '',
+  visitReminders: true, summaryPush: false, summaryHour: 19, summaryTo: '',
 };
 
 const int = (v: unknown, d: number, lo: number, hi: number) => {
@@ -77,37 +68,22 @@ export function parseSalesOps(raw: unknown): SalesOps {
     reassignMax: int(o.reassignMax, D.reassignMax, 1, 5),
     workStartHour: int(o.workStartHour, D.workStartHour, 0, 23),
     workEndHour: int(o.workEndHour, D.workEndHour, 1, 24),
-    visitReminders: bool(o.visitReminders),
-    visitTemplate: s('visitTemplate'),
-    visitLanguage: s('visitLanguage') || 'en',
-    visitParams: s('visitParams'),
-    summaryWhatsapp: bool(o.summaryWhatsapp),
-    summaryTemplate: s('summaryTemplate'),
-    summaryLanguage: s('summaryLanguage') || 'en',
-    summaryParams: s('summaryParams'),
+    visitReminders: o.visitReminders === undefined ? D.visitReminders : bool(o.visitReminders),
+    summaryPush: bool(o.summaryPush),
     summaryHour: int(o.summaryHour, D.summaryHour, 0, 23),
     summaryTo: s('summaryTo'),
   };
 }
 
-const TEMPLATE_RE = /^([a-z0-9_]{1,100}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const LANG_RE = /^[a-zA-Z]{2,3}([_-][a-zA-Z]{2})?$/;
 
 export async function validateSalesOps(raw: unknown): Promise<string> {
   const c = parseSalesOps(raw);
   if (c.reassignAfterMin && c.reassignAfterMin < 5) throw fail('VALIDATION', 'Give the RM at least 5 minutes before a lead is moved on');
   if (c.workEndHour <= c.workStartHour) throw fail('VALIDATION', 'Working hours must end after they start');
-  if (c.visitReminders && !TEMPLATE_RE.test(c.visitTemplate)) throw fail('VALIDATION', 'Enter the approved WhatsApp template for site-visit reminders');
-  if (c.summaryWhatsapp && !TEMPLATE_RE.test(c.summaryTemplate)) throw fail('VALIDATION', 'Enter the approved WhatsApp template for the evening summary');
-  if (!LANG_RE.test(c.visitLanguage) || !LANG_RE.test(c.summaryLanguage)) throw fail('VALIDATION', 'Template language must be a code such as en or en_US');
-  for (const p of [c.visitParams, c.summaryParams]) {
-    const parts = p ? p.split(',') : [];
-    if (parts.length > 10 || parts.some((x) => x.trim().length > 200)) throw fail('VALIDATION', 'Use at most 10 template parameters of up to 200 characters');
-  }
   const active = new Map((await listUsers()).filter((u) => u.status !== 'Disabled').map((u) => [u.email.toLowerCase(), u]));
   const to = EMAILS(c.summaryTo);
   for (const e of to) if (!active.has(e)) throw fail('VALIDATION', `Summary recipients must be active CRM users (${e} is not)`);
-  if (c.summaryWhatsapp && !to.length) throw fail('VALIDATION', 'Choose who gets the evening summary');
+  if (c.summaryPush && !to.length) throw fail('VALIDATION', 'Choose who gets the evening summary');
   return JSON.stringify({ ...c, summaryTo: to.join(', ') });
 }
 
@@ -124,30 +100,7 @@ async function claimOnce(key: string): Promise<boolean> {
   }
 }
 
-async function whatsappReady(): Promise<boolean> {
-  const tenant = currentTenant();
-  if (tenant && !tenant.features.chat360) return false;
-  return !!(await getSecret('CHAT360_API_KEY'));
-}
-
-async function sendTemplate(d: { phone: string; leadId?: string; template: string; language: string; params: string[]; sender: string }) {
-  const { send } = await import('./chat360'); // lazy: chat360 imports leads
-  const ctx: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: d.sender }, action: 'salesOps' };
-  await send({ phone: d.phone, ...(d.leadId ? { leadId: d.leadId } : {}), templateName: d.template, language: d.language, params: d.params }, ctx);
-}
-
-/** Template parameters: lead tokens plus extra values (e.g. {visit_date}); each part rendered on its own. */
-export function renderWith(spec: string, lead: Record<string, string>, company: string, extra: Record<string, string>): string[] {
-  return (spec ? spec.split(',') : []).map((part) => {
-    const withExtra = part.replace(/\{([a-z_]+)\}/g, (m, k) => (k in extra ? extra[k] : m));
-    return renderParams(withExtra.replace(/,/g, ' '), lead, company)[0] ?? '';
-  });
-}
-
 const leadsCol = () => col<LeadDoc>(CFG.COLL.LEADS);
-const uiOf = (l: LeadDoc): Record<string, string> => ({
-  [L.ID]: l._id, [L.NAME]: l.name || '', [L.PHONE]: l.phone || '', [L.RM]: l.assignedRm || '', [L.SOURCE]: l.source || '', [L.UNIT_TYPE]: l.unitType || '',
-});
 
 /* ----------------------------- auto-reassign ----------------------------- */
 
@@ -163,7 +116,7 @@ export function reassignDue(assignedAt: Date, cfg: Pick<SalesOps, 'reassignAfter
 async function touchedSince(l: LeadDoc, since: Date): Promise<boolean> {
   if ((l.followups || []).length || l.lastFollowupAt) return true;
   if ((await (await col(CFG.COLL.CALLS)).countDocuments({ leadId: l._id }, { limit: 1 })) > 0) return true;
-  const robots = ['System', 'Auto-reply', 'RM alert', 'Auto-reassign', 'Visit reminder', ''];
+  const robots = ['System', 'Auto-reply', 'RM alert', 'Auto-reassign', ''];
   const tl = await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: l._id, type: 'chat_sent', actor: { $nin: robots }, timestamp: { $gte: since } }, { limit: 1 });
   return tl > 0;
 }
@@ -226,28 +179,30 @@ export async function reassignStale(cfg: SalesOps, now = new Date()): Promise<{ 
 
 export async function sendVisitReminders(cfg: SalesOps, now = new Date()): Promise<{ sent: number; failed: number }> {
   const out = { sent: 0, failed: 0 };
-  if (!cfg.visitReminders || !cfg.visitTemplate || !(await whatsappReady())) return out;
-  const company = currentTenant()?.name || '';
+  if (!cfg.visitReminders) return out;
   const tomorrow = dateKey(new Date(now.getTime() + 24 * HOUR));
   const visits = await (await leadsCol())
-    .find({ siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, siteVisitDate: { $gt: now, $lte: new Date(now.getTime() + 48 * HOUR) }, stage: { $nin: [S.TRASH, S.DELETED, S.DND, S.JUNK] }, phone: { $nin: ['', null] } } as any)
+    .find({ siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, siteVisitDate: { $gt: now, $lte: new Date(now.getTime() + 48 * HOUR) }, stage: { $nin: [S.TRASH, S.DELETED, S.DND, S.JUNK] }, assignedRm: { $nin: ['', null] } } as any)
     .limit(300)
     .toArray();
+  if (!visits.length) return out;
+  const users = await listUsers();
   for (const l of visits) {
     const at = new Date(l.siteVisitDate!);
     const left = at.getTime() - now.getTime();
-    // the 2-hour reminder; the day-before one from 10 AM the previous day (skipped when the visit is close anyway)
+    // 2 hours before; and the day before from 10 AM (skipped when the visit is close anyway)
     const kind = left <= 2 * HOUR ? 'h2' : dateKey(at) === tomorrow && localHour(now) >= 10 && left > 4 * HOUR ? 'd1' : '';
-    if (!kind || !(await claimOnce(`visit:${l._id}:${at.toISOString()}:${kind}`))) continue;
-    try {
-      const params = renderWith(cfg.visitParams, uiOf(l), company, { visit_date: fmtDate(at), visit_time: fmtTime(at) });
-      await sendTemplate({ phone: l.phone, leadId: l._id, template: cfg.visitTemplate, language: cfg.visitLanguage, params, sender: 'Visit reminder' });
-      await addTimeline(l._id, 'alert_sent', kind === 'h2' ? 'Site-visit reminder sent (2 hours before)' : 'Site-visit reminder sent (day before)', `${fmtDate(at)} ${fmtTime(at)}`, 'Visit reminder');
-      out.sent++;
-    } catch (e: any) {
-      out.failed++;
-      await addTimeline(l._id, 'alert_failed', 'Site-visit reminder failed', truncate(e?.message || String(e), 300), 'Visit reminder');
-    }
+    if (!kind) continue;
+    const ids = idsByName([l.assignedRm], users);
+    if (!ids.length || !(await claimOnce(`visit:${l._id}:${at.toISOString()}:${kind}`))) continue;
+    const r = await sendPush(ids, {
+      title: kind === 'h2' ? `Site visit at ${fmtTime(at)}: ${l.name}` : `Tomorrow: site visit with ${l.name}`,
+      body: [kind === 'h2' ? 'In about 2 hours' : `${fmtDate(at)} at ${fmtTime(at)}`, l.unitType, l.phone ? `Call ${l.phone}` : ''].filter(Boolean).join(' · '),
+      url: `/leads?lead=${encodeURIComponent(l._id)}`,
+      tag: `visit-${l._id}`,
+    });
+    if (r.sent) out.sent++;
+    else out.failed++;
   }
   return out;
 }
@@ -277,27 +232,18 @@ export async function dayNumbers(now = new Date()): Promise<Record<string, strin
 }
 
 export async function sendEveningSummary(cfg: SalesOps, now = new Date()): Promise<{ sent: number; skipped?: string }> {
-  if (!cfg.summaryWhatsapp || !cfg.summaryTemplate) return { sent: 0, skipped: 'off' };
+  if (!cfg.summaryPush) return { sent: 0, skipped: 'off' };
   if (localHour(now) < cfg.summaryHour) return { sent: 0, skipped: 'not yet' };
-  if (!(await whatsappReady())) return { sent: 0, skipped: 'WhatsApp not set up' };
   if (!(await claimOnce('summary:' + dateKey(now)))) return { sent: 0, skipped: 'already sent' };
-  const nums = await dayNumbers(now);
-  const params = renderWith(cfg.summaryParams, {}, currentTenant()?.name || '', nums);
-  const wanted = new Set(EMAILS(cfg.summaryTo));
-  let sent = 0;
-  for (const u of (await listUsers()).filter((x) => x.status !== 'Disabled' && wanted.has(x.email.toLowerCase()))) {
-    if (!u.phone) {
-      await logError('salesOps.summary', 'VALIDATION', `${u.name} has no WhatsApp number — add it under Settings › Team`);
-      continue;
-    }
-    try {
-      await sendTemplate({ phone: u.phone, template: cfg.summaryTemplate, language: cfg.summaryLanguage, params, sender: 'Daily summary' });
-      sent++;
-    } catch (e: any) {
-      await logError('salesOps.summary', 'SERVER', e?.message, e?.stack, '', { to: u.email });
-    }
-  }
-  return { sent };
+  const n = await dayNumbers(now);
+  const ids = idsByEmail(EMAILS(cfg.summaryTo), await listUsers());
+  const r = await sendPush(ids, {
+    title: `Today in the CRM · ${n.date}`,
+    body: `${n.new} new leads · ${n.followups} follow-ups · ${n.calls} calls · ${n.visits_today} site visits · ${n.booked} booked\n${n.overdue} follow-ups overdue · ${n.visits_tomorrow} visits tomorrow`,
+    url: '/dashboard',
+    tag: 'daily-summary',
+  });
+  return { sent: r.sent };
 }
 
 /** One watch run (inside a company). */

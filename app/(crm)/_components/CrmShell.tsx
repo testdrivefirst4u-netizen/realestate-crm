@@ -12,6 +12,7 @@ import React, { Suspense, createContext, lazy, useCallback, useContext, useEffec
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/src/components/Sidebar';
 import { MobileTabBar } from '@/src/components/MobileTabBar';
+import { registerServiceWorker } from '@/src/core/pushClient';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { Toasts } from '@/src/components/Toasts';
@@ -77,6 +78,10 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentView = viewFromPath(pathname);
+  // phone notifications: the service worker shows them and opens the lead when one is tapped
+  useEffect(() => {
+    void registerServiceWorker();
+  }, []);
 
   // Screens use window, localStorage and the clock while rendering: they render after hydration
   // (the server sends the frame; the engine loads the data in the browser anyway).

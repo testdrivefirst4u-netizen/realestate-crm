@@ -225,6 +225,14 @@ export const api = {
     verify: () => request<{ id: string; ok: boolean; note: string } | null>('verifyLeadBackup', {}),
   },
 
+  /** Phone notifications (Web Push) for the signed-in user's devices. */
+  push: {
+    status: () => request<{ configured: boolean; publicKey: string; devices: Array<{ id: string; device: string; createdAt: string }> }>('pushStatus', {}),
+    subscribe: (subscription: unknown) => request<{ configured: boolean; publicKey: string; devices: Array<{ id: string; device: string; createdAt: string }> }>('pushSubscribe', { subscription }),
+    unsubscribe: (by: { endpoint?: string; id?: string }) => request<{ configured: boolean; publicKey: string; devices: Array<{ id: string; device: string; createdAt: string }> }>('pushUnsubscribe', by),
+    test: () => request<{ sent: number }>('pushTest', {}),
+  },
+
   team: {
     leaderboard: (days = 7) => request<{ from: string; to: string; rows: LeaderRow[] }>('leaderboard', { days }),
     spend: () => request<{ rows: SpendRow[] }>('getCampaignSpend', {}),
