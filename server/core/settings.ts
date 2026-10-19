@@ -13,7 +13,7 @@ import { CFG } from './config';
 import { currentTenant, tenantKey } from './tenant';
 import { bumpVersion, col } from './db';
 import { fail } from './errors';
-import { auditLog, can, createUser, Ctx, hasUsers, login, findUserByEmail } from './auth';
+import { auditLog, can, createUser, Ctx, hasUsers, login, findUserByEmail, listUsers } from './auth';
 import { bool, maskSecret, randomToken, safeJsonParse } from './utils';
 
 type SecretKey = (typeof CFG.SECRETS)[number];
@@ -143,6 +143,8 @@ export async function settingsPublic() {
     aiPlatformKey: !!process.env.GEMINI_API_KEY?.trim(),
     maxFollowups: Number(s.maxFollowups || CFG.MAX_FOLLOWUPS), version: CFG.VERSION,
     rmLeadVisibility: ['own', 'own_unassigned', 'all'].includes(s.rmLeadVisibility) ? s.rmLeadVisibility : 'own',
+    /** New leads that arrive without an RM are given to this user (name); '' = leave them unassigned. */
+    defaultRm: s.defaultRm || '',
   };
 }
 
@@ -188,7 +190,7 @@ export async function getSettings(ctx: Ctx) {
 
 const EDITABLE = ['appName', 'timeZone', 'aiModel', 'aiFastModel', 'aiTranscribeModel', 'chat360BaseUrl', 'chat360SendPath', 'chat360TemplatePath',
   'chat360BusinessNumber', 'chat360LoginEmail', 'chat360AutoCreateLeads', 'chat360DefaultRM', 'chat360DefaultSource', 'telephonyFieldMap',
-  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking', 'salesOps'];
+  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking', 'salesOps', 'defaultRm'];
 
 /** Hosts the Chat360 base URL may point at — stops an admin from redirecting the stored API key. */
 const CHAT360_HOSTS = [/(^|\.)chat360\.io$/i];
@@ -236,6 +238,12 @@ export async function updateSettings(patch: any, ctx: Ctx) {
         const u = await findUserByEmail(e);
         if (!u || u.status === 'Disabled') throw fail('VALIDATION', `Digest recipients must be active CRM users (${e} is not)`);
       }
+    }
+    if (k === 'defaultRm' && v) {
+      v = v.trim();
+      const u = (await listUsers()).find((x) => x.status !== 'Disabled' && x.name.trim().toLowerCase() === v.toLowerCase());
+      if (!u) throw fail('VALIDATION', `The default RM must be an active CRM user (${v} is not)`);
+      v = u.name;
     }
     if (k === 'rmLeadVisibility' && !['own', 'own_unassigned', 'all'].includes(v)) throw fail('VALIDATION', 'Lead visibility must be own, own_unassigned or all');
     if (k === 'visitBooking') v = (await import('../modules/visits')).validateVisitBooking(patch[k]);

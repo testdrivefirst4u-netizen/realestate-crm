@@ -29,6 +29,8 @@ export interface AddLeadModalProps {
   onAddLead: (lead: Partial<Lead>) => Promise<Lead | null>;
   /** Gemini key configured on the server — hides the AI reframe button when false. Defaults to true. */
   aiConfigured?: boolean;
+  /** The company's default RM (Settings › Alerts & follow-ups), pre-selected in Assigned RM. */
+  defaultRm?: string;
 }
 
 export const AddLeadModal: React.FC<AddLeadModalProps> = (props) => {
@@ -69,7 +71,7 @@ const GEO_KEY: Record<string, 'country' | 'state' | 'city'> = { [F.COUNTRY]: 'co
 const isVisitScheduled =(status: string) => status === SITE_VISIT.SCHEDULED;
 const isVisitDone = (status: string) => SITE_VISIT_DONE.includes(status);
 
-const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true }) => {
+const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true, defaultRm }) => {
   const rmOptions = config.options[F.RM] || [];
   const [form, setForm] = useState<FormState>(() => ({
     name: '',
@@ -87,7 +89,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
     state: '',
     city: '',
     brochure: (config.options[F.BROCHURE] || []).includes('No') ? 'No' : '',
-    rm: currentUser?.name && rmOptions.includes(currentUser.name) ? currentUser.name : '',
+    rm: defaultRm && rmOptions.includes(defaultRm) ? defaultRm : currentUser?.name && rmOptions.includes(currentUser.name) ? currentUser.name : '',
     notes: '',
     nextFollowup: '',
     siteVisitDate: '',

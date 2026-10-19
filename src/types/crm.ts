@@ -140,6 +140,8 @@ export interface CRMSettings {
 
 /** Server-side settings that are safe to show in the UI. Secrets are never returned. */
 export interface ServerSettings {
+  /** New leads without an RM go to this user (name); '' = unassigned. */
+  defaultRm?: string;
   appName?: string;
   timeZone?: string;
   aiModel?: string;

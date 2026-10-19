@@ -135,3 +135,18 @@ describe('sending', () => {
     await expect(sendLeadAlerts(lead, 'created')).resolves.toEqual({ emailed: 0, pushed: 0 });
   });
 });
+
+describe('default RM', () => {
+  it('new leads without an RM go to the default RM; an RM given keeps theirs; only active users are accepted', async () => {
+    await expect(updateSettings({ defaultRm: 'Somebody Else' }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    const s = await updateSettings({ defaultRm: ' priya sharma ' }, admin);
+    expect((s as any).defaultRm).toBe('Priya Sharma');
+    const { lead: a } = await addLead({ [L.NAME]: 'No RM', [L.PHONE]: '9876500101' }, admin);
+    expect(a[L.RM]).toBe('Priya Sharma');
+    const { lead: b } = await addLead({ [L.NAME]: 'Has RM', [L.PHONE]: '9876500102', [L.RM]: 'Asha Admin' }, admin);
+    expect(b[L.RM]).toBe('Asha Admin');
+    await updateSettings({ defaultRm: '' }, admin);
+    const { lead: c } = await addLead({ [L.NAME]: 'Unassigned', [L.PHONE]: '9876500103' }, admin);
+    expect(c[L.RM] || '').toBe('');
+  });
+});

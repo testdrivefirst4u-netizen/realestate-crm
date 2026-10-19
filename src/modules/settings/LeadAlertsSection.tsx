@@ -4,7 +4,7 @@
  * follow-up sequence (server: modules/leadAlerts.ts, modules/salesOps.ts, modules/push.ts).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { BellRing, CalendarCheck, CalendarClock, Moon, Repeat, Save } from 'lucide-react';
+import { BellRing, CalendarCheck, CalendarClock, Moon, Repeat, Save, UserCheck } from 'lucide-react';
 import { UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -79,6 +79,10 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
   const [daysText, setDaysText] = useState(SEQ_DEFAULTS.days.join(', '));
   const [saving, setSaving] = useState(false);
   const [ops, setOps] = useState<SalesOps>(OPS_DEFAULTS);
+  const [defaultRm, setDefaultRm] = useState('');
+  useEffect(() => {
+    setDefaultRm(String((s as { defaultRm?: string }).defaultRm || ''));
+  }, [(s as { defaultRm?: string }).defaultRm]); // eslint-disable-line react-hooks/exhaustive-deps
   const setOp = <K extends keyof SalesOps>(k: K, v: SalesOps[K]) => setOps((o) => ({ ...o, [k]: v }));
   useEffect(() => {
     if (s.salesOps) setOps({ ...OPS_DEFAULTS, ...s.salesOps });
@@ -105,7 +109,7 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
   const save = async () => {
     setSaving(true);
     try {
-      const res = await api.settings.update({ leadAlerts: cfg, followupSequence: { ...seq, days: daysText }, salesOps: ops } as any);
+      const res = await api.settings.update({ leadAlerts: cfg, followupSequence: { ...seq, days: daysText }, salesOps: ops, defaultRm } as any);
       onApplyServerSettings(res);
       toast('Alerts & follow-ups saved', undefined, 'success');
     } catch (e) {
@@ -120,6 +124,15 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
       <InlineNotice tone="info">
         All alerts here are free: phone notifications and e-mail. Each person turns phone notifications on once under <strong>My profile › Phone notifications</strong> (on iPhone, after adding the CRM to the Home Screen).
       </InlineNotice>
+
+      <Card title={<span className="inline-flex items-center gap-2"><UserCheck size={16} className="text-[#0B6BB0]" /> Default RM</span>} subtitle="Every new lead that arrives without an RM — from the New Enquiry form, website, Facebook, WhatsApp or a Google Sheet — is given to this person, who is notified as usual.">
+        <Field label="Give unassigned new leads to">
+          <select className={inputCls + ' sm:!w-80'} value={defaultRm} disabled={!editable} onChange={(e) => setDefaultRm(e.target.value)}>
+            <option value="">Nobody — leave them unassigned</option>
+            {active.map((u) => <option key={u.id} value={u.name}>{u.name} · {u.role}</option>)}
+          </select>
+        </Field>
+      </Card>
 
       <Card title={<span className="inline-flex items-center gap-2"><BellRing size={16} className="text-[#0B6BB0]" /> New-lead alerts</span>} subtitle="The moment a lead arrives from any source (CRM, website, Google Sheet, Facebook, WhatsApp) or is reassigned. Leads called within minutes convert far better.">
         <div className="space-y-4">

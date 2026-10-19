@@ -382,7 +382,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 onOpenCopilot={openCopilot}
               />
 
-              <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} />
+              <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} defaultRm={serverSettings?.defaultRm} />
 
               <Suspense fallback={null}>
                 {libraryOn && isLibraryOpen && (

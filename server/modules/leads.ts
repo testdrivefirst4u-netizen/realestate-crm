@@ -252,6 +252,11 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   let id = await resolveSuppliedId('ENQ', 4, obj[L.ID], leadIdTaken);
   const now = new Date();
   let doc = buildNewDoc(id, obj, actor, now);
+  // no RM given (form, website, Facebook, WhatsApp…): the company's default RM (Settings › Alerts & follow-ups)
+  if (!doc.assignedRm) {
+    const fallback = String((await settingsAll()).defaultRm || '').trim();
+    if (fallback) doc.assignedRm = fallback;
+  }
   if (doc.assignedRm) doc.assignedAt = now;
   // follow-up sequence: a new open lead without a date gets its first follow-up (Settings › Alerts & follow-ups)
   const autoFollowup = firstFollowup(parseSequence((await settingsAll()).followupSequence), doc, now);
