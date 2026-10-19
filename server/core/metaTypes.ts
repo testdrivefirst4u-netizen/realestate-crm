@@ -93,7 +93,7 @@ export interface MetaActions {
   disconnectMetaSource: { req: { sourceId: string }; res: { ok: true } };
   /** Facebook sync page: health per Page, Facebook vs CRM per form (compare: live Graph calls), recent leads, queue problems. */
   metaSyncReport: { req: { compare?: boolean }; res: MetaSyncReport };
-  /** Queue failed / dead webhook leads of this company again and process them now. */
+  /** Queue this company's failed, dead, skipped (and wrongly done) webhook leads again and process them now. */
   retryMetaLeads: { req: {}; res: { retried: number; results: Array<{ id: string; status: string }> } };
 }
 

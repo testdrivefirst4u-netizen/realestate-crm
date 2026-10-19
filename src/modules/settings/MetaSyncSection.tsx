@@ -173,8 +173,8 @@ export const MetaSyncSection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => 
         <Card
           title="Problems"
           subtitle="Webhook leads that failed, are being retried or were skipped in the last 7 days."
-          actions={canEdit && report.problems.some((x) => x.status === 'failed' || x.status === 'dead') ? (
-            <Button variant="secondary" onClick={() => void retry()} loading={busy === 'retry'} disabled={!!busy && busy !== 'retry'} icon={<RotateCcw size={13} />}>Retry failed</Button>
+          actions={canEdit && report.problems.some((x) => ['failed', 'dead', 'skipped', 'rejected'].includes(x.status)) ? (
+            <Button variant="secondary" onClick={() => void retry()} loading={busy === 'retry'} disabled={!!busy && busy !== 'retry'} icon={<RotateCcw size={13} />}>Retry</Button>
           ) : undefined}
         >
           {!report.problems.length ? (

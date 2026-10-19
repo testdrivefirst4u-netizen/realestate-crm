@@ -739,3 +739,82 @@ describe('super admin', () => {
     expect(JSON.stringify(audit.body)).not.toContain('PAGE-TOKEN');
   });
 });
+
+describe('no lead lost: stuck saves, custom phone questions, form filter, sync counts, retry', () => {
+  const inbound = () => inCo(async () => (await import('../server/modules/intake')).inboundCol());
+
+  it('a save that never finished is taken over after 2 minutes; a fresh one is retried later, not marked done', async () => {
+    const { sourceId } = await connectDirect();
+    const log = await inbound();
+    // an earlier delivery claimed 8201 five minutes ago and never finished
+    await log.insertOne({ _id: 'INB-stuck', sourceId, idempotencyKey: 'meta:8201', status: 'failed', message: 'processing', receivedAt: new Date(Date.now() - 5 * 60e3), leadId: '', payload: {}, ip: '', origin: 'meta' } as any);
+    leads['8201'] = lead('8201', { field_data: [{ name: 'phone_number', values: ['+919800000201'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8201'])));
+    expect(await Q.processQueueItem('8201')).toMatchObject({ status: 'done', result: 'created' });
+    expect(await log.findOne({ _id: 'INB-stuck' } as any)).toMatchObject({ status: 'created' });
+
+    // claimed just now by another delivery: not "done" — retried with back-off
+    await log.insertOne({ _id: 'INB-busy', sourceId, idempotencyKey: 'meta:8202', status: 'failed', message: 'processing', receivedAt: new Date(), leadId: '', payload: {}, ip: '', origin: 'meta' } as any);
+    leads['8202'] = lead('8202', { field_data: [{ name: 'phone_number', values: ['+919800000202'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8202'])));
+    expect(await Q.processQueueItem('8202')).toMatchObject({ status: 'failed' });
+
+    // an earlier delivery that failed to save is saved by the next one
+    await log.insertOne({ _id: 'INB-fail', sourceId, idempotencyKey: 'meta:8203', status: 'failed', message: 'Internal error: timeout', receivedAt: new Date(), leadId: '', payload: {}, ip: '', origin: 'meta' } as any);
+    leads['8203'] = lead('8203', { field_data: [{ name: 'phone_number', values: ['+919800000203'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8203'])));
+    expect(await Q.processQueueItem('8203')).toMatchObject({ status: 'done', result: 'created' });
+    expect(await leadsIn()).toHaveLength(2);
+  });
+
+  it('reads the number / e-mail from custom questions', async () => {
+    const m = M.mapMetaLead({ id: '1', form_id: FORM_A, field_data: [
+      { name: 'full_name', values: ['Ravi K'] },
+      { name: 'your_whatsapp_number', values: ['98765 12345'] },
+      { name: 'email_id', values: ['ravi@example.com'] },
+      { name: 'preferred_contact_time', values: ['Evening'] },
+    ] } as any, { config: LS.defaultConfig('meta') } as any);
+    expect(m).toMatchObject({ phone_number: '98765 12345', email: 'ravi@example.com' });
+    // a "phone" question whose answer is not a number is left alone
+    expect(M.mapMetaLead({ id: '2', field_data: [{ name: 'phone_or_visit?', values: ['Phone call'] }] } as any, { config: LS.defaultConfig('meta') } as any).phone_number).toBeUndefined();
+
+    await connectDirect();
+    leads['8301'] = lead('8301', { field_data: [{ name: 'full_name', values: ['Ravi K'] }, { name: 'mobile_no.', values: ['+91 98765 12399'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8301'])));
+    expect(await Q.processQueueItem('8301')).toMatchObject({ status: 'done', result: 'created' });
+  });
+
+  it('reconnecting with "All forms" clears an earlier form filter', async () => {
+    const { sourceId } = await connectDirect(PAGE, 'CMP-test', [FORM_A]);
+    expect((await inCo(() => M.findMetaSource(sourceId))).config!.meta!.formIds).toEqual([FORM_A]);
+    await connectDirect(PAGE, 'CMP-test', []);
+    const meta = (await inCo(() => M.findMetaSource(sourceId))).config!.meta!;
+    expect(meta.formIds).toEqual([]);
+    expect(M.formAllowed(meta, FORM_B)).toBe(true);
+  });
+
+  it('the sync page counts only leads in the CRM; rejected ones are problems that Retry imports once fixed', async () => {
+    await connectDirect(PAGE, 'CMP-test', [FORM_A]);
+    // rejected: the number came in a question the old mapping did not read (simulated: no contact at all)
+    leads['8401'] = lead('8401', { field_data: [{ name: 'full_name', values: ['No Contact'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8401'])));
+    expect(await Q.processQueueItem('8401')).toMatchObject({ status: 'done', result: 'rejected' });
+    // skipped by the form filter
+    leads['8402'] = lead('8402', { form_id: FORM_B, field_data: [{ name: 'phone_number', values: ['+919800000402'] }] });
+    await Q.enqueueLeadgen(JSON.parse(leadgenBody(['8402'], PAGE, FORM_B)));
+    expect(await Q.processQueueItem('8402')).toMatchObject({ status: 'skipped' });
+
+    const rep = await inCo(() => MS.metaSyncReport({ compare: true }));
+    expect(rep.pages[0].forms!.find((x) => x.id === FORM_A)).toMatchObject({ crm7: 0, missing7: 1 });
+    expect(rep.problems.map((p) => [p.id, p.status]).sort()).toEqual([['8401', 'rejected'], ['8402', 'skipped']]);
+
+    // the lead now has a number (e.g. after the mapping fix) and the Page takes all forms again
+    leads['8401'] = lead('8401', { field_data: [{ name: 'phone_number', values: ['+919800000401'] }] });
+    await connectDirect(PAGE, 'CMP-test', []);
+    const r = await inCo(() => MS.retryMetaLeads(null));
+    expect(r.retried).toBe(2);
+    expect(r.results.map((x) => x.status)).toEqual(['done', 'done']);
+    expect(await leadsIn()).toHaveLength(2);
+    expect((await inCo(() => MS.metaSyncReport({}))).problems).toEqual([]);
+  });
+});

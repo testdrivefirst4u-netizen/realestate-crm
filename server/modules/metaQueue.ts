@@ -193,8 +193,10 @@ export async function processQueueItem(id: string, opts: { now?: Date } = {}): P
       const formId = String(lead.form_id || item.formId || '');
       if (!formAllowed(meta, formId)) return finish({ ...base, status: 'skipped', lastError: `Form ${formId} is not selected for this source` });
       const r = await ingestMetaLead(src, { ...lead, id: lead.id || item._id, form_id: formId, ad_id: lead.ad_id || item.adId || undefined });
+      // the lead could not be saved (or another delivery is still saving it): try again later
+      if (r.status === 'failed') throw fail('SERVER', r.message === 'processing' ? 'Still being saved by another delivery' : `Not saved: ${r.message}`);
       await sources.updateOne({ _id: src._id }, { $set: { 'config.meta.lastLeadAt': new Date().toISOString(), 'config.meta.lastError': '' } });
-      return finish({ ...base, status: 'done', leadId: r.leadId, result: r.status, lastError: r.status === 'failed' || r.status === 'rejected' ? truncate(r.message, 300) : '', attempts: item.attempts + 1, nextAttemptAt: null });
+      return finish({ ...base, status: 'done', leadId: r.leadId, result: r.status, lastError: r.status === 'rejected' ? truncate(r.message, 300) : '', attempts: item.attempts + 1, nextAttemptAt: null });
     } catch (e: any) {
       const attempts = (item.attempts || 0) + 1;
       const dead = attempts >= MAX_ATTEMPTS;

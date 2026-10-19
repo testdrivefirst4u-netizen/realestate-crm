@@ -303,7 +303,8 @@ export async function connectPage(input: ConnectPageInput): Promise<{ sourceId: 
   const current = existing ? await (await metaSources()).findOne({ _id: existing.sourceId, type: 'meta' }) : null;
   if (current) {
     await subscribePage(input.pageId, input.pageToken, input.cfg);
-    await setMeta(current._id, { ...metaBase, ...(formIds.length ? { formIds, knownFormIds: input.forms.map((f) => f.id) } : {}), subscribed: true, lastError: '' }, { 'secret.pageToken': encryptSecret(input.pageToken), updatedAt: now });
+    // the choice made now replaces the old one ("All forms" clears an earlier filter)
+    await setMeta(current._id, { ...metaBase, formIds, knownFormIds: formIds.length ? input.forms.map((f) => f.id) : [], subscribed: true, lastError: '' }, { 'secret.pageToken': encryptSecret(input.pageToken), updatedAt: now });
     return { sourceId: current._id, reconnected: true };
   }
 
@@ -460,6 +461,11 @@ export async function ensureMetaSubscription(src: MetaSourceDoc): Promise<boolea
 /* ------------------------------- lead mapping ---------------------------- */
 
 const STANDARD = new Set(['full_name', 'first_name', 'last_name', 'phone_number', 'email']);
+/** Custom questions asking for a number or an e-mail ("Your WhatsApp number", "Mobile no.", "Email ID"). */
+const PHONE_Q = /phone|mobile|whats\s*app|\bcell\b|contact\s*(no|num)/i;
+const EMAIL_Q = /e-?mail/i;
+const looksLikePhone = (v: string) => /^[+\d][\d\s().-]{7,20}$/.test(v) && v.replace(/\D/g, '').length >= 10 && v.replace(/\D/g, '').length <= 15;
+const looksLikeEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
 const GEO = new Set(['city', 'state', 'province', 'country']);
 const LABELS: Record<string, string> = {
   city: 'City', state: 'State', province: 'Province', country: 'Country', zip_code: 'ZIP code', post_code: 'Post code', street_address: 'Address',
@@ -481,7 +487,7 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
   const mapped = (k: string) => fieldMap[k] !== undefined || fieldMap[normKey(k)] !== undefined;
   const out: Record<string, string> = {};
   const notes: string[] = [];
-  let workEmail = '', workPhone = '';
+  let workEmail = '', workPhone = '', customEmail = '', customPhone = '';
   for (const f of Array.isArray(lead.field_data) ? lead.field_data : []) {
     const name = String(f?.name ?? '').trim();
     const value = (Array.isArray(f?.values) ? f.values : []).map((v) => String(v ?? '').trim()).filter(Boolean).join(', ');
@@ -499,10 +505,13 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
     if (GEO.has(k)) out[k === 'province' ? 'state' : k] = value;
     if (k === 'work_email') workEmail = value;
     if (k === 'work_phone_number') workPhone = value;
+    const label = name.replace(/_/g, ' ');
+    if (!customPhone && PHONE_Q.test(label) && looksLikePhone(value)) customPhone = value;
+    if (!customEmail && EMAIL_Q.test(label) && looksLikeEmail(value)) customEmail = value;
     notes.push(`${LABELS[k] || questionLabel(name)}: ${truncate(value, 300)}`);
   }
-  if (!out.email && workEmail) out.email = workEmail;
-  if (!out.phone_number && workPhone) out.phone_number = workPhone;
+  if (!out.email && (workEmail || customEmail)) out.email = workEmail || customEmail;
+  if (!out.phone_number && (workPhone || customPhone)) out.phone_number = workPhone || customPhone;
 
   const formName = metaOf(source as SourceDoc).forms.find((x) => x.id === lead.form_id)?.name || '';
   const ad: string[] = [];

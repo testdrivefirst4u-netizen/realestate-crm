@@ -330,6 +330,9 @@ async function bumpStats(sourceId: string, inc: Record<string, number>, status: 
   await (await sourcesCol()).updateOne({ _id: sourceId }, { $inc: inc, $set: set });
 }
 
+/** A claimed submission still saying "processing" after this long never finished (timeout, crash): take it over. */
+export const STALE_CLAIM_MS = 2 * 60 * 1000;
+
 /** Ingest one submission (inside the source's company context). */
 export async function ingestLead(source: SourceDoc, rawFields: Record<string, unknown>, meta: IngestMeta = {}): Promise<IngestResult> {
   const log = await inboundCol();
@@ -351,6 +354,24 @@ export async function ingestLead(source: SourceDoc, rawFields: Record<string, un
     await log.insertOne(entry);
   } catch (e: any) {
     if (e?.code !== 11000 || !idem) throw e;
+    // The earlier delivery failed, or claimed it and never finished: process it again now (one taker only).
+    const now = new Date();
+    const retake = await log.findOneAndUpdate(
+      {
+        sourceId: source._id, idempotencyKey: idem, status: 'failed',
+        $or: [{ message: { $ne: 'processing' } }, { receivedAt: { $lt: new Date(now.getTime() - STALE_CLAIM_MS) } }],
+      },
+      { $set: { message: 'processing', receivedAt: now, payload: entry.payload } },
+      { returnDocument: 'before' }
+    );
+    if (retake) {
+      const out = await processFields(source, rawFields);
+      await log.updateOne({ _id: retake._id }, { $set: { status: out.status, leadId: out.leadId, message: out.message, duplicate: out.duplicate, retriedAt: now } });
+      // a stuck claim was never counted; a finished failure was counted as failed
+      const stuck = retake.message === 'processing';
+      await bumpStats(source._id, stuck ? { 'stats.received': 1, ['stats.' + STAT_OF[out.status]]: 1 } : { 'stats.failed': -1, ['stats.' + STAT_OF[out.status]]: 1 }, out.status, out.message);
+      return { logId: retake._id, ...out };
+    }
     const first = await log.findOne({ sourceId: source._id, idempotencyKey: idem });
     return { logId: first?._id || '', status: first?.status || 'duplicate', leadId: first?.leadId || '', duplicate: !!first?.duplicate, message: first?.message || '', replay: true };
   }
