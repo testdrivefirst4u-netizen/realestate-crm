@@ -87,9 +87,13 @@ export interface SpendRow { campaign: string; month: string; amount: number }
 /** Where requests go: the CRM's /api/rpc, or the Super Admin console's company proxy (company settings in the console). */
 let rpcPath: string = API.rpcPath;
 
-export function configureApi(opts: { url?: string; token?: string | null; onAuthExpired?: (message?: string) => void }) {
+/**
+ * `url` / `token` are legacy (Apps Script) and ignored. `rpcPath` switches to another endpoint of THIS site only
+ * (a path under /api/, e.g. the console's company proxy); '' goes back to /api/rpc.
+ */
+export function configureApi(opts: { url?: string; token?: string | null; rpcPath?: string; onAuthExpired?: (message?: string) => void }) {
   if (opts.onAuthExpired) onAuthExpired = opts.onAuthExpired;
-  if (opts.url !== undefined) rpcPath = opts.url || API.rpcPath;
+  if (opts.rpcPath !== undefined) rpcPath = /^\/api\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9=&%._-]*)?$/.test(opts.rpcPath) ? opts.rpcPath : API.rpcPath;
 }
 
 function mapCode(code?: string, isAuth?: boolean): ErrorCode {

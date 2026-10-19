@@ -35,15 +35,15 @@ export function CompanySettingsTab({ company }: { company: CompanyDetail }) {
 
   // point the CRM settings screens at this company (and back when leaving the tab)
   useEffect(() => {
-    configureApi({ url: `/api/platform/company-rpc?company=${encodeURIComponent(company.id)}` });
-    return () => configureApi({ url: '' });
+    configureApi({ rpcPath: `/api/platform/company-rpc?company=${encodeURIComponent(company.id)}` });
+    return () => configureApi({ rpcPath: '' });
   }, [company.id]);
 
   useEffect(() => {
     let live = true;
     setError('');
     setSettings(null);
-    configureApi({ url: `/api/platform/company-rpc?company=${encodeURIComponent(company.id)}` });
+    configureApi({ rpcPath: `/api/platform/company-rpc?company=${encodeURIComponent(company.id)}` });
     Promise.all([api.settings.get(), api.settings.users.list().catch(() => [] as UserAccount[])]).then(
       ([s, u]) => { if (live) { setSettings(s); setUsers(Array.isArray(u) ? u : []); } },
       (e) => { if (live) setError(toAppError(e).userMessage); },

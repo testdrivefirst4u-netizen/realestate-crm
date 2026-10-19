@@ -40,6 +40,17 @@ describe('transport', () => {
     expect(JSON.parse(init.body as string)).toEqual({ action: 'setLeadStage', data: { id: 'ENQ-0001', stage: 'Hot' } });
   });
 
+  it('rpcPath switches to another endpoint of this site only (console company settings); outside addresses are refused', async () => {
+    const fn = mockFetch(JSON.stringify({ status: 'success', data: {} }));
+    configureApi({ rpcPath: '/api/platform/company-rpc?company=CMP-1' });
+    await api.settings.get();
+    configureApi({ rpcPath: 'https://evil.example/steal' });
+    await api.settings.get();
+    configureApi({ rpcPath: '' });
+    await api.settings.get();
+    expect(fn.mock.calls.map((c) => (c as unknown as [string])[0])).toEqual(['/api/platform/company-rpc?company=CMP-1', '/api/rpc', '/api/rpc']);
+  });
+
   it('ping / setupStatus are POSTs too (no GET mode)', async () => {
     const fn = mockFetch(JSON.stringify({ status: 'success', data: { hasUsers: true, version: '3.0.0', sheetsReady: true } }));
     await api.system.setupStatus();
