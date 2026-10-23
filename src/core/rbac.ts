@@ -56,6 +56,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'tasks.manage', 'inventory.view', 'reports.view',
     'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   ],
+  // View only (e.g. founders): every lead, report, chat and call — no changes.
+  Viewer: ['leads.view', 'leads.viewAll', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
 };
 
 /** Map legacy role names stored in older builds. */
@@ -64,6 +66,7 @@ export function normalizeRole(role: string | undefined | null): UserRole {
   if (r === 'admin' || r === 'administrator') return 'Admin';
   if (r === 'developer' || r === 'dev') return 'Developer';
   if (r === 'manager' || r === 'sales manager') return 'Manager';
+  if (r === 'viewer' || r === 'view only' || r === 'read only') return 'Viewer';
   return 'RM'; // 'rm', 'relationship manager', 'executive', 'user'
 }
 
@@ -81,6 +84,8 @@ export function roleLabel(role: UserRole | string): string {
       return 'Sales Manager';
     case 'Developer':
       return 'Platform support';
+    case 'Viewer':
+      return 'View only';
     default:
       return 'Agent';
   }
@@ -91,9 +96,12 @@ export const ROLE_OPTIONS: Array<{ id: UserRole; label: string; description: str
   { id: 'RM', label: 'Agent', description: 'Works only the leads assigned to them: follow-ups, tasks, calls and chats.' },
   { id: 'Manager', label: 'Manager', description: 'Full access to all leads, reports, inventory and the audit log. Can add and manage Agents.' },
   { id: 'Admin', label: 'Admin', description: 'Everything a Manager can do, plus adding Managers and Admins.' },
+  { id: 'Viewer', label: 'View only', description: 'Sees every lead, report, chat and call but cannot change anything — e.g. founders and investors.' },
 ];
 
-/** Roles `actor` may give: Admins any company role, Managers only Agent. */
+/** Roles `actor` may give: Admins any company role (incl. View only), Managers only Agent. */
+export const isViewOnly = (user: UserAccount | null | undefined) => !!user && normalizeRole(user.role) === 'Viewer';
+
 export function assignableRoles(actor: UserAccount | null | undefined): typeof ROLE_OPTIONS {
   if (can(actor, 'users.manage')) return ROLE_OPTIONS;
   return can(actor, 'users.manageAgents') ? ROLE_OPTIONS.filter((r) => r.id === 'RM') : [];

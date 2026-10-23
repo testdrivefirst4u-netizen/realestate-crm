@@ -73,7 +73,7 @@ export interface CompanyUser {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Manager' | 'RM' | 'Developer';
+  role: 'Admin' | 'Manager' | 'RM' | 'Viewer' | 'Developer';
   status: 'Active' | 'Disabled';
   lastLoginAt: string;
 }

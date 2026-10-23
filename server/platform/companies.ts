@@ -27,7 +27,7 @@ export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 export const RESERVED_SLUGS = new Set(['superadmin', 'api', 'admin', 'www', 'platform', 'app', 'login']);
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const LOGO_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
-const ROLES = ['Admin', 'Manager', 'RM', 'Developer'] as const;
+const ROLES = ['Admin', 'Manager', 'RM', 'Viewer', 'Developer'] as const;
 const STATS_PARALLEL = 5;
 
 const companies = () => pc<CompanyDoc>(PCOLL.COMPANIES);

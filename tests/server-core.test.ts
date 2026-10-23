@@ -121,6 +121,42 @@ describe('router', () => {
     expect((me.body as any).data.user.email).toBe('r@x.io');
   });
 
+  it('View only (founders): sees every lead and report, cannot change anything, is not offered as an RM', async () => {
+    await createUser({ name: 'Admin A', email: 'aa@x.io', password: 'long-enough-pw', role: 'Admin' }, null);
+    await createUser({ name: 'Rita RM', email: 'rita@x.io', password: 'long-enough-pw', role: 'RM' }, null);
+    await createUser({ name: 'Founder F', email: 'f@x.io', password: 'long-enough-pw', role: 'Viewer' }, null);
+    const admin = (await login('aa@x.io', 'long-enough-pw', base)).token;
+    const viewer = (await login('f@x.io', 'long-enough-pw', base)).token;
+    expect((await login('f@x.io', 'long-enough-pw', base)).user.role).toBe('Viewer');
+
+    const added = await dispatch('addLead', { data: { 'Prospect Name': 'Meera', 'Phone Number': '9876500001', 'Assigned RM': 'Rita RM' } }, { ...base, token: admin });
+    expect(added.status).toBe(200);
+    const id = (added.body as any).data.id;
+
+    const as = (action: string, data: any = {}) => dispatch(action, data, { ...base, token: viewer });
+    // reads: every lead (not only their own), reports, audit, own account
+    const all = await as('getAllLeads');
+    expect(all.status).toBe(200);
+    expect(JSON.stringify(all.body)).toContain('Meera');
+    for (const a of ['getBootstrap', 'getAuditLog', 'leaderboard', 'getLeadTimeline', 'me', 'pushStatus']) expect((await as(a, { id })).status, a).toBe(200);
+    // writes: refused, whatever the action's own check
+    for (const [a, d] of [
+      ['addLead', { data: { 'Prospect Name': 'X', 'Phone Number': '9876500002' } }], ['updateLead', { id, data: { 'Lead Stage': 'Hot' } }],
+      ['setLeadStage', { id, stage: 'Hot' }], ['appendRemark', { id, text: 'hi' }], ['trashLead', { id }], ['addTask', { data: { title: 't' } }],
+      ['logCall', { leadId: id }], ['chat360Send', { phone: '9876500001', text: 'hi' }], ['saveRecord', { type: 'notes', data: {} }], ['saveUser', { data: { name: 'Z', email: 'z@x.io' } }],
+    ] as Array<[string, any]>) {
+      const r = await as(a, d);
+      expect(r.status, a).toBe(403);
+      expect((r.body as any).message, a).toMatch(/view-only access/);
+    }
+    // RM lists leave the viewer out
+    const cfg = (all.body as any).data;
+    const boot = await as('getBootstrap');
+    expect((boot.body as any).data.config.options['Assigned RM']).toContain('Rita RM');
+    expect((boot.body as any).data.config.options['Assigned RM']).not.toContain('Founder F');
+    expect(cfg).toBeTruthy();
+  });
+
   it('first-run admin is possible only once', async () => {
     const ping = await dispatch('ping', {}, base);
     expect((ping.body as any).data.setupRequired).toBe(true);

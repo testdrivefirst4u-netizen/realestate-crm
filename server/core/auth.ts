@@ -95,6 +95,7 @@ export function normalizeRole(role: unknown): Role {
   if (r === 'admin' || r === 'administrator') return 'Admin';
   if (r === 'developer' || r === 'dev') return 'Developer';
   if (r === 'manager' || r === 'sales manager') return 'Manager';
+  if (r === 'viewer' || r === 'view only' || r === 'read only') return 'Viewer';
   return 'RM';
 }
 

@@ -13,6 +13,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/src/components/Sidebar';
 import { MobileTabBar } from '@/src/components/MobileTabBar';
 import { NotificationPrompt } from '@/src/components/NotificationPrompt';
+import { isViewOnly } from '@/src/core/rbac';
 import { registerServiceWorker } from '@/src/core/pushClient';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -344,6 +345,11 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               onSearchShowAll={onSearchShowAll}
             />
 
+            {isViewOnly(currentUser) && (
+              <div role="status" className="flex-none px-4 py-2 bg-[#0A1F33] text-[12.5px] text-[#B9D4EA] text-center">
+                <strong className="text-white">View only</strong> — you can see every lead, report, chat and call, but not change anything.
+              </div>
+            )}
             <main className="flex-1 overflow-y-auto pb-28 lg:pb-0">
               <ErrorBoundary scope={`view:${currentView || pathname}`} inline resetKey={pathname}>
                 {mounted ? children : <PageSkeleton variant={currentView ? VIEW_SKELETON[currentView] : undefined} />}

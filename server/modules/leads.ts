@@ -157,7 +157,7 @@ export async function getLeadsConfig(): Promise<{ fields: string[]; options: Rec
   opts[L.UNIT_TYPE] = dedupeUnitTypes(opts[L.UNIT_TYPE] || []);
   try {
     for (const u of await listUsers()) {
-      if (u.status === 'Disabled') continue;
+      if (u.status === 'Disabled' || u.role === 'Viewer') continue; // view-only users never own leads
       if (!opts[L.RM].includes(u.name)) opts[L.RM].push(u.name);
     }
   } catch {

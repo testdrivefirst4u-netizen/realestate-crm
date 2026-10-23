@@ -17,7 +17,7 @@ export function LeadsClient() {
       activeFilterLabel={leadFilter?.label || null}
       onClearActiveFilter={clearLeadFilter}
       canExport={engine.can('leads.export')}
-      onOpenAddLead={openAddLead}
+      onOpenAddLead={engine.can('leads.create') ? openAddLead : undefined}
       onOpenImport={engine.can('leads.import') ? openImport : undefined}
       onMergeLeads={engine.can('leads.delete') ? engine.mergeLeads : undefined}
       sync={sync}

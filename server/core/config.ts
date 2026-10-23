@@ -124,14 +124,15 @@ export const CFG = {
     'Brochure Shared': ['Yes', 'No'],
   } as Record<string, string[]>,
 
-  ROLES: ['Admin', 'Manager', 'RM', 'Developer'],
+  ROLES: ['Admin', 'Manager', 'RM', 'Viewer', 'Developer'],
 
   /**
    * Mirrors src/core/rbac.ts. The server is the enforcer.
    * Company settings, integrations and API keys (settings.*, secrets.*) belong to the platform: only the
    * Developer role has them — the hidden "Platform support" account a super admin opens from the console.
    * Admins run the team (users.*); Managers have full lead access and may manage Agents (users.manageAgents);
-   * Agents (role RM) work their own leads.
+   * Agents (role RM) work their own leads. Viewers (e.g. founders) see everything and change nothing — the router
+   * also limits them to reading actions (server/router.ts → VIEWER_ACTIONS).
    */
   PERMISSIONS: {
     Developer: ['*'],
@@ -141,6 +142,7 @@ export const CFG = {
       'users.manageAgents', 'records.*', 'storage.*'],
     RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'tasks.*', 'inventory.view', 'reports.view',
       'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*'],
+    Viewer: ['leads.view', 'leads.viewAll', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
   } as Record<string, string[]>,
 
   /** Secret keys (stored encrypted in the `secrets` collection; an env var of the same name wins). */
@@ -178,4 +180,4 @@ export const CFG = {
     /^application\/(msword|vnd\.openxmlformats-officedocument\..+|vnd\.ms-excel|vnd\.ms-powerpoint|zip|json|octet-stream)$/],
 };
 
-export type Role = 'Admin' | 'Manager' | 'RM' | 'Developer';
+export type Role = 'Admin' | 'Manager' | 'RM' | 'Viewer' | 'Developer';

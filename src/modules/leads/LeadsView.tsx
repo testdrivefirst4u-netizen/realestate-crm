@@ -40,7 +40,8 @@ export interface LeadsViewProps {
   activeFilterLabel?: string | null;
   onClearActiveFilter?: () => void;
   canExport: boolean;
-  onOpenAddLead: () => void;
+  /** New enquiry; undefined hides the button (role cannot create leads, e.g. View only). */
+  onOpenAddLead?: () => void;
   /** Opens the bulk upload (Excel / CSV import); undefined when the role cannot import. */
   onOpenImport?: () => void;
   /** Merges duplicate leads; undefined when the role cannot delete leads. */
@@ -189,9 +190,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
                       Bulk upload
                     </Button>
                   )}
-                  <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
-                    New Enquiry
-                  </Button>
+                  {onOpenAddLead && (
+                    <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
+                      New Enquiry
+                    </Button>
+                  )}
                 </div>
               )
             }
@@ -365,9 +368,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
               Export Excel
             </Button>
           )}
-          <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
-            New Enquiry
-          </Button>
+          {onOpenAddLead && (
+            <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>
+              New Enquiry
+            </Button>
+          )}
         </div>
       </div>
 

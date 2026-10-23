@@ -234,7 +234,7 @@ export interface TimelineEntry {
   refId?: string;
 }
 
-export type UserRole = 'Admin' | 'Manager' | 'RM' | 'Developer';
+export type UserRole = 'Admin' | 'Manager' | 'RM' | 'Viewer' | 'Developer';
 
 export interface UserAccount {
   id: string;

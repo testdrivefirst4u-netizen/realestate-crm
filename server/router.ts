@@ -7,7 +7,7 @@
  * real HTTP status codes, and the Developer Mode actions are gone.
  */
 import { ActionMap } from './core/actions';
-import { Ctx, requirePerm, validateSession } from './core/auth';
+import { Ctx, normalizeRole, requirePerm, validateSession } from './core/auth';
 import { ApiError, errEnvelope, fail, ok } from './core/errors';
 import { isTestMode } from './core/db';
 import { currentTenant, runWithTenant, type TenantFeatures } from './core/tenant';
@@ -84,6 +84,18 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
 /** Public actions that need no company (answered without touching any company database). */
 const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', 'logError']);
 
+/**
+ * View-only users (role Viewer, e.g. founders) may only read — plus their own account (password, two-step sign-in,
+ * profile, phone notifications). Every other action is refused here, whatever its own permission check.
+ */
+const VIEWER_ACTIONS = new Set([
+  'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
+  'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
+  'getCalls', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages',
+  'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
+]);
+export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';
+
 async function run(action: string, data: any, ctx: Ctx, started: number): Promise<RouteResult> {
   try {
     const def = registry[action];
@@ -98,6 +110,7 @@ async function run(action: string, data: any, ctx: Ctx, started: number): Promis
       ctx.user = session.user;
       ctx.session = { expiresAt: session.expiresAt };
     }
+    if (ctx.user && normalizeRole(ctx.user.role) === 'Viewer' && !VIEWER_ACTIONS.has(action)) throw fail('FORBIDDEN', VIEW_ONLY_MESSAGE);
     if (!def.public) requirePerm(ctx, def.perm);
     const result = await def.fn(data && typeof data === 'object' ? data : {}, ctx);
     return { status: 200, body: ok(result), companyId: t?.id };
