@@ -17,7 +17,7 @@ import { SourceLogo } from '../leads/SourceLogo';
 import {
   BLANK, CallDay, FUNNEL_STEPS, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_STATUSES, UNASSIGNED,
   addDaysKey, avgResp, callDays, changePct, funnelCounts, funnelStep, previousRange, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
-  pct, perfRanges, perfRow, periodRange, pipelineNow, rangeLabel, sourceColour, sourceOrder, speedBuckets, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
+  pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedBuckets, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
 } from './misData';
 import { SITE_VISIT_DONE } from '../../core/config';
 import { useTenantSettings } from '../../core/tenant';
@@ -265,8 +265,6 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
         <Button variant={hasFilters ? 'secondary' : 'ghost'} onClick={clearFilters} disabled={!hasFilters} className="w-full">Clear filters</Button>
       </section>
 
-      <EnquiryPerformance nonDate={nonDate} today={today} show={(label, ls) => onShowLeads(label, ls.map((l) => l.id))} />
-
       <Glance nonDate={nonDate} period={period} today={today} onPick={pickPeriod} reasons={dqReasons(all)} />
 
       <Details list={list} total={all.length} period={period} rangeText={rangeText} onPick={pickPeriod} show={show} />
@@ -378,88 +376,6 @@ const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; on
         </table>
       </div>
     </Panel>
-  );
-};
-
-/* ------------------------- Enquiry performance --------------------------- */
-
-const PERF_COLOURS = { received: '#1F3A8A', qualified: '#1E7A3C', unqualified: '#B42318', nonResponding: '#C2410C', open: '#3B82C4', visits: '#6B21A8', warm: '#B45309', hot: '#BE123C', planned: '#4338CA' };
-const two = (n: number) => String(n).padStart(2, '0');
-
-const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]>; show: (label: string, ls: MisLead[]) => void }> = ({ title, sub, tiles, show }) => (
-  <div className="rounded-xl border border-[#0B2A44]/80 overflow-hidden">
-    <div className="bg-[#D9CFC1] px-3 py-1.5 text-center">
-      <span className="text-[13px] sm:text-sm font-bold tracking-wide text-[#0B2A44] uppercase">{title}</span>
-      <span className="block text-[10.5px] font-medium text-[#5B5245]">{sub}</span>
-    </div>
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 bg-white">
-      {tiles.map(([label, colour, ls, hint]) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => show(`${label} · ${title.toLowerCase()}`, ls)}
-          title={hint ? `${hint} — select to see these leads` : 'Select to see these leads'}
-          className="flex flex-col border-r border-b border-[#CBD5E1] last:border-r-0 hover:bg-[#F7FAFD] focus-visible:outline-2 focus-visible:outline-[#0B6BB0] text-center"
-        >
-          <span className="py-3 text-3xl sm:text-4xl font-extrabold tabular-nums" style={{ color: colour }}>{two(ls.length)}</span>
-          <span className="py-1.5 bg-[#EEE8E0] text-[11.5px] sm:text-[12.5px] font-semibold text-[#3D3A35] mt-auto">{label}</span>
-        </button>
-      ))}
-    </div>
-  </div>
-);
-
-/** The management summary: for the day, month to date, year to date and the pipeline overall, on one report date. */
-const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; show: (label: string, ls: MisLead[]) => void }> = ({ nonDate, today, show }) => {
-  const [day, setDay] = useState(today);
-  const d = day && day <= today ? day : today;
-  const r = useMemo(() => perfRanges(d), [d]);
-  const rows = useMemo(() => ({ ftd: perfRow(nonDate, r.ftd), mtd: perfRow(nonDate, r.mtd), ytd: perfRow(nonDate, r.ytd) }), [nonDate, r]);
-  const pipe = useMemo(() => pipelineNow(nonDate), [nonDate]);
-  const C = PERF_COLOURS;
-  const tiles = (p: ReturnType<typeof perfRow>): Array<[string, string, MisLead[], string?]> => [
-    ['Leads Received', C.received, p.received, 'Enquiries that came in, by enquiry date'],
-    ['Qualified Leads', C.qualified, p.qualified, 'Of those: qualified, site visit, HOT, Warm or booked'],
-    ['Unqualified Leads', C.unqualified, p.unqualified, 'Of those: disqualified (budget, location, junk…), not counting non-responding'],
-    ['Non-Responding', C.nonResponding, p.nonResponding, 'Of those: stage Not Responding'],
-    ['Open Enquiries', C.open, p.open, 'Of those: still new or open'],
-    ['Site Visits', C.visits, p.visits, 'Site visits done in this period, by visit date'],
-  ];
-  const year = d.slice(0, 4);
-  return (
-    <section aria-label="Enquiry performance" className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs p-3 sm:p-4 space-y-3">
-      <div className="rounded-xl border border-[#0B2A44] overflow-hidden">
-        <div className="bg-[#1F3A4F] text-white text-center py-2 text-base sm:text-lg font-bold tracking-wide">Enquiry Performance Dashboard</div>
-        <div className="flex items-center justify-center gap-2 py-1.5 text-[13px] font-bold text-[#0B2A44]">
-          <label htmlFor="perf-date">Report Date:</label>
-          <input id="perf-date" type="date" value={d} max={today} onChange={(e) => setDay(e.target.value || today)} className="text-[13px] font-bold px-1.5 py-0.5 rounded border border-[#A9BDCD] text-[#0B2A44]" />
-          {d !== today && <button type="button" onClick={() => setDay(today)} className="text-[11px] font-semibold text-[#0B5E9C] hover:underline">Today</button>}
-        </div>
-      </div>
-      <PerfBlock title="For the day (FTD) overview" sub={fmtKey(d)} tiles={tiles(rows.ftd)} show={show} />
-      <PerfBlock title="Month to date (MTD) overview" sub={`${fmtKey(r.mtd[0])} to ${fmtKey(d)}`} tiles={tiles(rows.mtd)} show={show} />
-      <PerfBlock title="Year to date (YTD) overview" sub={`${fmtKey(r.ytd[0])} to ${fmtKey(d)} · calendar year ${year}`} tiles={tiles(rows.ytd)} show={show} />
-      <PerfBlock
-        title="Pipeline stages & conversions (overall)"
-        sub="All enquiries, as they stand now"
-        tiles={[
-          ['Total Enquiries', C.received, pipe.total],
-          ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, site visit, HOT, Warm or booked'],
-          ['Warm Leads', C.warm, pipe.warm],
-          ['Hot Leads', C.hot, pipe.hot],
-          ['Site Visits Planned', C.planned, pipe.svPlanned, 'Prospect for site visit or visit scheduled, still open'],
-          ['Site Visits Completed', C.visits, pipe.svDone, 'Site visit done or walk-in'],
-        ]}
-        show={show}
-      />
-      <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, non-responding and open, so those four add up to Leads Received. Site visits count visits done on those dates. The filters above (representative, source, place) apply here too; select any number to see the leads.</p>
-      {pipe.svDoneUndated.length > 0 && (
-        <p className="text-[11px] text-[#B54708] px-1">
-          {pipe.svDoneUndated.length} completed site visit{pipe.svDoneUndated.length === 1 ? ' has' : 's have'} no visit date, so {pipe.svDoneUndated.length === 1 ? 'it is' : 'they are'} counted in the overall total but not in the day, month or year.{' '}
-          <button type="button" onClick={() => show('Site visits done without a visit date', pipe.svDoneUndated)} className="font-semibold underline">Show them</button> to add the dates.
-        </p>
-      )}
-    </section>
   );
 };
 

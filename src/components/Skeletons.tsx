@@ -187,7 +187,7 @@ export type PageSkeletonVariant = 'dashboard' | 'table' | 'board' | 'cards' | 's
 
 /** Which skeleton each CRM screen gets. */
 export const VIEW_SKELETON: Record<ViewId, PageSkeletonVariant> = {
-  dashboard: 'dashboard', mis: 'dashboard', reports: 'dashboard',
+  dashboard: 'dashboard', mis: 'dashboard', performance: 'dashboard', reports: 'dashboard',
   leads: 'table', inventory: 'table', calls: 'table', audit: 'table', followups: 'table', segments: 'table',
   kanban: 'board', templates: 'cards', documents: 'cards', chat360: 'split', settings: 'settings', tasks: 'list',
 };

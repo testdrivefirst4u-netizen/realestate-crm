@@ -189,18 +189,23 @@ describe('enquiry performance (FTD / MTD / YTD)', () => {
   });
 });
 
-describe('Enquiry performance on the MIS page (server render)', () => {
+describe('YTD / MTD screen (server render)', () => {
   it('shows the FTD, MTD, YTD and overall blocks with their tiles', async () => {
     const { createElement } = await import('react');
     const { renderToStaticMarkup } = await import('react-dom/server');
-    const { MisView } = await import('../src/modules/mis/MisView');
+    const { PerformanceView } = await import('../src/modules/mis/PerformanceView');
     const today = new Date().toISOString().slice(0, 10);
     const leads = [lead('1', STAGES.QUALIFIED, { [F.ENQUIRY_DATE]: `${today}T11:00:00+05:30` }), lead('2', STAGES.NOT_RESPONDING, { [F.ENQUIRY_DATE]: `${today}T12:00:00+05:30` })];
-    const html = renderToStaticMarkup(createElement(MisView, {
-      leads, sources: [], canSeeCalls: false, onRefresh: () => {}, onShowLeads: () => {},
-      sync: { status: 'idle', hasLoadedOnce: true } as any,
-    }));
+    const html = renderToStaticMarkup(createElement(PerformanceView, { leads, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
     if (process.env.MIS_HTML) (await import('node:fs')).writeFileSync(process.env.MIS_HTML, html);
-    for (const t of ['Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'Non-Responding', 'Site Visits Completed']) expect(html).toContain(t);
+    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'Non-Responding', 'Site Visits Completed']) expect(html).toContain(t);
   });
+});
+
+it('Sales MIS no longer carries the YTD / MTD blocks', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { MisView } = await import('../src/modules/mis/MisView');
+  const html = renderToStaticMarkup(createElement(MisView, { leads: [], sources: [], canSeeCalls: false, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
+  expect(html).not.toContain('Enquiry Performance Dashboard');
 });
