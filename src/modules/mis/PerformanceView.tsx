@@ -54,14 +54,15 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
 
 /* -------------------------------------------------------------------------- */
 
-const PERF_COLOURS = { received: '#1F3A8A', qualified: '#1E7A3C', unqualified: '#B42318', nonResponding: '#C2410C', open: '#3B82C4', visits: '#6B21A8', warm: '#B45309', hot: '#BE123C', planned: '#4338CA' };
+/** The CRM's ocean theme, with the Sales MIS stage colours for the stages (so both screens read the same). */
+const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', nonResponding: '#C46A12', open: '#0B6BB0', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', planned: '#1D5585' };
 const two = (n: number) => String(n).padStart(2, '0');
 
 const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]>; show: (label: string, ls: MisLead[]) => void }> = ({ title, sub, tiles, show }) => (
-  <div className="rounded-xl border border-[#0B2A44]/80 overflow-hidden">
-    <div className="bg-[#D9CFC1] px-3 py-1.5 text-center">
+  <div className="rounded-xl border border-[#D3E3F0] overflow-hidden">
+    <div className="bg-[#E6EFF6] px-3 py-1.5 text-center border-b border-[#D3E3F0]">
       <span className="text-[13px] sm:text-sm font-bold tracking-wide text-[#0B2A44] uppercase">{title}</span>
-      <span className="block text-[10.5px] font-medium text-[#5B5245]">{sub}</span>
+      <span className="block text-[10.5px] font-medium text-[#5E778C]">{sub}</span>
     </div>
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 bg-white">
       {tiles.map(([label, colour, ls, hint]) => (
@@ -70,10 +71,10 @@ const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, st
           type="button"
           onClick={() => show(`${label} · ${title.toLowerCase()}`, ls)}
           title={hint ? `${hint} — select to see these leads` : 'Select to see these leads'}
-          className="flex flex-col border-r border-b border-[#CBD5E1] last:border-r-0 hover:bg-[#F7FAFD] focus-visible:outline-2 focus-visible:outline-[#0B6BB0] text-center"
+          className="flex flex-col border-r border-b border-[#E6EFF6] last:border-r-0 hover:bg-[#F7FAFD] focus-visible:outline-2 focus-visible:outline-[#0B6BB0] text-center"
         >
           <span className="py-3 text-3xl sm:text-4xl font-extrabold tabular-nums" style={{ color: colour }}>{two(ls.length)}</span>
-          <span className="py-1.5 bg-[#EEE8E0] text-[11.5px] sm:text-[12.5px] font-semibold text-[#3D3A35] mt-auto">{label}</span>
+          <span className="py-1.5 bg-[#F5F9FC] text-[11.5px] sm:text-[12.5px] font-semibold text-[#2B4A63] mt-auto">{label}</span>
         </button>
       ))}
     </div>
@@ -99,8 +100,8 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
   const year = d.slice(0, 4);
   return (
     <section aria-label="Enquiry performance" className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs p-3 sm:p-4 space-y-3">
-      <div className="rounded-xl border border-[#0B2A44] overflow-hidden">
-        <div className="bg-[#1F3A4F] text-white text-center py-2 text-base sm:text-lg font-bold tracking-wide">Enquiry Performance Dashboard</div>
+      <div className="rounded-xl border border-[#0A1F33] overflow-hidden">
+        <div className="bg-linear-to-r from-[#0A1F33] via-[#0B2A44] to-[#0B4A7A] text-white text-center py-2 text-base sm:text-lg font-bold tracking-wide">Enquiry Performance Dashboard</div>
         <div className="flex items-center justify-center gap-2 py-1.5 text-[13px] font-bold text-[#0B2A44]">
           <label htmlFor="perf-date">Report Date:</label>
           <input id="perf-date" type="date" value={d} max={today} onChange={(e) => setDay(e.target.value || today)} className="text-[13px] font-bold px-1.5 py-0.5 rounded border border-[#A9BDCD] text-[#0B2A44]" />
