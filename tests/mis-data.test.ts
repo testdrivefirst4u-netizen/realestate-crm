@@ -209,3 +209,17 @@ it('Sales MIS no longer carries the YTD / MTD blocks', async () => {
   const html = renderToStaticMarkup(createElement(MisView, { leads: [], sources: [], canSeeCalls: false, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
   expect(html).not.toContain('Enquiry Performance Dashboard');
 });
+
+describe('YTD / MTD downloads', () => {
+  it('the Excel sheet has one row per number, and the screen shows both download buttons', async () => {
+    const { perfRows } = await import('../src/modules/mis/perfExport');
+    const rows = perfRows({ company: 'Amaya', date: '27 Oct 2026', filters: 'All', blocks: [{ title: 'Month to date (MTD) overview', sub: '1 Oct 2026 to 27 Oct 2026', tiles: [{ label: 'Leads Received', value: 205, color: '#000' }, { label: 'Qualified Leads', value: 61, color: '#000' }] }] });
+    expect(rows).toEqual([['Month to date (MTD) overview', '1 Oct 2026 to 27 Oct 2026', 'Leads Received', 205], ['Month to date (MTD) overview', '1 Oct 2026 to 27 Oct 2026', 'Qualified Leads', 61]]);
+    const { createElement } = await import('react');
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { PerformanceView } = await import('../src/modules/mis/PerformanceView');
+    const html = renderToStaticMarkup(createElement(PerformanceView, { leads: [], onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
+    expect(html).toContain('Download image');
+    expect(html).toContain('Download Excel');
+  });
+});

@@ -3,12 +3,16 @@
  * and the pipeline overall. Counted with the Sales MIS rules (misData: perfRow, pipelineNow), so both screens agree.
  */
 import React, { useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, ImageDown, RefreshCw } from 'lucide-react';
 import type { Lead, SyncState } from '../../types/crm';
 import { F } from '../../core/config';
 import { dateKey } from '../../core/dates';
 import { Button, Select } from '../../components/ui';
 import { PageSkeleton } from '../../components/Skeletons';
+import { useCompany } from '../../core/tenant';
+import { toAppError } from '../../core/errors';
+import { toast } from '../../core/notifications';
+import { downloadPerfExcel, downloadPerfPng, type PerfReport } from './perfExport';
 import { BLANK, UNASSIGNED, fmtKey, perfRanges, perfRow, pipelineNow, toMisLeads, uniq, type MisLead } from './misData';
 
 export interface PerformanceViewProps {
@@ -47,7 +51,8 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
           <Button variant="secondary" onClick={onRefresh} icon={<RefreshCw size={13} className={sync.status === 'syncing' ? 'animate-spin' : ''} />}>Refresh</Button>
         </div>
       </div>
-      <EnquiryPerformance nonDate={list} today={today} show={(label, ls) => onShowLeads(label, ls.map((l) => l.id))} />
+      <EnquiryPerformance nonDate={list} today={today} show={(label, ls) => onShowLeads(label, ls.map((l) => l.id))}
+        filters={[rm || 'All representatives', source || 'All sources'].join(' · ')} />
     </div>
   );
 };
@@ -82,7 +87,9 @@ const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, st
 );
 
 /** The management summary: for the day, month to date, year to date and the pipeline overall, on one report date. */
-export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; show: (label: string, ls: MisLead[]) => void }> = ({ nonDate, today, show }) => {
+export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; show: (label: string, ls: MisLead[]) => void; filters?: string }> = ({ nonDate, today, show, filters = 'All representatives · All sources' }) => {
+  const company = useCompany()?.name || 'CRM';
+  const [busy, setBusy] = useState(false);
   const [day, setDay] = useState(today);
   const d = day && day <= today ? day : today;
   const r = useMemo(() => perfRanges(d), [d]);
@@ -98,6 +105,38 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
     ['Site Visits', C.visits, p.visits, 'Site visits done in this period, by visit date'],
   ];
   const year = d.slice(0, 4);
+  const blocks: Array<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]> }> = [
+    { title: 'For the day (FTD) overview', sub: fmtKey(d), tiles: tiles(rows.ftd) },
+    { title: 'Month to date (MTD) overview', sub: `${fmtKey(r.mtd[0])} to ${fmtKey(d)}`, tiles: tiles(rows.mtd) },
+    { title: 'Year to date (YTD) overview', sub: `${fmtKey(r.ytd[0])} to ${fmtKey(d)} · calendar year ${year}`, tiles: tiles(rows.ytd) },
+    {
+      title: 'Pipeline stages & conversions (overall)',
+      sub: 'All enquiries, as they stand now',
+      tiles: [
+        ['Total Enquiries', C.received, pipe.total],
+        ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, site visit, HOT, Warm or booked'],
+        ['Warm Leads', C.warm, pipe.warm],
+        ['Hot Leads', C.hot, pipe.hot],
+        ['Site Visits Planned', C.planned, pipe.svPlanned, 'Prospect for site visit or visit scheduled, still open'],
+        ['Site Visits Completed', C.visits, pipe.svDone, 'Site visit done or walk-in'],
+      ],
+    },
+  ];
+  const report = (): PerfReport => ({
+    company,
+    date: fmtKey(d),
+    filters,
+    blocks: blocks.map((b) => ({ title: b.title, sub: b.sub, tiles: b.tiles.map(([label, color, ls]) => ({ label, color, value: ls.length })) })),
+  });
+  const savePng = async () => {
+    setBusy(true);
+    try {
+      await downloadPerfPng(report());
+    } catch (e) {
+      toast('Could not make the picture', toAppError(e).userMessage, 'alert');
+    }
+    setBusy(false);
+  };
   return (
     <section aria-label="Enquiry performance" className="bg-white rounded-2xl border border-[#D3E3F0] shadow-xs p-3 sm:p-4 space-y-3">
       <div className="rounded-xl border border-[#0A1F33] overflow-hidden">
@@ -107,23 +146,12 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
           <input id="perf-date" type="date" value={d} max={today} onChange={(e) => setDay(e.target.value || today)} className="text-[13px] font-bold px-1.5 py-0.5 rounded border border-[#A9BDCD] text-[#0B2A44]" />
           {d !== today && <button type="button" onClick={() => setDay(today)} className="text-[11px] font-semibold text-[#0B5E9C] hover:underline">Today</button>}
         </div>
+        <div className="flex flex-wrap items-center justify-center gap-2 pb-2.5">
+          <Button size="xs" variant="primary" icon={<ImageDown size={12} />} loading={busy} onClick={() => void savePng()}>Download image</Button>
+          <Button size="xs" variant="secondary" icon={<FileSpreadsheet size={12} />} onClick={() => downloadPerfExcel(report())}>Download Excel</Button>
+        </div>
       </div>
-      <PerfBlock title="For the day (FTD) overview" sub={fmtKey(d)} tiles={tiles(rows.ftd)} show={show} />
-      <PerfBlock title="Month to date (MTD) overview" sub={`${fmtKey(r.mtd[0])} to ${fmtKey(d)}`} tiles={tiles(rows.mtd)} show={show} />
-      <PerfBlock title="Year to date (YTD) overview" sub={`${fmtKey(r.ytd[0])} to ${fmtKey(d)} · calendar year ${year}`} tiles={tiles(rows.ytd)} show={show} />
-      <PerfBlock
-        title="Pipeline stages & conversions (overall)"
-        sub="All enquiries, as they stand now"
-        tiles={[
-          ['Total Enquiries', C.received, pipe.total],
-          ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, site visit, HOT, Warm or booked'],
-          ['Warm Leads', C.warm, pipe.warm],
-          ['Hot Leads', C.hot, pipe.hot],
-          ['Site Visits Planned', C.planned, pipe.svPlanned, 'Prospect for site visit or visit scheduled, still open'],
-          ['Site Visits Completed', C.visits, pipe.svDone, 'Site visit done or walk-in'],
-        ]}
-        show={show}
-      />
+      {blocks.map((b) => <PerfBlock key={b.title} title={b.title} sub={b.sub} tiles={b.tiles} show={show} />)}
       <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, non-responding and open, so those four add up to Leads Received. Site visits count visits done on those dates. The representative and source filters apply to every block; select any number to see the leads.</p>
       {pipe.svDoneUndated.length > 0 && (
         <p className="text-[11px] text-[#B54708] px-1">
