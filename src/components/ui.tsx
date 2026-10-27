@@ -275,23 +275,31 @@ export const DateRangeFilter: React.FC<{ value: DateFilterValue; onChange: (v: D
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute z-40 mt-1.5 right-0 sm:left-0 w-72 bg-white rounded-xl border border-[#D3E3F0] shadow-xl p-2 text-xs">
-            <div className="grid grid-cols-2 gap-1">
+          <div className="fixed inset-0 z-50 bg-[#0A1F33]/30 sm:bg-transparent sm:z-30" onClick={() => setOpen(false)} />
+          {/* phone: a sheet from the bottom, full width; larger screens: a dropdown under the button */}
+          <div role="dialog" aria-label="Choose a period" className="fixed inset-x-0 bottom-0 z-60 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-2xl text-sm sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:z-40 sm:mt-1.5 sm:w-80 sm:max-h-none sm:rounded-xl sm:border sm:border-[#D3E3F0] sm:p-2 sm:pb-2 sm:shadow-xl sm:text-xs">
+            <div className="flex items-center justify-between mb-3 sm:hidden">
+              <span className="text-base font-bold text-[#0B2A44]">Choose a period</span>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="h-10 w-10 -mr-2 grid place-items-center rounded-full text-[#5E778C] hover:bg-[#F2F7FB]"><X size={18} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-1">
               {presets.map((p) => (
-                <button key={p.id} onClick={() => { onChange({ preset: p.id }); setOpen(false); }} className={cx('text-left px-2.5 py-1.5 rounded-md hover:bg-[#F2F7FB]', value.preset === p.id && 'bg-[#0B2A44] text-white hover:bg-[#0B2A44]')}>{p.label}</button>
+                <button key={p.id} onClick={() => { onChange({ preset: p.id }); setOpen(false); }} className={cx('text-left px-3 py-3 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-md border border-[#E1ECF5] sm:border-transparent hover:bg-[#F2F7FB]', value.preset === p.id && 'bg-[#0B2A44] border-[#0B2A44] text-white hover:bg-[#0B2A44]')}>{p.label}</button>
               ))}
             </div>
-            <div className="border-t border-[#E6EFF6] mt-2 pt-2">
+            <div className="border-t border-[#E6EFF6] mt-3 pt-3 sm:mt-2 sm:pt-2">
               <div className={labelCls}>Custom range</div>
-              <div className="flex items-center gap-2">
-                <input type="date" value={value.from || ''} max={value.to || undefined} onChange={(e) => onChange({ preset: 'custom', from: e.target.value, to: value.to })} className={inputCls} />
-                <span className="text-[#7E93A6]">→</span>
-                <input type="date" value={value.to || ''} min={value.from || undefined} onChange={(e) => onChange({ preset: 'custom', from: value.from, to: e.target.value })} className={inputCls} />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-[11px] font-semibold text-[#5E778C] min-w-0">From
+                  <input type="date" value={value.from || ''} max={value.to || undefined} onChange={(e) => onChange({ preset: 'custom', from: e.target.value, to: value.to })} className={cx(inputCls, 'w-full min-w-0 h-11 sm:h-auto')} />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] font-semibold text-[#5E778C] min-w-0">To
+                  <input type="date" value={value.to || ''} min={value.from || undefined} onChange={(e) => onChange({ preset: 'custom', from: value.from, to: e.target.value })} className={cx(inputCls, 'w-full min-w-0 h-11 sm:h-auto')} />
+                </label>
               </div>
-              <div className="flex justify-between mt-2">
-                <button onClick={() => { onChange({ preset: 'all' }); setOpen(false); }} className="text-[#5E778C] hover:text-[#0B2A44] px-2 py-1">Clear</button>
-                <button onClick={() => setOpen(false)} className="px-3 py-1 rounded-md bg-[#0B6BB0] text-white font-semibold">Apply</button>
+              <div className="flex justify-between gap-2 mt-3 sm:mt-2">
+                <button onClick={() => { onChange({ preset: 'all' }); setOpen(false); }} className="text-[#5E778C] hover:text-[#0B2A44] px-3 py-2.5 sm:px-2 sm:py-1">Clear</button>
+                <button onClick={() => setOpen(false)} className="flex-1 sm:flex-none px-4 py-2.5 sm:px-3 sm:py-1 rounded-lg sm:rounded-md bg-[#0B6BB0] text-white font-semibold">Apply</button>
               </div>
             </div>
           </div>
