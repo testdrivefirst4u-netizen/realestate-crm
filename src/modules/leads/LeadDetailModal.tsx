@@ -14,6 +14,7 @@ import { api } from '../../core/api';
 import { followupCount } from '../../core/analytics';
 import { formatDateTime, fromDatetimeLocalInput, nowIso, parseDate, toDatetimeLocalInput } from '../../core/dates';
 import { fillTemplate, formatPhone, isLikelyPhone, mailtoLink, telLink, whatsappLink } from '../../core/phone';
+import { CallButton } from '../calls/CallButton';
 import { reportError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { sound } from '../../services/sound';
@@ -210,9 +211,9 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   const subtitle = (
     <span className="flex items-center gap-1.5 flex-wrap mt-1.5">
       {phone && (
-        <a href={telLink(phone)} className={actionCls} title={formatPhone(phone)}>
+        <CallButton phone={phone} leadId={id} name={String(lead[F.NAME] || '')} className={actionCls} title={formatPhone(phone)}>
           <Phone size={12} className="text-[#1976D2]" /> Call
-        </a>
+        </CallButton>
       )}
       {phone && (
         <a href={waHref} target="_blank" rel="noreferrer" className={actionCls}>

@@ -128,6 +128,8 @@ export async function settingsPublic() {
     appName: s.appName, timeZone: s.timeZone, aiModel: s.aiModel, aiFastModel: s.aiFastModel, aiTranscribeModel: s.aiTranscribeModel,
     aiConfigured: !!(await getSecret('GEMINI_API_KEY')),
     chat360Configured: !!(await getSecret('CHAT360_API_KEY')),
+    /** Calls start through JustConnect (click-to-call) instead of the phone's dialer. */
+    justconnectConfigured: !!(await getSecret('JUSTCONNECT_API_KEY')),
     chat360AutoCreateLeads: bool(s.chat360AutoCreateLeads), chat360DefaultRM: s.chat360DefaultRM,
     features: (() => {
       const own: Record<string, boolean> = { ...(safeJsonParse<Record<string, boolean>>(s.features, {}) || {}), developerMode: false };
@@ -166,6 +168,12 @@ export async function getSettings(ctx: Ctx) {
     ...pub,
     geminiKeyMasked: maskSecret(await getSecret('GEMINI_API_KEY')),
     chat360KeyMasked: maskSecret(await getSecret('CHAT360_API_KEY')),
+    justconnectKeyMasked: maskSecret(await getSecret('JUSTCONNECT_API_KEY')),
+    justconnectWebhookSecretSet: !!(await getSecret('JUSTCONNECT_WEBHOOK_SECRET')),
+    justconnectWebhookUrl: currentTenant() ? `${appUrl()}/api/webhooks/justconnect?company=${encodeURIComponent(currentTenant()!.id)}` : '',
+    justconnectLastSync: s.jcCallsCursor || '',
+    /** Leads are kept as JustConnect contacts (caller names on the agent's phone). On unless switched off. */
+    jcContactSync: s.jcContactSync !== 'false',
     chat360BaseUrl: s.chat360BaseUrl, chat360SendPath: s.chat360SendPath, chat360TemplatePath: s.chat360TemplatePath,
     chat360BusinessNumber: s.chat360BusinessNumber, chat360LoginEmail: s.chat360LoginEmail,
     chat360LoginPasswordSet: !!(await getSecret('CHAT360_LOGIN_PASSWORD')), chat360DefaultSource: s.chat360DefaultSource,
@@ -190,7 +198,7 @@ export async function getSettings(ctx: Ctx) {
 
 const EDITABLE = ['appName', 'timeZone', 'aiModel', 'aiFastModel', 'aiTranscribeModel', 'chat360BaseUrl', 'chat360SendPath', 'chat360TemplatePath',
   'chat360BusinessNumber', 'chat360LoginEmail', 'chat360AutoCreateLeads', 'chat360DefaultRM', 'chat360DefaultSource', 'telephonyFieldMap',
-  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking', 'salesOps', 'defaultRm'];
+  'features', 'dailyDigestEmail', 'rmLeadVisibility', 'leadAlerts', 'followupSequence', 'visitBooking', 'salesOps', 'defaultRm', 'jcContactSync'];
 
 /** Hosts the Chat360 base URL may point at — stops an admin from redirecting the stored API key. */
 const CHAT360_HOSTS = [/(^|\.)chat360\.io$/i];

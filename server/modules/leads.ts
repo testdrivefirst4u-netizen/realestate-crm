@@ -16,7 +16,7 @@ import {
   applyFollowupEdits, blankLeadDoc, cellToUi, FOLLOWUP_RE, fromUiPatch, headersFor, nextFollowupSlot, toCellValue, toUiLead,
   type ArchivedLeadDoc, type LeadDoc,
 } from '../core/leadShape';
-import { settingsAll } from '../core/settings';
+import { getSecret, settingsAll } from '../core/settings';
 import { assertLeadAccess, canSeeLead, leadFilter } from '../core/scope';
 import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, shortId, str, truncate } from '../core/utils';
 import { scheduleLeadAlerts } from './leadAlerts';
@@ -277,6 +277,7 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   await runEffects(created);
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
   scheduleLeadAlerts(lead, 'created'); // e-mail the RM / auto WhatsApp reply, after the response
+  if (await getSecret('JUSTCONNECT_API_KEY')) void import('./jcSync').then((m) => m.scheduleContactPush(id), () => undefined); // caller name in JustConnect
   return { id, lead, version: await bumpVersion() };
 }
 

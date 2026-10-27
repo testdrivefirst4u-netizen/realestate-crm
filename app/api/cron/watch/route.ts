@@ -4,6 +4,8 @@ import { recordJobRejected, recordJobRun, summarize } from '@/server/platform/he
 import { runWithTenant } from '@/server/core/tenant';
 import { listActiveTenants } from '@/server/platform/registry';
 import { runLeadWatch } from '@/server/modules/salesOps';
+import { syncJcCalls } from '@/server/modules/jcCalls';
+import { syncContacts } from '@/server/modules/jcSync';
 import { safeEqual } from '@/server/core/utils';
 
 export const runtime = 'nodejs';
@@ -22,7 +24,12 @@ export async function GET(req: Request) {
   let failed = 0;
   for (const tenant of await listActiveTenants()) {
     try {
-      results[tenant.slug] = await runWithTenant(tenant, () => runLeadWatch());
+      results[tenant.slug] = await runWithTenant(tenant, async () => ({
+        ...(await runLeadWatch()),
+        // JustConnect: calls the webhook missed, plus pending recordings / AI / missed-call notes
+        justconnect: await syncJcCalls({ deadline: Date.now() + 60_000 }).catch((e: any) => ({ error: String(e?.message || e).slice(0, 200) })),
+        justconnectContacts: await syncContacts({ limit: 80, deadline: Date.now() + 45_000 }).catch((e: any) => ({ error: String(e?.message || e).slice(0, 200) })),
+      }));
     } catch (e: any) {
       failed++;
       results[tenant.slug] = { error: 'failed' };

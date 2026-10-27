@@ -9,7 +9,7 @@ import type { CRMSettings, ServerSettings, UserAccount } from '../../types/crm';
 import type { Permission } from '../../core/rbac';
 
 /** Integration secrets the server can hold (encrypted in MongoDB or set as environment variables). */
-export type SecretKey = 'GEMINI_API_KEY' | 'CHAT360_API_KEY' | 'CHAT360_LOGIN_PASSWORD' | 'CHAT360_WEBHOOK_SECRET' | 'TELEPHONY_WEBHOOK_SECRET';
+export type SecretKey = 'GEMINI_API_KEY' | 'CHAT360_API_KEY' | 'CHAT360_LOGIN_PASSWORD' | 'CHAT360_WEBHOOK_SECRET' | 'TELEPHONY_WEBHOOK_SECRET' | 'JUSTCONNECT_API_KEY' | 'JUSTCONNECT_WEBHOOK_SECRET';
 
 /** `getSettings` payload — superset of ServerSettings. */
 export interface ServerSettingsExt extends ServerSettings {

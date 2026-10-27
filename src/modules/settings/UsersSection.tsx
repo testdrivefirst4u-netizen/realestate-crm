@@ -69,10 +69,12 @@ interface UserForm {
   id?: string;
   name: string;
   email: string;
-  /** WhatsApp number for lead alerts. */
+  /** Mobile number: JustConnect calls ring it first when the user is not signed in to the app. */
   phone: string;
   /** The number when the form was opened — sent only when changed (the fallback user list has no numbers). */
   initialPhone: string;
+  /** How Call works for them. */
+  callVia: 'justconnect' | 'direct';
   role: UserRole;
   status: 'Active' | 'Disabled';
   password: string;
@@ -82,7 +84,7 @@ interface UserForm {
   initialAvatar: string;
 }
 
-const emptyUser = (): UserForm => ({ name: '', email: '', phone: '', initialPhone: '', role: 'RM', status: 'Active', password: '', avatar: '', initialAvatar: '' });
+const emptyUser = (): UserForm => ({ name: '', email: '', phone: '', initialPhone: '', callVia: 'justconnect', role: 'RM', status: 'Active', password: '', avatar: '', initialAvatar: '' });
 
 export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers, currentUser, onRefreshAll, onUpdateProfile }) => {
   const [rows, setRows] = useState<UserAccount[] | null>(null);
@@ -156,7 +158,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
   };
 
   const openEdit = (u: UserAccount) => {
-    setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', initialPhone: u.phone || '', role: normalizeRole(u.role), status: u.status === 'Disabled' ? 'Disabled' : 'Active', password: '', avatar: u.avatar || '', initialAvatar: u.avatar || '' });
+    setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', initialPhone: u.phone || '', callVia: u.callVia === 'direct' ? 'direct' : 'justconnect', role: normalizeRole(u.role), status: u.status === 'Disabled' ? 'Disabled' : 'Active', password: '', avatar: u.avatar || '', initialAvatar: u.avatar || '' });
     setFormError(null);
     setShowPw(false);
     setEditOpen(true);
@@ -185,6 +187,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
     try {
       const payload: Partial<UserAccount> & { password?: string } = { id: form.id, name, email, role: form.role, status: form.status };
       if (form.phone.trim() !== form.initialPhone) payload.phone = form.phone.trim();
+      payload.callVia = form.callVia;
       if (form.password) payload.password = form.password;
       if (photoChanged && !photoSeparately) payload.avatar = form.avatar; // '' removes the photo
       const saved = await api.settings.users.save(payload);
@@ -380,6 +383,12 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
           </Field>
           <Field label="Email">
             <input type="email" className={inputCls} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoComplete="off" />
+          </Field>
+          <Field label="Mobile number for calls (optional)" hint="Calls started from the CRM ring this phone first, then the customer — who sees the business number. 10 digits for India.">
+            <input type="tel" inputMode="tel" className={inputCls} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="98765 43210" autoComplete="off" maxLength={20} />
+          </Field>
+          <Field label="Call through" hint={form.callVia === 'direct' ? 'Call opens their phone’s dialer — the customer sees their own number and the call is not recorded.' : 'JustConnect (when connected): their JustConnect app or mobile rings first; the customer sees the business number and the call is recorded.'}>
+            <Select value={form.callVia} onChange={(e) => setForm({ ...form, callVia: e.target.value as 'justconnect' | 'direct' })} options={[{ value: 'justconnect', label: 'JustConnect (business number)' }, { value: 'direct', label: 'Phone dialer (direct)' }]} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Role" hint={roleDescription}>

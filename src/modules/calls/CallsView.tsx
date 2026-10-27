@@ -23,6 +23,7 @@ import { formatPhone, telLink } from '../../core/phone';
 import { reportError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { can } from '../../core/rbac';
+import { useTenantSettings } from '../../core/tenant';
 import { Badge, Button, Card, DateFilterValue, DateRangeFilter, EmptyState, ErrorState, Field, InlineNotice, KpiTile, Select, StageBadge, cx, inputCls, resolveDateFilter } from '../../components/ui';
 import { LogCallModal } from './LogCallModal';
 import {
@@ -77,9 +78,12 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
     return m;
   }, [calls, leadById, leadByPhone]);
 
+  const jcOn = !!(useTenantSettings() as { justconnectConfigured?: boolean } | null)?.justconnectConfigured;
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      // JustConnect: pull new calls first (the server throttles repeats)
+      if (jcOn) await api.justconnect.syncCalls().catch(() => undefined);
       const list = await api.calls.list();
       setCalls(sortCalls(Array.isArray(list) ? list.filter((c) => c && c.id) : []));
       setError(null);
@@ -88,7 +92,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [jcOn]);
 
   useEffect(() => {
     load();
@@ -600,6 +604,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
             <div className="rounded-lg border border-[#E6EFF6] bg-white p-3 space-y-2">
               <div className="text-[10px] uppercase font-bold tracking-wider text-[#0B6BB0] inline-flex items-center gap-1"><Sparkles size={11} /> AI summary</div>
               <p className="text-[#0F2233] leading-relaxed whitespace-pre-wrap">{call.aiSummary}</p>
+              {call.aiTemperature && <p className="text-[12px]"><strong className={call.aiTemperature === 'Hot' ? 'text-[#8A2B0E]' : call.aiTemperature === 'Warm' ? 'text-[#7A4A06]' : 'text-[#29465E]'}>AI: {call.aiTemperature}</strong>{call.aiTemperatureReason ? ` — ${call.aiTemperatureReason}` : ''}</p>}
               {(call.keyPoints?.length || 0) > 0 && (
                 <div>
                   <div className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C] mb-1">Key points</div>

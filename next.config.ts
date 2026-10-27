@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Next's development badge sits bottom-left by default, on top of the sidebar's profile button.
   devIndicators: { position: 'bottom-right' },
+  // npm run dev: let phones on the same Wi-Fi open the dev server (http://<this computer's IP>:3000). Dev only.
+  allowedDevOrigins: ['192.168.*.*', '10.*.*.*'],
   // The repository root holds the original Vite app (with its own lockfile): pin the workspace to next-app/.
   turbopack: { root: path.resolve(__dirname) },
   // The MongoDB driver and its optional native deps must stay server-side and unbundled.

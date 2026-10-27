@@ -1,0 +1,101 @@
+/**
+ * A Call control for a lead: through JustConnect when the company has connected it (the RM's JustConnect phone rings
+ * first, then the customer — who sees the business number), otherwise a plain tel: link to the phone's dialer.
+ */
+import React, { createContext, useContext, useState } from 'react';
+import { api } from '../../core/api';
+import { toAppError } from '../../core/errors';
+import { toast } from '../../core/notifications';
+import { telLink } from '../../core/phone';
+import { useTenantSettings } from '../../core/tenant';
+
+/** The signed-in user's choice (My profile › How Call works), provided once by the app shell. */
+const CallViaContext = createContext<'justconnect' | 'direct'>('justconnect');
+export const CallViaProvider: React.FC<{ value?: 'justconnect' | 'direct'; children?: React.ReactNode }> = ({ value, children }) => (
+  <CallViaContext.Provider value={value === 'direct' ? 'direct' : 'justconnect'}>{children}</CallViaContext.Provider>
+);
+
+/** A phone (touch screen, narrow) — where a tel: link really dials. */
+const isPhoneDevice = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches && Math.min(window.screen.width, window.screen.height) < 820;
+
+const POLL_MS = 3000;
+const POLL_FOR_MS = 60000;
+
+/** Start a JustConnect call and report how it goes (agent ringing → answered / not answered). */
+export async function startJustConnectCall(d: { leadId?: string; phone?: string; name?: string }): Promise<boolean> {
+  const who = d.name || d.phone || 'the customer';
+  let req: { mode: 'app' | 'mobile'; requestId: string; status: string };
+  try {
+    req = await api.justconnect.call({ leadId: d.leadId, phone: d.leadId ? undefined : d.phone });
+  } catch (e) {
+    const err = toAppError(e);
+    // JustConnect cannot ring this person (app signed out, no mobile saved): on a phone, dial the customer directly
+    if (err.details?.fallback === 'dial' && d.phone && isPhoneDevice()) {
+      toast('Calling from your phone', 'JustConnect could not ring you, so your phone dials the customer directly (they see your number). Save your mobile number in My profile to call through JustConnect next time.', 'info');
+      window.location.href = telLink(d.phone);
+      return true;
+    }
+    toast('Call not started', err.userMessage, 'alert');
+    return false;
+  }
+  toast(req.mode === 'app' ? 'Answer your JustConnect app' : 'Answer your mobile', `It is ringing now — when you pick up, ${who} is called from the business number.`, 'info');
+  const until = Date.now() + POLL_FOR_MS;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, POLL_MS));
+    let s: { status: string; callStatus: string };
+    try {
+      s = await api.justconnect.callStatus(req.requestId, req.mode);
+    } catch {
+      return true; // the call may well be fine; stop asking
+    }
+    if (s.status === 'agent-answered') {
+      toast(`Calling ${who}…`, 'You will be connected when they pick up.', 'success');
+      return true;
+    }
+    if (s.status === 'agent-did-not-answer') {
+      toast('Call not made', `You did not answer your ${req.mode === 'app' ? 'JustConnect app' : 'mobile'} in time, so the customer was not called.`, 'warning');
+      return false;
+    }
+    if (s.status === 'failed') {
+      toast('Call not made', req.mode === 'app' ? 'JustConnect could not ring your app. Check that it is signed in.' : 'JustConnect could not ring your mobile. Check the number in My profile.', 'warning');
+      return false;
+    }
+  }
+  return true;
+}
+
+export const CallButton: React.FC<{
+  phone: string;
+  leadId?: string;
+  name?: string;
+  className?: string;
+  title?: string;
+  'aria-label'?: string;
+  children: React.ReactNode;
+}> = ({ phone, leadId, name, className, title, children, ...rest }) => {
+  const settings = useTenantSettings() as { justconnectConfigured?: boolean } | null;
+  const via = useContext(CallViaContext);
+  const [busy, setBusy] = useState(false);
+  // direct: the phone's own dialer calls the customer straight away (they see this phone's number)
+  if (!settings?.justconnectConfigured || via === 'direct') {
+    return <a href={telLink(phone)} className={className} title={title} aria-label={rest['aria-label']} onClick={(e) => e.stopPropagation()}>{children}</a>;
+  }
+  return (
+    <button
+      type="button"
+      className={className}
+      title={title ? `${title} · via JustConnect` : 'Call via JustConnect'}
+      aria-label={rest['aria-label']}
+      aria-busy={busy || undefined}
+      disabled={busy}
+      onClick={async (e) => {
+        e.stopPropagation();
+        setBusy(true);
+        await startJustConnectCall({ leadId, phone, name });
+        setBusy(false);
+      }}
+    >
+      {children}
+    </button>
+  );
+};

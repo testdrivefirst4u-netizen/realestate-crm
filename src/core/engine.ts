@@ -97,6 +97,8 @@ const EVENT_TYPE_MAP: Record<string, { type: 'info' | 'success' | 'warning' | 'a
   integration_alert: { type: 'alert', audio: true },
   chat_received: { type: 'info', audio: true },
   call_logged: { type: 'info' },
+  incoming_call: { type: 'alert', audio: true },
+  call_missed: { type: 'warning', audio: true },
   inventory_status: { type: 'info' },
   document_uploaded: { type: 'info' },
   lead_trashed: { type: 'warning' },
@@ -121,7 +123,7 @@ export interface CrmEngine {
    * session (persisted, so the sidebar shows it at once and after a reload) and your entry in `data.users`.
    * Rejects with an AppError on failure (no toast — the caller reports it); resolves `null` when signed out.
    */
-  updateProfile: (data: { name?: string; avatar?: string | null; phone?: string }) => Promise<UserAccount | null>;
+  updateProfile: (data: { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' }) => Promise<UserAccount | null>;
   refresh: (opts?: { silent?: boolean; force?: boolean }) => Promise<void>;
   updateLocalSettings: (patch: Partial<CRMData['settings']>) => void;
 
@@ -304,6 +306,12 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
         const key = ev.key || eventKey(ev.type, ev.recordId, ev.id);
         if (ev.actor && me && ev.actor === me) {
           notifications.ack(key); // my own action — toast already shown
+          continue;
+        }
+        // meant for one person (e.g. "incoming call" for whoever's phone is ringing)
+        const forUser = ev.payload && typeof ev.payload === 'object' ? (ev.payload as { forUser?: string }).forUser : undefined;
+        if (forUser && forUser !== sessionRef.current?.user?.id) {
+          notifications.ack(key);
           continue;
         }
         const map = EVENT_TYPE_MAP[ev.type] || { type: 'info' as const };
@@ -581,7 +589,7 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
   }, [clearUserData]);
 
   const updateProfile = useCallback(
-    async (input: { name?: string; avatar?: string | null; phone?: string }): Promise<UserAccount | null> => {
+    async (input: { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' }): Promise<UserAccount | null> => {
       if (!sessionRef.current) return null;
       const updated = await write(() => api.auth.updateProfile(input));
       const cur = sessionRef.current;

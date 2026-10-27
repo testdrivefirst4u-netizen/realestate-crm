@@ -14,6 +14,7 @@ import { DEFAULT_CUSTOMIZATION, F } from '../../core/config';
 import { countedLeads, enquiryDate, followupCount, followupEntries, isActive, nextFollowupDate, searchLeads } from '../../core/analytics';
 import { formatDateTime, formatRelative, inRange } from '../../core/dates';
 import { formatPhone, telLink, whatsappLink } from '../../core/phone';
+import { CallButton } from '../calls/CallButton';
 import { exportLeadsToXlsx } from '../../services/csvService';
 import {
   Button,
@@ -529,7 +530,7 @@ const LeadCard: React.FC<{ lead: Lead; onOpen: () => void }> = ({ lead, onOpen }
       </button>
       {phone && (
         <div className="flex gap-1.5 flex-none">
-          <a href={telLink(phone)} aria-label={`Call ${name}`} title={formatPhone(phone)} className="w-11 h-11 rounded-full bg-[#F2F7FB] text-[#0A1F33] flex items-center justify-center active:scale-95"><Phone size={17} /></a>
+          <CallButton phone={phone} leadId={String(lead[F.ID])} name={name} aria-label={`Call ${name}`} title={formatPhone(phone)} className="w-11 h-11 rounded-full bg-[#F2F7FB] text-[#0A1F33] flex items-center justify-center active:scale-95"><Phone size={17} /></CallButton>
           <a href={whatsappLink(phone)} target="_blank" rel="noreferrer" aria-label={`WhatsApp ${name}`} className="w-11 h-11 rounded-full bg-[#0A1F33] text-white flex items-center justify-center active:scale-95"><MessageCircle size={17} /></a>
         </div>
       )}

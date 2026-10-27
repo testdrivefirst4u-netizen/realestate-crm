@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Check, Trash2, UserCircle2 } from 'lucide-react';
+import { Camera, Check, Phone, Trash2, UserCircle2 } from 'lucide-react';
 import { UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { formatDateTime } from '../../core/dates';
@@ -7,11 +7,12 @@ import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { roleLabel } from '../../core/rbac';
 import { Avatar, isAvatarDataUrl, useAvatarPicker } from '../../components/Avatar';
-import { Badge, Button, Card, InlineNotice } from '../../components/ui';
+import { Badge, Button, Card, InlineNotice, inputCls } from '../../components/ui';
+import { useTenantSettings } from '../../core/tenant';
 import { TwoStepCard } from './TwoStepCard';
 import { PushCard } from './PushCard';
 
-export type ProfileUpdate = { name?: string; avatar?: string | null; phone?: string };
+export type ProfileUpdate = { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' };
 
 export interface ProfileSectionProps {
   currentUser: UserAccount | null;
@@ -35,6 +36,37 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
   const shownPhoto = photo ? photo.value : currentUser?.avatar || null;
   const photoDirty = !!photo?.dirty;
   const hasPhoto = isAvatarDataUrl(shownPhoto);
+  const jcOn = !!(useTenantSettings() as { justconnectConfigured?: boolean } | null)?.justconnectConfigured;
+  const [savingVia, setSavingVia] = useState(false);
+  const chooseVia = async (callVia: 'justconnect' | 'direct') => {
+    setSavingVia(true);
+    try {
+      if (onUpdateProfile) await onUpdateProfile({ callVia });
+      else { await api.auth.updateProfile({ callVia }); onRefreshAll(); }
+      toast(callVia === 'direct' ? 'Call now opens your phone dialer' : 'Call now goes through JustConnect', undefined, 'success');
+    } catch (err) {
+      toast('Could not save', toAppError(reportError('profile.callVia', err)).userMessage, 'alert');
+    } finally {
+      setSavingVia(false);
+    }
+  };
+  const [mobile, setMobile] = useState<string | null>(null); // null = not edited
+  const [savingMobile, setSavingMobile] = useState(false);
+  const saveMobile = async () => {
+    if (mobile === null) return;
+    setSavingMobile(true);
+    try {
+      if (onUpdateProfile) await onUpdateProfile({ phone: mobile.trim() });
+      else { await api.auth.updateProfile({ phone: mobile.trim() }); onRefreshAll(); }
+      setMobile(null);
+      toast(mobile.trim() ? 'Mobile number saved' : 'Mobile number removed', undefined, 'success');
+    } catch (err) {
+      toast('Could not save your number', toAppError(reportError('profile.updateMobile', err)).userMessage, 'alert');
+    } finally {
+      setSavingMobile(false);
+    }
+  };
+
   const savePhoto = async () => {
     if (!currentUser || !photo?.dirty) return;
     const value = photo.value;
@@ -95,6 +127,38 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
           <InlineNotice tone="warning">No active session. Please sign in again.</InlineNotice>
         )}
       </Card>
+
+      {currentUser && (
+        <Card title={<span className="inline-flex items-center gap-2"><Phone size={15} className="text-[#0B6BB0]" /> Mobile number for calls</span>} subtitle="When you tap Call on a lead, the CRM rings this phone first; when you answer, the customer is called and sees the business number.">
+          <div className="flex flex-wrap items-end gap-2">
+            <input type="tel" inputMode="tel" className={inputCls + ' w-56'} value={mobile ?? currentUser.phone ?? ''} onChange={(e) => setMobile(e.target.value)} placeholder="98765 43210" maxLength={20} aria-label="Mobile number for calls" />
+            <Button variant="primary" onClick={() => void saveMobile()} loading={savingMobile} disabled={mobile === null} icon={<Check size={13} />}>Save</Button>
+          </div>
+          <p className="mt-2 text-xs text-[#5E778C]">10 digits for India, or + country code. If you are signed in to the JustConnect app, calls ring the app instead.</p>
+          {jcOn && (
+            <fieldset className="mt-4 pt-4 border-t border-[#E6EFF6]" disabled={savingVia}>
+              <legend className="text-[13px] font-bold text-[#0B2A44] mb-2">How Call works for you</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {([
+                  ['justconnect', 'Through JustConnect', 'Your JustConnect app (or this mobile) rings first; answer and the customer is called. They see the business number; the call is recorded.'],
+                  ['direct', 'Phone dialer (direct)', 'Call opens your phone’s dialer and calls straight away. The customer sees your own number; the call is not recorded.'],
+                ] as const).map(([id, title, desc]) => {
+                  const on = (currentUser.callVia || 'justconnect') === id;
+                  return (
+                    <label key={id} className={`flex gap-2.5 rounded-xl border p-3 cursor-pointer ${on ? 'border-[#0A1F33] bg-[#F2F7FB]' : 'border-[#D3E3F0] hover:bg-[#F7FAFD]'}`}>
+                      <input type="radio" name="callVia" className="mt-0.5 h-4 w-4 accent-[#0A1F33]" checked={on} onChange={() => void chooseVia(id)} />
+                      <span>
+                        <span className="block text-[13px] font-semibold text-[#0B2A44]">{title}</span>
+                        <span className="block text-[11.5px] text-[#5E778C] mt-0.5">{desc}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
+        </Card>
+      )}
 
       {currentUser && <PushCard />}
 

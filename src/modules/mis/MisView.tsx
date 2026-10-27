@@ -20,6 +20,8 @@ import {
   pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedBuckets, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
 } from './misData';
 import { SITE_VISIT_DONE } from '../../core/config';
+import { useTenantSettings } from '../../core/tenant';
+import { JcCallReport } from './JcCallReport';
 
 export interface MisViewProps {
   leads: Lead[];
@@ -117,6 +119,7 @@ const foot = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums font-bold bo
 /* --------------------------------- view ---------------------------------- */
 
 export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads, canSeeSpend, canEditSpend }) => {
+  const jcOn = !!(useTenantSettings() as { justconnectConfigured?: boolean } | null)?.justconnectConfigured;
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [callsState, setCallsState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [saved] = useState(loadFilters);
@@ -299,6 +302,8 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
         </div>
         <TeamTable nonDate={nonDate} range={periodRange(teamPeriod, custom, today)} onRep={(r) => setRm(r)} />
       </Panel>
+
+      {jcOn && <JcCallReport today={today} />}
 
       <Geo list={list} hasGeo={hasGeo} open={geoOpen} setOpen={setGeoOpen} country={country} show={show} />
     </div>

@@ -14,6 +14,7 @@ import { Sidebar } from '@/src/components/Sidebar';
 import { MobileTabBar } from '@/src/components/MobileTabBar';
 import { NotificationPrompt } from '@/src/components/NotificationPrompt';
 import { isViewOnly } from '@/src/core/rbac';
+import { CallViaProvider } from '@/src/modules/calls/CallButton';
 import { registerServiceWorker } from '@/src/core/pushClient';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -303,6 +304,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   return (
     <CrmContext.Provider value={ctx}>
       <TenantProvider settings={serverSettings}>
+      <CallViaProvider value={currentUser?.callVia}>
         <div className="crm-ocean flex h-screen bg-[#F2F7FB] text-[#0F2233] overflow-hidden">
           <Sidebar
             currentView={currentView}
@@ -443,6 +445,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
           <Toasts />
           <div className="hidden"><AppLogo size="xs" /></div>
         </div>
+      </CallViaProvider>
       </TenantProvider>
     </CrmContext.Provider>
   );

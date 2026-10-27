@@ -27,6 +27,7 @@ const COMPANY_SETTINGS_ACTIONS = new Set([
   'getSettings', 'updateSettings', 'setSecret', 'aiTest', 'chat360Test', 'listUsers',
   'metaSyncReport', 'retryMetaLeads', 'backfillMetaSource',
   'listLeadBackups', 'getLeadBackup', 'createLeadBackup', 'verifyLeadBackup',
+  'jcTest', 'jcAgents', 'jcSetAgent', 'jcSyncCalls', 'jcContactStatus', 'jcSyncContacts',
 ]);
 
 function readCookie(req: Request, name: string): string {

@@ -7,11 +7,13 @@ import { ChevronDown, ChevronUp, ExternalLink, FileAudio, Phone, PhoneCall, Phon
 import { CallRecord, Lead } from '../../../types/crm';
 import { F } from '../../../core/config';
 import { api } from '../../../core/api';
+import { useTenantSettings } from '../../../core/tenant';
 import { formatDateTime } from '../../../core/dates';
 import { formatDuration } from '../../../core/format';
-import { reportError } from '../../../core/errors';
+import { reportError, toAppError } from '../../../core/errors';
 import { toast } from '../../../core/notifications';
 import { telLink } from '../../../core/phone';
+import { CallButton } from '../../calls/CallButton';
 import { Badge, Button, EmptyState, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
 import { CALL_OUTCOMES, MAX_UPLOAD_BYTES, callStatusForOutcome, fileToBase64, formatBytes, useLazyResource } from '../shared';
 import { ListSkeleton } from '../../../components/Skeletons';
@@ -29,7 +31,21 @@ type Direction = 'Outbound' | 'Inbound';
 export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChanged }) => {
   const id = String(lead[F.ID]);
   const phone = String(lead[F.PHONE] || '');
-  const calls = useLazyResource<CallRecord[]>(active, () => api.calls.list(id), 'leads.calls');
+  const jcOn = !!(useTenantSettings() as { justconnectConfigured?: boolean } | null)?.justconnectConfigured;
+  // JustConnect: pull new calls (and recordings / AI results) before listing — the server throttles repeats
+  const calls = useLazyResource<CallRecord[]>(active, async () => {
+    if (jcOn) await api.justconnect.syncCalls().catch(() => undefined);
+    return api.calls.list(id);
+  }, 'leads.calls');
+  const setStage = async (stage: string) => {
+    try {
+      await api.leads.setStage(id, stage);
+      toast(`Lead set to ${stage}`, undefined, 'success');
+      onChanged?.();
+    } catch (e) {
+      toast('Could not change the stage', toAppError(e).userMessage, 'alert');
+    }
+  };
 
   /* ------------------------------ log form ------------------------------ */
   const [direction, setDirection] = useState<Direction>('Outbound');
@@ -177,9 +193,9 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
             {startedAt ? `Started ${formatDateTime(startedAt)}${endedAt ? ` · ended ${formatDateTime(endedAt)}` : ' · in progress'}` : 'Optional — or log a call that already happened.'}
           </span>
           {phone && (
-            <a href={telLink(phone)} className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-[#1976D2] hover:underline">
+            <CallButton phone={phone} leadId={id} name={String(lead[F.NAME] || '')} className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-[#1976D2] hover:underline">
               <Phone size={11} /> Dial
-            </a>
+            </CallButton>
           )}
         </div>
 
@@ -226,6 +242,9 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
             busy={busy[c.id]}
             onPickRecording={() => fileInputs.current[c.id]?.click()}
             onTranscribe={() => void transcribe(c)}
+            leadStage={String(lead[F.STAGE] || '')}
+            onSetStage={(st) => void setStage(st)}
+            onUpdated={() => { void calls.reload(); onChanged?.(); }}
             fileInput={
               <input
                 ref={(el) => {
@@ -275,7 +294,10 @@ const CallRow: React.FC<{
   onPickRecording: () => void;
   onTranscribe: () => void;
   fileInput: React.ReactNode;
-}> = ({ call, aiConfigured, busy, onPickRecording, onTranscribe, fileInput }) => {
+  leadStage: string;
+  onSetStage: (stage: string) => void;
+  onUpdated: () => void;
+}> = ({ call, aiConfigured, busy, onPickRecording, onTranscribe, fileInput, leadStage, onSetStage, onUpdated }) => {
   const [showSummary, setShowSummary] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const hasRecording = !!(call.recordingUrl || call.recordingFileId);
@@ -305,6 +327,24 @@ const CallRow: React.FC<{
       </div>
 
       {call.notes && <div className="text-xs text-[#0F2233] leading-relaxed whitespace-pre-wrap bg-[#F2F7FB] rounded-lg p-2">{call.notes}</div>}
+
+      {call.aiTemperature && (
+        <div className={cx('rounded-lg px-2.5 py-2 text-xs flex flex-wrap items-center gap-2', call.aiTemperature === 'Hot' ? 'bg-[#FDECE7] text-[#8A2B0E]' : call.aiTemperature === 'Warm' ? 'bg-[#FFF4E0] text-[#7A4A06]' : 'bg-[#EAF1F7] text-[#29465E]')}>
+          <Sparkles size={12} className="flex-none" />
+          <span><strong>AI: {call.aiTemperature}</strong>{call.aiTemperatureReason ? ` — ${call.aiTemperatureReason}` : ''}</span>
+          {(call.aiTemperature === 'Hot' || call.aiTemperature === 'Warm') && leadStage !== call.aiTemperature && (
+            <button type="button" onClick={() => onSetStage(call.aiTemperature!)} className="ml-auto rounded-md bg-white/80 px-2 py-1 font-semibold hover:bg-white">
+              Set lead to {call.aiTemperature}
+            </button>
+          )}
+        </div>
+      )}
+
+      {call.provider === 'JustConnect' && call.status !== 'In Progress' && <JcOutcomeForm call={call} onSaved={onUpdated} />}
+
+      {call.recordingUrl && /^\/api\/files\//.test(call.recordingUrl) && (
+        <audio controls preload="none" src={call.recordingUrl} className="w-full h-9" aria-label="Call recording" />
+      )}
 
       <div className="flex items-center gap-2 flex-wrap">
         {call.recordingUrl && (
@@ -359,6 +399,76 @@ const CallRow: React.FC<{
         </div>
       )}
       {showTranscript && call.transcript && <div className="rounded-lg border border-[#D3E3F0] bg-[#FFFFFF] p-3 text-xs text-[#0F2233] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{call.transcript}</div>}
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+
+type JcOutcome = { code: string; label: string; parent: string | null; positive: boolean; needsNote: boolean };
+let outcomesCache: Promise<JcOutcome[]> | null = null;
+
+/** File (or change) the outcome of a JustConnect call — saved in JustConnect, on the call and as a remark on the lead. */
+const JcOutcomeForm: React.FC<{ call: CallRecord; onSaved: () => void }> = ({ call, onSaved }) => {
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<JcOutcome[] | null>(null);
+  const [code, setCode] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const start = async () => {
+    setOpen(true);
+    setErr(null);
+    try {
+      outcomesCache = outcomesCache || api.justconnect.outcomes();
+      const l = await outcomesCache;
+      setList(l);
+      const current = l.find((o) => o.label === call.outcome);
+      if (current) setCode(current.code);
+    } catch (e) {
+      outcomesCache = null;
+      setErr(toAppError(e).userMessage);
+    }
+  };
+  const chosen = list?.find((o) => o.code === code);
+  const save = async () => {
+    if (!chosen) return;
+    if (chosen.needsNote && !note.trim()) return setErr(`“${chosen.label}” needs a note.`);
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.justconnect.fileOutcome(call.id, code, note.trim());
+      toast('Outcome saved', `${chosen.label} — also in JustConnect and the lead's remarks`, 'success');
+      setOpen(false);
+      setNote('');
+      onSaved();
+    } catch (e) {
+      setErr(toAppError(e).userMessage);
+    }
+    setSaving(false);
+  };
+  if (!open) {
+    return (
+      <button type="button" onClick={() => void start()} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0B5E9C] hover:text-[#0B6BB0]">
+        {call.outcome ? 'Change outcome' : 'Add outcome'} (JustConnect)
+      </button>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] p-2.5 space-y-2">
+      {!list && !err && <div className="text-[11px] text-[#5E778C]">Loading outcomes…</div>}
+      {list && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <select value={code} onChange={(e) => setCode(e.target.value)} className="text-xs px-2 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" aria-label="Call outcome">
+            <option value="">Choose an outcome…</option>
+            {list.map((o) => <option key={o.code} value={o.code}>{o.parent ? '— ' : ''}{o.label}{o.needsNote ? ' (note needed)' : ''}</option>)}
+          </select>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={chosen?.needsNote ? 'Note (needed)' : 'Note (optional)'} className="flex-1 min-w-[140px] text-xs px-2 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" maxLength={2000} aria-label="Note" />
+          <Button type="button" variant="primary" size="xs" onClick={() => void save()} loading={saving} disabled={!code}>Save</Button>
+          <Button type="button" variant="ghost" size="xs" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+        </div>
+      )}
+      {err && <div className="text-[11px] text-[#B42318]">{err}</div>}
     </div>
   );
 };

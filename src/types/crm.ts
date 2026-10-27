@@ -250,6 +250,8 @@ export interface UserAccount {
   twoFactor?: boolean;
   /** WhatsApp number for lead alerts (digits with country code). */
   phone?: string;
+  /** How Call works: through JustConnect (business number, recorded) or the phone's own dialer. */
+  callVia?: 'justconnect' | 'direct';
 }
 
 export interface AuthSession {
@@ -313,6 +315,9 @@ export interface CopilotAction {
 }
 
 export interface CallRecord {
+  /** AI read of the customer from the call: Hot / Warm / Cold, and why. */
+  aiTemperature?: string;
+  aiTemperatureReason?: string;
   id: string;
   leadId: string;
   customerName: string;

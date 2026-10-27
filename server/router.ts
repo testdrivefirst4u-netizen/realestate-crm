@@ -32,6 +32,8 @@ import { actions as metaActions } from './modules/meta';
 import { actions as metaSyncActions } from './modules/metaSync';
 import { actions as salesOpsActions } from './modules/salesOps';
 import { actions as pushActions } from './modules/push';
+import { actions as justconnectActions } from './modules/justconnect';
+import { actions as jcSyncActions } from './modules/jcSync';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -52,6 +54,8 @@ export const registry: ActionMap = {
   ...metaSyncActions,
   ...salesOpsActions,
   ...pushActions,
+  ...justconnectActions,
+  ...jcSyncActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -70,7 +74,7 @@ export interface RouteResult {
 const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatures>, string]> = [
   [/^ai[A-Z]/, 'aiCopilot', 'AI features'],
   [/^chat360/, 'chat360', 'WhatsApp (Chat360)'],
-  [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall)$/, 'calls', 'Calls'],
+  [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall)$|^jc[A-Z]/, 'calls', 'Calls'],
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
@@ -91,7 +95,7 @@ const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', '
 const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
-  'getCalls', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages',
+  'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

@@ -51,6 +51,7 @@ function serialize(r: any) {
     providerCallId: str(r.providerCallId), recordingUrl: str(r.recordingUrl), recordingFileId: str(r.recordingFileId),
     transcriptFileId: str(r.transcriptFileId), transcript: str(r.transcript), aiSummary: str(r.aiSummary),
     keyPoints: list(r.keyPoints), followupActions: list(r.followupActions), loggedBy: str(r.loggedBy), createdAt: toIso(r.createdAt), notes: str(r.notes),
+    aiTemperature: str(r.aiTemperature), aiTemperatureReason: str(r.aiTemperatureReason),
   } as Record<string, any>;
 }
 
@@ -81,6 +82,8 @@ function toFields(c: any) {
   if (c.keyPoints !== undefined) f.keyPoints = list(c.keyPoints).slice(0, 50).map((x) => truncate(x, 500));
   if (c.followupActions !== undefined) f.followupActions = list(c.followupActions).slice(0, 50).map((x) => truncate(x, 500));
   if (c.notes !== undefined) f.notes = truncate(str(c.notes), 5000);
+  if (c.aiTemperature !== undefined) f.aiTemperature = ['Hot', 'Warm', 'Cold'].includes(str(c.aiTemperature)) ? str(c.aiTemperature) : '';
+  if (c.aiTemperatureReason !== undefined) f.aiTemperatureReason = truncate(str(c.aiTemperatureReason), 300);
   return f;
 }
 
@@ -113,7 +116,7 @@ export async function listCalls(leadId?: string): Promise<any[]> {
   return rows.sort((a, b) => t(b) - t(a));
 }
 
-async function getCall(id: string) {
+export async function getCall(id: string) {
   if (!id) return null;
   const r = await (await calls()).findOne({ _id: String(id) });
   return r ? serialize(r) : null;
@@ -318,6 +321,8 @@ async function summarizeTranscript(transcript: string, lead: UiLead | null, ctx:
   const prompt = context + 'Below is the transcript of a sales call for Amaya by Vera Vita (senior living residences, Hyderabad). ' +
     'Return STRICT JSON with keys: summary (3-5 sentences), keyPoints (array of short strings: requirements, budget, family, timeline, objections), ' +
     'followupActions (array of short imperative strings), outcome (one of: ' + OUTCOMES.join(', ') + '), ' +
+    'temperature (how ready the customer is to buy, judged from the call: "Hot" = ready to visit or book soon, clear budget and timeline; "Warm" = interested but undecided or later timeline; "Cold" = little interest, wrong fit, or not reachable), ' +
+    'temperatureReason (one short sentence why), ' +
     'nextFollowup (ISO-8601 date-time in Asia/Kolkata if a specific follow-up time was agreed, else null).\n\nTRANSCRIPT:\n' + truncate(transcript, 60000);
   const text = await generateText(prompt, ctx, { json: true, maxOutputTokens: 1024, temperature: 0.1 });
   const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, '');
@@ -329,6 +334,8 @@ async function summarizeTranscript(transcript: string, lead: UiLead | null, ctx:
     followupActions: Array.isArray(parsed.followupActions) ? parsed.followupActions.map(String) : [],
     outcome: parsed.outcome ? truncate(String(parsed.outcome), 60) : '',
     nextFollowup: next ? next.toISOString() : '',
+    temperature: ['Hot', 'Warm', 'Cold'].includes(String(parsed.temperature)) ? String(parsed.temperature) : '',
+    temperatureReason: parsed.temperatureReason ? truncate(String(parsed.temperatureReason), 300) : '',
   };
 }
 
@@ -340,6 +347,7 @@ export async function summarize(callId: string, ctx: Ctx): Promise<any> {
   const result = await summarizeTranscript(call.transcript, lead, ctx);
   const updated = await updateCall(call.id, {
     aiSummary: result.summary, keyPoints: result.keyPoints, followupActions: result.followupActions, outcome: call.outcome || result.outcome || '',
+    aiTemperature: result.temperature, aiTemperatureReason: result.temperatureReason,
   }, ctx);
   if (call.leadId) {
     await addTimeline(call.leadId, 'call_summary', 'AI call summary', result.summary, actorOf(ctx), 'Call', call.id);

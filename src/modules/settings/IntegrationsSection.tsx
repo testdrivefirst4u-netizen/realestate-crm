@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { JustConnectCard } from './JustConnectCard';
 import { Check, Copy, Database, KeyRound, Mail, MessageCircle, PhoneCall, RefreshCw, Server, Sparkles, Wand2 } from 'lucide-react';
 import { CRMSettings, ServerSettings } from '../../types/crm';
 import { api } from '../../core/api';
@@ -565,6 +566,19 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
           </div>
         </div>
       </Card>
+
+      {/* JustConnect (cloud telephony) */}
+      <JustConnectCard
+        contactSync={(s as any).jcContactSync !== false}
+        onContactSync={(on) => update({ jcContactSync: on } as any, 'jcContactSync', on ? 'Leads will be sent to JustConnect' : 'Stopped sending leads to JustConnect')}
+        configured={!!(s as any).justconnectConfigured || !!(s as any).justconnectKeyMasked}
+        canEdit={canEdit}
+        webhookUrl={(s as any).justconnectWebhookUrl}
+        webhookSecretSet={!!(s as any).justconnectWebhookSecretSet}
+        lastSync={(s as any).justconnectLastSync}
+        webhookSecretField={<SecretField label="Webhook signing secret" masked={(s as any).justconnectWebhookSecretSet ? '••••••••' : ''} canEdit={canSecrets} envVar="JUSTCONNECT_WEBHOOK_SECRET" placeholder="Paste the signing secret JustConnect showed" hint="Shown once by JustConnect when you add the webhook. Stored encrypted; used to check every call event really comes from JustConnect." onSave={(v) => setSecret('JUSTCONNECT_WEBHOOK_SECRET', v, 'Webhook secret saved')} />}
+        keyField={<SecretField label="JustConnect API key" masked={(s as any).justconnectKeyMasked} canEdit={canSecrets} envVar="JUSTCONNECT_API_KEY" hint="JustConnect › Developer Panel › API Keys › New key (name it “Amaya CRM”). Stored encrypted on the server; never shown again or sent to a browser." onSave={(v) => setSecret('JUSTCONNECT_API_KEY', v, 'JustConnect key saved')} />}
+      />
 
       {/* Telephony */}
       <Card

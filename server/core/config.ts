@@ -146,7 +146,7 @@ export const CFG = {
   } as Record<string, string[]>,
 
   /** Secret keys (stored encrypted in the `secrets` collection; an env var of the same name wins). */
-  SECRETS: ['GEMINI_API_KEY', 'CHAT360_API_KEY', 'CHAT360_LOGIN_PASSWORD', 'CHAT360_WEBHOOK_SECRET', 'TELEPHONY_WEBHOOK_SECRET'] as const,
+  SECRETS: ['GEMINI_API_KEY', 'CHAT360_API_KEY', 'CHAT360_LOGIN_PASSWORD', 'CHAT360_WEBHOOK_SECRET', 'TELEPHONY_WEBHOOK_SECRET', 'JUSTCONNECT_API_KEY', 'JUSTCONNECT_WEBHOOK_SECRET'] as const,
 
   /** Non-secret settings (key → default), stored in the `settings` collection. */
   SETTING_DEFAULTS: {

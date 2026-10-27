@@ -81,6 +81,14 @@ export interface BackupInfo {
   verifyNote?: string;
 }
 
+export interface JcAgent { id: string; name: string; role: string; extension: string; email: string; loginId: string; status: string; canCallOut: boolean }
+export interface JcAgentsRes { agents: JcAgent[]; users: Array<{ id: string; name: string; email: string; role: string; link: string; agent: JcAgent | null; auto: boolean; mobile: string }> }
+export interface JcReport {
+  timezone: string;
+  totals: { calls: number; inbound: number; outbound: number; answered: number; missed: number; notAnswered: number; talkSeconds: number; avgTalkSeconds: number | null; avgSpeedOfAnswerSeconds: number | null; answerRate: number | null; inboundAnswerRate: number | null; abandonRate: number | null; serviceLevel: number | null };
+  byDay: Array<{ date: string; calls: number; answered: number; missed: number; notAnswered: number; talkSeconds: number }>;
+  byAgent: Array<{ name: string; calls: number; answered: number; missed: number; notAnswered: number; talkSeconds: number; avgTalkSeconds: number | null }>;
+}
 export interface LeaderRow { rm: string; followups: number; calls: number; visits: number; bookings: number }
 export interface SpendRow { campaign: string; month: string; amount: number }
 
@@ -193,7 +201,7 @@ export const api = {
     totpEnable: (code: string) => request<UserAccount>('totpEnable', { code }),
     totpDisable: (password: string) => request<UserAccount>('totpDisable', { password }),
     /** Own display name / profile photo (photo = data URL ≤ 48 000 chars; null clears it). */
-    updateProfile: (data: { name?: string; avatar?: string | null; phone?: string }) => request<UserAccount>('updateProfile', { data }),
+    updateProfile: (data: { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' }) => request<UserAccount>('updateProfile', { data }),
   },
 
   bootstrap: (since?: string, include?: string[]) =>
@@ -223,6 +231,21 @@ export const api = {
     get: (id: string) => request<{ id: string; createdAt: string; leads: Lead[] }>('getLeadBackup', { id }),
     create: () => request<BackupInfo | null>('createLeadBackup', {}),
     verify: () => request<{ id: string; ok: boolean; note: string } | null>('verifyLeadBackup', {}),
+  },
+
+  /** JustConnect calling: test, CRM user ↔ agent links (Settings), click-to-call and its progress. */
+  justconnect: {
+    test: () => request<{ ok: boolean; message: string; business: string; scopes: string[]; missing: string[] }>('jcTest', {}, { timeoutMs: 30000 }),
+    agents: () => request<JcAgentsRes>('jcAgents', {}, { timeoutMs: 30000 }),
+    setAgent: (userId: string, agent: string) => request<JcAgentsRes>('jcSetAgent', { userId, agent }, { timeoutMs: 30000 }),
+    call: (d: { leadId?: string; phone?: string }) => request<{ mode: 'app' | 'mobile'; requestId: string; status: string }>('jcClickToCall', d, { timeoutMs: 30000 }),
+    outcomes: () => request<Array<{ code: string; label: string; parent: string | null; positive: boolean; needsNote: boolean }>>('jcOutcomes', {}, { timeoutMs: 30000 }),
+    fileOutcome: (callId: string, outcome: string, notes: string) => request<CallRecord>('jcFileOutcome', { callId, outcome, notes }, { timeoutMs: 30000 }),
+    report: (since: string, until: string) => request<JcReport>('jcCallReport', { since, until }, { timeoutMs: 45000 }),
+    contactStatus: () => request<{ on: boolean; synced: number; waiting: number; failed: number }>('jcContactStatus', {}),
+    syncContacts: () => request<{ sent: number; failed: number; left: number; skipped?: string }>('jcSyncContacts', {}, { timeoutMs: 60000 }),
+    syncCalls: () => request<{ saved: number; created: number; finished: number; skipped?: string }>('jcSyncCalls', {}, { timeoutMs: 60000 }),
+    callStatus: (id: string, mode: 'app' | 'mobile') => request<{ status: string; callStatus: string; talkSeconds: number }>('jcCallStatus', { id, mode }),
   },
 
   /** Phone notifications (Web Push) for the signed-in user's devices. */
@@ -300,7 +323,7 @@ export const api = {
   settings: {
     get: () => request<ServerSettings>('getSettings'),
     update: (patch: Partial<ServerSettings>) => request<ServerSettings>('updateSettings', { data: patch }),
-    setSecret: (key: 'GEMINI_API_KEY' | 'CHAT360_API_KEY' | 'CHAT360_LOGIN_PASSWORD' | 'CHAT360_WEBHOOK_SECRET' | 'TELEPHONY_WEBHOOK_SECRET', value: string) =>
+    setSecret: (key: 'GEMINI_API_KEY' | 'CHAT360_API_KEY' | 'CHAT360_LOGIN_PASSWORD' | 'CHAT360_WEBHOOK_SECRET' | 'TELEPHONY_WEBHOOK_SECRET' | 'JUSTCONNECT_API_KEY' | 'JUSTCONNECT_WEBHOOK_SECRET', value: string) =>
       request<ServerSettings>('setSecret', { key, value }),
     users: {
       list: () => request<UserAccount[]>('listUsers'),

@@ -33,6 +33,8 @@ export interface PublicUser {
   twoFactor: boolean;
   /** WhatsApp number for lead alerts ('' when not set). */
   phone: string;
+  /** How Call works for this user: through JustConnect (business number, recorded) or the phone's own dialer. */
+  callVia: 'justconnect' | 'direct';
 }
 
 export interface UserDoc {
@@ -50,6 +52,8 @@ export interface UserDoc {
   avatar?: string;
   /** WhatsApp number (digits, with country code) for lead alerts. */
   phone?: string;
+  /** 'direct' = Call opens the phone's dialer; unset = JustConnect when the company has connected it. */
+  callVia?: 'direct';
   /** The hidden Platform support account (opened by a super admin); never listed or counted. */
   support?: boolean;
   /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
@@ -79,7 +83,7 @@ export interface Ctx {
 }
 
 export const SYSTEM_CTX: Ctx = {
-  user: { id: 'SYSTEM', name: 'System', email: '', role: 'Developer', status: 'Active', createdAt: '', lastLoginAt: '', mustChangePassword: false, avatar: '', twoFactor: false, phone: '' },
+  user: { id: 'SYSTEM', name: 'System', email: '', role: 'Developer', status: 'Active', createdAt: '', lastLoginAt: '', mustChangePassword: false, avatar: '', twoFactor: false, phone: '', callVia: 'justconnect' },
   session: null,
   token: '',
   userAgent: '',
@@ -125,6 +129,7 @@ export function publicUser(u: UserDoc): PublicUser {
     avatar: photoValue(u.avatar),
     twoFactor: !!u.totpSecret,
     phone: u.phone || '',
+    callVia: u.callVia === 'direct' ? 'direct' : 'justconnect',
   };
 }
 
@@ -256,6 +261,10 @@ export async function updateUser(data: any, ctx: Ctx) {
   if (data.mustChangePassword !== undefined) set.mustChangePassword = !!data.mustChangePassword;
   if (data.avatar !== undefined) set.avatar = validatePhoto(data.avatar);
   if (data.phone !== undefined) set.phone = validateUserPhone(data.phone);
+  if (data.callVia !== undefined) {
+    if (data.callVia === 'direct') set.callVia = 'direct';
+    else unset.callVia = '';
+  }
 
   // never demote/disable the last active administrator
   const becomesNonAdmin = (set.role && !['Admin', 'Developer'].includes(set.role)) || set.status === 'Disabled';
@@ -290,6 +299,7 @@ export async function updateProfile(ctx: Ctx, data: any) {
   }
   if (data && data.avatar !== undefined) patch.avatar = data.avatar === null ? '' : data.avatar;
   if (data && data.phone !== undefined) patch.phone = data.phone === null ? '' : data.phone;
+  if (data && data.callVia !== undefined) patch.callVia = data.callVia === 'direct' ? 'direct' : 'justconnect';
   if (Object.keys(patch).length === 1) throw fail('VALIDATION', 'Nothing to update');
   return updateUser(patch, ctx);
 }
