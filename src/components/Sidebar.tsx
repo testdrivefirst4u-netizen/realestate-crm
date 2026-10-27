@@ -231,7 +231,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
 
   return (
     <>
-      <div className="hidden lg:flex h-screen py-3 pl-3 z-30">
+      <div className="hidden lg:flex h-full py-3 pl-3 z-30">
         <div ref={rootRef} className="relative flex h-full rounded-[28px] bg-white shadow-[0_10px_30px_rgba(11,42,68,0.10)] select-none">
           {rail(!isCollapsed)}
           {!isCollapsed && panel(false)}

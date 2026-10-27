@@ -315,7 +315,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
     <CrmContext.Provider value={ctx}>
       <TenantProvider settings={serverSettings}>
       <CallViaProvider value={currentUser?.callVia}>
-        <div className="crm-ocean flex h-screen bg-[#F2F7FB] text-[#0F2233] overflow-hidden">
+        {/* pinned to the window: nothing (a browser extension, a tall overlay) can scroll the page and leave a gap below */}
+        <div className="crm-ocean fixed inset-0 flex bg-[#F2F7FB] text-[#0F2233] overflow-hidden">
           <Sidebar
             currentView={currentView}
             onNavigate={() => setIsMobileSidebarOpen(false)}
@@ -332,7 +333,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
             counts={sidebarCounts}
           />
 
-          <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+          <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
             <Topbar
               currentView={currentView}
               leads={data.leads}

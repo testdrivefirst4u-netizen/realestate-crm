@@ -255,7 +255,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wide font-bold text-[#5E778C]">
-                  <th className="text-left px-5 pb-2.5">RM</th><th className="text-right px-3 pb-2.5">Enq</th><th className="text-right px-3 pb-2.5">Hot</th><th className="text-right px-3 pb-2.5">Visits</th><th className="text-right px-3 pb-2.5">Booked</th><th className="text-right px-5 pb-2.5">Conv.</th>
+                  <th className="text-left px-5 pb-2.5">RM</th><th className="text-right px-3 pb-2.5">Enq</th><th className="text-right px-3 pb-2.5">Hot</th><th className="text-right px-3 pb-2.5">Visits</th><th className="text-right px-3 pb-2.5" title="Bookings made in this period (the enquiry may be older)">Booked</th><th className="text-right px-5 pb-2.5" title="Share of this period's enquiries that are now booked">Conv.</th>
                 </tr>
               </thead>
               <tbody>
