@@ -4,9 +4,10 @@ import { ClientSegment, CRMConfig, Lead, SegmentOperator, SegmentRule } from '..
 import { DEFAULT_SETTINGS, F, STAGES } from '../../core/config';
 import { formatDate, formatDateTime, formatRelative } from '../../core/dates';
 import { downloadText, toCsv } from '../../core/format';
-import { fillTemplate, formatPhone, telLink, toE164Digits, whatsappLink } from '../../core/phone';
+import { fillTemplate, formatPhone, toE164Digits, whatsappLink } from '../../core/phone';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, InlineNotice, Modal, Select, StageBadge, inputCls, labelCls } from '../../components/ui';
+import { CallButton } from '../calls/CallButton';
 import {
   RELATIVE_DATE_HINT,
   SEGMENT_FIELDS,
@@ -261,7 +262,7 @@ export const SegmentsView: React.FC<SegmentsViewProps> = ({ segments, leads, con
                             <td className="p-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               {phone && (
                                 <>
-                                  <a href={telLink(phone)} className="inline-flex p-1.5 rounded-md bg-[#F2F7FB] text-[#0B2A44] hover:bg-[#E3EDF5] mr-1" title="Call"><Phone size={12} /></a>
+                                  <CallButton phone={phone} leadId={lead[F.ID]} name={lead[F.NAME]} className="inline-flex p-1.5 rounded-md bg-[#F2F7FB] text-[#0B2A44] hover:bg-[#E3EDF5] mr-1" title="Call"><Phone size={12} /></CallButton>
                                   <a href={whatsappLink(phone, waText(lead))} target="_blank" rel="noreferrer" className="inline-flex p-1.5 rounded-md bg-[#F2F7FB] text-[#3C573A] hover:bg-[#E3EDF5]" title="WhatsApp"><MessageSquare size={12} /></a>
                                 </>
                               )}

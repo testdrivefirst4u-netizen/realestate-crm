@@ -13,10 +13,11 @@ import { CRMConfig, CRMSettings, Lead, UserAccount } from '../../types/crm';
 import { F, STAGES, STAGE_CLASS } from '../../core/config';
 import { FollowupBuckets, countedLeads, enquiryDate, followupBuckets, lastActivityDate, leadsNotContactedForDays, nextFollowupDate, stageOf } from '../../core/analytics';
 import { daysSince, formatDistance, formatRelative, fromDatetimeLocalInput } from '../../core/dates';
-import { fillTemplate, formatPhone, telLink, whatsappLink } from '../../core/phone';
+import { fillTemplate, formatPhone, whatsappLink } from '../../core/phone';
 import { Button, EmptyState, Select, StageBadge, cx, inputCls } from '../../components/ui';
 import { SORT_PREF_KEYS, sortLeads } from '../leads/sorting';
 import { SortControl, usePersistentSort } from '../leads/SortControl';
+import { CallButton } from '../calls/CallButton';
 
 export interface FollowupsViewProps {
   leads: Lead[];
@@ -252,9 +253,9 @@ const FollowupCard: React.FC<{
       <div className="mt-2.5 pt-2 border-t border-[#E6EFF6] flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
           {phone && (
-            <a href={telLink(phone)} className="p-1.5 rounded-full bg-[#F2F7FB] text-[#1976D2] hover:bg-blue-50" title={`Call ${formatPhone(phone)}`}>
+            <CallButton phone={phone} leadId={lead[F.ID]} name={lead[F.NAME]} className="p-1.5 rounded-full bg-[#F2F7FB] text-[#1976D2] hover:bg-blue-50" title={`Call ${formatPhone(phone)}`}>
               <Phone size={13} />
-            </a>
+            </CallButton>
           )}
           {phone && (
             <a href={whatsappLink(phone, waText)} target="_blank" rel="noreferrer" className="p-1.5 rounded-full bg-[#F2F7FB] text-[#25D366] hover:bg-green-50" title="WhatsApp">

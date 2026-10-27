@@ -15,12 +15,13 @@ import { CRMConfig, Lead } from '../../types/crm';
 import { F, FUNNEL_STAGES, STAGES, STAGE_CLASS } from '../../core/config';
 import { classifyStage, countedLeads, isActive, nextFollowupDate, searchLeads, stageOf } from '../../core/analytics';
 import { formatRelative } from '../../core/dates';
-import { formatPhone, telLink, whatsappLink } from '../../core/phone';
+import { formatPhone, whatsappLink } from '../../core/phone';
 import { sound } from '../../services/sound';
 import { Button, EmptyState, Select, cx } from '../../components/ui';
 import { LeadStars, optionsWithCurrent } from './shared';
 import { SORT_OPTIONS, SORT_PREF_KEYS, sortLeads } from './sorting';
 import { SortControl, usePersistentSort } from './SortControl';
+import { CallButton } from '../calls/CallButton';
 
 export interface KanbanViewProps {
   leads: Lead[];
@@ -290,9 +291,9 @@ const KanbanCard: React.FC<{
       <div className="mt-2.5 pt-2 border-t border-[#E6EFF6] flex items-center justify-between gap-1.5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-1.5">
           {phone && (
-            <a href={telLink(phone)} className="p-1.5 rounded bg-[#F2F7FB] text-[#1976D2] hover:bg-blue-50" title="Call" draggable={false}>
+            <CallButton phone={phone} leadId={lead[F.ID]} name={lead[F.NAME]} className="p-1.5 rounded bg-[#F2F7FB] text-[#1976D2] hover:bg-blue-50" title="Call">
               <Phone size={12} />
-            </a>
+            </CallButton>
           )}
           {phone && (
             <a href={whatsappLink(phone)} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-[#F2F7FB] text-[#25D366] hover:bg-green-50" title="WhatsApp" draggable={false}>

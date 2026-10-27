@@ -19,7 +19,7 @@ import { api } from '../../core/api';
 import { searchLeads } from '../../core/analytics';
 import { formatDateTime, formatRelative, fromDatetimeLocalInput, inRange, toDatetimeLocalInput } from '../../core/dates';
 import { formatDuration, pluralize } from '../../core/format';
-import { formatPhone, telLink } from '../../core/phone';
+import { formatPhone } from '../../core/phone';
 import { reportError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { can } from '../../core/rbac';
@@ -30,6 +30,7 @@ import {
   CALL_STATUSES, CallMatch, DIRECTIONS, MAX_RECORDING_BYTES, OUTCOMES, RECORDING_ACCEPT, callTime, fileToBase64, guessMime, hasRecording, hasSummary, hasTranscript, leadsByPhone, linkPatch, matchForCall, outcomeTone, replaceCall, sortCalls, statusTone, summarizeCalls,
 } from './callsUtils';
 import { PageSkeleton } from '../../components/Skeletons';
+import { CallButton } from './CallButton';
 
 export interface CallsViewProps {
   leads: Lead[];
@@ -331,7 +332,7 @@ export const CallsView: React.FC<CallsViewProps> = ({ leads, currentUser, settin
                           </td>
                           <td className="p-2.5 align-top whitespace-nowrap">
                             {c.phone ? (
-                              <a href={telLink(c.phone)} onClick={(e) => e.stopPropagation()} className="text-[#0B2A44] hover:text-[#0B6BB0] inline-flex items-center gap-1"><Phone size={10} />{formatPhone(c.phone)}</a>
+                              <CallButton phone={c.phone} leadId={c.leadId || undefined} name={c.customerName || undefined} className="text-[#0B2A44] hover:text-[#0B6BB0] inline-flex items-center gap-1" title={`Call ${formatPhone(c.phone)}`}><Phone size={10} />{formatPhone(c.phone)}</CallButton>
                             ) : '—'}
                           </td>
                           <td className="p-2.5 align-top whitespace-nowrap">
