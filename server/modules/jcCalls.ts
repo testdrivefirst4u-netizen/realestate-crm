@@ -178,15 +178,16 @@ export async function finishCall(callId: string): Promise<{ recording: boolean; 
     if (!doc || doc.provider !== PROVIDER || doc.status === 'In Progress') return out;
     const ctx: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: doc.loggedBy || PROVIDER }, action: 'justconnect' };
 
-    // 1. recording (or voicemail) into the CRM's file storage — needs a lead to file it under
+    // 1. recording (or voicemail) into the CRM's file storage — also for a caller who is not a lead yet (it moves to
+    //    the lead when the call is linked: calls.attachToLead)
     const kind = doc.jcRecording ? 'recording' : doc.jcVoicemail ? 'voicemail' : '';
-    if (kind && !doc.recordingFileId && !doc.jcAudioTried && doc.leadId) {
+    if (kind && !doc.recordingFileId && !doc.jcAudioTried) {
       await c.updateOne({ _id: callId }, { $set: { jcAudioTried: true } });
       try {
         const data = await fetchAudio(String(doc.providerCallId), kind);
-        const file = await saveFile({ leadId: doc.leadId, category: 'Call Recordings', name: `${callId}_${kind}.wav`, mime: 'audio/wav', data, uploadedBy: doc.loggedBy || PROVIDER, description: `${kind === 'voicemail' ? 'Voicemail' : 'Recording'} of ${callId} (JustConnect)` });
+        const file = await saveFile({ leadId: doc.leadId || '', category: 'Call Recordings', name: `${callId}_${kind}.wav`, mime: 'audio/wav', data, uploadedBy: doc.loggedBy || PROVIDER, description: `${kind === 'voicemail' ? 'Voicemail' : 'Recording'} of ${callId} (JustConnect)` });
         await updateCall(callId, { recordingUrl: file.url, recordingFileId: file.fileId }, ctx);
-        await addTimeline(doc.leadId, 'call_recording', kind === 'voicemail' ? 'Voicemail saved' : 'Call recording saved', 'From JustConnect', doc.loggedBy || PROVIDER, 'Call', callId);
+        if (doc.leadId) await addTimeline(doc.leadId, 'call_recording', kind === 'voicemail' ? 'Voicemail saved' : 'Call recording saved', 'From JustConnect', doc.loggedBy || PROVIDER, 'Call', callId);
         out.recording = true;
       } catch (e: any) {
         await c.updateOne({ _id: callId }, { $unset: { jcAudioTried: '' } }); // try again on the next sync
@@ -329,8 +330,8 @@ async function pendingFinish(limit = 20): Promise<string[]> {
     .find({
       provider: PROVIDER, status: { $ne: 'In Progress' }, createdAt: { $gte: since },
       $or: [
-        { jcRecording: true, recordingFileId: { $in: [null, ''] }, jcAudioTried: { $ne: true }, leadId: { $nin: ['', null] } },
-        { jcVoicemail: true, recordingFileId: { $in: [null, ''] }, jcAudioTried: { $ne: true }, leadId: { $nin: ['', null] } },
+        { jcRecording: true, recordingFileId: { $in: [null, ''] }, jcAudioTried: { $ne: true } },
+        { jcVoicemail: true, recordingFileId: { $in: [null, ''] }, jcAudioTried: { $ne: true } },
         { direction: 'Inbound', status: { $in: ['Missed', 'Voicemail'] }, jcMissedNotified: { $ne: true } },
         { outcome: { $nin: ['', null] }, leadId: { $nin: ['', null] }, jcRemarkDone: { $ne: true } },
       ],

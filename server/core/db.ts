@@ -156,6 +156,7 @@ export async function ensureIndexes(db: Db) {
     [C.CHAT_CONTACTS, { phoneLast10: 1 }, { unique: true }],
     [C.CALLS, { leadId: 1, callDate: -1 }],
     [C.CALLS, { provider: 1, providerCallId: 1 }],
+    [C.CALLS, { phoneLast10: 1, createdAt: -1 }],
     [C.CALLS, { jcAgentUserId: 1, jcLiveAt: -1 }, { sparse: true }],
     [C.CALLS, { jcRingingUserIds: 1, jcLiveAt: -1 }, { sparse: true }],
     [C.DOCUMENTS, { leadId: 1 }],

@@ -278,6 +278,10 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
   scheduleLeadAlerts(lead, 'created'); // e-mail the RM / auto WhatsApp reply, after the response
   if (await getSecret('JUSTCONNECT_API_KEY')) void import('./jcSync').then((m) => m.scheduleContactPush(id), () => undefined); // caller name in JustConnect
+  // calls from this number before it was a lead (a new caller): onto the lead, with their recording and AI notes
+  try {
+    await (await import('./calls')).linkCallsToNewLead(id, String(lead[L.PHONE] || ''));
+  } catch { /* never blocks a new lead */ }
   return { id, lead, version: await bumpVersion() };
 }
 

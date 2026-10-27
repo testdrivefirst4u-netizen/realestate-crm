@@ -206,3 +206,25 @@ describe('call window (jcMyCall)', () => {
     expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ringing', direction: 'Outbound' });
   });
 });
+
+describe('a caller who is not a lead yet', () => {
+  it('keeps the recording and AI notes, and they move onto the lead when that number becomes a lead', async () => {
+    const { callId } = await ingestJcCall(jcCall({ id: 'new1', direction: 'inbound', customer: '9123456789', agent: { id: 'ag1', name: 'Priya S' } }));
+    expect((await crmCalls())[0]).toMatchObject({ leadId: '' });
+    expect(await finishCall(callId)).toMatchObject({ recording: true, ai: true });
+    let c = (await crmCalls())[0];
+    expect(c.recordingFileId).toBeTruthy();
+    expect(c.aiSummary).toContain('2.5 BHK');
+    const meta = async () => (await (await col<any>(CFG.COLL.FILES_BUCKET + '.files')).findOne({}, { sort: { uploadDate: 1 } }))?.metadata;
+    expect((await meta()).leadId).toBe('');
+
+    const { lead } = await addLead({ [L.NAME]: 'New Caller', [L.PHONE]: '+91 91234 56789', [L.RM]: 'Priya Sharma' }, admin);
+    c = (await crmCalls())[0];
+    expect(c).toMatchObject({ leadId: lead[L.ID], customerName: 'New Caller' });
+    expect((await meta()).leadId).toBe(lead[L.ID]);
+    expect(c.transcriptFileId).toBeTruthy();
+    const tl = JSON.stringify(await timelineForLead(lead[L.ID]));
+    expect(tl).toContain('Incoming call');
+    expect(tl).toContain('AI call summary');
+  });
+});

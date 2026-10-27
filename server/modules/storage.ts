@@ -76,6 +76,13 @@ export async function saveFile(opts: { leadId?: string; category: string; name: 
   return { fileId, url: fileUrlFor(fileId), size: data.length, mime, name };
 }
 
+/** File a stored file under a lead (e.g. the recording of a call that was linked to a lead later). */
+export async function setFileLead(fileId: string, leadId: string): Promise<void> {
+  const oid = toObjectId(fileId);
+  if (!oid) return;
+  await (await col<any>(CFG.COLL.FILES_BUCKET + '.files')).updateOne({ _id: oid }, { $set: { 'metadata.leadId': str(leadId) } });
+}
+
 export interface StoredFileInfo { id: ObjectId; mime: string; name: string; size: number; leadId?: string }
 
 /** File metadata without the bytes (used by the download route). */

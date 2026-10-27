@@ -20,7 +20,7 @@ import { addEvent, addTimeline, logError } from '../core/events';
 import { settingsAll } from '../core/settings';
 import { last10, num, parseDate, safeJsonParse, str, toIso, truncate } from '../core/utils';
 import { findLeadByPhone, getLead, updateLead, type UiLead } from './leads';
-import { readFile, saveFile } from './storage';
+import { readFile, saveFile, setFileLead } from './storage';
 import { saveRecord } from './records';
 import { generateText, transcribeAudio } from './ai';
 import { deepFind } from './chat360';
@@ -184,8 +184,43 @@ export async function updateCall(id: string, patch: any, ctx: Ctx): Promise<any>
     await addTimeline(call.leadId, 'call', 'Call ended · ' + call.status, minutes(call.durationSec) + (call.outcome ? ' · ' + call.outcome : ''), actor, 'Call', call.id);
     await addEvent('call_logged', 'Lead', call.leadId, 'Call with ' + call.customerName, (call.outcome || call.status) + (call.durationSec ? ' · ' + minutes(call.durationSec) : ''), actor);
   }
+  if (!before.leadId && call.leadId) await attachToLead(call, actor);
   await bumpVersion();
   return call;
+}
+
+/**
+ * A call saved before its number was a lead (a new caller) was linked to one: its recording and transcript move
+ * under the lead, and the lead's timeline gets the call and the AI summary it already has.
+ */
+async function attachToLead(call: any, actor: string) {
+  const leadId = String(call.leadId);
+  try {
+    if (call.recordingFileId) await setFileLead(call.recordingFileId, leadId);
+    if (call.transcriptFileId) await setFileLead(call.transcriptFileId, leadId);
+    else if (call.transcript) {
+      const t = await saveFile({ leadId, category: 'Call Transcripts', name: call.id + '_transcript.txt', mime: 'text/plain', data: Buffer.from(call.transcript, 'utf8'), uploadedBy: actor, description: 'Transcript of ' + call.id });
+      await (await calls()).updateOne({ _id: call.id }, { $set: { transcriptFileId: t.fileId } });
+    }
+    const lead = await getLead(leadId);
+    if (lead && !call.customerName) await (await calls()).updateOne({ _id: call.id }, { $set: { customerName: lead[L.NAME] || '' } });
+    const when = call.startTime ? ' · ' + new Date(call.startTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+    await addTimeline(leadId, 'call', (call.direction === 'Inbound' ? 'Incoming call' : 'Call') + ' · ' + call.status + when, minutes(call.durationSec) + (call.outcome ? ' · ' + call.outcome : ''), actor, 'Call', call.id);
+    if (call.recordingFileId) await addTimeline(leadId, 'call_recording', 'Call recording', 'Saved before the number was a lead', actor, 'Call', call.id);
+    if (call.aiSummary) await addTimeline(leadId, 'call_summary', 'AI call summary', call.aiSummary, actor, 'Call', call.id);
+  } catch (e: any) {
+    await logError('calls.attach', 'INTERNAL', e?.message, e?.stack, '', { callId: call.id, leadId });
+  }
+}
+
+/** A new lead: calls from or to its number in the last 60 days that are not on any lead yet are linked to it. */
+export async function linkCallsToNewLead(leadId: string, phone: string): Promise<number> {
+  const key = last10(phone);
+  if (!leadId || key.length !== 10) return 0;
+  const since = new Date(Date.now() - 60 * 86400000);
+  const rows = await (await calls()).find({ phoneLast10: key, leadId: { $in: ['', null] }, createdAt: { $gte: since } }, { projection: { _id: 1 } }).limit(50).toArray();
+  for (const r of rows) await updateCall(String(r._id), { leadId }, SYSTEM_CTX);
+  return rows.length;
 }
 
 /* -------------------------------- recordings -------------------------------- */
