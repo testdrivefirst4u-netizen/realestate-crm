@@ -83,6 +83,25 @@ export interface BackupInfo {
 
 export interface JcAgent { id: string; name: string; role: string; extension: string; email: string; loginId: string; status: string; canCallOut: boolean }
 export interface JcAgentsRes { agents: JcAgent[]; users: Array<{ id: string; name: string; email: string; role: string; link: string; agent: JcAgent | null; auto: boolean; mobile: string }> }
+/** jcMyCall: the call this user's phone is ringing for / on / just finished (server/modules/jcCalls.ts MyCall). */
+export interface MyCall {
+  id: string;
+  phase: 'ringing' | 'live' | 'ended';
+  direction: 'Inbound' | 'Outbound';
+  status: string;
+  phone: string;
+  leadId: string;
+  customerName: string;
+  startTime: string;
+  answeredAt: string;
+  durationSec: number;
+  outcome: string;
+  notes: string;
+  aiSummary: string;
+  aiTemperature: string;
+  aiTemperatureReason: string;
+  aiPending: boolean;
+}
 export interface JcReport {
   timezone: string;
   totals: { calls: number; inbound: number; outbound: number; answered: number; missed: number; notAnswered: number; talkSeconds: number; avgTalkSeconds: number | null; avgSpeedOfAnswerSeconds: number | null; answerRate: number | null; inboundAnswerRate: number | null; abandonRate: number | null; serviceLevel: number | null };
@@ -245,7 +264,9 @@ export const api = {
     contactStatus: () => request<{ on: boolean; synced: number; waiting: number; failed: number }>('jcContactStatus', {}),
     syncContacts: () => request<{ sent: number; failed: number; left: number; skipped?: string }>('jcSyncContacts', {}, { timeoutMs: 60000 }),
     syncCalls: () => request<{ saved: number; created: number; finished: number; skipped?: string }>('jcSyncCalls', {}, { timeoutMs: 60000 }),
-    callStatus: (id: string, mode: 'app' | 'mobile') => request<{ status: string; callStatus: string; talkSeconds: number }>('jcCallStatus', { id, mode }),
+    callStatus: (id: string, mode: 'app' | 'mobile') => request<{ status: string; callStatus: string; talkSeconds: number; connected?: boolean; ended?: boolean }>('jcCallStatus', { id, mode }),
+    /** The call window: what this user's phone is doing right now (or one call, to wait for its AI summary). */
+    myCall: (id?: string) => request<MyCall | null>('jcMyCall', id ? { id } : {}, { timeoutMs: 10000 }),
   },
 
   /** Phone notifications (Web Push) for the signed-in user's devices. */

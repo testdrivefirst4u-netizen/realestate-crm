@@ -184,10 +184,13 @@ export async function jcCallStatus(d: { id: string; mode?: string }) {
         : first && ['answered', 'done'].includes(first.status) ? 'agent-answered'
         : r.call.status === 'completed' ? 'agent-answered'
         : 'ringing-agent';
-      return { status, callStatus: r.call.result?.connected ? 'answered' : r.call.status, talkSeconds: 0 };
+      const ended = ['completed', 'failed', 'unanswered', 'cancelled', 'canceled', 'busy', 'no_answer'].includes(r.call.status);
+      return { status, callStatus: r.call.result?.connected ? 'answered' : r.call.status, talkSeconds: 0, connected: !!r.call.result?.connected, ended };
     }
     const r = await jc<{ request: { status: string; call?: { status?: string; talkSeconds?: number } | null } }>(`/click-to-call/${id}`);
-    return { status: r.request.status, callStatus: r.request.call?.status || '', talkSeconds: r.request.call?.talkSeconds || 0 };
+    const callStatus = r.request.call?.status || '';
+    const ended = ['agent-did-not-answer', 'failed'].includes(r.request.status) || (!!callStatus && callStatus !== 'in-progress');
+    return { status: r.request.status, callStatus, talkSeconds: r.request.call?.talkSeconds || 0, connected: callStatus === 'answered', ended };
   } catch (e) {
     friendly(e);
   }
@@ -216,4 +219,5 @@ export const actions: ActionMap = {
   jcSetAgent: { fn: (d) => jcSetAgent(d), perm: 'settings.edit' },
   jcClickToCall: { fn: (d, ctx) => jcClickToCall(d, ctx), perm: 'calls.log' },
   jcCallStatus: { fn: (d) => jcCallStatus(d), perm: 'calls.view' },
+  jcMyCall: { fn: async (d, ctx) => (await import('./jcCalls')).jcMyCall(d, ctx), perm: 'calls.view' },
 };

@@ -15,6 +15,7 @@ import { MobileTabBar } from '@/src/components/MobileTabBar';
 import { NotificationPrompt } from '@/src/components/NotificationPrompt';
 import { isViewOnly } from '@/src/core/rbac';
 import { CallViaProvider } from '@/src/modules/calls/CallButton';
+import { CallWindow } from '@/src/modules/calls/CallWindow';
 import { registerServiceWorker } from '@/src/core/pushClient';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -196,6 +197,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   }, [data.leads, data.tasks]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
+  /** "Create lead" from the call window: the caller's number, filled in. */
+  const [addLeadPhone, setAddLeadPhone] = useState('');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryInitialQuery, setLibraryInitialQuery] = useState('');
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -227,7 +230,14 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
     setLibraryInitialQuery(query);
     setIsLibraryOpen(true);
   }, []);
-  const openAddLead = useCallback(() => setIsAddLeadOpen(true), []);
+  const openAddLead = useCallback(() => {
+    setAddLeadPhone('');
+    setIsAddLeadOpen(true);
+  }, []);
+  const createLeadForCaller = useCallback((phone: string) => {
+    setAddLeadPhone(phone);
+    setIsAddLeadOpen(true);
+  }, []);
 
   /* ------------------------ Leads drill-down filter ---------------------- */
 
@@ -390,7 +400,15 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 onOpenCopilot={openCopilot}
               />
 
-              <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} defaultRm={serverSettings?.defaultRm} />
+              <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} defaultRm={serverSettings?.defaultRm} initialPhone={addLeadPhone} />
+
+              <CallWindow
+                enabled={!!serverSettings?.justconnectConfigured && on('calls') && engine.can('calls.view') && !isViewOnly(currentUser)}
+                leads={data.leads}
+                onOpenLead={openLead}
+                onCreateLead={createLeadForCaller}
+                onRemark={(id, text) => engine.appendRemark(id, text)}
+              />
 
               <Suspense fallback={null}>
                 {libraryOn && isLibraryOpen && (

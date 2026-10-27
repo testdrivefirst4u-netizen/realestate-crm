@@ -409,7 +409,7 @@ type JcOutcome = { code: string; label: string; parent: string | null; positive:
 let outcomesCache: Promise<JcOutcome[]> | null = null;
 
 /** File (or change) the outcome of a JustConnect call — saved in JustConnect, on the call and as a remark on the lead. */
-const JcOutcomeForm: React.FC<{ call: CallRecord; onSaved: () => void }> = ({ call, onSaved }) => {
+export const JcOutcomeForm: React.FC<{ call: Pick<CallRecord, 'id' | 'outcome'>; onSaved: () => void; startOpen?: boolean }> = ({ call, onSaved, startOpen }) => {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<JcOutcome[] | null>(null);
   const [code, setCode] = useState('');
@@ -430,6 +430,9 @@ const JcOutcomeForm: React.FC<{ call: CallRecord; onSaved: () => void }> = ({ ca
       setErr(toAppError(e).userMessage);
     }
   };
+  useEffect(() => {
+    if (startOpen) void start();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const chosen = list?.find((o) => o.code === code);
   const save = async () => {
     if (!chosen) return;

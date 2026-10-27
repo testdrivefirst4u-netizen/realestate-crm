@@ -8,6 +8,7 @@ import { toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { telLink } from '../../core/phone';
 import { useTenantSettings } from '../../core/tenant';
+import { outgoingCall } from './callWindowStore';
 
 /** The signed-in user's choice (My profile › How Call works), provided once by the app shell. */
 const CallViaContext = createContext<'justconnect' | 'direct'>('justconnect');
@@ -19,9 +20,39 @@ export const CallViaProvider: React.FC<{ value?: 'justconnect' | 'direct'; child
 const isPhoneDevice = () => typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches && Math.min(window.screen.width, window.screen.height) < 820;
 
 const POLL_MS = 3000;
+/** How long your phone may ring before JustConnect gives up on you. */
 const POLL_FOR_MS = 60000;
+/** After you picked up: follow the call (slower) until it is over, at most this long. */
+const FOLLOW_MS = 5000;
+const FOLLOW_FOR_MS = 60 * 60000;
 
-/** Start a JustConnect call and report how it goes (agent ringing → answered / not answered). */
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Follow a call you picked up until it is over, for the call window (talking time, connected, ended). */
+async function followCall(key: number, requestId: string, mode: 'app' | 'mobile') {
+  const until = Date.now() + FOLLOW_FOR_MS;
+  let errors = 0;
+  while (Date.now() < until) {
+    await wait(FOLLOW_MS);
+    const cur = outgoingCall.get();
+    if (!cur || cur.key !== key) return; // closed, or another call started
+    let s: { status: string; callStatus: string; talkSeconds: number; connected?: boolean; ended?: boolean };
+    try {
+      s = await api.justconnect.callStatus(requestId, mode);
+      errors = 0;
+    } catch {
+      if (++errors >= 3) return;
+      continue;
+    }
+    if (s.connected && cur.stage === 'calling') outgoingCall.update(key, { stage: 'connected', connectedAt: Date.now() });
+    if (s.ended) {
+      outgoingCall.update(key, { stage: 'ended', endedAt: Date.now(), talkSeconds: s.talkSeconds || undefined });
+      return;
+    }
+  }
+}
+
+/** Start a JustConnect call and report how it goes (agent ringing → answered / not answered) in the call window. */
 export async function startJustConnectCall(d: { leadId?: string; phone?: string; name?: string }): Promise<boolean> {
   const who = d.name || d.phone || 'the customer';
   let req: { mode: 'app' | 'mobile'; requestId: string; status: string };
@@ -38,26 +69,28 @@ export async function startJustConnectCall(d: { leadId?: string; phone?: string;
     toast('Call not started', err.userMessage, 'alert');
     return false;
   }
-  toast(req.mode === 'app' ? 'Answer your JustConnect app' : 'Answer your mobile', `It is ringing now — when you pick up, ${who} is called from the business number.`, 'info');
+  const key = outgoingCall.start({ leadId: d.leadId, phone: d.phone || '', name: d.name || '', mode: req.mode });
   const until = Date.now() + POLL_FOR_MS;
   while (Date.now() < until) {
-    await new Promise((r) => setTimeout(r, POLL_MS));
-    let s: { status: string; callStatus: string };
+    await wait(POLL_MS);
+    if (outgoingCall.get()?.key !== key) return true; // window closed or another call started
+    let s: { status: string; callStatus: string; connected?: boolean };
     try {
       s = await api.justconnect.callStatus(req.requestId, req.mode);
     } catch {
       return true; // the call may well be fine; stop asking
     }
     if (s.status === 'agent-answered') {
-      toast(`Calling ${who}…`, 'You will be connected when they pick up.', 'success');
+      outgoingCall.update(key, s.connected ? { stage: 'connected', pickedUpAt: Date.now(), connectedAt: Date.now() } : { stage: 'calling', pickedUpAt: Date.now() });
+      void followCall(key, req.requestId, req.mode);
       return true;
     }
     if (s.status === 'agent-did-not-answer') {
-      toast('Call not made', `You did not answer your ${req.mode === 'app' ? 'JustConnect app' : 'mobile'} in time, so the customer was not called.`, 'warning');
+      outgoingCall.update(key, { stage: 'failed', endedAt: Date.now(), message: `You did not answer your ${req.mode === 'app' ? 'JustConnect app' : 'mobile'} in time, so ${who} was not called.` });
       return false;
     }
     if (s.status === 'failed') {
-      toast('Call not made', req.mode === 'app' ? 'JustConnect could not ring your app. Check that it is signed in.' : 'JustConnect could not ring your mobile. Check the number in My profile.', 'warning');
+      outgoingCall.update(key, { stage: 'failed', endedAt: Date.now(), message: req.mode === 'app' ? 'JustConnect could not ring your app. Check that it is signed in.' : 'JustConnect could not ring your mobile. Check the number in My profile.' });
       return false;
     }
   }

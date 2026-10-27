@@ -23,7 +23,7 @@ import { updateProfile, type Ctx } from '../server/core/auth';
 import { addLead, timelineForLead } from '../server/modules/leads';
 import { pushSubscribe } from '../server/modules/push';
 import { validJcSignature } from '../server/integrations/justconnect';
-import { crmStatus, finishCall, ingestJcCall, syncJcCalls, type JcCall } from '../server/modules/jcCalls';
+import { crmStatus, finishCall, ingestJcCall, jcMyCall, syncJcCalls, type JcCall } from '../server/modules/jcCalls';
 
 const L = CFG.LEAD;
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -167,5 +167,42 @@ describe('catch-up sync', () => {
   it('does nothing without a key', async () => {
     await setSecret('JUSTCONNECT_API_KEY', '', admin);
     expect(await syncJcCalls()).toMatchObject({ skipped: 'not connected' });
+  });
+});
+
+describe('call window (jcMyCall)', () => {
+  const inbound = (o: Partial<JcCall> = {}) => jcCall({ id: 'in1', direction: 'inbound', status: 'in-progress', agent: null, rang: [], answeredAt: null, endedAt: null, talkSeconds: 0, recording: null, outcome: null, notes: null, ...o });
+
+  it('an incoming call rings → is answered → ends, for the person whose phone rang, and nobody else', async () => {
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    await ingestJcCall(inbound(), undefined, { id: 'ag1', name: 'Priya S' });
+    expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ringing', direction: 'Inbound', leadId: lead[L.ID], customerName: 'Meera Kapoor' });
+    expect(await jcMyCall({}, admin)).toBeNull();
+
+    await ingestJcCall(inbound({ agent: { id: 'ag1', name: 'Priya S' }, answeredAt: '2026-10-26T09:00:08.000Z' }));
+    expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'live', answeredAt: '2026-10-26T09:00:08.000Z' });
+
+    await ingestJcCall(inbound({ status: 'answered', agent: { id: 'ag1', name: 'Priya S' }, answeredAt: '2026-10-26T09:00:08.000Z', talkSeconds: 95, recording: { url: 'x' } }));
+    const done = await jcMyCall({}, priya);
+    expect(done).toMatchObject({ phase: 'ended', status: 'Completed', durationSec: 95, aiPending: true });
+    // asked by id later (waiting for the AI): still there
+    await (await col<any>(CFG.COLL.CALLS)).updateOne({ _id: done!.id }, { $set: { jcLiveAt: new Date(Date.now() - 10 * 60_000) } });
+    expect(await jcMyCall({}, priya)).toBeNull();
+    expect(await jcMyCall({ id: done!.id }, priya)).toMatchObject({ id: done!.id, phase: 'ended' });
+    expect(await jcMyCall({ id: done!.id }, admin)).toBeNull();
+  });
+
+  it('a call a colleague picked up leaves my window', async () => {
+    const ravi = await t.ctx('RM', 'Ravi Rao');
+    await ingestJcCall(inbound(), undefined, { id: 'ag1', name: 'Priya S' });
+    // the ring group rang Priya; Ravi took the call
+    await (await col<any>(CFG.COLL.CALLS)).updateOne({ providerCallId: 'in1' }, { $set: { jcAgentUserId: ravi.user!.id, jcAnsweredAt: '2026-10-26T09:00:08.000Z' } });
+    expect(await jcMyCall({}, priya)).toBeNull();
+    expect(await jcMyCall({}, ravi)).toMatchObject({ phase: 'live' });
+  });
+
+  it('an outgoing call from the CRM is "ringing" (customer being rung) until answered', async () => {
+    await ingestJcCall(jcCall({ id: 'out1', status: 'in-progress', answeredAt: null, endedAt: null, talkSeconds: 0, recording: null, outcome: null }));
+    expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ringing', direction: 'Outbound' });
   });
 });

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     if (!event.startsWith('call_log.') || !call?.id) return json({ ok: true, ignored: event || 'no event' });
 
     try {
-      const res = await ingestJcCall(call);
+      const res = await ingestJcCall(call, undefined, event === 'call_log.ringing' ? body?.ringing : null);
       after(() => runWithTenant(tenant, async () => {
         if (event === 'call_log.ringing') await announceRinging(call, body?.ringing);
         if (res.callId && res.ended) await finishCall(res.callId);

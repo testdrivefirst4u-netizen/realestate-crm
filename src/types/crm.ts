@@ -142,6 +142,8 @@ export interface CRMSettings {
 export interface ServerSettings {
   /** New leads without an RM go to this user (name); '' = unassigned. */
   defaultRm?: string;
+  /** JustConnect calling is connected (Call buttons, the call window). */
+  justconnectConfigured?: boolean;
   appName?: string;
   timeZone?: string;
   aiModel?: string;

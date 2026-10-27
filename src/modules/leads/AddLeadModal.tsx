@@ -31,6 +31,8 @@ export interface AddLeadModalProps {
   aiConfigured?: boolean;
   /** The company's default RM (Settings › Alerts & follow-ups), pre-selected in Assigned RM. */
   defaultRm?: string;
+  /** Pre-filled phone number (e.g. "Create lead" from the call window for an unknown caller). */
+  initialPhone?: string;
 }
 
 export const AddLeadModal: React.FC<AddLeadModalProps> = (props) => {
@@ -71,11 +73,11 @@ const GEO_KEY: Record<string, 'country' | 'state' | 'city'> = { [F.COUNTRY]: 'co
 const isVisitScheduled =(status: string) => status === SITE_VISIT.SCHEDULED;
 const isVisitDone = (status: string) => SITE_VISIT_DONE.includes(status);
 
-const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true, defaultRm }) => {
+const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true, defaultRm, initialPhone }) => {
   const rmOptions = config.options[F.RM] || [];
   const [form, setForm] = useState<FormState>(() => ({
     name: '',
-    phone: '',
+    phone: initialPhone || '',
     email: '',
     enquiryDate: toDatetimeLocalInput(new Date()),
     stage: STAGES.NEW,

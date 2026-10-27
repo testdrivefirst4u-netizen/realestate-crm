@@ -100,10 +100,17 @@ const callsCol = () => col<any>(CFG.COLL.CALLS);
  * Save one JustConnect call (new or changed) as a CRM call. Fast: no recording download or AI here — those run in
  * finishCall(). Returns the CRM call id, or '' when the call is not for the CRM (internal, no customer number).
  */
-export async function ingestJcCall(c: JcCall, p?: People): Promise<{ callId: string; created: boolean; ended: boolean }> {
+export async function ingestJcCall(c: JcCall, p?: People, ringing?: { id: string; name: string } | null): Promise<{ callId: string; created: boolean; ended: boolean }> {
   if (!c?.id || c.direction === 'internal' || !last10(c.customer || '')) return { callId: '', created: false, ended: false };
   const ppl = p || (await people());
-  const user = crmUserFor(c.agent, ppl) || crmUserFor(c.rang?.[0], ppl);
+  const agentUser = crmUserFor(c.agent, ppl);
+  const user = agentUser || crmUserFor(c.rang?.[0], ppl);
+  // for the call window (jcMyCall): whose phone rang, who took it, when it was answered
+  const ringIds = [...new Set([...(c.rang || []), ...(ringing ? [ringing] : [])].map((a) => crmUserFor(a, ppl)?.id).filter(Boolean) as string[])];
+  const live = (doc: Record<string, unknown>) => ({
+    $set: { ...doc, jcAnsweredAt: c.answeredAt || '', jcLiveAt: new Date(), ...(agentUser ? { jcAgentUserId: agentUser.id } : {}) },
+    ...(ringIds.length ? { $addToSet: { jcRingingUserIds: { $each: ringIds } } } : {}),
+  });
   const actor = user?.name || c.agent?.name || PROVIDER;
   const ctx: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: actor }, action: 'justconnect' };
   const status = crmStatus(c);
@@ -121,7 +128,7 @@ export async function ingestJcCall(c: JcCall, p?: People): Promise<{ callId: str
   const existing = await (await callsCol()).findOne({ provider: PROVIDER, providerCallId: c.id });
   if (existing) {
     await updateCall(String(existing._id), fields, ctx);
-    await (await callsCol()).updateOne({ _id: existing._id }, { $set: { jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcUpdatedAt: c.updatedAt || '' } });
+    await (await callsCol()).updateOne({ _id: existing._id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcUpdatedAt: c.updatedAt || '' }));
     return { callId: String(existing._id), created: false, ended };
   }
   // the lead: our own reference for calls started from the CRM, else the customer's number
@@ -137,7 +144,7 @@ export async function ingestJcCall(c: JcCall, p?: People): Promise<{ callId: str
     loggedBy: actor,
     ...fields,
   }, ctx);
-  await (await callsCol()).updateOne({ _id: call.id }, { $set: { jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcUpdatedAt: c.updatedAt || '', jcAgentUserId: user?.id || '' } });
+  await (await callsCol()).updateOne({ _id: call.id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcUpdatedAt: c.updatedAt || '', jcAgentUserId: user?.id || '' }));
   return { callId: call.id, created: true, ended };
 }
 
@@ -247,6 +254,72 @@ export async function announceRinging(c: JcCall, ringing: { id: string; name: st
   } catch (e: any) {
     await logError('justconnect.ringing', 'INTERNAL', e?.message, e?.stack);
   }
+}
+
+/** How long an ended call stays in the caller's call window, and how long an unfinished one is believed. */
+const ENDED_SHOW_MS = 2 * 60_000;
+const LIVE_MAX_MS = 2 * 3600_000;
+
+export interface MyCall {
+  id: string;
+  /** ringing: it rings (incoming) or the customer is being rung; live: talking; ended: over (missed or done). */
+  phase: 'ringing' | 'live' | 'ended';
+  direction: 'Inbound' | 'Outbound';
+  status: string;
+  phone: string;
+  leadId: string;
+  customerName: string;
+  startTime: string;
+  answeredAt: string;
+  durationSec: number;
+  outcome: string;
+  notes: string;
+  aiSummary: string;
+  aiTemperature: string;
+  aiTemperatureReason: string;
+  /** The recording is (or will be) sent to the AI, so a summary is on its way. */
+  aiPending: boolean;
+}
+
+/**
+ * The call window's "what is my phone doing": the newest JustConnect call that rings for, or is handled by, this user —
+ * while it rings or is in progress, and for two minutes after it ended. With `id`: that call (if it is theirs), however old,
+ * so the window can wait for the AI summary. Kept cheap: the CRM asks every few seconds while it is open.
+ */
+export async function jcMyCall(d: { id?: string } | undefined, ctx: Ctx): Promise<MyCall | null> {
+  const me = ctx.user?.id;
+  if (!me) return null;
+  const c = await callsCol();
+  const mine = { $or: [{ jcAgentUserId: me }, { jcRingingUserIds: me }] };
+  const rows = d?.id
+    ? await c.find({ _id: String(d.id), provider: PROVIDER, ...mine }).limit(1).toArray()
+    : await c.find({ provider: PROVIDER, jcLiveAt: { $gte: new Date(Date.now() - LIVE_MAX_MS) }, ...mine }).sort({ jcLiveAt: -1 }).limit(3).toArray();
+  for (const r of rows) {
+    const ended = r.status !== 'In Progress';
+    if (!d?.id && ended && Date.now() - new Date(r.jcLiveAt).getTime() > ENDED_SHOW_MS) continue;
+    // a colleague took it: not my call any more
+    if (r.jcAgentUserId && r.jcAgentUserId !== me && (r.jcAnsweredAt || r.status === 'Completed')) continue;
+    const aiPending = ended && !r.transcript && !r.jcAiTried && r.status === 'Completed' && (r.durationSec || 0) >= AI_MIN_TALK_SEC && !!(r.jcRecording || r.recordingFileId);
+    return {
+      id: String(r._id),
+      phase: ended ? 'ended' : r.jcAnsweredAt ? 'live' : 'ringing',
+      direction: r.direction === 'Inbound' ? 'Inbound' : 'Outbound',
+      status: String(r.status || ''),
+      phone: String(r.phone || ''),
+      leadId: String(r.leadId || ''),
+      customerName: String(r.customerName || ''),
+      startTime: r.startTime ? new Date(r.startTime).toISOString() : '',
+      answeredAt: r.jcAnsweredAt ? new Date(r.jcAnsweredAt).toISOString() : '',
+      durationSec: Number(r.durationSec) || 0,
+      outcome: String(r.outcome || ''),
+      notes: String(r.notes || ''),
+      aiSummary: String(r.aiSummary || ''),
+      aiTemperature: String(r.aiTemperature || ''),
+      aiTemperatureReason: String(r.aiTemperatureReason || ''),
+      aiPending,
+    };
+  }
+  return null;
 }
 
 /** Calls that ended but still wait for their recording / AI / missed-call step (retries after a failure). */
