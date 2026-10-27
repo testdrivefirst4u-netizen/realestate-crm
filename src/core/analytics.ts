@@ -84,7 +84,19 @@ export const isActive = (lead: Lead) => {
 };
 export const isBooked = (lead: Lead) => classifyStage(stageOf(lead)) === 'won';
 export const isLost = (lead: Lead) => classifyStage(stageOf(lead)) === 'lost';
-export const isQualified = (lead: Lead) => QUALIFIED_STAGES.includes(stageOf(lead));
+/**
+ * "Qualified Leads" — the one rule every report uses: the lead passed qualification. It is still Qualified, or moved
+ * ahead (a site visit set, Warm, Hot, Booked), or dropped only after visiting. New / Open and disqualified are not.
+ */
+export const isQualified = (lead: Lead) => {
+  const st = stageOf(lead);
+  const cls = classifyStage(st);
+  const sv = String(lead[F.SITE_VISIT_STATUS] || '').trim();
+  if (cls === 'won') return true;
+  if (cls === 'lost') return SITE_VISIT_DONE.includes(sv);
+  if (cls === 'excluded') return false;
+  return QUALIFIED_STAGES.includes(st) || st === STAGES.HOT || st === STAGES.WARM || !!sv;
+};
 export const isHot = (lead: Lead) => stageOf(lead) === STAGES.HOT;
 export const isWarm = (lead: Lead) => stageOf(lead) === STAGES.WARM;
 export const isNew = (lead: Lead) => stageOf(lead) === STAGES.NEW || stageOf(lead) === '';

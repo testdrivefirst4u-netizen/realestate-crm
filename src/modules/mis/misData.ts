@@ -7,7 +7,7 @@
  */
 import { CallRecord, Lead } from '../../types/crm';
 import { F, SITE_VISIT, SITE_VISIT_DONE, STAGES } from '../../core/config';
-import { classifyStage, countedLeads, enquiryDate, firstResponseDate, stageOf } from '../../core/analytics';
+import { classifyStage, countedLeads, enquiryDate, firstResponseDate, isQualified, stageOf } from '../../core/analytics';
 import { dateKey, parseDate } from '../../core/dates';
 
 /* ------------------------------- stages ---------------------------------- */
@@ -24,7 +24,7 @@ export interface MisStage {
 
 export const MIS_STAGES: MisStage[] = [
   { id: 'open', name: 'Open / Incoming', short: 'Open', color: '#74889A', note: 'New or open — not yet qualified' },
-  { id: 'qualified', name: 'Sales Qualified', short: 'Qualified', color: '#0E8A7D', note: 'Meets the qualification criteria' },
+  { id: 'qualified', name: 'Qualified – no visit yet', short: 'Qualified, no visit', color: '#0E8A7D', note: 'Qualified, no site visit set yet (all qualified leads: the total above)' },
   { id: 'disqualified', name: 'Disqualified', short: 'Disqualified', color: '#A7B1B4', note: 'Reason counts are shown below' },
   { id: 'prospect', name: 'Prospect for SV', short: 'Prospect SV', color: '#3B5BDB', note: '' },
   { id: 'hot', name: 'HOT', short: 'HOT', color: '#D92D3A', note: "Expected closure in a week's time" },
@@ -359,8 +359,8 @@ export const fmtAvgCall = (secs: number) => {
 
 /* ------------------------- enquiry performance --------------------------- */
 
-/** Stages that passed qualification (qualified, then site visit, HOT, Warm, booked — or dropped after a visit). */
-const PASSED_QUALIFICATION: MisStageId[] = ['qualified', 'prospect', 'hot', 'warm', 'ni', 'booked'];
+/** Qualified leads: the CRM-wide rule (analytics.isQualified), so this matches the dashboard and reports. */
+const passed = (l: MisLead) => isQualified(l.lead);
 
 export interface PerfRow {
   /** Leads that came in (by enquiry date). The next four split them, so they always add up to it. */
@@ -384,7 +384,7 @@ export function perfRow(list: MisLead[], range: Range): PerfRow {
   const nr = (l: MisLead) => l.stage === 'disqualified' && stageOf(l.lead) === STAGES.NOT_RESPONDING;
   return {
     received,
-    qualified: received.filter((l) => PASSED_QUALIFICATION.includes(l.stage)),
+    qualified: received.filter(passed),
     unqualified: received.filter((l) => l.stage === 'disqualified' && !nr(l)),
     nonResponding: received.filter(nr),
     open: received.filter((l) => l.stage === 'open'),
@@ -403,7 +403,7 @@ const PLANNED_SV: string[] = [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED];
 export function pipelineNow(list: MisLead[]) {
   return {
     total: list,
-    qualified: list.filter((l) => PASSED_QUALIFICATION.includes(l.stage)),
+    qualified: list.filter(passed),
     warm: list.filter((l) => l.stage === 'warm'),
     hot: list.filter((l) => l.stage === 'hot'),
     /** still open, with a visit to come: "Prospect for Site Visit" or "Scheduled" (teams use both for a planned visit) */

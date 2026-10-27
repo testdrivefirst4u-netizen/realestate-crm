@@ -22,6 +22,7 @@ import {
 import { SITE_VISIT_DONE } from '../../core/config';
 import { useTenantSettings } from '../../core/tenant';
 import { JcCallReport } from './JcCallReport';
+import { isQualified } from '../../core/analytics';
 
 export interface MisViewProps {
   leads: Lead[];
@@ -314,7 +315,7 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
 
 const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; onPick: (p: PeriodId) => void; reasons: string[] }> = ({ nonDate, period, today, onPick, reasons }) => {
   const ps: PeriodId[] = ['today', 'week', 'month', 'all'];
-  const summary = (ls: MisLead[]) => ({ total: ls.length, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length });
+  const summary = (ls: MisLead[]) => ({ total: ls.length, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length, q: ls.filter((l) => isQualified(l.lead)).length });
   const sets = ps.map((p) => {
     const r = periodRange(p, undefined, today);
     const ls = nonDate.filter((l) => inRange(l.day, r));
@@ -327,7 +328,8 @@ const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; on
   type Sum = ReturnType<typeof summary>;
   // `bad`: a rise is unwelcome, so it is shown in red.
   const rows: Array<[string, string, (s: Sum) => number, boolean?]> = [
-    ['Sales Qualified', MIS_STAGE.qualified.color, (s) => s.c.qualified],
+    ['Qualified leads (total)', '#0B2A44', (s) => s.q],
+    ['Qualified – no visit yet', MIS_STAGE.qualified.color, (s) => s.c.qualified],
     ['Site visits planned', MIS_STAGE.prospect.color, (s) => s.sv],
     ['HOT', MIS_STAGE.hot.color, (s) => s.c.hot],
     ['Warm', MIS_STAGE.warm.color, (s) => s.c.warm],
@@ -708,7 +710,7 @@ const SourceByStage: React.FC<{ list: MisLead[]; order: string[]; show: (label: 
   const rows: Array<[string, MisLead[]]> = order.map((s) => [s, list.filter((l) => l.source === s)] as [string, MisLead[]]).filter(([, ls]) => ls.length);
   const blank = list.filter((l) => !l.source);
   if (blank.length) rows.push([BLANK, blank]);
-  const beyond = (ls: MisLead[]) => ls.filter((l) => l.stage !== 'open' && l.stage !== 'disqualified').length;
+  const beyond = (ls: MisLead[]) => ls.filter((l) => isQualified(l.lead)).length;
   const c = stageCounts(list);
   return (
     <Panel title="Lead source by stage" hint="Selected period. Each number shows its share of that source's leads. Select a number to open those leads.">
@@ -1012,7 +1014,7 @@ const TeamTable: React.FC<{ nonDate: MisLead[]; range: Range; onRep: (r: string)
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr>
-            {['Sales representative', 'Leads', 'Qualified', 'Site visits planned', 'HOT', 'Warm', 'Booked', 'Disqualified', 'Not int. post SV', 'Avg first response', 'Responded within 1 hour', 'Awaiting first response'].map((h, i) => (
+            {['Sales representative', 'Leads', 'Qualified, no visit', 'Site visits planned', 'HOT', 'Warm', 'Booked', 'Disqualified', 'Not int. post SV', 'Avg first response', 'Responded within 1 hour', 'Awaiting first response'].map((h, i) => (
               <th key={h} className={cx(th, i === 0 && first)}>{h}</th>
             ))}
           </tr>

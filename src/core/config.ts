@@ -149,7 +149,7 @@ export const STAGE_CLASS = {
   excluded: [STAGES.TRASH, STAGES.DELETED] as string[],
 };
 
-/** "Qualified Leads" KPI = these stages (a booked lead was qualified first). */
+/** Stages that are qualified by themselves; the full "Qualified Leads" rule (also Warm, Hot, a site visit) is analytics.isQualified. */
 export const QUALIFIED_STAGES: string[] = [STAGES.QUALIFIED, STAGES.BOOKED];
 
 export const SITE_VISIT = {

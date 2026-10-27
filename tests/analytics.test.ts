@@ -59,7 +59,7 @@ describe('computeKpis', () => {
     const sep = computeKpis(leads, tasks, monthRange('2026-09'), { now });
     expect(sep.totalEnquiries).toBe(3); // 0001, 0002, 0005
     expect(sep.hotLeads).toBe(1);
-    expect(sep.qualifiedLeads).toBe(2); // Qualified + Booked
+    expect(sep.qualifiedLeads).toBe(3); // Hot + Booked + Qualified: everyone who passed qualification
     expect(sep.bookings).toBe(0); // booking happened in Oct
     expect(sep.siteVisitsCompleted).toBe(1);
     expect(sep.followupsCompleted).toBe(3); // 1 + 2 entries in Sep
@@ -133,5 +133,24 @@ describe('follow-up buckets and queries', () => {
     expect(searchLeads(leads, 'ENQ-0002')[0][F.ID]).toBe('ENQ-0002');
     expect(searchLeads(leads, '98490 12345').length).toBeGreaterThan(0);
     expect(searchLeads(leads, '')).toEqual([]);
+  });
+});
+
+
+describe('Qualified Leads: one rule for every report', () => {
+  it('counts a lead once qualified, also after it moves ahead; not New / Open or disqualified', async () => {
+    const { isQualified } = await import('../src/core/analytics');
+    const q = (o: Record<string, string>) => isQualified(mk({ [F.SITE_VISIT_STATUS]: '', ...o }));
+    expect(q({ [F.STAGE]: STAGES.QUALIFIED })).toBe(true);
+    expect(q({ [F.STAGE]: STAGES.QUALIFIED, [F.SITE_VISIT_STATUS]: SITE_VISIT.PROSPECT })).toBe(true);
+    expect(q({ [F.STAGE]: STAGES.WARM })).toBe(true);
+    expect(q({ [F.STAGE]: STAGES.HOT })).toBe(true);
+    expect(q({ [F.STAGE]: STAGES.BOOKED })).toBe(true);
+    expect(q({ [F.STAGE]: STAGES.DQ_NI, [F.SITE_VISIT_STATUS]: SITE_VISIT.COMPLETED })).toBe(true); // dropped after visiting
+    expect(q({ [F.STAGE]: STAGES.NEW })).toBe(false);
+    expect(q({ [F.STAGE]: STAGES.OPEN })).toBe(false);
+    expect(q({ [F.STAGE]: STAGES.NOT_RESPONDING })).toBe(false);
+    expect(q({ [F.STAGE]: STAGES.DQ_BUDGET })).toBe(false);
+    expect(q({ [F.STAGE]: STAGES.TRASH })).toBe(false);
   });
 });
