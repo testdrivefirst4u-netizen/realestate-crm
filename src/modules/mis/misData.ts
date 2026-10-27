@@ -356,3 +356,60 @@ export const fmtAvgCall = (secs: number) => {
   const s = Math.round(secs);
   return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ''}`;
 };
+
+/* ------------------------- enquiry performance --------------------------- */
+
+/** Stages that passed qualification (qualified, then site visit, HOT, Warm, booked — or dropped after a visit). */
+const PASSED_QUALIFICATION: MisStageId[] = ['qualified', 'prospect', 'hot', 'warm', 'ni', 'booked'];
+
+export interface PerfRow {
+  /** Leads that came in (by enquiry date). The next four split them, so they always add up to it. */
+  received: MisLead[];
+  qualified: MisLead[];
+  unqualified: MisLead[];
+  nonResponding: MisLead[];
+  open: MisLead[];
+  /** Site visits done in the period (by the visit's own date, whenever the lead came in). */
+  visits: MisLead[];
+}
+
+const visitDay = (l: MisLead) => {
+  if (!SITE_VISIT_DONE.includes(l.sv)) return '';
+  const d = parseDate(l.lead[F.SITE_VISIT_DATE]);
+  return d ? dateKey(d) : '';
+};
+
+export function perfRow(list: MisLead[], range: Range): PerfRow {
+  const received = list.filter((l) => inRange(l.day, range));
+  const nr = (l: MisLead) => l.stage === 'disqualified' && stageOf(l.lead) === STAGES.NOT_RESPONDING;
+  return {
+    received,
+    qualified: received.filter((l) => PASSED_QUALIFICATION.includes(l.stage)),
+    unqualified: received.filter((l) => l.stage === 'disqualified' && !nr(l)),
+    nonResponding: received.filter(nr),
+    open: received.filter((l) => l.stage === 'open'),
+    visits: list.filter((l) => { const d = visitDay(l); return !!d && inRange(d, range); }),
+  };
+}
+
+/** For the day, month to date and year to date (calendar year), all ending on `day`. */
+export function perfRanges(day: string): { ftd: Range; mtd: Range; ytd: Range } {
+  return { ftd: [day, day], mtd: [monthStartKey(day), day], ytd: [`${day.slice(0, 4)}-01-01`, day] };
+}
+
+const PLANNED_SV: string[] = [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED];
+
+/** The pipeline as it stands, all dates. */
+export function pipelineNow(list: MisLead[]) {
+  return {
+    total: list,
+    qualified: list.filter((l) => PASSED_QUALIFICATION.includes(l.stage)),
+    warm: list.filter((l) => l.stage === 'warm'),
+    hot: list.filter((l) => l.stage === 'hot'),
+    /** still open, with a visit to come: "Prospect for Site Visit" or "Scheduled" (teams use both for a planned visit) */
+    svPlanned: list.filter((l) => PLANNED_SV.includes(l.sv) && !['disqualified', 'ni', 'booked'].includes(l.stage)),
+    svDone: list.filter((l) => SITE_VISIT_DONE.includes(l.sv)),
+    /** done, but with no visit date — they cannot count in the FTD / MTD / YTD site visits */
+    svDoneUndated: list.filter((l) => SITE_VISIT_DONE.includes(l.sv) && !visitDay(l)),
+  };
+}

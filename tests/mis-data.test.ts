@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { F, SITE_VISIT, STAGES } from '../src/core/config';
-import { addDaysKey, changePct, firstCallByLead, funnelCounts, funnelStep, periodRange, previousRange, speedBuckets, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
+import { addDaysKey, changePct, firstCallByLead, funnelCounts, funnelStep, perfRanges, perfRow, periodRange, pipelineNow, previousRange, speedBuckets, toMisLeads, weekStartKey } from '../src/modules/mis/misData';
 import { mapMetaLead } from '../server/modules/meta';
 import { sourceKind } from '../src/modules/leads/SourceLogo';
 import { canonicalStage, classifyStage } from '../src/core/analytics';
@@ -133,5 +133,74 @@ describe('speed to lead', () => {
     const m = (respMins: number | null, responded: boolean, stage = 'open') => ({ respMins, responded, stage }) as any;
     expect(speedBuckets([m(3, true), m(5, true), m(40, true), m(200, true), m(null, false), m(null, false, 'disqualified'), m(null, true)]))
       .toEqual({ total: 7, m5: 2, h1: 1, later: 1, none: 1 });
+  });
+});
+
+describe('enquiry performance (FTD / MTD / YTD)', () => {
+  const at = (id: string, day: string, stage: string, extra: Record<string, string> = {}) => lead(id, stage, { [F.ENQUIRY_DATE]: `${day}T11:00:00+05:30`, ...extra });
+  const ids = (ls: Array<{ id: string }>) => ls.map((l) => l.id).sort();
+  const all = toMisLeads([
+    at('a', '2026-10-09', STAGES.QUALIFIED),
+    at('b', '2026-10-09', STAGES.HOT),
+    at('c', '2026-10-09', STAGES.DQ_BUDGET),
+    at('d', '2026-10-09', STAGES.NOT_RESPONDING),
+    at('e', '2026-10-09', STAGES.NEW),
+    at('f', '2026-10-02', STAGES.WARM, { [F.SITE_VISIT_STATUS]: SITE_VISIT.COMPLETED, [F.SITE_VISIT_DATE]: '2026-10-09T15:00:00+05:30' }),
+    at('g', '2026-09-30', STAGES.BOOKED),
+    at('h', '2025-12-31', STAGES.OPEN),
+    at('i', '2026-10-10', STAGES.NEW),
+    at('j', '2026-03-01', STAGES.QUALIFIED, { [F.SITE_VISIT_STATUS]: SITE_VISIT.SCHEDULED }),
+    at('k', '2026-03-02', STAGES.QUALIFIED, { [F.SITE_VISIT_STATUS]: SITE_VISIT.PROSPECT }),
+    at('l', '2026-03-03', STAGES.DQ_NI, { [F.SITE_VISIT_STATUS]: SITE_VISIT.PROSPECT }),
+    at('m', '2026-03-04', STAGES.QUALIFIED, { [F.SITE_VISIT_STATUS]: SITE_VISIT.WALK_IN }),
+  ], new Map());
+
+  it('ranges end on the report date: the day, from the 1st of the month, from 1 January', () => {
+    expect(perfRanges('2026-10-09')).toEqual({ ftd: ['2026-10-09', '2026-10-09'], mtd: ['2026-10-01', '2026-10-09'], ytd: ['2026-01-01', '2026-10-09'] });
+  });
+
+  it('splits received leads into qualified / unqualified / non-responding / open, which add up', () => {
+    const r = perfRanges('2026-10-09');
+    const ftd = perfRow(all, r.ftd);
+    expect(ids(ftd.received)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(ids(ftd.qualified)).toEqual(['a', 'b']);
+    expect(ids(ftd.unqualified)).toEqual(['c']);
+    expect(ids(ftd.nonResponding)).toEqual(['d']);
+    expect(ids(ftd.open)).toEqual(['e']);
+    for (const row of [ftd, perfRow(all, r.mtd), perfRow(all, r.ytd)]) {
+      expect(row.qualified.length + row.unqualified.length + row.nonResponding.length + row.open.length).toBe(row.received.length);
+    }
+    // a visit counts on the day it happened, though the lead came in earlier
+    expect(ids(ftd.visits)).toEqual(['f']);
+    expect(ids(perfRow(all, r.mtd).received)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    expect(ids(perfRow(all, r.ytd).received)).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'j', 'k', 'l', 'm']);
+  });
+
+  it('the overall pipeline counts every enquiry as it stands', () => {
+    const p = pipelineNow(all);
+    expect(p.total).toHaveLength(13);
+    expect(ids(p.qualified)).toEqual(['a', 'b', 'f', 'g', 'j', 'k', 'm']);
+    expect(ids(p.warm)).toEqual(['f']);
+    expect(ids(p.hot)).toEqual(['b']);
+    // a prospect for a visit counts as planned; a disqualified one does not
+    expect(ids(p.svPlanned)).toEqual(['j', 'k']);
+    expect(ids(p.svDone)).toEqual(['f', 'm']);
+    expect(ids(p.svDoneUndated)).toEqual(['m']);
+  });
+});
+
+describe('Enquiry performance on the MIS page (server render)', () => {
+  it('shows the FTD, MTD, YTD and overall blocks with their tiles', async () => {
+    const { createElement } = await import('react');
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { MisView } = await import('../src/modules/mis/MisView');
+    const today = new Date().toISOString().slice(0, 10);
+    const leads = [lead('1', STAGES.QUALIFIED, { [F.ENQUIRY_DATE]: `${today}T11:00:00+05:30` }), lead('2', STAGES.NOT_RESPONDING, { [F.ENQUIRY_DATE]: `${today}T12:00:00+05:30` })];
+    const html = renderToStaticMarkup(createElement(MisView, {
+      leads, sources: [], canSeeCalls: false, onRefresh: () => {}, onShowLeads: () => {},
+      sync: { status: 'idle', hasLoadedOnce: true } as any,
+    }));
+    if (process.env.MIS_HTML) (await import('node:fs')).writeFileSync(process.env.MIS_HTML, html);
+    for (const t of ['Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'Non-Responding', 'Site Visits Completed']) expect(html).toContain(t);
   });
 });
