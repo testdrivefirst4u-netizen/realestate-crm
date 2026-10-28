@@ -166,10 +166,11 @@ async function generate(model: string, body: unknown, opts: GenOpts = {}): Promi
   throw lastErr || upstream('The AI service is unavailable right now.');
 }
 
+/** The answer's text. Transcription models (gemini-*-transcribe) put it in `audioTranscription.text`, not `text`. */
 export function textOf(resp: any): string {
   try {
     const parts: any[] = resp.candidates[0].content.parts || [];
-    return parts.map((p) => (p && !p.thought && p.text) || '').join('').trim();
+    return parts.map((p) => (p && !p.thought && (p.text || p.audioTranscription?.text)) || '').join('').trim();
   } catch {
     return '';
   }

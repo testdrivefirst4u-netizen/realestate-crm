@@ -138,6 +138,12 @@ describe('other AI actions', () => {
     await expect(transcribeAudio('abcd', 'text/html', ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
+  it('transcribeAudio reads the transcription model\'s own answer shape (audioTranscription.text)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ audioTranscription: { text: 'RM: Hello. Customer: Tell me about the project.' } }] }, finishReason: 'STOP' }] }), { status: 200 }));
+    const r = await transcribeAudio(Buffer.from('abc').toString('base64'), 'audio/wav', ctx);
+    expect(r.transcription).toBe('RM: Hello. Customer: Tell me about the project.');
+  });
+
   it('generateText supports JSON mode', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResp('{"a":1}'));
     expect(await generateText('give json', ctx, { json: true, maxOutputTokens: 99999 })).toBe('{"a":1}');
