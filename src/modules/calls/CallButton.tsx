@@ -9,6 +9,7 @@ import { toast } from '../../core/notifications';
 import { telLink } from '../../core/phone';
 import { useTenantSettings } from '../../core/tenant';
 import { outgoingCall } from './callWindowStore';
+import { softphone } from './softphone';
 
 /** The signed-in user's choice (My profile › How Call works), provided once by the app shell. */
 const CallViaContext = createContext<'justconnect' | 'direct'>('justconnect');
@@ -54,6 +55,14 @@ async function followCall(key: number, requestId: string, mode: 'app' | 'mobile'
 
 /** Start a JustConnect call and report how it goes (agent ringing → answered / not answered) in the call window. */
 export async function startJustConnectCall(d: { leadId?: string; phone?: string; name?: string }): Promise<boolean> {
+  // the phone inside the CRM is on: dial from here (JustConnect still shows the business number, records and logs it)
+  if (softphone.ready() && d.phone) {
+    if (softphone.get().call) {
+      toast('Call not started', 'Finish the call in progress first.', 'alert');
+      return false;
+    }
+    return softphone.dial(d.phone, { name: d.name, leadId: d.leadId });
+  }
   const who = d.name || d.phone || 'the customer';
   let req: { mode: 'app' | 'mobile'; requestId: string; status: string };
   try {

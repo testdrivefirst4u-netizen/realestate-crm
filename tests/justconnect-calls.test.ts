@@ -228,3 +228,95 @@ describe('a caller who is not a lead yet', () => {
     expect(tl).toContain('AI call summary');
   });
 });
+
+describe('live call buttons and the phone inside the CRM', () => {
+  const sent: Array<{ method: string; path: string; body: any }> = [];
+  const PHONE = { agent: { id: 'ag1', name: 'Priya S', extension: '1002' }, websocketUrl: 'wss://pbx.justconnect.biz:8089/ws', domain: 'pbx.justconnect.biz', username: 'jc2_p', password: 'secret-pw', uri: 'sip:jc2_p@pbx.justconnect.biz', displayName: 'Priya S', callerIds: [{ number: '4012345678', label: 'Main' }] };
+  let phone: any = PHONE;
+  let refuse: { status: number; code?: string } | null = null;
+  beforeEach(() => {
+    sent.length = 0;
+    phone = PHONE;
+    refuse = null;
+    const agents = [
+      { id: 'ag1', name: 'Priya S', role: 'agent', extension: '1002', email: priya.user!.email, loginId: 'P', status: 'online', canCallOut: true },
+      { id: 'ag2', name: 'Ravi R', role: 'agent', extension: '1003', email: 'ravi@x.test', loginId: 'R', status: 'break', canCallOut: true },
+    ];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      const p = new URL(url).pathname.replace('/api/v1', '');
+      const method = init.method || 'GET';
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      if (p === '/agents') return json({ items: agents });
+      if (p === '/outcomes') return json({ items: [] });
+      sent.push({ method, path: p, body: init.body ? JSON.parse(String(init.body)) : undefined });
+      if (refuse) return json({ error: 'Refused', code: refuse.code }, refuse.status);
+      if (/\/agents\/[^/]+\/phone$/.test(p)) return json({ phone });
+      if (/\/agents\/[^/]+\/status$/.test(p)) return json({ agent: { id: 'ag1', status: JSON.parse(String(init.body)).status } });
+      if (/\/transfer$/.test(p)) return json({ to: { type: 'agent', name: 'Ravi R', extension: '1003' }, call: {} }, 202);
+      if (/\/(end|mute|unmute)$/.test(p)) return json({ call: {} }, 202);
+      return json({}, 404);
+    });
+  });
+
+  const liveCall = async () => {
+    const { callId } = await ingestJcCall(jcCall({ id: 'live1', direction: 'inbound', status: 'in-progress', answeredAt: '2026-10-26T09:00:08.000Z', endedAt: null, talkSeconds: 0, recording: null, outcome: null }), undefined, { id: 'ag1', name: 'Priya S' });
+    return callId;
+  };
+
+  it('ends, mutes and transfers my own call through JustConnect; not a colleague\'s', async () => {
+    const { jcCallControl } = await import('../server/modules/justconnect');
+    const id = await liveCall();
+    expect(await jcCallControl({ callId: id, action: 'mute' }, priya)).toEqual({ ok: true, muted: true });
+    expect(await jcMyCall({}, priya)).toMatchObject({ muted: true });
+    expect(await jcCallControl({ callId: id, action: 'transfer', to: '1003' }, priya)).toMatchObject({ ok: true, to: 'Ravi R' });
+    expect(await jcCallControl({ callId: id, action: 'transfer', to: '+91 98765 00000' }, priya)).toMatchObject({ ok: true });
+    expect(await jcCallControl({ callId: id, action: 'end' }, priya)).toEqual({ ok: true });
+    expect(sent.map((s) => `${s.method} ${s.path}`)).toEqual(['POST /call-logs/live1/mute', 'POST /call-logs/live1/transfer', 'POST /call-logs/live1/transfer', 'POST /call-logs/live1/end']);
+    expect(sent[1].body).toEqual({ to: '1003' });
+    expect(sent[2].body).toEqual({ to: '9876500000' });
+    // somebody else's call: not found, nothing sent
+    sent.length = 0;
+    await expect(jcCallControl({ callId: id, action: 'end' }, admin)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(jcCallControl({ callId: id, action: 'hack' }, priya)).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(sent).toEqual([]);
+  });
+
+  it('explains JustConnect refusals, including a key without calls:control', async () => {
+    const { jcCallControl } = await import('../server/modules/justconnect');
+    const id = await liveCall();
+    refuse = { status: 409, code: 'agent-busy' };
+    await expect(jcCallControl({ callId: id, action: 'transfer', to: '1003' }, priya)).rejects.toMatchObject({ code: 'CONFLICT', message: expect.stringContaining('another call') });
+    refuse = { status: 403 };
+    await expect(jcCallControl({ callId: id, action: 'end' }, priya)).rejects.toMatchObject({ code: 'FORBIDDEN', message: expect.stringContaining('calls:control') });
+    // an ended call is refused before asking JustConnect
+    await (await col<any>(CFG.COLL.CALLS)).updateOne({ _id: id }, { $set: { status: 'Completed' } });
+    sent.length = 0;
+    await expect(jcCallControl({ callId: id, action: 'end' }, priya)).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(sent).toEqual([]);
+  });
+
+  it('status: reads mine, sets online / break / offline for my agent only', async () => {
+    const { jcMyStatus, jcSetMyStatus, jcTransferTargets } = await import('../server/modules/justconnect');
+    expect(await jcMyStatus(priya)).toEqual({ agent: { name: 'Priya S', extension: '1002', status: 'online', canCallOut: true } });
+    expect(await jcSetMyStatus({ status: 'break' }, priya)).toEqual({ status: 'break' });
+    expect(sent[0]).toMatchObject({ method: 'PUT', path: `/agents/${encodeURIComponent(priya.user!.email)}/status`, body: { status: 'break' } });
+    await expect(jcSetMyStatus({ status: 'on-call' }, priya)).rejects.toMatchObject({ code: 'VALIDATION' });
+    // colleagues to hand a call to: everybody but me
+    expect((await jcTransferTargets(priya)).map((a) => a.name)).toEqual(['Ravi R']);
+  });
+
+  it('phone login: my own agent\'s, only on JustConnect\'s secure socket', async () => {
+    const { jcMyPhone } = await import('../server/modules/justconnect');
+    expect(await jcMyPhone(priya)).toMatchObject({ websocketUrl: PHONE.websocketUrl, uri: PHONE.uri, password: 'secret-pw', extension: '1002', domain: 'pbx.justconnect.biz' });
+    expect(sent[0].path).toBe(`/agents/${encodeURIComponent(priya.user!.email)}/phone`);
+    phone = { ...PHONE, websocketUrl: 'wss://evil.example.com/ws' };
+    await expect(jcMyPhone(priya)).rejects.toMatchObject({ code: 'SERVER' });
+    phone = { ...PHONE, websocketUrl: 'ws://pbx.justconnect.biz/ws' };
+    await expect(jcMyPhone(priya)).rejects.toMatchObject({ code: 'SERVER' });
+    refuse = { status: 403 };
+    await expect(jcMyPhone(priya)).rejects.toMatchObject({ code: 'FORBIDDEN', message: expect.stringContaining('phones:connect') });
+    // a user set to "never call through JustConnect"
+    await (await col<any>(CFG.COLL.USERS)).updateOne({ _id: admin.user!.id }, { $set: { jcAgent: 'none' } });
+    await expect(jcMyPhone(admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+});

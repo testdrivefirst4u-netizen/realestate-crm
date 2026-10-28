@@ -280,6 +280,8 @@ export interface MyCall {
   aiTemperatureReason: string;
   /** The recording is (or will be) sent to the AI, so a summary is on its way. */
   aiPending: boolean;
+  /** Muted from the CRM (the customer cannot hear the agent). */
+  muted: boolean;
 }
 
 /**
@@ -318,6 +320,7 @@ export async function jcMyCall(d: { id?: string } | undefined, ctx: Ctx): Promis
       aiTemperature: String(r.aiTemperature || ''),
       aiTemperatureReason: String(r.aiTemperatureReason || ''),
       aiPending,
+      muted: !!r.jcMuted && !ended,
     };
   }
   return null;

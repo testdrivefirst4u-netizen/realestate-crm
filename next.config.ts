@@ -6,7 +6,7 @@ const isDev = process.env.NODE_ENV === 'development';
 /**
  * Content-Security-Policy without nonces (see the Next.js CSP guide): pages stay statically optimisable.
  * Only Google Fonts is loaded from outside; the browser talks to this origin alone (AI, Meta, Google and
- * Chat360 calls all go through the server). Images allow data:/blob: (logos, avatars) and https: (Page pictures).
+ * Chat360 calls all go through the server) — except the phone inside the CRM, which talks SIP to JustConnect. Images allow data:/blob: (logos, avatars) and https: (Page pictures).
  */
 const csp = [
   "default-src 'self'",
@@ -15,7 +15,8 @@ const csp = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob:",
-  "connect-src 'self'",
+  // the phone inside the CRM: SIP over JustConnect's secure WebSocket (src/modules/calls/softphone.ts)
+  "connect-src 'self' wss://*.justconnect.biz:*",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

@@ -16,6 +16,7 @@ import { NotificationPrompt } from '@/src/components/NotificationPrompt';
 import { isViewOnly } from '@/src/core/rbac';
 import { CallViaProvider } from '@/src/modules/calls/CallButton';
 import { CallWindow } from '@/src/modules/calls/CallWindow';
+import { PhoneDock } from '@/src/modules/calls/PhoneDock';
 import { registerServiceWorker } from '@/src/core/pushClient';
 import { Topbar } from '@/src/components/Topbar';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -145,6 +146,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const aiOn = on('aiCopilot');
   const aiConfigured = !!data.settings.aiConfigured && aiOn;
   const libraryOn = on('projectLibrary');
+  /** JustConnect calls for this user: the call window and the phone inside the CRM (not for view-only users). */
+  const callWindowOn = !!serverSettings?.justconnectConfigured && on('calls') && engine.can('calls.view') && !isViewOnly(currentUser);
   const rmOptions = useMemo(() => data.config.options[F.RM] || [], [data.config]);
 
   // The server checked the screen before rendering; the plan or role can still change while the app is open.
@@ -356,6 +359,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               searchData={searchData}
               onSearchSelect={onSearchSelect}
               onSearchShowAll={onSearchShowAll}
+              phoneSlot={<PhoneDock enabled={callWindowOn} />}
             />
 
             {isViewOnly(currentUser) && (
@@ -404,7 +408,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} defaultRm={serverSettings?.defaultRm} initialPhone={addLeadPhone} />
 
               <CallWindow
-                enabled={!!serverSettings?.justconnectConfigured && on('calls') && engine.can('calls.view') && !isViewOnly(currentUser)}
+                enabled={callWindowOn}
                 leads={data.leads}
                 onOpenLead={openLead}
                 onCreateLead={createLeadForCaller}

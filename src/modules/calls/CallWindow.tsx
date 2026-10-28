@@ -5,7 +5,8 @@
  *  - outgoing: "Ringing your phone…" → "Calling Meera…" → "On call · 02:14" → "Call ended";
  *  - after the call: the outcome (also filed in JustConnect) and, once the recording is in, the AI summary and
  *    Hot / Warm / Cold.
- * The talking itself stays on the phone (JustConnect app or mobile): JustConnect has no browser calling.
+ * The talking happens on the phone inside the CRM (softphone.ts, with a headset) when it is on, else on the JustConnect
+ * app or mobile; either way the window has the live buttons (CallControls: answer, end, transfer, mute, hold).
  *
  * Two sources, merged: jcMyCall (JustConnect's call events saved by the webhook — the only way to see incoming calls)
  * asked every few seconds while the CRM is on screen, and the CRM's own click-to-call progress (callWindowStore),
@@ -23,6 +24,8 @@ import { JcOutcomeForm } from '../leads/detail/CallsTab';
 import type { Lead } from '../../types/crm';
 import { outgoingCall, useOutgoingCall, type OutgoingCall } from './callWindowStore';
 import { startJustConnectCall } from './CallButton';
+import { CallControls } from './CallControls';
+import { useSoftphone, type SipCall, type SoftphoneSnapshot } from './softphone';
 
 /** How often the CRM asks "is my phone ringing?" while it is on screen — and while a call is going on. */
 const IDLE_POLL_MS = 5000;
@@ -48,9 +51,45 @@ interface View {
   mode?: 'app' | 'mobile';
   /** the CRM's saved call, once there is one (outcome, AI) */
   call?: MyCall;
+  /** the call on the phone inside the CRM */
+  sip?: SipCall;
 }
 
 const ms = (iso: string) => (iso ? new Date(iso).getTime() : 0);
+
+/** How long a call that ended on the phone here stays on screen when the CRM has not received it (no call events). */
+const SIP_ENDED_SHOW_MS = 2 * 60_000;
+
+function fromSip(s: SipCall, server: MyCall | null): View {
+  // JustConnect's saved call for the same conversation: transfer works on it, and it carries the lead
+  const match = server && server.phase !== 'ended' && samePhone(server.phone, s.phone) ? server : undefined;
+  return {
+    key: `sip-${s.id}`,
+    stage: s.state === 'ringing' ? 'incoming' : s.state === 'live' ? 'live' : 'calling',
+    direction: s.direction,
+    phone: s.phone,
+    name: s.name || match?.customerName || '',
+    leadId: s.leadId || match?.leadId || '',
+    startedAt: s.startedAt,
+    since: s.answeredAt,
+    call: match,
+    sip: s,
+  };
+}
+
+function fromSipEnded(e: NonNullable<SoftphoneSnapshot['ended']>): View {
+  return {
+    key: `sip-${e.id}`,
+    stage: e.answered ? 'ended' : 'missed',
+    direction: e.direction,
+    phone: e.phone,
+    name: e.name,
+    leadId: e.leadId,
+    startedAt: e.at,
+    durationSec: e.durationSec,
+    message: e.answered ? undefined : e.direction === 'Inbound' ? 'Missed call' : 'Not answered',
+  };
+}
 
 function fromServer(c: MyCall, out: OutgoingCall | null): View {
   const base = { key: c.id, direction: c.direction, phone: c.phone, name: c.customerName, leadId: c.leadId, startedAt: ms(c.startTime) || Date.now(), call: c };
@@ -101,6 +140,7 @@ export const CallWindow: React.FC<{
   onRemark: (leadId: string, text: string) => Promise<unknown>;
 }> = ({ enabled, leads, onOpenLead, onCreateLead, onRemark }) => {
   const out = useOutgoingCall();
+  const sp = useSoftphone();
   const [server, setServer] = useState<MyCall | null>(null);
   /** An ended call stays on screen (outcome, AI summary) until it is closed. */
   const [kept, setKept] = useState<MyCall | null>(null);
@@ -111,7 +151,7 @@ export const CallWindow: React.FC<{
   /* --------------------------- "is my phone ringing?" --------------------------- */
 
   const outActive = !!out && !['ended', 'failed'].includes(out.stage);
-  const serverActive = !!server && server.phase !== 'ended';
+  const serverActive = (!!server && server.phase !== 'ended') || !!sp.call;
   useEffect(() => {
     if (!enabled) return;
     let stop = false;
@@ -185,12 +225,16 @@ export const CallWindow: React.FC<{
   const view: View | null = useMemo(() => {
     const isClosed = (v: View) => closed.keys.has(v.key) || (!!closed.phone && last10(v.phone) === closed.phone && v.startedAt <= closed.at);
     const candidates: View[] = [];
+    // the phone inside the CRM first: it has the Answer button
+    if (sp.call) candidates.push(fromSip(sp.call, server));
     if (server && server.phase !== 'ended') candidates.push(fromServer(server, out));
     // the CRM's own progress until the saved call says more (and while it is still ringing you)
     if (out && !(kept && samePhone(kept.phone, out.phone) && out.stage === 'ended')) candidates.push(fromOutgoing(out));
     if (kept) candidates.push(fromServer(kept, null));
+    // ended on the phone here, and the CRM has not received the call (yet)
+    if (sp.ended && !(kept && samePhone(kept.phone, sp.ended.phone)) && Date.now() - sp.ended.at < SIP_ENDED_SHOW_MS) candidates.push(fromSipEnded(sp.ended));
     return candidates.find((v) => !isClosed(v)) || null;
-  }, [server, out, kept, closed]);
+  }, [server, out, kept, closed, sp.call, sp.ended]);
 
   const ticking = !!view && (view.stage === 'live' || view.stage === 'calling') && !!view.since;
   useEffect(() => {
@@ -233,7 +277,9 @@ export const CallWindow: React.FC<{
   const label = view.stage === 'incoming' ? 'Incoming call'
     : over ? (view.stage === 'missed' ? (view.direction === 'Inbound' ? 'Missed call' : 'Call not answered') : view.stage === 'failed' ? 'Call not made' : 'Call ended')
     : view.direction === 'Inbound' ? 'Incoming call' : 'Outgoing call';
-  const status = view.stage === 'incoming' ? 'Ringing on your JustConnect phone'
+  const status = view.stage === 'incoming' ? (view.sip ? 'Ringing here — answer with your headset' : 'Ringing on your JustConnect phone')
+    : view.sip?.held ? `On hold · ${timer || '00:00'}`
+    : view.sip && view.stage === 'calling' ? `Calling ${name.split(' ')[0]}…`
     : view.stage === 'ringing-you' ? `Answer your ${view.mode === 'mobile' ? 'mobile' : 'JustConnect app'} — then ${lead || view.name ? name.split(' ')[0] : 'the customer'} is called`
     : view.stage === 'calling' ? `Calling ${name.split(' ')[0]}…${timer ? ` · ${timer}` : ''}`
     : view.stage === 'live' ? `On call · ${timer || '00:00'}`
@@ -276,7 +322,8 @@ export const CallWindow: React.FC<{
           </span>
           <div className="flex items-center gap-0.5 -mr-1.5">
             <button type="button" onClick={() => setMinimised(true)} className="h-8 w-8 grid place-items-center rounded-full text-[#B9D4EA] hover:bg-white/10" aria-label="Make small"><ChevronDown size={16} /></button>
-            <button type="button" onClick={close} className="h-8 w-8 grid place-items-center rounded-full text-[#B9D4EA] hover:bg-white/10" aria-label="Close"><X size={15} /></button>
+            {/* a call on the phone here cannot be closed away: only made small (End hangs up) */}
+            {!(view.sip && !over) && <button type="button" onClick={close} className="h-8 w-8 grid place-items-center rounded-full text-[#B9D4EA] hover:bg-white/10" aria-label="Close"><X size={15} /></button>}
           </div>
         </div>
         <div className="flex flex-col items-center text-center mt-2">
@@ -293,6 +340,7 @@ export const CallWindow: React.FC<{
             {status}
           </div>
         </div>
+        {!over && (view.sip || (c && c.phase !== 'ended')) && <CallControls sip={view.sip || null} call={c && c.phase !== 'ended' ? c : undefined} live={view.stage === 'live'} />}
       </div>
 
       {/* who it is, and what to do */}
@@ -333,7 +381,7 @@ export const CallWindow: React.FC<{
 
         {!over && (
           <p className="text-[11px] text-[#7E93A6] leading-relaxed">
-            {view.stage === 'incoming' ? 'Pick up on your JustConnect app or mobile.' : 'You talk on your phone.'} The CRM saves the call, the recording and the AI notes by itself.
+            {view.sip ? 'You talk here, on your headset.' : view.stage === 'incoming' ? 'Pick up on your JustConnect app or mobile.' : 'You talk on your phone.'} The CRM saves the call, the recording and the AI notes by itself.
           </p>
         )}
 

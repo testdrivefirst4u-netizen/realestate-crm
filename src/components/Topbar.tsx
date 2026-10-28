@@ -35,6 +35,8 @@ interface TopbarProps {
   onSearchSelect?: (hit: SearchHit, query: string) => void;
   /** "Show all N" for a group: open that screen filtered to the query. */
   onSearchShowAll?: (group: SearchGroup, query: string) => void;
+  /** The phone button (phone inside the CRM), shown next to Notifications. */
+  phoneSlot?: React.ReactNode;
 }
 
 const KIND_ICON: Record<SearchKind, React.ReactNode> = {
@@ -47,7 +49,7 @@ const Marked: React.FC<{ text: string; terms: string[] }> = ({ text, terms }) =>
   <>{highlightParts(text, terms).map((p, i) => (p.hit ? <mark key={i} className="bg-[#D6EEFC] text-inherit rounded-sm">{p.text}</mark> : <React.Fragment key={i}>{p.text}</React.Fragment>))}</>
 );
 
-export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, unreadCount, onToggleNotificationDrawer, onToggleSidebarMobile, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll }) => {
+export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, unreadCount, onToggleNotificationDrawer, onToggleSidebarMobile, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll, phoneSlot }) => {
   const company = useCompany();
   const libraryEnabled = useFeature('projectLibrary');
   const [q, setQ] = useState('');
@@ -170,6 +172,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
           <BookOpen size={16} className="text-[#0B6BB0]" /><span className="hidden md:inline">Library</span>
         </button>
         )}
+        {phoneSlot}
         <button onClick={onToggleNotificationDrawer} className="relative w-11 h-11 rounded-xl border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB] flex items-center justify-center" title="Notifications" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
           <Bell size={18} />
           {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF8A65] text-[#3A1205] text-[10px] font-extrabold flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>}

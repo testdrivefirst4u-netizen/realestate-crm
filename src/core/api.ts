@@ -101,6 +101,17 @@ export interface MyCall {
   aiTemperature: string;
   aiTemperatureReason: string;
   aiPending: boolean;
+  muted: boolean;
+}
+export interface JcPhoneLogin {
+  websocketUrl: string;
+  uri: string;
+  username: string;
+  password: string;
+  domain: string;
+  displayName: string;
+  extension: string;
+  callerIds: Array<{ number: string; label: string }>;
 }
 export interface JcReport {
   timezone: string;
@@ -267,6 +278,13 @@ export const api = {
     callStatus: (id: string, mode: 'app' | 'mobile') => request<{ status: string; callStatus: string; talkSeconds: number; connected?: boolean; ended?: boolean }>('jcCallStatus', { id, mode }),
     /** The call window: what this user's phone is doing right now (or one call, to wait for its AI summary). */
     myCall: (id?: string) => request<MyCall | null>('jcMyCall', id ? { id } : {}, { timeoutMs: 10000 }),
+    /** Live call buttons (calls:control): end, transfer (colleague or number), mute, unmute — on the CRM call id. */
+    control: (callId: string, action: 'end' | 'transfer' | 'mute' | 'unmute', to?: string) => request<{ ok: true; muted?: boolean; to?: string }>('jcCallControl', { callId, action, to }, { timeoutMs: 20000 }),
+    transferTargets: () => request<Array<{ id: string; name: string; extension: string; status: string }>>('jcTransferTargets', {}, { timeoutMs: 20000 }),
+    myStatus: () => request<{ agent: { name: string; extension: string; status: string; canCallOut: boolean } | null }>('jcMyStatus', {}, { timeoutMs: 20000 }),
+    setMyStatus: (status: string) => request<{ status: string }>('jcSetMyStatus', { status }, { timeoutMs: 20000 }),
+    /** This user's own phone login, for the phone inside the CRM (phones:connect). Kept in memory only. */
+    myPhone: () => request<JcPhoneLogin>('jcMyPhone', {}, { timeoutMs: 20000 }),
   },
 
   /** Phone notifications (Web Push) for the signed-in user's devices. */
