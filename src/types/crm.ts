@@ -337,6 +337,8 @@ export interface CallRecord {
   recordingFileId?: string;
   transcriptFileId?: string;
   transcript?: string;
+  /** Who wrote the transcript: 'JustConnect' (their speech-to-text) or 'AI' (Gemini, from the recording). */
+  transcriptSource?: string;
   aiSummary?: string;
   keyPoints?: string[];
   followupActions?: string[];

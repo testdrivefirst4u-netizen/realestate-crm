@@ -43,13 +43,16 @@ function list(v: unknown): string[] {
   return Array.isArray(p) ? p.map(String) : s.split('\n').map((x) => x.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
 }
 
+/** Who wrote a call's transcript: JustConnect (their speech-to-text) or AI (Gemini, from the recording). */
+const TRANSCRIPT_SOURCES = ['JustConnect', 'AI'];
+
 function serialize(r: any) {
   return {
     id: str(r._id), leadId: str(r.leadId), customerName: str(r.customerName), phone: str(r.phone),
     direction: str(r.direction) || 'Outbound', callDate: toIso(r.callDate), startTime: toIso(r.startTime), endTime: toIso(r.endTime),
     durationSec: num(r.durationSec), status: str(r.status) || 'Completed', outcome: str(r.outcome), provider: str(r.provider),
     providerCallId: str(r.providerCallId), recordingUrl: str(r.recordingUrl), recordingFileId: str(r.recordingFileId),
-    transcriptFileId: str(r.transcriptFileId), transcript: str(r.transcript), aiSummary: str(r.aiSummary),
+    transcriptFileId: str(r.transcriptFileId), transcript: str(r.transcript), transcriptSource: str(r.transcriptSource), aiSummary: str(r.aiSummary),
     keyPoints: list(r.keyPoints), followupActions: list(r.followupActions), loggedBy: str(r.loggedBy), createdAt: toIso(r.createdAt), notes: str(r.notes),
     aiTemperature: str(r.aiTemperature), aiTemperatureReason: str(r.aiTemperatureReason),
   } as Record<string, any>;
@@ -78,6 +81,7 @@ function toFields(c: any) {
   if (c.recordingFileId !== undefined) f.recordingFileId = s(c.recordingFileId, 100);
   if (c.transcriptFileId !== undefined) f.transcriptFileId = s(c.transcriptFileId, 100);
   if (c.transcript !== undefined) f.transcript = truncate(str(c.transcript), 45000);
+  if (c.transcriptSource !== undefined) f.transcriptSource = TRANSCRIPT_SOURCES.includes(str(c.transcriptSource)) ? str(c.transcriptSource) : '';
   if (c.aiSummary !== undefined) f.aiSummary = truncate(str(c.aiSummary), 5000);
   if (c.keyPoints !== undefined) f.keyPoints = list(c.keyPoints).slice(0, 50).map((x) => truncate(x, 500));
   if (c.followupActions !== undefined) f.followupActions = list(c.followupActions).slice(0, 50).map((x) => truncate(x, 500));
@@ -305,10 +309,19 @@ async function downloadRecording(url: string): Promise<{ data: Buffer; mime: str
   }
 }
 
-/** Transcribe the stored recording with Gemini and save transcript + summary. */
+/**
+ * Transcribe a call and save transcript + summary. A JustConnect call uses JustConnect's own transcript when it has
+ * one (speaker by speaker); otherwise — and when that transcript is already there ("Re-transcribe") — Gemini
+ * transcribes the stored recording.
+ */
 export async function transcribe(callId: string, ctx: Ctx): Promise<any> {
   const call = await getCall(callId);
   if (!call) throw fail('NOT_FOUND', 'Call not found');
+  if (call.provider === 'JustConnect' && call.providerCallId && call.transcriptSource !== 'JustConnect') {
+    const { fetchJcTranscriptText } = await import('./jcCalls');
+    const text = await fetchJcTranscriptText(call.providerCallId).catch(() => '');
+    if (text) return saveTranscript(call.id, text, 'JustConnect', ctx);
+  }
   const actor = actorOf(ctx);
   let audio: { data: Buffer; mime: string; name: string };
   const localId = call.recordingFileId || (/^\/api\/files\/([A-Za-z0-9_-]+)$/.exec(call.recordingUrl || '') || [])[1] || '';
@@ -331,18 +344,25 @@ export async function transcribe(callId: string, ctx: Ctx): Promise<any> {
   const mime = /^(audio|video)\//.test(audio.mime) ? audio.mime : 'audio/mpeg';
   const { transcription } = await transcribeAudio(audio.data.toString('base64'), mime, ctx);
   if (!transcription) throw upstream('The AI returned an empty transcript. Please try again.');
+  return saveTranscript(call.id, transcription, 'AI', ctx);
+}
 
+/** Store a call's transcript (a file under the lead, the call, the timeline), then let the AI summarise it. */
+export async function saveTranscript(callId: string, transcription: string, source: 'JustConnect' | 'AI', ctx: Ctx): Promise<any> {
+  const call = await getCall(callId);
+  if (!call) throw fail('NOT_FOUND', 'Call not found');
+  const actor = actorOf(ctx);
   let transcriptFileId = '';
   if (call.leadId) {
     try {
-      const f = await saveFile({ leadId: call.leadId, category: 'Call Transcripts', name: call.id + '_transcript.txt', mime: 'text/plain', data: Buffer.from(transcription, 'utf8'), uploadedBy: actor, description: 'Transcript of ' + call.id });
+      const f = await saveFile({ leadId: call.leadId, category: 'Call Transcripts', name: call.id + '_transcript.txt', mime: 'text/plain', data: Buffer.from(transcription, 'utf8'), uploadedBy: actor, description: 'Transcript of ' + call.id + (source === 'JustConnect' ? ' (JustConnect)' : '') });
       transcriptFileId = f.fileId;
     } catch (e: any) {
       await logError('calls.transcribe', 'INTERNAL', 'Could not store transcript file: ' + e?.message, e?.stack, ctx.user?.email || '', { callId: call.id });
     }
   }
-  await updateCall(call.id, { transcript: transcription, transcriptFileId }, ctx);
-  if (call.leadId) await addTimeline(call.leadId, 'call_transcript', 'Call transcript generated', truncate(transcription, 300), actor, 'Call', call.id);
+  await updateCall(call.id, { transcript: transcription, transcriptFileId, transcriptSource: source }, ctx);
+  if (call.leadId) await addTimeline(call.leadId, 'call_transcript', source === 'JustConnect' ? 'Call transcript (JustConnect)' : 'Call transcript generated', truncate(transcription, 300), actor, 'Call', call.id);
   return summarize(call.id, ctx);
 }
 

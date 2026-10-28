@@ -5,8 +5,9 @@
  * Two ways in, same result (idempotent by the JustConnect call id):
  *  - webhook (app/api/webhooks/justconnect): call_log.started / ringing / answered / ended, seconds after they happen;
  *  - sync (cron every few minutes, and "Sync now"): GET /call-logs?updatedSince=… catches anything missed.
- * When an answered call has ended: the recording is copied into the CRM's file storage, then the AI transcribes it and
- * writes the summary, key points, next steps and a Hot / Warm / Cold read of the lead (calls.transcribe). Missed
+ * When an answered call has ended: the recording is copied into the CRM's file storage, and the call gets its transcript —
+ * JustConnect's own (call_log.transcribed, or GET /call-logs/{id}/transcript once the call says it is ready), else the
+ * AI's from the recording — then the AI writes the summary, key points, next steps and a Hot / Warm / Cold read. Missed
  * incoming calls notify the RM and ask for a call-back.
  */
 import { listUsers, SYSTEM_CTX, type Ctx, type PublicUser } from '../core/auth';
@@ -15,8 +16,8 @@ import { col } from '../core/db';
 import { addEvent, addTimeline, logError } from '../core/events';
 import { getSecret, settingSet, settingsAll } from '../core/settings';
 import { last10, truncate } from '../core/utils';
-import { jc, jcKey, JC_BASE, type JcAgent } from '../integrations/justconnect';
-import { logCall, transcribe, updateCall } from './calls';
+import { jc, jcKey, JC_BASE, JustConnectError, type JcAgent } from '../integrations/justconnect';
+import { logCall, saveTranscript, transcribe, updateCall } from './calls';
 import { findLeadByPhone, getLead } from './leads';
 import { idsByName, sendPush } from './push';
 import { saveFile } from './storage';
@@ -43,10 +44,47 @@ export interface JcCall {
   durationSeconds?: number;
   recording?: { url: string } | null;
   voicemail?: { url: string; seconds?: number } | null;
+  /** { url, status, lines } when the call has a transcript: status in-progress during the call, then ready. */
+  transcript?: { url?: string; status?: string; lines?: number } | null;
   outcome?: string | null;
   notes?: string | null;
   ref?: string | null;
   updatedAt?: string;
+}
+
+/** A transcript as JustConnect sends it (GET /call-logs/{id}/transcript, and inside call_log.transcribed). */
+export interface JcTranscript {
+  status?: string;
+  languages?: string[];
+  lines?: Array<{ speaker?: string; text?: string; atSeconds?: number; final?: boolean }>;
+  /** The whole conversation, one line per speaker ("Agent: …\nCustomer: …"). */
+  text?: string;
+}
+
+/** How long after a call ends the AI waits for JustConnect's transcript before transcribing the recording itself. */
+const JC_TRANSCRIPT_WAIT_MS = 10 * 60_000;
+const SPEAKER: Record<string, string> = { agent: 'Agent', customer: 'Customer', ai: 'AI agent' };
+
+/** The conversation as text: JustConnect's own `text`, else built from its lines. '' while it is not ready. */
+export function jcTranscriptText(t: JcTranscript | null | undefined): string {
+  if (!t || (t.status && t.status !== 'ready')) return '';
+  const own = String(t.text || '').trim();
+  if (own) return own;
+  return (Array.isArray(t.lines) ? t.lines : [])
+    .filter((l) => String(l?.text || '').trim())
+    .map((l) => `${SPEAKER[String(l.speaker)] || 'Speaker'}: ${String(l.text).trim()}`)
+    .join('\n');
+}
+
+/** JustConnect's transcript of a call as text; '' when the call has none (404 no-transcript) or it is not ready yet. */
+export async function fetchJcTranscriptText(jcCallId: string): Promise<string> {
+  try {
+    const r = await jc<{ transcript: JcTranscript }>(`/call-logs/${encodeURIComponent(jcCallId)}/transcript`);
+    return jcTranscriptText(r?.transcript);
+  } catch (e) {
+    if (e instanceof JustConnectError && e.status === 404) return '';
+    throw e;
+  }
 }
 
 /** JustConnect status → CRM call status. */
@@ -128,7 +166,7 @@ export async function ingestJcCall(c: JcCall, p?: People, ringing?: { id: string
   const existing = await (await callsCol()).findOne({ provider: PROVIDER, providerCallId: c.id });
   if (existing) {
     await updateCall(String(existing._id), fields, ctx);
-    await (await callsCol()).updateOne({ _id: existing._id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcUpdatedAt: c.updatedAt || '' }));
+    await (await callsCol()).updateOne({ _id: existing._id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcTranscript: c.transcript?.status || '', jcUpdatedAt: c.updatedAt || '' }));
     return { callId: String(existing._id), created: false, ended };
   }
   // the lead: our own reference for calls started from the CRM, else the customer's number
@@ -144,7 +182,7 @@ export async function ingestJcCall(c: JcCall, p?: People, ringing?: { id: string
     loggedBy: actor,
     ...fields,
   }, ctx);
-  await (await callsCol()).updateOne({ _id: call.id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcUpdatedAt: c.updatedAt || '', jcAgentUserId: user?.id || '' }));
+  await (await callsCol()).updateOne({ _id: call.id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcTranscript: c.transcript?.status || '', jcUpdatedAt: c.updatedAt || '', jcAgentUserId: user?.id || '' }));
   return { callId: call.id, created: true, ended };
 }
 
@@ -167,10 +205,11 @@ async function fetchAudio(jcCallId: string, kind: 'recording' | 'voicemail'): Pr
 }
 
 /**
- * After a call ended: copy the recording into the CRM, run the AI (transcript, summary, Hot / Warm / Cold), and for a
- * missed incoming call tell the RM. Each step runs once per call (flags on the call). Never throws.
+ * After a call ended: copy the recording into the CRM, save its transcript and run the AI (summary, Hot / Warm / Cold),
+ * and for a missed incoming call tell the RM. Each step runs once per call (flags on the call). Never throws.
+ * `opts.transcript`: JustConnect's transcript, when call_log.transcribed brought it.
  */
-export async function finishCall(callId: string): Promise<{ recording: boolean; ai: boolean; missed: boolean; remark?: boolean }> {
+export async function finishCall(callId: string, opts: { transcript?: JcTranscript | null } = {}): Promise<{ recording: boolean; ai: boolean; missed: boolean; remark?: boolean }> {
   const out: { recording: boolean; ai: boolean; missed: boolean; remark?: boolean } = { recording: false, ai: false, missed: false };
   try {
     const c = await callsCol();
@@ -195,15 +234,31 @@ export async function finishCall(callId: string): Promise<{ recording: boolean; 
       }
     }
 
-    // 2. AI: transcript, summary, next steps and Hot / Warm / Cold (answered calls long enough to say something)
+    // 2. transcript, then the AI's summary, next steps and Hot / Warm / Cold (answered calls long enough to say
+    //    something). JustConnect's own transcript first — handed in by call_log.transcribed, or fetched once the call
+    //    says it is ready; the AI transcribes the recording when JustConnect has none, or none came within 10 minutes.
     const fresh = await c.findOne({ _id: callId });
-    if (fresh?.recordingFileId && !fresh.transcript && !fresh.jcAiTried && (fresh.status === 'Completed' || fresh.status === 'Voicemail') && (fresh.durationSec || 0) >= AI_MIN_TALK_SEC) {
-      await c.updateOne({ _id: callId }, { $set: { jcAiTried: true } });
-      try {
-        await transcribe(callId, ctx);
-        out.ai = true;
-      } catch (e: any) {
-        if (e?.code !== 'NOT_CONFIGURED') await logError('justconnect.ai', e?.code || 'INTERNAL', e?.message, e?.stack, '', { callId });
+    const talked = !!fresh && (fresh.status === 'Completed' || fresh.status === 'Voicemail') && (fresh.durationSec || 0) >= AI_MIN_TALK_SEC;
+    if (talked && !fresh!.transcript && !fresh!.jcAiTried) {
+      let jcText = jcTranscriptText(opts.transcript);
+      if (!jcText && fresh!.jcTranscript === 'ready' && !fresh!.jcTranscriptFetched) {
+        await c.updateOne({ _id: callId }, { $set: { jcTranscriptFetched: true } });
+        jcText = await fetchJcTranscriptText(String(fresh!.providerCallId)).catch(() => '');
+      }
+      const endedAt = fresh!.endTime ? new Date(fresh!.endTime).getTime() : Date.now();
+      const waitForJc = !jcText && fresh!.jcTranscript === 'in-progress' && Date.now() - endedAt < JC_TRANSCRIPT_WAIT_MS;
+      if (jcText || (!waitForJc && fresh!.recordingFileId)) {
+        // claim the step: a webhook and the sync may get here at the same moment
+        const claim = await c.updateOne({ _id: callId, jcAiTried: { $ne: true } }, { $set: { jcAiTried: true, jcAiTriedAt: new Date() } });
+        if (claim.modifiedCount) {
+          try {
+            if (jcText) await saveTranscript(callId, jcText, 'JustConnect', ctx);
+            else await transcribe(callId, ctx);
+            out.ai = true;
+          } catch (e: any) {
+            if (e?.code !== 'NOT_CONFIGURED') await logError('justconnect.ai', e?.code || 'INTERNAL', e?.message, e?.stack, '', { callId });
+          }
+        }
       }
     }
 
@@ -302,7 +357,10 @@ export async function jcMyCall(d: { id?: string } | undefined, ctx: Ctx): Promis
     if (!d?.id && ended && Date.now() - new Date(r.jcLiveAt).getTime() > ENDED_SHOW_MS) continue;
     // a colleague took it: not my call any more
     if (r.jcAgentUserId && r.jcAgentUserId !== me && (r.jcAnsweredAt || r.status === 'Completed')) continue;
-    const aiPending = ended && !r.transcript && !r.jcAiTried && r.status === 'Completed' && (r.durationSec || 0) >= AI_MIN_TALK_SEC && !!(r.jcRecording || r.recordingFileId);
+    // the summary is on its way: not started yet (JustConnect's transcript or the recording to come), or started in the last 3 minutes
+    const aiRunning = r.jcAiTried && r.jcAiTriedAt && Date.now() - new Date(r.jcAiTriedAt).getTime() < 3 * 60_000;
+    const aiPending = ended && !r.aiSummary && r.status === 'Completed' && (r.durationSec || 0) >= AI_MIN_TALK_SEC &&
+      !!(r.jcRecording || r.recordingFileId || r.jcTranscript) && (!r.jcAiTried || !!aiRunning);
     return {
       id: String(r._id),
       phase: ended ? 'ended' : r.jcAnsweredAt ? 'live' : 'ringing',
@@ -337,6 +395,8 @@ async function pendingFinish(limit = 20): Promise<string[]> {
         { jcVoicemail: true, recordingFileId: { $in: [null, ''] }, jcAudioTried: { $ne: true } },
         { direction: 'Inbound', status: { $in: ['Missed', 'Voicemail'] }, jcMissedNotified: { $ne: true } },
         { outcome: { $nin: ['', null] }, leadId: { $nin: ['', null] }, jcRemarkDone: { $ne: true } },
+        // waiting for JustConnect's transcript (then the AI falls back to the recording after 10 minutes)
+        { jcTranscript: { $in: ['in-progress', 'ready'] }, transcript: { $in: ['', null] }, jcAiTried: { $ne: true }, status: { $in: ['Completed', 'Voicemail'] }, durationSec: { $gte: AI_MIN_TALK_SEC } },
       ],
     }, { projection: { _id: 1 } })
     .limit(limit)

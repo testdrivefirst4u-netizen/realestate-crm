@@ -636,7 +636,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({ call, lead, match, leads, can
           {transcript && (
             <div className="rounded-lg border border-[#E6EFF6] bg-white">
               <button type="button" onClick={() => setShowTranscript((s) => !s)} className="w-full flex items-center justify-between p-2.5 text-left hover:bg-[#F2F7FB] rounded-lg">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Transcript · {String(call.transcript || '').length.toLocaleString('en-IN')} characters</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[#5E778C]">Transcript{call.transcriptSource === 'JustConnect' ? ' · JustConnect' : call.transcriptSource === 'AI' ? ' · AI' : ''} · {String(call.transcript || '').length.toLocaleString('en-IN')} characters</span>
                 {showTranscript ? <ChevronDown size={14} className="text-[#7E93A6]" /> : <ChevronRight size={14} className="text-[#7E93A6]" />}
               </button>
               {showTranscript && <pre className="p-3 pt-0 text-[11px] text-[#0F2233] whitespace-pre-wrap font-sans leading-relaxed max-h-80 overflow-y-auto">{call.transcript}</pre>}

@@ -368,7 +368,7 @@ const CallRow: React.FC<{
         )}
         {call.transcript && (
           <button type="button" onClick={() => setShowTranscript((v) => !v)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#5E778C] hover:text-[#0B2A44]">
-            Transcript {showTranscript ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            Transcript{call.transcriptSource === 'JustConnect' ? ' (JustConnect)' : ''} {showTranscript ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
         )}
       </div>

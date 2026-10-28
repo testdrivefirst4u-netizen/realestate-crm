@@ -1,6 +1,6 @@
 /**
  * POST /api/webhooks/justconnect?company=<company id> — JustConnect call events (call_log.started / ringing / answered /
- * ended) for one company. Signed: X-JC-Signature "t=<unix>,v1=<hex HMAC-SHA256 of '<t>.<raw body>'>" with the company's
+ * ended / transcribed) for one company. Signed: X-JC-Signature "t=<unix>,v1=<hex HMAC-SHA256 of '<t>.<raw body>'>" with the company's
  * webhook signing secret (JUSTCONNECT_WEBHOOK_SECRET); older than 5 minutes is refused. Answers 2xx at once (JustConnect
  * wants an answer within 8 seconds) and does the slow work — recording copy, AI — afterwards.
  */
@@ -47,7 +47,8 @@ export async function POST(req: Request) {
       const res = await ingestJcCall(call, undefined, event === 'call_log.ringing' ? body?.ringing : null);
       after(() => runWithTenant(tenant, async () => {
         if (event === 'call_log.ringing') await announceRinging(call, body?.ringing);
-        if (res.callId && res.ended) await finishCall(res.callId);
+        // call_log.transcribed carries JustConnect's transcript: saved on the call, then the AI summarises it
+        if (res.callId && res.ended) await finishCall(res.callId, { transcript: event === 'call_log.transcribed' ? body?.transcript : null });
       }).catch(() => undefined));
       return json({ ok: true, callId: res.callId || null });
     } catch (e: any) {

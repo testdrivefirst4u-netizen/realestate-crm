@@ -23,13 +23,22 @@ import { updateProfile, type Ctx } from '../server/core/auth';
 import { addLead, timelineForLead } from '../server/modules/leads';
 import { pushSubscribe } from '../server/modules/push';
 import { validJcSignature } from '../server/integrations/justconnect';
-import { crmStatus, finishCall, ingestJcCall, jcMyCall, syncJcCalls, type JcCall } from '../server/modules/jcCalls';
+import { crmStatus, finishCall, ingestJcCall, jcMyCall, jcTranscriptText, syncJcCalls, type JcCall, type JcTranscript } from '../server/modules/jcCalls';
+import { transcribe } from '../server/modules/calls';
 
 const L = CFG.LEAD;
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let admin: Ctx, priya: Ctx;
 let jcLog: JcCall[] = [];
 const WAV = Buffer.from('RIFF....WAVEfmt fake audio');
+/** What GET /call-logs/{id}/transcript answers (null = 404 no-transcript), and how often it was asked. */
+let jcTranscript: JcTranscript | null = null;
+let transcriptAsks = 0;
+const JC_TRANSCRIPT: JcTranscript = {
+  status: 'ready', languages: ['te-IN', 'en-IN'],
+  lines: [{ speaker: 'agent', text: 'Namaste, Amaya nundi Priya.', atSeconds: 1.2, final: true }, { speaker: 'customer', text: 'We want to visit on Saturday.', atSeconds: 4.6, final: true }],
+  text: 'Agent: Namaste, Amaya nundi Priya.\nCustomer: We want to visit on Saturday.',
+};
 
 beforeAll(async () => {
   t = await startTestDb();
@@ -44,6 +53,8 @@ beforeEach(async () => {
   priya = await t.ctx('RM', 'Priya Sharma');
   pushSent.length = 0;
   jcLog = [];
+  jcTranscript = null;
+  transcriptAsks = 0;
   process.env.VAPID_PUBLIC_KEY = 'pub';
   process.env.VAPID_PRIVATE_KEY = 'priv';
   await setSecret('JUSTCONNECT_API_KEY', 'jc_key', admin);
@@ -59,6 +70,10 @@ beforeEach(async () => {
       return json({ items: page === 1 ? jcLog : [], page, limit: 100, hasMore: false });
     }
     if (/\/call-logs\/[^/]+\/(recording|voicemail)$/.test(p)) return new Response(WAV, { status: 200, headers: { 'content-type': 'audio/wav', 'content-length': String(WAV.length) } });
+    if (/\/call-logs\/[^/]+\/transcript$/.test(p)) {
+      transcriptAsks++;
+      return jcTranscript ? json({ transcript: jcTranscript }) : new Response(JSON.stringify({ error: 'No transcript.', code: 'no-transcript' }), { status: 404 });
+    }
     return new Response('{}', { status: 404 });
   });
 });
@@ -147,6 +162,58 @@ describe('after the call', () => {
     expect(pushSent[0].body).toMatchObject({ title: 'Missed call: Missed One', url: `/leads?lead=${lead[L.ID]}` });
     expect(JSON.stringify(await timelineForLead(lead[L.ID]))).toContain('Missed call — call back');
     expect(await finishCall(callId)).toMatchObject({ missed: false }); // once
+  });
+});
+
+describe("JustConnect's transcripts", () => {
+  it('builds the text from the lines when JustConnect sends none, and nothing while it is not ready', () => {
+    expect(jcTranscriptText({ ...JC_TRANSCRIPT, text: '' })).toBe('Agent: Namaste, Amaya nundi Priya.\nCustomer: We want to visit on Saturday.');
+    expect(jcTranscriptText({ ...JC_TRANSCRIPT, status: 'in-progress' })).toBe('');
+    expect(jcTranscriptText(null)).toBe('');
+  });
+
+  it('call_log.transcribed: its transcript is saved on the call and the lead, then the AI summarises it (no audio sent to the AI)', async () => {
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { callId } = await ingestJcCall(jcCall({ ref: lead[L.ID], transcript: { url: 'x', status: 'ready', lines: 2 } }));
+    expect(await finishCall(callId, { transcript: JC_TRANSCRIPT })).toMatchObject({ recording: true, ai: true });
+    const c = (await crmCalls())[0];
+    expect(c).toMatchObject({ transcript: JC_TRANSCRIPT.text, transcriptSource: 'JustConnect', aiTemperature: 'Hot', aiSummary: expect.stringContaining('2.5 BHK') });
+    expect(c.transcriptFileId).toBeTruthy();
+    expect(transcriptAsks).toBe(0); // it came in the event
+    expect(JSON.stringify(await timelineForLead(lead[L.ID]))).toContain('Call transcript (JustConnect)');
+    // a repeat delivery changes nothing
+    expect(await finishCall(callId, { transcript: JC_TRANSCRIPT })).toMatchObject({ ai: false });
+  });
+
+  it('waits while JustConnect is still transcribing, then fetches it once the call says it is ready', async () => {
+    const { lead } = await addLead({ [L.NAME]: 'Wait', [L.PHONE]: '9876500007', [L.RM]: 'Priya Sharma' }, admin);
+    const endedAt = new Date().toISOString();
+    const { callId } = await ingestJcCall(jcCall({ id: 'jc7', customer: '9876500007', ref: lead[L.ID], endedAt, transcript: { url: 'x', status: 'in-progress', lines: 0 } }));
+    expect(await finishCall(callId)).toMatchObject({ recording: true, ai: false }); // waits: no AI transcript of the audio
+    expect((await crmCalls())[0].transcript || '').toBe('');
+    jcTranscript = JC_TRANSCRIPT;
+    await ingestJcCall(jcCall({ id: 'jc7', customer: '9876500007', ref: lead[L.ID], endedAt, transcript: { url: 'x', status: 'ready', lines: 2 } }));
+    expect(await finishCall(callId)).toMatchObject({ ai: true });
+    expect((await crmCalls())[0]).toMatchObject({ transcript: JC_TRANSCRIPT.text, transcriptSource: 'JustConnect' });
+    expect(transcriptAsks).toBe(1);
+  });
+
+  it('no JustConnect transcript within 10 minutes (or transcription off): the AI transcribes the recording', async () => {
+    const { lead } = await addLead({ [L.NAME]: 'Late', [L.PHONE]: '9876500008', [L.RM]: 'Priya Sharma' }, admin);
+    const { callId } = await ingestJcCall(jcCall({ id: 'jc8', customer: '9876500008', ref: lead[L.ID], endedAt: new Date(Date.now() - 11 * 60_000).toISOString(), transcript: { url: 'x', status: 'in-progress', lines: 0 } }));
+    expect(await finishCall(callId)).toMatchObject({ ai: true });
+    expect((await crmCalls())[0]).toMatchObject({ transcript: expect.stringContaining('2.5 BHK'), transcriptSource: 'AI' });
+  });
+
+  it('"Transcribe & summarise" uses JustConnect\'s transcript first; "Re-transcribe" then asks the AI', async () => {
+    const { lead } = await addLead({ [L.NAME]: 'Manual', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma' }, admin);
+    const { callId } = await ingestJcCall(jcCall({ id: 'jc9', customer: '9876500009', ref: lead[L.ID], talkSeconds: 8 }));
+    await finishCall(callId); // short call: recording only
+    jcTranscript = JC_TRANSCRIPT;
+    await transcribe(callId, admin);
+    expect((await crmCalls())[0]).toMatchObject({ transcript: JC_TRANSCRIPT.text, transcriptSource: 'JustConnect' });
+    await transcribe(callId, admin);
+    expect((await crmCalls())[0]).toMatchObject({ transcript: expect.stringContaining('2.5 BHK'), transcriptSource: 'AI' });
   });
 });
 
