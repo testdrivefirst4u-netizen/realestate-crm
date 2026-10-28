@@ -57,6 +57,9 @@ interface View {
 
 const ms = (iso: string) => (iso ? new Date(iso).getTime() : 0);
 
+/** JustConnect's saved call for the CRM's own outgoing call: the same number, started with it or after. */
+const sameCall = (c: MyCall | null | undefined, o: OutgoingCall | null) => !!c && !!o && samePhone(c.phone, o.phone) && ms(c.startTime) >= o.startedAt - 60_000;
+
 /** How long a call that ended on the phone here stays on screen when the CRM has not received it (no call events). */
 const SIP_ENDED_SHOW_MS = 2 * 60_000;
 
@@ -150,6 +153,27 @@ export const CallWindow: React.FC<{
 
   /* --------------------------- "is my phone ringing?" --------------------------- */
 
+  /** Calls this user ended (or handed on) from the window: not shown as in progress while JustConnect catches up. */
+  const endedHere = useRef(new Set<string>());
+  const stillOpen = (r: MyCall | null) => (r && r.phase !== 'ended' && endedHere.current.has(r.id) ? null : r);
+  const serverRef = useRef(server);
+  serverRef.current = server;
+  /** The call is over for this user now; JustConnect's own "ended" (with the real figures) replaces this when it arrives. */
+  const endLocally = useCallback((cur: MyCall) => {
+    if (cur.phase === 'ended') return;
+    endedHere.current.add(cur.id);
+    const answered = cur.phase === 'live';
+    setKept({ ...cur, phase: 'ended', status: answered ? 'Completed' : 'Missed', durationSec: answered && cur.answeredAt ? Math.round((Date.now() - ms(cur.answeredAt)) / 1000) : 0, aiPending: answered });
+    setServer(null);
+  }, []);
+
+  // hung up on the phone here: the saved call for it is over too (do not show it as "On call" until JustConnect says so)
+  const sipEndedAt = sp.ended?.at;
+  useEffect(() => {
+    const cur = serverRef.current;
+    if (sipEndedAt && sp.ended && cur && samePhone(cur.phone, sp.ended.phone)) endLocally(cur);
+  }, [sipEndedAt, endLocally]);
+
   const outActive = !!out && !['ended', 'failed'].includes(out.stage);
   const serverActive = (!!server && server.phase !== 'ended') || !!sp.call;
   useEffect(() => {
@@ -162,7 +186,7 @@ export const CallWindow: React.FC<{
         try {
           const r = await api.justconnect.myCall();
           if (stop) return;
-          setServer(r);
+          setServer(stillOpen(r));
           if (r?.phase === 'ended') setKept((k) => (k?.id === r.id ? { ...k, ...r } : r));
         } catch {
           /* offline / signed out: try again next time */
@@ -202,6 +226,33 @@ export const CallWindow: React.FC<{
     return () => clearInterval(t);
   }, [enabled, keptId, keptWaiting]);
 
+  // JustConnect says the call is over (seconds after it ends): the CRM's own call follower stops right away
+  useEffect(() => {
+    if (out && outActive && kept && sameCall(kept, out)) outgoingCall.update(out.key, { stage: 'ended', endedAt: Date.now(), talkSeconds: kept.durationSec || undefined });
+  }, [out, outActive, kept]);
+
+  /** Ask again now (after End / Transfer), instead of waiting for the next check. */
+  const refreshNow = useCallback(async () => {
+    try {
+      const r = await api.justconnect.myCall();
+      setServer(stillOpen(r));
+      if (r?.phase === 'ended') setKept((k) => (k?.id === r.id ? { ...k, ...r } : r));
+    } catch {
+      /* the next check picks it up */
+    }
+  }, []);
+
+  /** After End / Transfer through JustConnect: the call is over for this user — show it now, then fetch the saved call. */
+  const afterControl = useCallback((action: 'end' | 'transfer' | 'mute' | 'unmute', callId?: string) => {
+    if (action !== 'end' && action !== 'transfer') return;
+    const o = outgoingCall.get();
+    if (o && !['ended', 'failed'].includes(o.stage)) outgoingCall.update(o.key, { stage: 'ended', endedAt: Date.now() });
+    const cur = serverRef.current;
+    if (callId && cur?.id === callId) endLocally(cur);
+    void refreshNow();
+    setTimeout(() => void refreshNow(), 1500); // JustConnect's "ended" event follows a moment later
+  }, [refreshNow]);
+
   // an outgoing call ended before JustConnect's events arrived (no webhook yet): fetch it from JustConnect
   const linkTried = useRef(0);
   useEffect(() => {
@@ -229,7 +280,8 @@ export const CallWindow: React.FC<{
     if (sp.call) candidates.push(fromSip(sp.call, server));
     if (server && server.phase !== 'ended') candidates.push(fromServer(server, out));
     // the CRM's own progress until the saved call says more (and while it is still ringing you)
-    if (out && !(kept && samePhone(kept.phone, out.phone) && out.stage === 'ended')) candidates.push(fromOutgoing(out));
+    // (JustConnect's saved call wins once it has ended: the CRM's own progress check can lag behind it)
+    if (out && !sameCall(kept, out)) candidates.push(fromOutgoing(out));
     if (kept) candidates.push(fromServer(kept, null));
     // ended on the phone here, and the CRM has not received the call (yet)
     if (sp.ended && !(kept && samePhone(kept.phone, sp.ended.phone)) && Date.now() - sp.ended.at < SIP_ENDED_SHOW_MS) candidates.push(fromSipEnded(sp.ended));
@@ -340,7 +392,7 @@ export const CallWindow: React.FC<{
             {status}
           </div>
         </div>
-        {!over && (view.sip || (c && c.phase !== 'ended')) && <CallControls sip={view.sip || null} call={c && c.phase !== 'ended' ? c : undefined} live={view.stage === 'live'} />}
+        {!over && (view.sip || (c && c.phase !== 'ended')) && <CallControls sip={view.sip || null} call={c && c.phase !== 'ended' ? c : undefined} live={view.stage === 'live'} onChanged={afterControl} />}
       </div>
 
       {/* who it is, and what to do */}

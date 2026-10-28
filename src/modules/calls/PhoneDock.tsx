@@ -1,10 +1,11 @@
 /**
  * The phone button in the top bar: switch the phone inside the CRM on or off, say whether you are taking calls
  * (Online / Break / Offline — JustConnect rings only agents who are online), and dial a number. Calls themselves show
- * in the call window.
+ * in the call window. On larger screens the panel floats: drag it by its top bar anywhere (the place is remembered).
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Coffee, Headset, Loader2, Phone, PhoneOff, Power } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Coffee, GripHorizontal, Headset, Loader2, Phone, PhoneOff, Power, X } from 'lucide-react';
 import { api } from '../../core/api';
 import { toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -13,6 +14,14 @@ import { startJustConnectCall } from './CallButton';
 import { softphone, softphonePref, useSoftphone } from './softphone';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '0', '⌫'];
+const POS_KEY = 'crm.phonePanelPos';
+const PANEL_W = 320;
+/** Keep the panel on screen (its grip bar always reachable). */
+const clampPos = <T extends { x: number; y: number }>(p: T): T => ({
+  ...p,
+  x: Math.min(Math.max(8, p.x), Math.max(8, window.innerWidth - PANEL_W - 8)),
+  y: Math.min(Math.max(8, p.y), Math.max(8, window.innerHeight - 64)),
+});
 
 const STATUS_OPTIONS: Array<{ id: string; label: string; icon: React.ReactNode }> = [
   { id: 'online', label: 'Online', icon: <Phone size={13} /> },
@@ -28,18 +37,91 @@ export const PhoneDock: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const [statusBusy, setStatusBusy] = useState('');
   const [number, setNumber] = useState('');
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  /** Where the panel sits on larger screens (it can be dragged anywhere); `moved` = the user put it there. */
+  const [pos, setPos] = useState<{ x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ dx: number; dy: number } | null>(null);
+  const movedRef = useRef(false);
+  movedRef.current = !!pos?.moved;
+  /** Dragging is for larger screens; on a phone the panel is a full-width sheet. */
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches);
+  const wideRef = useRef(wide);
+  wideRef.current = wide;
+  useEffect(() => {
+    const m = window.matchMedia('(min-width: 640px)');
+    const on = () => setWide(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+
+  const onGripDown = (e: React.PointerEvent) => {
+    if (!wide || e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    const r = panel.current?.getBoundingClientRect();
+    if (!r) return;
+    drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+  const onGripMove = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    setPos(clampPos({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy, moved: true }));
+  };
+  const onGripUp = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    setPos((cur) => {
+      if (cur) {
+        try {
+          localStorage.setItem(POS_KEY, JSON.stringify({ x: Math.round(cur.x), y: Math.round(cur.y) }));
+        } catch {
+          /* private window: it just will not be remembered */
+        }
+      }
+      return cur;
+    });
+  };
+  /** Back under the headset button (forgets the dragged place). */
+  const resetPos = () => {
+    try {
+      localStorage.removeItem(POS_KEY);
+    } catch {
+      /* nothing saved */
+    }
+    const b = box.current?.getBoundingClientRect();
+    setPos(clampPos({ x: (b?.right || window.innerWidth) - PANEL_W, y: (b?.bottom || 60) + 8, moved: false }));
+  };
 
   // the phone comes back after a reload when it was on
   useEffect(() => {
     if (enabled && softphonePref()) void softphone.start();
   }, [enabled]);
 
+  // opening: where the user left it last time, else just under the headset button
+  useEffect(() => {
+    if (!open) return;
+    let saved: { x: number; y: number } | null = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+    } catch {
+      saved = null;
+    }
+    const b = box.current?.getBoundingClientRect();
+    const p = saved && typeof saved.x === 'number' ? { ...saved, moved: true } : { x: (b?.right || window.innerWidth) - PANEL_W, y: (b?.bottom || 60) + 8, moved: false };
+    setPos(clampPos(p));
+    const onResize = () => setPos((cur) => (cur ? clampPos(cur) : cur));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     let stop = false;
     api.justconnect.myStatus().then((r) => !stop && setAgent(r.agent)).catch(() => !stop && setAgent(null));
+    // a panel the user moved stays open until closed; one under the button closes on a click elsewhere
     const onDown = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (box.current?.contains(t) || panel.current?.contains(t)) return;
+      if (!movedRef.current || !wideRef.current) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('mousedown', onDown);
@@ -108,8 +190,32 @@ export const PhoneDock: React.FC<{ enabled: boolean }> = ({ enabled }) => {
         <span className={cx('absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-white', dot)} />
       </button>
 
-      {open && (
-        <div role="dialog" aria-label="Phone in the CRM" className="fixed sm:absolute left-4 right-4 sm:left-auto sm:right-0 top-[72px] sm:top-[52px] z-60 sm:w-80 max-h-[calc(100dvh-90px)] overflow-y-auto rounded-2xl bg-white border border-[#DCE8F2] shadow-[0_20px_50px_-12px_rgba(10,31,51,0.4)] p-4 space-y-4">
+      {open && (!wide || pos) && createPortal(
+        <div
+          ref={panel}
+          role="dialog"
+          aria-label="Phone in the CRM"
+          style={wide && pos ? { left: pos.x, top: pos.y, width: PANEL_W, maxHeight: `calc(100dvh - ${Math.round(pos.y) + 8}px)` } : undefined}
+          className={cx(
+            'fixed z-60 flex flex-col rounded-2xl bg-white border border-[#DCE8F2] shadow-[0_20px_50px_-12px_rgba(10,31,51,0.4)]',
+            wide ? '' : 'left-4 right-4 top-18 max-h-[calc(100dvh-90px)]',
+          )}
+        >
+          {/* grip bar: drag the panel anywhere (larger screens) */}
+          <div
+            onPointerDown={onGripDown}
+            onPointerMove={onGripMove}
+            onPointerUp={onGripUp}
+            onPointerCancel={onGripUp}
+            onDoubleClick={() => wide && resetPos()}
+            className={cx('flex-none flex items-center gap-2 h-9 pl-3 pr-1.5 rounded-t-2xl bg-[#F5F9FC] border-b border-[#E6EFF6] select-none touch-none', wide && 'cursor-grab active:cursor-grabbing')}
+            title={wide ? 'Drag to move · double-click to put it back' : undefined}
+          >
+            {wide && <GripHorizontal size={15} className="text-[#7E93A6]" />}
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#5E778C] flex-1">Phone{wide ? ' · drag to move' : ''}</span>
+            <button type="button" onClick={() => setOpen(false)} className="h-7 w-7 grid place-items-center rounded-lg text-[#5E778C] hover:bg-[#E3EEF7]" aria-label="Close"><X size={14} /></button>
+          </div>
+          <div className="overflow-y-auto p-4 space-y-4">
           {/* on / off */}
           <div className="flex items-start gap-3">
             <span className={cx('mt-0.5 h-9 w-9 flex-none rounded-xl grid place-items-center', on ? 'bg-[#E6F6EE] text-[#067647]' : 'bg-[#F2F7FB] text-[#5E778C]')}><Headset size={17} /></span>
@@ -194,7 +300,9 @@ export const PhoneDock: React.FC<{ enabled: boolean }> = ({ enabled }) => {
           <p className="text-[11px] text-[#7E93A6] leading-relaxed">
             Use a headset. While the phone is on, Call buttons in the CRM dial from here, and incoming calls ring here. Use one phone at a time: close the JustConnect app while this is on.
           </p>
-        </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -36,7 +36,7 @@ async function followCall(key: number, requestId: string, mode: 'app' | 'mobile'
   while (Date.now() < until) {
     await wait(FOLLOW_MS);
     const cur = outgoingCall.get();
-    if (!cur || cur.key !== key) return; // closed, or another call started
+    if (!cur || cur.key !== key || cur.stage === 'ended' || cur.stage === 'failed') return; // closed, over, or another call started
     let s: { status: string; callStatus: string; talkSeconds: number; connected?: boolean; ended?: boolean };
     try {
       s = await api.justconnect.callStatus(requestId, mode);

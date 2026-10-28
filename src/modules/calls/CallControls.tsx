@@ -41,7 +41,9 @@ export const CallControls: React.FC<{
   call?: MyCall;
   /** the call is answered (talking) */
   live: boolean;
-}> = ({ sip, call, live }) => {
+  /** a button worked (End / Transfer: the call is over for this user) */
+  onChanged?: (action: 'end' | 'transfer' | 'mute' | 'unmute', callId: string) => void;
+}> = ({ sip, call, live, onChanged }) => {
   const [busy, setBusy] = useState('');
   const [muted, setMuted] = useState(!!call?.muted);
   const [panel, setPanel] = useState<'' | 'transfer' | 'keypad'>('');
@@ -53,6 +55,7 @@ export const CallControls: React.FC<{
     try {
       const r = await api.justconnect.control(call.id, action);
       if (r.muted !== undefined) setMuted(r.muted);
+      onChanged?.(action, call.id);
     } catch (e) {
       toast(action === 'end' ? 'Call not ended' : 'Mute not changed', toAppError(e).userMessage, 'alert');
     }
@@ -92,13 +95,13 @@ export const CallControls: React.FC<{
         )}
       </div>
       {panel === 'keypad' && sip && (
-        <div className="mt-3 grid grid-cols-3 gap-1.5 max-w-[210px] mx-auto">
+        <div className="mt-3 grid grid-cols-3 gap-1.5 max-w-52.5 mx-auto">
           {KEYS.map((k) => (
             <button key={k} type="button" onClick={() => softphone.dtmf(k)} className="h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[15px] font-semibold tabular-nums">{k}</button>
           ))}
         </div>
       )}
-      {panel === 'transfer' && call && <TransferPanel callId={call.id} onDone={() => setPanel('')} />}
+      {panel === 'transfer' && call && <TransferPanel callId={call.id} onDone={() => { setPanel(''); onChanged?.('transfer', call.id); }} />}
     </>
   );
 };
