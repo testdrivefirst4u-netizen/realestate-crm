@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, BookOpen, Plus, Bell, Sparkles, FileSpreadsheet, Menu, Users, MessageSquareQuote, CheckSquare, StickyNote, ListChecks, Building2, FileText, Layers, UserCircle2, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Search, BookOpen, Plus, Bell, RefreshCw, Sparkles, FileSpreadsheet, Users, MessageSquareQuote, CheckSquare, StickyNote, ListChecks, Building2, FileText, Layers, UserCircle2, ArrowRight } from 'lucide-react';
 import { Lead, SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { globalSearch, highlightParts, queryTerms, type SearchData, type SearchGroup, type SearchHit, type SearchKind } from '../core/globalSearch';
 import { Permission } from '../core/rbac';
 import { useCompany, useFeature } from '../core/tenant';
-import { VIEW_TITLES, type ViewId } from '../core/views';
+import { usePathname, useRouter } from 'next/navigation';
+import { DEFAULT_VIEW, VIEW_TITLES, viewHref, type ViewId } from '../core/views';
 
 interface TopbarProps {
   currentView: ViewId | null;
@@ -15,15 +16,13 @@ interface TopbarProps {
   onOpenLibrary: () => void;
   onOpenChatbot: (prefill?: string) => void;
   onOpenCsvModal: () => void;
-  /**
-   * @deprecated No longer rendered — the top-bar Sync button was removed (auto-sync keeps running in
-   * the engine; the Dashboard has its own Refresh). Still accepted so existing callers compile.
-   */
+  /** The Refresh button: load the latest data now (auto-sync keeps running in the engine as well). */
   onSyncNow?: () => void;
-  /** @deprecated Unused since the Sync button was removed; still accepted so existing callers compile. */
+  /** Spins the Refresh button while a sync runs. */
   sync?: SyncState;
   unreadCount: number;
   onToggleNotificationDrawer: () => void;
+  /** @deprecated Phones open the menu from the bottom tab bar's "More"; still accepted so callers compile. */
   onToggleSidebarMobile?: () => void;
   /** @deprecated The avatar moved to the sidebar; still accepted so callers compile. */
   currentUser?: UserAccount | null;
@@ -49,8 +48,30 @@ const Marked: React.FC<{ text: string; terms: string[] }> = ({ text, terms }) =>
   <>{highlightParts(text, terms).map((p, i) => (p.hit ? <mark key={i} className="bg-[#D6EEFC] text-inherit rounded-sm">{p.text}</mark> : <React.Fragment key={i}>{p.text}</React.Fragment>))}</>
 );
 
-export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, unreadCount, onToggleNotificationDrawer, onToggleSidebarMobile, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll, phoneSlot }) => {
+/** In-app pages visited in this tab (the first one excluded), so Back never leaves the CRM. */
+let pagesBack = 0;
+let lastPath = '';
+
+export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, onSyncNow, sync, unreadCount, onToggleNotificationDrawer, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll, phoneSlot }) => {
   const company = useCompany();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [canGoBack, setCanGoBack] = useState(pagesBack > 0);
+  const goingBack = useRef(false);
+  useEffect(() => {
+    if (!pathname || pathname === lastPath) return;
+    if (lastPath) pagesBack = goingBack.current ? Math.max(0, pagesBack - 1) : pagesBack + 1;
+    goingBack.current = false;
+    lastPath = pathname;
+    setCanGoBack(pagesBack > 0);
+  }, [pathname]);
+  const back = () => {
+    if (pagesBack > 0) {
+      goingBack.current = true;
+      router.back();
+    } else router.push(viewHref(DEFAULT_VIEW));
+  };
+  const syncing = sync?.status === 'syncing' || sync?.status === 'loading';
   const libraryEnabled = useFeature('projectLibrary');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
@@ -83,11 +104,17 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
   };
 
   return (
-    <header className="h-[68px] px-3 sm:px-6 bg-white border-b border-[#DCE8F2] flex items-center gap-2 sm:gap-3 z-20">
-      {/* Phones: menu + current screen (the sidebar holds the navigation on larger screens) */}
+    <header className="h-[68px] px-3 sm:px-6 bg-white border-b border-[#DCE8F2] flex items-center gap-1.5 sm:gap-3 z-20">
+      {/* Back to the previous page (on the first page: the dashboard) */}
+      {(canGoBack || (currentView && currentView !== DEFAULT_VIEW)) && (
+        <button onClick={back} className="flex-none w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB] flex items-center justify-center" title="Back to the previous page" aria-label="Back">
+          <ArrowLeft size={18} />
+        </button>
+      )}
+
+      {/* Phones: current screen (the menu is the bottom bar's "More"; the sidebar holds the navigation on larger screens) */}
       <div className="lg:hidden flex items-center gap-2 min-w-0">
-        <button onClick={onToggleSidebarMobile} className="p-2 rounded-lg text-[#0B2A44] hover:bg-[#F2F7FB]" aria-label="Menu"><Menu size={19} /></button>
-        <AppLogo size="xs" />
+        <span className="hidden sm:inline-flex"><AppLogo size="xs" /></span>
         <h1 className="hidden sm:block text-base font-bold text-[#0B2A44] tracking-tight truncate">{(currentView && VIEW_TITLES[currentView]) || company?.name || 'CRM'}</h1>
       </div>
 
@@ -156,9 +183,9 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
         </div>
 
       <div className="hidden lg:block flex-1" />
-      <div className="flex items-center gap-2 sm:gap-2.5 flex-none">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 flex-none">
         {aiEnabled && (
-          <button onClick={() => onOpenChatbot()} className="inline-flex items-center gap-2 px-3 sm:px-4 h-11 rounded-xl text-[13.5px] font-bold bg-[#0B2A44] text-white hover:bg-[#123A5C]" title="AI Copilot" aria-label="AI Copilot">
+          <button onClick={() => onOpenChatbot()} className="inline-flex items-center gap-2 px-2.5 sm:px-4 h-10 sm:h-11 rounded-xl text-[13.5px] font-bold bg-[#0B2A44] text-white hover:bg-[#123A5C]" title="AI Copilot" aria-label="AI Copilot">
             <Sparkles size={16} className="text-[#36B3F2]" /><span className="hidden sm:inline">AI Copilot</span>
           </button>
         )}
@@ -168,12 +195,17 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
           </button>
         )}
         {libraryEnabled && (
-        <button onClick={onOpenLibrary} className="inline-flex flex-none items-center justify-center gap-2 w-11 md:w-auto md:px-4 h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Project knowledge library" aria-label="Library">
+        <button onClick={onOpenLibrary} className="inline-flex flex-none items-center justify-center gap-2 w-10 sm:w-11 md:w-auto md:px-4 h-10 sm:h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Project knowledge library" aria-label="Library">
           <BookOpen size={16} className="text-[#0B6BB0]" /><span className="hidden md:inline">Library</span>
         </button>
         )}
+        {onSyncNow && (
+          <button onClick={onSyncNow} disabled={syncing} className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB] flex items-center justify-center disabled:opacity-70" title={syncing ? 'Refreshing…' : 'Refresh — load the latest data'} aria-label="Refresh">
+            <RefreshCw size={17} className={syncing ? 'animate-spin' : ''} />
+          </button>
+        )}
         {phoneSlot}
-        <button onClick={onToggleNotificationDrawer} className="relative w-11 h-11 rounded-xl border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB] flex items-center justify-center" title="Notifications" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
+        <button onClick={onToggleNotificationDrawer} className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB] flex items-center justify-center" title="Notifications" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}>
           <Bell size={18} />
           {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF8A65] text-[#3A1205] text-[10px] font-extrabold flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>}
         </button>

@@ -6,7 +6,6 @@
  * Leads screen through `onShowLeads`. Stage mapping, periods and formatting live in ./misData.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
 import { CallRecord, Lead, SyncState } from '../../types/crm';
 import { api } from '../../core/api';
 import { dateKey } from '../../core/dates';
@@ -15,14 +14,14 @@ import { Button, Select, cx } from '../../components/ui';
 import { PageSkeleton } from '../../components/Skeletons';
 import { SourceLogo } from '../leads/SourceLogo';
 import {
-  BLANK, CallDay, FUNNEL_STEPS, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_STATUSES, UNASSIGNED,
+  BLANK, CallDay, FUNNEL_STEPS, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_PLANNED_COLOR, UNASSIGNED, misQualified,
   addDaysKey, avgResp, callDays, changePct, funnelCounts, funnelStep, previousRange, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
   pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedBuckets, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
 } from './misData';
-import { SITE_VISIT_DONE } from '../../core/config';
+import { REFRESH_EVENT, SITE_VISIT_DONE, STAGES } from '../../core/config';
+import { stageOf } from '../../core/analytics';
 import { useTenantSettings } from '../../core/tenant';
 import { JcCallReport } from './JcCallReport';
-import { isQualified } from '../../core/analytics';
 
 export interface MisViewProps {
   leads: Lead[];
@@ -202,6 +201,14 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
     if (city && !cities.includes(city)) setCity('');
   }, [all.length, rm, rmOptions, source, sourceOptions, country, countries, state, states, city, cities]);
 
+  // the top bar's Refresh also reloads the calls shown here
+  useEffect(() => {
+    if (!canSeeCalls) return;
+    const onRefreshAll = () => loadCalls(true);
+    window.addEventListener(REFRESH_EVENT, onRefreshAll);
+    return () => window.removeEventListener(REFRESH_EVENT, onRefreshAll);
+  }, [canSeeCalls, loadCalls]);
+
   const rangeText = rangeLabel(period, range);
   const show = (label: string, ls: MisLead[]) => onShowLeads(`${label} · ${PERIOD_NAME[period]}`, ls.map((l) => l.id));
   const hasFilters = !!(rm || source || country || state || city || period !== 'month');
@@ -227,9 +234,6 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
             Live lead pipeline as on {fmtKey(today)} · updates on its own as leads and calls come in
           </p>
         </div>
-        <Button variant="secondary" onClick={() => { onRefresh(); if (canSeeCalls) loadCalls(true); }} icon={<RefreshCw size={13} className={sync.status === 'syncing' ? 'animate-spin' : ''} />}>
-          Refresh
-        </Button>
       </div>
 
       {/* Filters */}
@@ -315,7 +319,7 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
 
 const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; onPick: (p: PeriodId) => void; reasons: string[] }> = ({ nonDate, period, today, onPick, reasons }) => {
   const ps: PeriodId[] = ['today', 'week', 'month', 'all'];
-  const summary = (ls: MisLead[]) => ({ total: ls.length, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length, q: ls.filter((l) => isQualified(l.lead)).length });
+  const summary = (ls: MisLead[]) => ({ total: ls.length, c: stageCounts(ls), sv: ls.filter((l) => l.svPlanned).length, q: ls.filter(misQualified).length });
   const sets = ps.map((p) => {
     const r = periodRange(p, undefined, today);
     const ls = nonDate.filter((l) => inRange(l.day, r));
@@ -329,12 +333,13 @@ const Glance: React.FC<{ nonDate: MisLead[]; period: PeriodId; today: string; on
   // `bad`: a rise is unwelcome, so it is shown in red.
   const rows: Array<[string, string, (s: Sum) => number, boolean?]> = [
     ['Qualified leads (total)', '#0B2A44', (s) => s.q],
-    ['Qualified – no visit yet', MIS_STAGE.qualified.color, (s) => s.c.qualified],
-    ['Site visits planned', MIS_STAGE.prospect.color, (s) => s.sv],
+    ['Qualified', MIS_STAGE.qualified.color, (s) => s.c.qualified],
+    ['Site visits planned', SV_PLANNED_COLOR, (s) => s.sv],
     ['HOT', MIS_STAGE.hot.color, (s) => s.c.hot],
     ['Warm', MIS_STAGE.warm.color, (s) => s.c.warm],
     ['Booked', MIS_STAGE.booked.color, (s) => s.c.booked],
-    ['Open / not responded', MIS_STAGE.open.color, (s) => s.c.open, true],
+    ['New', MIS_STAGE.new.color, (s) => s.c.new],
+    ['Open / not responding', MIS_STAGE.open.color, (s) => s.c.open, true],
     ['Not interested post site visit', MIS_STAGE.ni.color, (s) => s.c.ni, true],
     ['Disqualified', MIS_STAGE.disqualified.color, (s) => s.c.disqualified, true],
   ];
@@ -387,7 +392,7 @@ const Details: React.FC<{ list: MisLead[]; total: number; period: PeriodId; rang
   const c = stageCounts(list);
   const n = list.length;
   const kpis: Array<[string, string, MisLead[], string]> = [
-    ['Site visits planned', MIS_STAGE.prospect.color, list.filter((l) => l.svPlanned), 'Prospects with a site visit scheduled'],
+    ['Site visits planned', SV_PLANNED_COLOR, list.filter((l) => l.svPlanned), 'Prospects with a site visit scheduled'],
     ['HOT', MIS_STAGE.hot.color, list.filter((l) => l.stage === 'hot'), 'Expected closure within a week'],
     ['Warm', MIS_STAGE.warm.color, list.filter((l) => l.stage === 'warm'), 'Expected closure in 15 to 20 days'],
     ['Booked', MIS_STAGE.booked.color, list.filter((l) => l.stage === 'booked'), 'Units booked'],
@@ -426,9 +431,9 @@ const Details: React.FC<{ list: MisLead[]; total: number; period: PeriodId; rang
         {MIS_STAGES.map((s) => {
           const inStage = list.filter((l) => l.stage === s.id);
           let crit: React.ReactNode;
-          if (s.id === 'prospect') {
-            crit = SV_STATUSES.map((k) => <CritRow key={k} label={k.replace('Site Visit - ', 'Site visit ')} n={inStage.filter((l) => l.sv === k).length} />);
-          } else if (s.id === 'open') {
+          if (s.id === 'open') {
+            crit = <CritRow label="Not Responding" n={inStage.filter((l) => stageOf(l.lead) === STAGES.NOT_RESPONDING).length} />;
+          } else if (s.id === 'new') {
             crit = <CritRow label="Not responded yet" n={inStage.filter((l) => !l.responded).length} />;
           } else {
             crit = <li className="italic text-[#7E93A6] py-1 border-t border-dashed border-[#D3E3F0]">{s.note}</li>;
@@ -710,7 +715,7 @@ const SourceByStage: React.FC<{ list: MisLead[]; order: string[]; show: (label: 
   const rows: Array<[string, MisLead[]]> = order.map((s) => [s, list.filter((l) => l.source === s)] as [string, MisLead[]]).filter(([, ls]) => ls.length);
   const blank = list.filter((l) => !l.source);
   if (blank.length) rows.push([BLANK, blank]);
-  const beyond = (ls: MisLead[]) => ls.filter((l) => isQualified(l.lead)).length;
+  const beyond = (ls: MisLead[]) => ls.filter(misQualified).length;
   const c = stageCounts(list);
   return (
     <Panel title="Lead source by stage" hint="Selected period. Each number shows its share of that source's leads. Select a number to open those leads.">
@@ -1029,7 +1034,7 @@ const TeamTable: React.FC<{ nonDate: MisLead[]; range: Range; onRep: (r: string)
 /* --------------------------------- Geo ----------------------------------- */
 
 interface GeoNode { ls: MisLead[]; kids: Map<string, GeoNode> }
-const GEO_COLS: MisStageId[] = ['qualified', 'prospect', 'hot', 'warm', 'booked', 'disqualified'];
+const GEO_COLS: MisStageId[] = ['new', 'open', 'qualified', 'warm', 'hot', 'booked', 'disqualified'];
 const COUNTRY_ORDER = ['India', 'USA', 'UK', 'UAE'];
 
 const Geo: React.FC<{ list: MisLead[]; hasGeo: boolean; open: Set<string>; setOpen: (s: Set<string>) => void; country: string; show: (label: string, ls: MisLead[]) => void }> = ({ list, hasGeo, open, setOpen, show }) => {

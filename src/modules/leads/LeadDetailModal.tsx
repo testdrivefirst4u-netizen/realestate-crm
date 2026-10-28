@@ -66,7 +66,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = (props) => {
 type TabId = 'details' | 'timeline' | 'followups' | 'calls' | 'whatsapp' | 'files';
 type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead };
 
-const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY, F.AREA];
+const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY, F.AREA, F.REFERRED_BY, F.OTHER_PROJECT];
 
 const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
   const id = String(lead[F.ID]);
@@ -321,6 +321,12 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
                 </Field>
                 <Field label="Assigned RM">
                   <Select value={value(F.RM)} onChange={(e) => setField(F.RM, e.target.value)} options={opts(F.RM)} placeholder="Unassigned" disabled={!canEdit} />
+                </Field>
+                <Field label="Referred by">
+                  <input value={value(F.REFERRED_BY)} onChange={(e) => setField(F.REFERRED_BY, e.target.value)} disabled={!canEdit} className={inputCls} />
+                </Field>
+                <Field label="Considering other project">
+                  <input value={value(F.OTHER_PROJECT)} onChange={(e) => setField(F.OTHER_PROJECT, e.target.value)} disabled={!canEdit} className={inputCls} />
                 </Field>
                 <GeoFields leads={leads} value={value} onChange={setField} disabled={!canEdit} />
               </div>

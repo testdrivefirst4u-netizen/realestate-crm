@@ -473,6 +473,32 @@ const LABELS: Record<string, string> = {
   gender: 'Gender', marital_status: 'Marital status', relationship_status: 'Relationship status', military_status: 'Military status',
 };
 
+/**
+ * Common real-estate questions whose answer fills a lead field instead of the notes (when the answer is clear).
+ * Each returns the field value, or '' to leave the answer in the notes.
+ */
+const FIELD_QUESTIONS: Array<{ key: string; q: RegExp; skip?: RegExp; value: (v: string) => string }> = [
+  {
+    key: 'purchase_or_rent',
+    q: /purpose|buy(ing)?\s*(or|\/)\s*rent|rent\s*(or|\/)\s*buy|purchase|looking\s*to|invest/i,
+    value: (v) => (/rent|lease/i.test(v) ? 'Rent' : /invest/i.test(v) ? 'Investment' : /buy|purchas|own|self|end\s*use/i.test(v) ? 'Purchase' : ''),
+  },
+  {
+    key: 'unit_type',
+    q: /bhk|configuration|unit\s*type|flat\s*type|apartment\s*type|home\s*type|which\s*unit/i,
+    value: (v) => {
+      const m = v.match(/(\d(?:\.5)?)\s*-?\s*bhk/i);
+      return m ? `${m[1]} BHK` : '';
+    },
+  },
+  {
+    key: 'area',
+    q: /\b(area|locality|location|neighbou?rhood|sector|colony)\b/i,
+    skip: /sq|carpet|built|size|budget|city|state|country|project/i,
+    value: (v) => (v.length <= 80 ? v : ''),
+  },
+];
+
 /** 'what_is_your_budget?' → 'What is your budget?' */
 export function questionLabel(key: string): string {
   const s = String(key || '').replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -508,6 +534,13 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
     const label = name.replace(/_/g, ' ');
     if (!customPhone && PHONE_Q.test(label) && looksLikePhone(value)) customPhone = value;
     if (!customEmail && EMAIL_Q.test(label) && looksLikeEmail(value)) customEmail = value;
+    // purpose / BHK / area questions fill their own fields, so they do not clutter the notes
+    const fq = FIELD_QUESTIONS.find((x) => !out[x.key] && x.q.test(label) && !x.skip?.test(label));
+    const fv = fq ? fq.value(value) : '';
+    if (fq && fv) {
+      out[fq.key] = fv;
+      continue;
+    }
     notes.push(`${LABELS[k] || questionLabel(name)}: ${truncate(value, 300)}`);
   }
   if (!out.email && (workEmail || customEmail)) out.email = workEmail || customEmail;

@@ -88,6 +88,8 @@ alias(L.PHONE, ['phone', 'mobile', 'phone_number', 'phonenumber', 'mobile_number
 alias(L.EMAIL, ['email', 'e_mail', 'email_address', 'your_email', 'mail']);
 alias(L.NOTES, ['message', 'notes', 'note', 'comments', 'comment', 'enquiry', 'inquiry', 'your_message', 'remarks', 'requirement']);
 alias(L.UNIT_TYPE, ['unit', 'unit_type', 'bhk', 'configuration', 'unit_type_interested_in']);
+alias('Referred By', ['referred_by', 'referredby', 'referral', 'referral_name', 'referred_by_name', 'reference_name', 'referrer']);
+alias('Considering Other Project', ['other_project', 'considering_other_project', 'other_projects', 'competitor', 'competing_project', 'other_project_name']);
 alias(CFG.LEAD_GEO.AREA, ['area', 'locality', 'your_area', 'area_name', 'neighbourhood', 'neighborhood', 'sector', 'colony']);
 alias(CFG.LEAD_GEO.CITY, ['city', 'your_city', 'town', 'city_name', 'current_city', 'location_city']);
 alias(CFG.LEAD_GEO.STATE, ['state', 'province', 'region', 'state_province', 'your_state']);
@@ -105,7 +107,7 @@ const TRACKING = /^(utm_[a-z0-9_]+|gclid|fbclid|msclkid|page_url|page|referrer|r
 /** Headers a fieldMap may target ('_ignore' drops the field). System-managed headers are excluded. */
 export const MAPPABLE_HEADERS: string[] = CFG.LEAD_BASE_HEADERS.filter(
   (h) => ![L.ID, L.CREATED_AT, L.UPDATED_AT, L.UPDATED_BY, L.LAST_FOLLOWUP, L.RM].includes(h)
-);
+).concat(Object.values(CFG.LEAD_GEO));
 export const IGNORE_TARGET = '_ignore';
 /** Headers the pipeline never takes from a payload unless the fieldMap targets them explicitly. */
 const AUTO_BLOCKED = new Set<string>([L.ID, L.CREATED_AT, L.UPDATED_AT, L.UPDATED_BY, L.LAST_FOLLOWUP, L.RM, L.STAGE, L.SOURCE, L.SITE_VISIT_STATUS, L.SITE_VISIT_DATE, L.BOOKING_DATE, L.NEXT_FOLLOWUP]);

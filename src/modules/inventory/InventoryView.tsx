@@ -272,7 +272,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="secondary" onClick={onRefresh} loading={sync.status === 'syncing'} icon={<RefreshCw size={13} />}>Refresh</Button>
           <Button variant="secondary" onClick={exportCsv} disabled={!filtered.length} icon={<Download size={13} />}>Export CSV</Button>
           {canEdit && <Button variant="secondary" onClick={() => setImportOpen(true)} icon={<Upload size={13} />}>Import CSV</Button>}
           {canEdit && <Button variant="primary" onClick={() => setAddOpen(true)} icon={<Plus size={13} />}>Add unit</Button>}

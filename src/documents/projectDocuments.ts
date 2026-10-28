@@ -1133,14 +1133,15 @@ export interface SearchMatch {
 export function searchProjectConcordance(
   query: string,
   docFilter?: string,
-  matchMode: 'any' | 'phrase' | 'all' = 'any'
+  matchMode: 'any' | 'phrase' | 'all' = 'any',
+  verses: DocVerse[] = ALL_DOC_VERSES
 ): SearchMatch[] {
   const cleanQ = query.trim().toLowerCase();
   if (!cleanQ) return [];
 
   const terms = cleanQ.split(/\s+/).filter(Boolean);
 
-  let pool = ALL_DOC_VERSES;
+  let pool = verses;
   if (docFilter && docFilter !== 'all') {
     pool = pool.filter((v) => v.docId === docFilter || v.category === docFilter);
   }

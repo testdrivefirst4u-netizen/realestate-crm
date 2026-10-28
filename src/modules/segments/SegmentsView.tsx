@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Download, Edit, Layers, MessageSquare, Phone, Plus, Trash2 } from 'lucide-react';
 import { ClientSegment, CRMConfig, Lead, SegmentOperator, SegmentRule } from '../../types/crm';
 import { DEFAULT_SETTINGS, F, STAGES } from '../../core/config';
@@ -54,6 +54,17 @@ export const SegmentsView: React.FC<SegmentsViewProps> = ({ segments, leads, con
     if (!segments.some((s) => s.id === activeId)) setActiveId(segments[0]?.id || '');
   }, [segments, activeId]);
 
+  // a segment just created here opens straight away (it is added at the end of the list)
+  const createdFrom = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!createdFrom.current) return;
+    const added = segments.find((s) => !createdFrom.current!.has(s.id));
+    if (added) {
+      createdFrom.current = null;
+      setActiveId(added.id);
+    }
+  }, [segments]);
+
   useEffect(() => setLimit(PAGE), [activeId]);
 
   /* ----------------------------- matching ------------------------------- */
@@ -102,6 +113,7 @@ export const SegmentsView: React.FC<SegmentsViewProps> = ({ segments, leads, con
       onUpdateSegment(editingId, payload);
       toast('Segment updated', name, 'success');
     } else {
+      createdFrom.current = new Set(segments.map((s) => s.id));
       onCreateSegment(payload);
     }
     setModalOpen(false);
@@ -163,7 +175,7 @@ export const SegmentsView: React.FC<SegmentsViewProps> = ({ segments, leads, con
       ) : (
         <>
           {/* Segment selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1 select-none">
+          <div className="flex flex-wrap gap-2 pb-1 select-none">
             {segments.map((seg) => {
               const selected = seg.id === activeSegment?.id;
               const count = leadsBySegment.get(seg.id)?.length || 0;

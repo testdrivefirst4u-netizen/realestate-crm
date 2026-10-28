@@ -211,7 +211,8 @@ const contactsCol = () => col<any>(CFG.COLL.CHAT_CONTACTS);
 function serializeMsg(r: any) {
   return {
     id: str(r._id), eventId: str(r.eventId), direction: (str(r.direction) || 'Inbound') as 'Inbound' | 'Outbound', phone: str(r.phone),
-    contactName: str(r.contactName), leadId: str(r.leadId), messageType: str(r.messageType), text: str(r.text),
+    contactName: str(r.contactName), leadId: str(r.leadId), messageType: str(r.messageType),
+    text: str(r.text) === UNREAD_TEXT ? textFromRaw(r.raw) || UNREAD_TEXT : str(r.text),
     mediaUrl: str(r.mediaUrl), status: str(r.status), timestamp: toIso(r.timestamp), agent: str(r.agent),
   };
 }
@@ -340,14 +341,69 @@ export function deepFind(obj: any, keys: string[], depth = 0): any {
   return undefined;
 }
 
-function extractText(p: any): string {
+const MEDIA_LABEL: Record<string, string> = { image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice note', voice: '🎤 Voice note', document: '📄 Document', sticker: 'Sticker', file: '📄 Document' };
+
+export function extractText(p: any): string {
+  if (!p || typeof p !== 'object') return '';
   const wr = p.wab_response || p.message || p.data || p;
-  const candidates = [deepFind(wr, ['body']), deepFind(wr, ['text']), deepFind(wr, ['caption']), deepFind(p, ['message_text', 'msg', 'content'])];
+  const candidates = [deepFind(wr, ['body']), deepFind(wr, ['text']), deepFind(wr, ['caption']), deepFind(p, ['message_text', 'msg', 'content', 'user_reply', 'button_text', 'selected_option'])];
   for (const c of candidates) {
     if (typeof c === 'string' && c.trim()) return c.trim();
-    if (c && typeof c === 'object' && typeof c.body === 'string') return c.body;
+    if (c && typeof c === 'object' && typeof c.body === 'string' && c.body.trim()) return c.body.trim();
   }
-  return '';
+  // a tap on a button / list option the bot offered
+  const reply = deepFind(wr, ['button_reply', 'list_reply']);
+  if (reply && typeof reply === 'object' && (reply.title || reply.description)) return [reply.title, reply.description].filter(Boolean).map(String).join(' — ').trim();
+  // a WhatsApp Flow form: its answers
+  const flow = deepFind(wr, ['nfm_reply']);
+  if (flow && typeof flow === 'object') {
+    try {
+      const ans = typeof flow.response_json === 'string' ? JSON.parse(flow.response_json) : flow.response_json || {};
+      const lines = Object.entries(ans).filter(([k, v]) => k !== 'flow_token' && v !== '' && v != null).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${Array.isArray(v) ? v.join(', ') : String(v)}`);
+      if (lines.length) return lines.join('\n');
+    } catch {
+      /* not JSON */
+    }
+  }
+  const loc = deepFind(wr, ['location']);
+  if (loc && typeof loc === 'object' && (loc.latitude || loc.name || loc.address)) {
+    return `📍 ${[loc.name, loc.address].filter(Boolean).join(', ') || 'Location'}${loc.latitude ? ` (${loc.latitude}, ${loc.longitude})` : ''}`;
+  }
+  const contact = deepFind(wr, ['contacts']);
+  if (Array.isArray(contact) && contact[0]) {
+    const c = contact[0];
+    const ph = Array.isArray(c.phones) && c.phones[0] ? c.phones[0].phone || c.phones[0].wa_id || '' : '';
+    return `👤 Contact: ${[c.name?.formatted_name || c.name?.first_name, ph].filter(Boolean).join(' ')}`.trim();
+  }
+  const reaction = deepFind(wr, ['reaction']);
+  if (reaction && typeof reaction === 'object' && reaction.emoji) return `Reacted ${reaction.emoji}`;
+  const type = String(deepFind(wr, ['type']) || p.msg_type || '').toLowerCase();
+  if (MEDIA_LABEL[type]) {
+    const fname = deepFind(wr, ['filename']);
+    return type === 'document' && typeof fname === 'string' && fname ? `📄 ${fname}` : MEDIA_LABEL[type];
+  }
+  const title = deepFind(wr, ['title']);
+  return typeof title === 'string' ? title.trim() : '';
+}
+
+const UNREAD_TEXT = '[Message]';
+
+/** A message stored before its kind could be read: read it again from the saved Chat360 payload. */
+function textFromRaw(raw: unknown): string {
+  const s = String(raw || '');
+  if (!s) return '';
+  try {
+    return extractText(JSON.parse(s));
+  } catch {
+    // cut-off payload: the chosen option's title is usually still there
+    const m = /"(?:button_reply|list_reply)"\s*:\s*\{[^}]*?"title"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(s) || /"(?:body|caption)"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(s);
+    if (!m) return '';
+    try {
+      return String(JSON.parse(`"${m[1]}"`)).trim();
+    } catch {
+      return m[1];
+    }
+  }
 }
 
 function extractPhone(p: any, inbound: boolean): string {
@@ -473,7 +529,7 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   }
 
   const name = extractName(payload);
-  const text = extractText(payload) || (/lead/.test(type) ? '[Lead captured]' : '[Message]');
+  const text = extractText(payload) || (/lead/.test(type) ? '[Lead captured]' : UNREAD_TEXT);
 
   // The number that received this message is the company's own WhatsApp number: fill it in when Settings has none.
   if (!cfg.businessNumber && type === 'message_received') {

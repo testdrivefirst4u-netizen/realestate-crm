@@ -1,18 +1,18 @@
 /**
  * Sales MIS — pure data helpers for MisView.
  *
- * Every CRM lead is mapped onto one MIS stage (Open, Sales Qualified, Disqualified,
- * Prospect for SV, HOT, Warm, Not Interested Post SV, Booked). Periods are compared as
+ * Every CRM lead is counted under its own lead stage (New, Open — which includes Not Responding —, Qualified,
+ * Warm, HOT, Booked, Disqualified, or Not Interested Post SV for a lost lead after a visit). Periods are compared as
  * 'yyyy-MM-dd' keys in the CRM time zone, so "today" and "this week" match the rest of the CRM.
  */
 import { CallRecord, Lead } from '../../types/crm';
 import { F, SITE_VISIT, SITE_VISIT_DONE, STAGES } from '../../core/config';
-import { classifyStage, countedLeads, enquiryDate, firstResponseDate, isQualified, stageOf } from '../../core/analytics';
+import { classifyStage, countedLeads, enquiryDate, firstResponseDate, stageOf } from '../../core/analytics';
 import { dateKey, parseDate } from '../../core/dates';
 
 /* ------------------------------- stages ---------------------------------- */
 
-export type MisStageId = 'open' | 'qualified' | 'disqualified' | 'prospect' | 'hot' | 'warm' | 'ni' | 'booked';
+export type MisStageId = 'new' | 'open' | 'qualified' | 'disqualified' | 'hot' | 'warm' | 'ni' | 'booked';
 
 export interface MisStage {
   id: MisStageId;
@@ -23,16 +23,18 @@ export interface MisStage {
 }
 
 export const MIS_STAGES: MisStage[] = [
-  { id: 'open', name: 'Open / Incoming', short: 'Open', color: '#74889A', note: 'New or open — not yet qualified' },
-  { id: 'qualified', name: 'Qualified – no visit yet', short: 'Qualified, no visit', color: '#0E8A7D', note: 'Qualified, no site visit set yet (all qualified leads: the total above)' },
+  { id: 'new', name: 'New', short: 'New', color: '#9DB0C1', note: 'Just came in — not worked yet' },
+  { id: 'open', name: 'Open', short: 'Open', color: '#74889A', note: 'Open or Not Responding' },
+  { id: 'qualified', name: 'Qualified', short: 'Qualified', color: '#0E8A7D', note: 'Lead stage Qualified' },
   { id: 'disqualified', name: 'Disqualified', short: 'Disqualified', color: '#A7B1B4', note: 'Reason counts are shown below' },
-  { id: 'prospect', name: 'Prospect for SV', short: 'Prospect SV', color: '#3B5BDB', note: '' },
   { id: 'hot', name: 'HOT', short: 'HOT', color: '#D92D3A', note: "Expected closure in a week's time" },
   { id: 'warm', name: 'Warm', short: 'Warm', color: '#E39A12', note: 'Expected closure in 15 to 20 days' },
   { id: 'ni', name: 'Not Interested Post Site Visit', short: 'Not int. post SV', color: '#7B4B8A', note: 'Dropped after the site visit' },
   { id: 'booked', name: 'Booked', short: 'Booked', color: '#1F7A4D', note: 'Unit booked' },
 ];
 export const MIS_STAGE = Object.fromEntries(MIS_STAGES.map((s) => [s.id, s])) as Record<MisStageId, MisStage>;
+/** Colour for site visits planned (no longer a stage bucket: a lead with a visit stays under its own stage). */
+export const SV_PLANNED_COLOR = '#3B5BDB';
 
 /** Site-visit statuses shown under "Prospect for SV", in order. */
 export const SV_STATUSES: string[] = [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED, SITE_VISIT.WALK_IN, SITE_VISIT.COMPLETED];
@@ -110,11 +112,12 @@ function misStage(lead: Lead): { stage: MisStageId; reason: string } {
     if (SITE_VISIT_DONE.includes(sv)) return { stage: 'ni', reason: '' };
     return { stage: 'disqualified', reason: DQ_REASON[st] || st || NO_REASON };
   }
+  // the lead's own stage decides (a site visit status does not move it)
   if (st === STAGES.HOT) return { stage: 'hot', reason: '' };
   if (st === STAGES.WARM) return { stage: 'warm', reason: '' };
-  if (sv) return { stage: 'prospect', reason: '' };
   if (st === STAGES.QUALIFIED) return { stage: 'qualified', reason: '' };
-  return { stage: 'open', reason: '' };
+  if (!st || st === STAGES.NEW) return { stage: 'new', reason: '' };
+  return { stage: 'open', reason: '' }; // Open, Not Responding
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -246,7 +249,7 @@ export function funnelStep(l: MisLead): number {
   if (l.stage === 'booked') return 5;
   if (SITE_VISIT_DONE.includes(l.sv) || l.stage === 'ni') return 4;
   if (SV_PLANNED_OR_DONE.has(l.sv)) return 3;
-  if (l.stage !== 'open' && l.stage !== 'disqualified') return 2;
+  if (!['new', 'open', 'disqualified'].includes(l.stage)) return 2;
   if (l.responded) return 1;
   return 0;
 }
@@ -359,15 +362,24 @@ export const fmtAvgCall = (secs: number) => {
 
 /* ------------------------- enquiry performance --------------------------- */
 
-/** Qualified leads: the CRM-wide rule (analytics.isQualified), so this matches the dashboard and reports. */
-const passed = (l: MisLead) => isQualified(l.lead);
+/** A visit actually set or done ("Prospect for Site Visit" alone is the default on every new enquiry, so it does not count). */
+const VISIT_SET: string[] = [SITE_VISIT.SCHEDULED, ...SITE_VISIT_DONE];
+
+/**
+ * Qualified leads, by lead stage: Qualified, Warm, HOT, Booked (and a lost lead after a visit), or a New / Open lead
+ * whose site visit is scheduled or done.
+ */
+export const misQualified = (l: MisLead) => ['qualified', 'warm', 'hot', 'booked', 'ni'].includes(l.stage) || ((l.stage === 'new' || l.stage === 'open') && VISIT_SET.includes(l.sv));
+const passed = misQualified;
 
 export interface PerfRow {
   /** Leads that came in (by enquiry date). The next four split them, so they always add up to it. */
   received: MisLead[];
   qualified: MisLead[];
   unqualified: MisLead[];
-  nonResponding: MisLead[];
+  /** Still at stage New. */
+  fresh: MisLead[];
+  /** Open or Not Responding. */
   open: MisLead[];
   /** Site visits done in the period (by the visit's own date, whenever the lead came in). */
   visits: MisLead[];
@@ -381,13 +393,12 @@ const visitDay = (l: MisLead) => {
 
 export function perfRow(list: MisLead[], range: Range): PerfRow {
   const received = list.filter((l) => inRange(l.day, range));
-  const nr = (l: MisLead) => l.stage === 'disqualified' && stageOf(l.lead) === STAGES.NOT_RESPONDING;
   return {
     received,
     qualified: received.filter(passed),
-    unqualified: received.filter((l) => l.stage === 'disqualified' && !nr(l)),
-    nonResponding: received.filter(nr),
-    open: received.filter((l) => l.stage === 'open'),
+    unqualified: received.filter((l) => l.stage === 'disqualified'),
+    fresh: received.filter((l) => l.stage === 'new' && !passed(l)),
+    open: received.filter((l) => l.stage === 'open' && !passed(l)), // includes Not Responding
     visits: list.filter((l) => { const d = visitDay(l); return !!d && inRange(d, range); }),
   };
 }

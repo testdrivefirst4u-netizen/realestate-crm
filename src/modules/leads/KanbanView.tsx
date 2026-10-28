@@ -152,7 +152,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
           </div>
           <Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All RMs" className="!w-auto" aria-label="Relationship manager" />
           <SortControl sortKey={sort.key} asc={sort.asc} onChange={setSort} options={KANBAN_SORT_OPTIONS} />
-          <Button variant={showClosed ? 'primary' : 'secondary'} onClick={() => setShowClosed((v) => !v)} icon={showClosed ? <EyeOff size={13} /> : <Eye size={13} />} title="Toggle Not Responding / DND / Junk / Disqualified columns">
+          <Button variant={showClosed ? 'primary' : 'secondary'} onClick={() => setShowClosed((v) => !v)} icon={showClosed ? <EyeOff size={13} /> : <Eye size={13} />} title="Toggle Lost / DND / Disqualified columns">
             {showClosed ? 'Hide closed/lost' : 'Show closed/lost columns'}
           </Button>
           <Button variant="primary" onClick={onOpenAddLead} icon={<Plus size={14} />}>

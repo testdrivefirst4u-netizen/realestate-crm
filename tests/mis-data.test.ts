@@ -13,16 +13,18 @@ describe('MIS stage mapping', () => {
   const map = (l: Lead) => toMisLeads([l], new Map())[0];
 
   it('maps CRM stages onto MIS stages', () => {
-    expect(map(lead('1', STAGES.NEW)).stage).toBe('open');
+    expect(map(lead('1', STAGES.NEW)).stage).toBe('new'); // New has its own bucket; Open holds Open and Not Responding
+    expect(map(lead('1b', STAGES.NOT_RESPONDING)).stage).toBe('open');
+    expect(map(lead('1c', STAGES.OPEN, { [F.SITE_VISIT_STATUS]: SITE_VISIT.PROSPECT })).stage).toBe('open'); // the stage decides, not the visit status
     expect(map(lead('2', STAGES.QUALIFIED)).stage).toBe('qualified');
     expect(map(lead('3', STAGES.HOT)).stage).toBe('hot');
     expect(map(lead('4', STAGES.BOOKED)).stage).toBe('booked');
-    expect(map(lead('5', STAGES.QUALIFIED, { [F.SITE_VISIT_STATUS]: SITE_VISIT.SCHEDULED }))).toMatchObject({ stage: 'prospect', svPlanned: true });
+    expect(map(lead('5', STAGES.QUALIFIED, { [F.SITE_VISIT_STATUS]: SITE_VISIT.SCHEDULED }))).toMatchObject({ stage: 'qualified', svPlanned: true }); // stays under its stage; counted in site visits planned
   });
 
   it('gives disqualified leads a reason, and a lost lead after a visit is "not interested post SV"', () => {
     expect(map(lead('6', STAGES.DQ_BUDGET))).toMatchObject({ stage: 'disqualified', reason: 'Budget' });
-    expect(map(lead('7', STAGES.NOT_RESPONDING))).toMatchObject({ stage: 'disqualified', reason: 'Call not answered' });
+    expect(map(lead('7', STAGES.NOT_RESPONDING))).toMatchObject({ stage: 'open', reason: '' }); // Not Responding is an open lead
     expect(map(lead('8', STAGES.JUNK, { [F.SITE_VISIT_STATUS]: SITE_VISIT.COMPLETED })).stage).toBe('ni');
   });
 
@@ -69,7 +71,8 @@ describe('MIS funnel and trends', () => {
     expect(canonicalStage('Disqualifid - Budget')).toBe(STAGES.DQ_BUDGET);
     expect(canonicalStage('Disqualified – Project Type')).toBe(STAGES.DQ_PROJECT);
     expect(canonicalStage('  disqualified -  ni ')).toBe(STAGES.DQ_NI);
-    expect(canonicalStage('Others')).toBe('Others');
+    expect(canonicalStage('Others')).toBe(STAGES.NOT_RESPONDING); // old-sheet "Others" counts as Not Responding
+    expect(canonicalStage('Something else')).toBe('Something else');
     for (const s of ['Disqualified - NI', 'Disqualified - Timeline', 'Disqualified – Project Type', 'Disqualifid - Budget', 'Lost']) expect(classifyStage(s)).toBe('lost');
     expect(mis(lead('x', 'Disqualified – Project Type' as any))).toMatchObject({ stage: 'disqualified', reason: 'Project type' });
   });
@@ -119,6 +122,24 @@ describe('Meta lead forms', () => {
     expect(out).toMatchObject({ city: 'Pune', state: 'Maharashtra', country: 'IN' });
   });
 
+  it('purpose, BHK and area questions fill their fields instead of the notes; unclear answers stay in the notes', () => {
+    const out = mapMetaLead(
+      { id: '1', form_id: 'F', created_time: '', field_data: [
+        { name: 'phone_number', values: ['9876543210'] },
+        { name: 'are_you_looking_to_buy_or_rent?', values: ['For investment'] },
+        { name: 'which_configuration_are_you_interested_in?', values: ['2.5bhk'] },
+        { name: 'your_current_location', values: ['Kondapur'] },
+        { name: 'when_are_you_planning_to_buy?', values: ['In 3 months'] },
+        { name: 'preferred_carpet_area', values: ['1200 sq ft'] },
+      ] } as any,
+      { config: {} } as any,
+    );
+    expect(out).toMatchObject({ purchase_or_rent: 'Investment', unit_type: '2.5 BHK', area: 'Kondapur' });
+    expect(out.message).toContain('When are you planning to buy?: In 3 months');
+    expect(out.message).toContain('Preferred carpet area: 1200 sq ft');
+    expect(out.message).not.toMatch(/configuration|buy or rent|current location/i);
+  });
+
   it('passes the campaign, ad set, ad and form through to intake', () => {
     const out = mapMetaLead(
       { id: '1', form_id: 'F1', created_time: '', campaign_name: 'Video_Sept2026', adset_name: 'Hyderabad_50+', ad_name: 'Lifestyle_Video', field_data: [{ name: 'phone_number', values: ['9876543210'] }] } as any,
@@ -159,16 +180,16 @@ describe('enquiry performance (FTD / MTD / YTD)', () => {
     expect(perfRanges('2026-10-09')).toEqual({ ftd: ['2026-10-09', '2026-10-09'], mtd: ['2026-10-01', '2026-10-09'], ytd: ['2026-01-01', '2026-10-09'] });
   });
 
-  it('splits received leads into qualified / unqualified / non-responding / open, which add up', () => {
+  it('splits received leads into qualified / unqualified / new / open (with Not Responding), which add up', () => {
     const r = perfRanges('2026-10-09');
     const ftd = perfRow(all, r.ftd);
     expect(ids(ftd.received)).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect(ids(ftd.qualified)).toEqual(['a', 'b']);
     expect(ids(ftd.unqualified)).toEqual(['c']);
-    expect(ids(ftd.nonResponding)).toEqual(['d']);
-    expect(ids(ftd.open)).toEqual(['e']);
+    expect(ids(ftd.fresh)).toEqual(['e']);
+    expect(ids(ftd.open)).toEqual(['d']); // Not Responding counts as open
     for (const row of [ftd, perfRow(all, r.mtd), perfRow(all, r.ytd)]) {
-      expect(row.qualified.length + row.unqualified.length + row.nonResponding.length + row.open.length).toBe(row.received.length);
+      expect(row.qualified.length + row.unqualified.length + row.fresh.length + row.open.length).toBe(row.received.length);
     }
     // a visit counts on the day it happened, though the lead came in earlier
     expect(ids(ftd.visits)).toEqual(['f']);
@@ -198,7 +219,7 @@ describe('YTD / MTD screen (server render)', () => {
     const leads = [lead('1', STAGES.QUALIFIED, { [F.ENQUIRY_DATE]: `${today}T11:00:00+05:30` }), lead('2', STAGES.NOT_RESPONDING, { [F.ENQUIRY_DATE]: `${today}T12:00:00+05:30` })];
     const html = renderToStaticMarkup(createElement(PerformanceView, { leads, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
     if (process.env.MIS_HTML) (await import('node:fs')).writeFileSync(process.env.MIS_HTML, html);
-    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'Non-Responding', 'Site Visits Completed']) expect(html).toContain(t);
+    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'New Enquiries', 'Open Enquiries', 'Site Visits Completed']) expect(html).toContain(t);
   });
 });
 

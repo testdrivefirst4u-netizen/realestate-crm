@@ -221,9 +221,49 @@ describe('leads', () => {
     await (await col(CFG.COLL.CONFIG)).insertMany([{ field: 'Unit Type Interested In', option: '2BHK' }, { field: 'Enquiry Source', option: 'Hoarding' }]);
     const c = await getLeadsConfig();
     expect(c.fields).toEqual(CFG.DROPDOWNS);
-    expect(c.options['Enquiry Source'][0]).toBe('Hoarding');
+    // the agreed sources first, in order; a source the company added comes after them
+    expect(c.options['Enquiry Source']).toEqual(['Website', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads', 'Google Ads', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL', 'Hoarding']);
+    expect(c.options['Lead Stage']).toEqual(['New', 'Open', 'Qualified', 'Warm', 'Hot', 'Booked', 'Not Responding',
+      'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Project Type', 'Disqualified - Timeline', 'Disqualified - Not Interested', 'Trash']);
     expect(c.options['Unit Type Interested In'].filter((u) => u === '2 BHK')).toHaveLength(1);
     expect(c.options['Assigned RM']).toContain('Asha Admin');
+  });
+
+  it('Lost, Junk, DND and Disqualified - Rental / NI become Disqualified - Not Interested: once for old leads, and on every save', async () => {
+    const leads = await col(CFG.COLL.LEADS);
+    const old = (id: string, stage: string) => ({ _id: id, name: id, phone: '', phoneLast10: '', stage, createdAt: new Date(), followups: [], extra: {} });
+    await leads.insertMany([old('ENQ-0201', 'Junk'), old('ENQ-0202', 'Open'), old('ENQ-0203', 'Lost'), old('ENQ-0204', 'DND'), old('ENQ-0205', 'Disqualified - Rental'), old('ENQ-0206', 'Disqualified - NI'), old('ENQ-0207', 'Others')] as any[]);
+    await (await col(CFG.COLL.CONFIG)).insertMany([{ field: 'Lead Stage', option: 'Junk' }, { field: 'Lead Stage', option: 'DND' }] as any[]);
+    const c = await getLeadsConfig();
+    for (const gone of ['Junk', 'Lost', 'DND', 'Disqualified - Rental', 'Disqualified - NI']) expect(c.options['Lead Stage']).not.toContain(gone);
+    const stageOf = async (id: string) => (await leads.findOne({ _id: id as any }))!.stage;
+    for (const id of ['ENQ-0201', 'ENQ-0203', 'ENQ-0204', 'ENQ-0205', 'ENQ-0206']) expect(await stageOf(id)).toBe('Disqualified - Not Interested');
+    expect(await stageOf('ENQ-0207')).toBe('Not Responding'); // "Others" from the old sheet
+    expect(await stageOf('ENQ-0202')).toBe('Open');
+    expect(await (await col(CFG.COLL.CONFIG)).countDocuments({ field: 'Lead Stage' })).toBe(0);
+    // runs only once
+    await leads.updateOne({ _id: 'ENQ-0202' as any }, { $set: { stage: 'Junk' } });
+    await getLeadsConfig();
+    expect(await stageOf('ENQ-0202')).toBe('Junk');
+    // new writes of an old stage are saved as Disqualified - Not Interested
+    expect((await addLead(sample({ [L.STAGE]: 'lost' }), admin)).lead[L.STAGE]).toBe('Disqualified - Not Interested');
+    const u = await addLead(sample({ [L.PHONE]: '+91 98765 00001' }), admin);
+    expect((await updateLead(u.id, { [L.STAGE]: 'DND' }, admin)).lead[L.STAGE]).toBe('Disqualified - Not Interested');
+  });
+
+  it('Website/Whatsapp becomes Website and WhatsApp becomes Chat360', async () => {
+    const leads = await col(CFG.COLL.LEADS);
+    await leads.insertMany([
+      { _id: 'ENQ-0301', name: 'W', phone: '', phoneLast10: '', stage: 'Open', source: 'Website/Whatsapp', createdAt: new Date(), followups: [], extra: {} },
+      { _id: 'ENQ-0302', name: 'W2', phone: '', phoneLast10: '', stage: 'Open', source: 'WhatsApp', createdAt: new Date(), followups: [], extra: {} },
+    ] as any[]);
+    const c = await getLeadsConfig();
+    expect(c.options['Enquiry Source']).not.toContain('Website/Whatsapp');
+    expect(c.options['Enquiry Source']).not.toContain('WhatsApp');
+    expect((await leads.findOne({ _id: 'ENQ-0301' as any }))!.source).toBe('Website');
+    expect((await leads.findOne({ _id: 'ENQ-0302' as any }))!.source).toBe('Chat360');
+    expect((await addLead(sample({ [L.SOURCE]: 'website / whatsapp' }), admin)).lead[L.SOURCE]).toBe('Website');
+    expect((await addLead(sample({ [L.PHONE]: '+91 98765 00002', [L.SOURCE]: 'Whatsapp' }), admin)).lead[L.SOURCE]).toBe('Chat360');
   });
 
   it('synthesizes timeline entries for legacy follow-ups', async () => {

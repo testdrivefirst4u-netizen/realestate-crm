@@ -9,8 +9,8 @@
  * offers one pre-filled with now. An optional first remark is saved as
  * "Follow-up 1" in the sheet's "yyyy-MM-dd HH:mm — remark" format.
  */
-import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Plus, UserPlus } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Maximize2, Plus, UserPlus, X } from 'lucide-react';
 import { CRMConfig, Lead, UserAccount } from '../../types/crm';
 import { F, SITE_VISIT, SITE_VISIT_DONE, STAGES, followupField } from '../../core/config';
 import { isCounted } from '../../core/analytics';
@@ -33,6 +33,8 @@ export interface AddLeadModalProps {
   defaultRm?: string;
   /** Pre-filled phone number (e.g. "Create lead" from the call window for an unknown caller). */
   initialPhone?: string;
+  /** Changes each time "New Enquiry" is pressed: restores a minimised form. */
+  openSignal?: number;
 }
 
 export const AddLeadModal: React.FC<AddLeadModalProps> = (props) => {
@@ -61,6 +63,8 @@ interface FormState {
   state: string;
   city: string;
   area: string;
+  referredBy: string;
+  otherProject: string;
   brochure: string;
   rm: string;
   notes: string;
@@ -74,7 +78,7 @@ const GEO_KEY: Record<string, 'country' | 'state' | 'city' | 'area'> = { [F.COUN
 const isVisitScheduled =(status: string) => status === SITE_VISIT.SCHEDULED;
 const isVisitDone = (status: string) => SITE_VISIT_DONE.includes(status);
 
-const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true, defaultRm, initialPhone }) => {
+const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, currentUser, onAddLead, aiConfigured = true, defaultRm, initialPhone, openSignal }) => {
   const rmOptions = config.options[F.RM] || [];
   const [form, setForm] = useState<FormState>(() => ({
     name: '',
@@ -92,6 +96,8 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
     state: '',
     city: '',
     area: '',
+    referredBy: '',
+    otherProject: '',
     brochure: (config.options[F.BROCHURE] || []).includes('No') ? 'No' : '',
     rm: defaultRm && rmOptions.includes(defaultRm) ? defaultRm : currentUser?.name && rmOptions.includes(currentUser.name) ? currentUser.name : '',
     notes: '',
@@ -103,6 +109,10 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
   }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Minimised to a small bar: the form stays filled in while the user looks something up. */
+  const [minimized, setMinimized] = useState(false);
+  // "New Enquiry" pressed again while minimised: bring this form back
+  useEffect(() => setMinimized(false), [openSignal]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setError(null);
@@ -160,6 +170,8 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
       [F.STATE]: form.state.trim(),
       [F.CITY]: form.city.trim(),
       [F.AREA]: form.area.trim(),
+      [F.REFERRED_BY]: form.referredBy.trim(),
+      [F.OTHER_PROJECT]: form.otherProject.trim(),
       [F.BROCHURE]: form.brochure,
       [F.RM]: form.rm,
       [F.NOTES]: form.notes.trim(),
@@ -182,9 +194,12 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
   const opts = (field: string, current: string) => optionsWithCurrent(config.options[field], current);
 
   return (
+    <>
     <Modal
       open
       onClose={onClose}
+      onMinimize={() => setMinimized(true)}
+      minimized={minimized}
       width="lg"
       title={
         <span className="flex items-center gap-2">
@@ -222,6 +237,12 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
             </Field>
             <Field label="Enquiry source">
               <Select value={form.source} onChange={(e) => set('source', e.target.value)} options={opts(F.SOURCE, form.source)} placeholder="Select source…" />
+            </Field>
+            <Field label="Referred by" hint="Who referred them, if anyone">
+              <input value={form.referredBy} onChange={(e) => set('referredBy', e.target.value)} placeholder="e.g. Mr Rao (resident, A-704)" className={inputCls} />
+            </Field>
+            <Field label="Considering other project" hint="Name of a project they are also looking at">
+              <input value={form.otherProject} onChange={(e) => set('otherProject', e.target.value)} placeholder="e.g. Project name" className={inputCls} />
             </Field>
             <Field label="Relationship to prospect" hint="Who is enquiring">
               <Select value={form.relationship} onChange={(e) => set('relationship', e.target.value)} options={opts(F.RELATIONSHIP, form.relationship)} placeholder="Select…" />
@@ -301,5 +322,16 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
         {error && <InlineNotice tone="warning">{error}</InlineNotice>}
       </form>
     </Modal>
+    {minimized && (
+      <div className="fixed z-40 right-3 bottom-24 lg:bottom-5 flex items-center gap-1 rounded-xl bg-[#0B2A44] text-white shadow-[0_8px_24px_rgba(10,31,51,0.3)] pl-3 pr-1 py-1 max-w-[calc(100vw-24px)]" role="region" aria-label="New Enquiry (minimised)">
+        <button type="button" onClick={() => setMinimized(false)} className="flex items-center gap-2 min-w-0 py-1.5 text-[13px] font-semibold" title="Open the enquiry form again">
+          <UserPlus size={15} className="flex-none text-[#36B3F2]" />
+          <span className="truncate">New Enquiry{form.name.trim() ? ` · ${form.name.trim()}` : ''}</span>
+          <Maximize2 size={13} className="flex-none opacity-70" />
+        </button>
+        <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/15" aria-label="Discard the enquiry" title="Discard"><X size={14} /></button>
+      </div>
+    )}
+    </>
   );
 };

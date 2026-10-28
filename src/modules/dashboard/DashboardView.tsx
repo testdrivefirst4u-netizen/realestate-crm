@@ -164,7 +164,6 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
         <div className="flex items-center gap-2 flex-wrap">
           <DateRangeFilter value={filter} onChange={setFilter} presets={PRESETS} />
           <Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All RMs" className="!w-auto" aria-label="Filter by RM" />
-          <Button variant="secondary" onClick={onRefresh} loading={sync.status === 'syncing'} icon={<RefreshCw size={13} />}>Refresh</Button>
         </div>
       </div>
 

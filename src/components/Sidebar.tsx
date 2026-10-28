@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Users, MessageCircle, CheckSquare, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
+  LayoutDashboard, Users, MessageCircle, CheckSquare, FileText, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
@@ -46,13 +46,15 @@ interface SidebarProps {
 interface Item { id: ViewId; label: string; count?: number; urgent?: boolean }
 interface Group { id: string; label: string; icon: LucideIcon; items: Item[] }
 
-/** The 16 screens in five groups: one rail icon per group, the panel lists them all. */
+/** The screens in groups: one rail icon per group, the panel lists them all. Templates & Documents and Inventory have icons of their own. */
 function buildGroups(counts: SidebarCounts): Group[] {
   return [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard, items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'mis', label: 'Sales MIS' }, { id: 'performance', label: 'YTD / MTD' }, { id: 'reports', label: 'Reports' }] },
     { id: 'leads', label: 'Leads', icon: Users, items: [{ id: 'leads', label: 'All Leads', count: counts.leads }, { id: 'kanban', label: 'Enquiry Status' }, { id: 'followups', label: 'Follow-ups', count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments' }] },
-    { id: 'messages', label: 'Messages', icon: MessageCircle, items: [{ id: 'chat360', label: 'WhatsApp (Chat360)', count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History' }, { id: 'templates', label: 'Templates' }] },
-    { id: 'work', label: 'Work', icon: CheckSquare, items: [{ id: 'tasks', label: 'Tasks & Notes', count: counts.tasksPending }, { id: 'documents', label: 'Documents' }, { id: 'inventory', label: 'Inventory' }] },
+    { id: 'messages', label: 'Messages', icon: MessageCircle, items: [{ id: 'chat360', label: 'WhatsApp (Chat360)', count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History' }] },
+    { id: 'content', label: 'Templates & Documents', icon: FileText, items: [{ id: 'templates', label: 'Templates' }, { id: 'documents', label: 'Documents' }] },
+    { id: 'inventory', label: 'Inventory', icon: Building2, items: [{ id: 'inventory', label: 'Inventory' }] },
+    { id: 'work', label: 'Tasks', icon: CheckSquare, items: [{ id: 'tasks', label: 'Tasks & Notes', count: counts.tasksPending }] },
     { id: 'admin', label: 'Admin', icon: Settings, items: [{ id: 'settings', label: 'Settings' }, { id: 'audit', label: 'Audit Log' }] },
   ];
 }

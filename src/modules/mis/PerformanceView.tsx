@@ -3,7 +3,7 @@
  * and the pipeline overall. Counted with the Sales MIS rules (misData: perfRow, pipelineNow), so both screens agree.
  */
 import React, { useMemo, useState } from 'react';
-import { FileSpreadsheet, ImageDown, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, ImageDown } from 'lucide-react';
 import type { Lead, SyncState } from '../../types/crm';
 import { F } from '../../core/config';
 import { dateKey } from '../../core/dates';
@@ -48,7 +48,6 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
         <div className="flex flex-wrap items-center gap-2">
           <div className="w-44"><Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All representatives" aria-label="Sales representative" /></div>
           <div className="w-40"><Select value={source} onChange={(e) => setSource(e.target.value)} options={sourceOptions} placeholder="All sources" aria-label="Lead source" /></div>
-          <Button variant="secondary" onClick={onRefresh} icon={<RefreshCw size={13} className={sync.status === 'syncing' ? 'animate-spin' : ''} />}>Refresh</Button>
         </div>
       </div>
       <EnquiryPerformance nonDate={list} today={today} show={(label, ls) => onShowLeads(label, ls.map((l) => l.id))}
@@ -60,7 +59,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
 /* -------------------------------------------------------------------------- */
 
 /** The CRM's ocean theme, with the Sales MIS stage colours for the stages (so both screens read the same). */
-const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', nonResponding: '#C46A12', open: '#0B6BB0', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', planned: '#1D5585' };
+const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', planned: '#1D5585' };
 const two = (n: number) => String(n).padStart(2, '0');
 
 const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]>; show: (label: string, ls: MisLead[]) => void }> = ({ title, sub, tiles, show }) => (
@@ -98,10 +97,10 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
   const C = PERF_COLOURS;
   const tiles = (p: ReturnType<typeof perfRow>): Array<[string, string, MisLead[], string?]> => [
     ['Leads Received', C.received, p.received, 'Enquiries that came in, by enquiry date'],
-    ['Qualified Leads', C.qualified, p.qualified, 'Of those: qualified, site visit, HOT, Warm or booked'],
-    ['Unqualified Leads', C.unqualified, p.unqualified, 'Of those: disqualified (budget, location, junk…), not counting non-responding'],
-    ['Non-Responding', C.nonResponding, p.nonResponding, 'Of those: stage Not Responding'],
-    ['Open Enquiries', C.open, p.open, 'Of those: still new or open'],
+    ['Qualified Leads', C.qualified, p.qualified, 'Of those: Qualified, Warm, HOT, booked, or a site visit scheduled / done'],
+    ['Unqualified Leads', C.unqualified, p.unqualified, 'Of those: disqualified (budget, location, not interested…)'],
+    ['New Enquiries', C.fresh, p.fresh, 'Of those: still at stage New'],
+    ['Open Enquiries', C.open, p.open, 'Of those: stage Open or Not Responding'],
     ['Site Visits', C.visits, p.visits, 'Site visits done in this period, by visit date'],
   ];
   const year = d.slice(0, 4);
@@ -114,7 +113,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
       sub: 'All enquiries, as they stand now',
       tiles: [
         ['Total Enquiries', C.received, pipe.total],
-        ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, site visit, HOT, Warm or booked'],
+        ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, Warm, HOT, booked, or a site visit scheduled / done'],
         ['Warm Leads', C.warm, pipe.warm],
         ['Hot Leads', C.hot, pipe.hot],
         ['Site Visits Planned', C.planned, pipe.svPlanned, 'Prospect for site visit or visit scheduled, still open'],
@@ -152,7 +151,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
         </div>
       </div>
       {blocks.map((b) => <PerfBlock key={b.title} title={b.title} sub={b.sub} tiles={b.tiles} show={show} />)}
-      <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, non-responding and open, so those four add up to Leads Received. Site visits count visits done on those dates. The representative and source filters apply to every block; select any number to see the leads.</p>
+      <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, new and open (open includes Not Responding), so those four add up to Leads Received. Site visits count visits done on those dates. The representative and source filters apply to every block; select any number to see the leads.</p>
       {pipe.svDoneUndated.length > 0 && (
         <p className="text-[11px] text-[#B54708] px-1">
           {pipe.svDoneUndated.length} completed site visit{pipe.svDoneUndated.length === 1 ? ' has' : 's have'} no visit date, so {pipe.svDoneUndated.length === 1 ? 'it is' : 'they are'} counted in the overall total but not in the day, month or year.{' '}

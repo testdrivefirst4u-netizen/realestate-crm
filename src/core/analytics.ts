@@ -21,6 +21,7 @@ import {
   F,
   MAX_FOLLOWUPS,
   QUALIFIED_STAGES,
+  RETIRED_STAGES,
   SITE_VISIT,
   SITE_VISIT_DONE,
   STAGES,
@@ -55,7 +56,13 @@ export type StageClass = 'active' | 'won' | 'lost' | 'excluded' | 'unknown';
 /** Comparison key for a stage name: lower case, any dash as "-", single spaces, the common "Disqualifid" typo fixed. */
 const stageKey = (s: string) =>
   s.toLowerCase().replace(/[‐-―−]/g, '-').replace(/\s*-\s*/g, ' - ').replace(/\s+/g, ' ').replace(/\bdisqualifi?e?d\b/g, 'disqualified').trim();
-const KNOWN_STAGES = new Map<string, string>(Object.values(STAGES).map((s) => [stageKey(s), s]));
+const KNOWN_STAGES = new Map<string, string>([
+  ...Object.values(STAGES).map((s): [string, string] => [stageKey(s), s]),
+  // retired stages (and the old "Disqualified - NI" name) count as Disqualified - Not Interested
+  ...[...RETIRED_STAGES, 'Disqualified - NI'].map((s): [string, string] => [stageKey(s), STAGES.DQ_NI]),
+  // "Others" (from old sheets) is Not Responding
+  ...['Others', 'Other'].map((s): [string, string] => [stageKey(s), STAGES.NOT_RESPONDING]),
+]);
 
 /** A stage as written on a lead, mapped onto the CRM's stage name when it is a variant of one ("Disqualifid – Budget"). */
 export function canonicalStage(stage: unknown): string {
@@ -283,7 +290,7 @@ function breakdown(leads: Lead[], field: string, labelFn?: (k: string) => string
 }
 
 function stageBreakdown(leads: Lead[]): Breakdown[] {
-  const order = [...FUNNEL_STAGES, ...STAGE_CLASS.lost];
+  const order = [...FUNNEL_STAGES, ...STAGE_CLASS.active, ...STAGE_CLASS.lost];
   const counts = new Map<string, number>();
   for (const l of leads) {
     const s = stageOf(l) || STAGES.NEW;

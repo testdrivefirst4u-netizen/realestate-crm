@@ -48,6 +48,9 @@ export const F = {
   CITY: 'City',
   /** Locality / neighbourhood within the city. */
   AREA: 'Area',
+  /** Who referred the prospect, and a competing project they are considering (extra columns). */
+  REFERRED_BY: 'Referred By',
+  OTHER_PROJECT: 'Considering Other Project',
   /** Which Meta ad a lead came from (extra columns, filled by Meta Lead Ads intake). */
   CAMPAIGN: 'Campaign',
   AD_SET: 'Ad Set',
@@ -111,7 +114,7 @@ export const STAGES = {
   DQ_BUDGET: 'Disqualified - Budget',
   DQ_LOCATION: 'Disqualified - Location',
   DQ_RENTAL: 'Disqualified - Rental',
-  DQ_NI: 'Disqualified - NI',
+  DQ_NI: 'Disqualified - Not Interested',
   DQ_TIMELINE: 'Disqualified - Timeline',
   DQ_PROJECT: 'Disqualified - Project Type',
   TRASH: 'Trash',
@@ -128,16 +131,18 @@ export const FUNNEL_STAGES: string[] = [
   STAGES.BOOKED,
 ];
 
+/** Stages no longer offered (merged into Disqualified - Not Interested; the server moves old leads and maps them on save). */
+export const RETIRED_STAGES: string[] = [STAGES.LOST, STAGES.JUNK, STAGES.DND, STAGES.DQ_RENTAL];
+
 /** Stage classification — the single source of truth for every KPI. */
 export const STAGE_CLASS = {
   /** Open pipeline: still being worked. */
-  active: [STAGES.NEW, STAGES.OPEN, STAGES.WARM, STAGES.HOT, STAGES.QUALIFIED] as string[],
+  active: [STAGES.NEW, STAGES.OPEN, STAGES.WARM, STAGES.HOT, STAGES.QUALIFIED, STAGES.NOT_RESPONDING] as string[],
   /** Won. */
   won: [STAGES.BOOKED] as string[],
   /** Lost / closed without booking. */
   lost: [
     STAGES.LOST,
-    STAGES.NOT_RESPONDING,
     STAGES.DND,
     STAGES.JUNK,
     STAGES.DQ_BUDGET,
@@ -182,26 +187,20 @@ export const DEFAULT_CONFIG = {
     [F.STAGE]: [
       STAGES.NEW,
       STAGES.OPEN,
+      STAGES.QUALIFIED,
       STAGES.WARM,
       STAGES.HOT,
       STAGES.BOOKED,
-      STAGES.QUALIFIED,
-      STAGES.LOST,
       STAGES.NOT_RESPONDING,
-      STAGES.DND,
-      STAGES.JUNK,
       STAGES.DQ_BUDGET,
       STAGES.DQ_LOCATION,
-      STAGES.DQ_RENTAL,
-      STAGES.DQ_NI,
-      STAGES.DQ_TIMELINE,
       STAGES.DQ_PROJECT,
+      STAGES.DQ_TIMELINE,
+      STAGES.DQ_NI,
       STAGES.TRASH,
     ],
     [F.SOURCE]: [
       'Website',
-      'Website/Whatsapp',
-      'WhatsApp',
       'Chat360',
       'Facebook',
       'Instagram',
@@ -210,6 +209,8 @@ export const DEFAULT_CONFIG = {
       'Reference',
       'Walk-In',
       'Inbound Call',
+      'Jeevin',
+      'BTL',
     ],
     [F.UNIT_TYPE]: ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],
     [F.PURCHASE_OR_RENT]: ['Purchase', 'Rent'],
@@ -355,3 +356,6 @@ export const AI_MODELS = [
 ] as const;
 
 export const AI_TRANSCRIBE_MODEL = 'gemini-3.5-transcribe';
+
+/** Window event fired by the top bar's Refresh, for screens that also load data of their own (e.g. the Sales MIS calls). */
+export const REFRESH_EVENT = 'crm:refresh';

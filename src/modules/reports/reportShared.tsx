@@ -175,6 +175,7 @@ export const DIRECTION_GLYPH: Record<ComparisonRow['direction'], string> = { up:
 export const STAGE_COLORS: Record<string, string> = {
   New: '#0B2A44', Open: '#3A5D7C', Warm: '#0B6BB0', Hot: '#B06A55', Qualified: '#0E8A86', Booked: '#2E7D32',
   'Not Responding': '#D97706', DND: '#7E93A6', Junk: '#7E93A6', 'Disqualified - Budget': '#8A3E28', 'Disqualified - Location': '#8A3E28', 'Disqualified - Rental': '#8A3E28',
+  'Disqualified - Project Type': '#8A3E28', 'Disqualified - Timeline': '#8A3E28', 'Disqualified - Not Interested': '#8A3E28',
 };
 
 export const MonthSelect: React.FC<{ value: string; onChange: (key: string) => void; months: string[]; className?: string; label?: string }> = ({ value, onChange, months, className, label }) => {

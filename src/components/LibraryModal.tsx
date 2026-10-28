@@ -17,20 +17,28 @@ import {
   Download,
   BookMarked,
   Eye,
+  Pencil,
 } from 'lucide-react';
 import {
-  PROJECT_DOCUMENTS,
   DocVerse,
   searchProjectConcordance,
   SearchMatch,
   highlightTerms,
 } from '../documents/projectDocuments';
+import { projectLibrary, useProjectLibrary } from '../documents/projectLibrary';
+import { LibraryEditor } from './LibraryEditor';
 
 interface LibraryModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialQuery?: string;
+  /** Admins may edit the library (documents, passages, quick specs). */
+  canEdit?: boolean;
 }
+
+const SECTION_ICON: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  building: Building, shield: ShieldCheck, money: DollarSign, heart: HeartHandshake, sparkles: Sparkles, map: MapPin, book: BookOpen, file: FileText,
+};
 
 /** Escaped HTML of `text` with `q` (user input) highlighted — see highlightTerms. */
 const highlightText = (text: string, q: string): string => highlightTerms(text, q ? [q] : []);
@@ -56,9 +64,27 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
   isOpen,
   onClose,
   initialQuery = '',
+  canEdit = false,
 }) => {
+  const lib = useProjectLibrary();
+  const documents = lib.documents;
   const [searchTerm, setSearchTerm] = useState(initialQuery);
-  const [activeTab, setActiveTab] = useState<'search' | 'reader' | 'quickSpecs' | 'repository'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'reader' | 'quickSpecs' | 'repository' | 'edit'>('search');
+  /** The editor has changes not saved yet. */
+  const [editing, setEditing] = useState(false);
+
+  // the company's latest library each time it opens
+  useEffect(() => {
+    if (isOpen) void projectLibrary.load(true);
+  }, [isOpen]);
+
+  const close = () => {
+    if (editing && !window.confirm('Close without saving your library changes?')) return;
+    setEditing(false);
+    onClose();
+  };
+  const closeRef = useRef(close);
+  closeRef.current = close;
   const [selectedDocFilter, setSelectedDocFilter] = useState<string>('all');
   const [matchMode, setMatchMode] = useState<'any' | 'phrase' | 'all'>('any');
 
@@ -82,11 +108,11 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') closeRef.current();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   // "Read in context": once the reader tab has rendered, bring the highlighted verse into view.
   useEffect(() => {
@@ -100,102 +126,10 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
     }
   }, [isOpen, activeTab, highlightVerseId, readerDocId, readerChapterNum]);
 
-  // Original Quick Reference Sections
+  // Quick Reference Sections (the company's saved library, or the built-in one)
   const quickSections = useMemo(
-    () => [
-      {
-        category: 'Project Overview',
-        icon: Building,
-        docRef: 'Brochure 1:1',
-        items: [
-          'Amaya by Vera Vita - Senior Living Luxury Community',
-          'Location: Munirabad Village, Medchal, Hyderabad',
-          'Total Land: 13 acres (Phase 1: 3 acres development)',
-          'Total Residences: 256 units across 3 residential towers (A, B, C)',
-          'Tower Height: G + 12 floors with dedicated senior mobility lifts',
-          'Club Amaya: 35,000+ sq. ft. private resident clubhouse',
-          'RERA Registration No: TG RERA P02200011109',
-          '100% Vaastu Compliant, zero-threshold anti-skid flooring throughout',
-        ],
-      },
-      {
-        category: 'Unit Types & Sizes',
-        icon: ShieldCheck,
-        docRef: 'Floor Plans 1:1',
-        items: [
-          '1 BHK-A: 691.90 sq.ft carpet | 953.21 sq.ft total built-up (Towers B & C)',
-          '1 BHK-B: 737.27 sq.ft carpet | 1,015.72 sq.ft total built-up (Towers A, B, C)',
-          '2 BHK-A: 1,112.94 sq.ft carpet | 1,533.28 sq.ft total built-up (Towers A, B, C)',
-          '2 BHK-B: 1,107.21 sq.ft carpet | 1,525.38 sq.ft total built-up (Towers A, B, C)',
-          '2.5 BHK-A: 1,231.08 sq.ft carpet | 1,696.03 sq.ft total built-up (Towers A, B, C)',
-          '2.5 BHK-B: 1,256.48 sq.ft carpet | 1,731.03 sq.ft total built-up (Towers A, B, C)',
-          '3 BHK: 1,548.72 sq.ft carpet | 2,133.65 sq.ft total built-up (Towers A, B, C)',
-          '3.5 BHK: 1,782.63 sq.ft carpet | 2,455.89 sq.ft total built-up (Tower A only)',
-        ],
-      },
-      {
-        category: 'Pricing & Investment',
-        icon: DollarSign,
-        docRef: 'Payment Schedule 1:1',
-        items: [
-          'Basic Sale Price (BSP): ₹8,999 per sq.ft',
-          'Car Parking: ₹2,50,000 (covered podium/basement slot)',
-          'Corpus Fund: ₹200 / sq.ft for long-term reserve maintenance',
-          'GST: 5% as per government senior housing guidelines',
-          'Registration & Stamp Duty: 7.5% at deed execution',
-          '1 BHK-A All-inclusive: Approx ₹1,00,90,821',
-          '2 BHK-A All-inclusive: Approx ₹1,60,79,391',
-          '3 BHK All-inclusive: Approx ₹2,22,77,536',
-          '3.5 BHK All-inclusive: Approx ₹2,56,04,301',
-        ],
-      },
-      {
-        category: 'Monthly Assisted Living & Food Packages',
-        icon: HeartHandshake,
-        docRef: 'Packages 4:1',
-        items: [
-          'Food Package (Vegetarian): ₹12,500 per resident / month (4 nutrition-curated meals/day)',
-          'Food Package (Non-Vegetarian): ₹15,000 per resident / month',
-          '1 BHK-A Combined Living Package: ₹23,131 (Single) | ₹32,538 (Couple)',
-          '2 BHK-A Combined Living Package: ₹31,482 (Single) | ₹40,889 (Couple)',
-          '3 BHK Combined Living Package: ₹40,126 (Single) | ₹49,533 (Couple)',
-          'Includes: Daily housekeeping, deep sanitization, laundry concierge, 24/7 security & on-campus paramedic support',
-        ],
-      },
-      {
-        category: 'Club Amaya & Lifestyle Amenities',
-        icon: Sparkles,
-        docRef: 'Brochure 3:1',
-        items: [
-          '35,000 sq.ft Club Amaya lifestyle & wellness center',
-          'Heated indoor swimming pool with gentle hydrotherapy jets',
-          'Senior-equipped fitness gym & dedicated yoga / meditation pavillion',
-          'Acoustically treated movie screening theater with recliner seating',
-          'Library, business center & co-working lounge for active seniors',
-          'Indoor games arcade: billiards, chess, carrom, golf simulator',
-          'Wellness spa, steam & salon for personal grooming',
-          'Physiotherapy rehabilitation room with licensed practitioners',
-          'Doctor’s consultation chamber & 24/7 standby emergency ambulance',
-          '47,000 sq.ft of landscaped walking reflexology gardens & organic herb nursery',
-        ],
-      },
-      {
-        category: 'Key Distances & Connectivity',
-        icon: MapPin,
-        docRef: 'Brochure 2:4',
-        items: [
-          'Munirabad Town: 5 mins drive',
-          'MediCiti Multi-speciality Hospital & Medical College: 12 mins',
-          'Outer Ring Road (ORR Exit 6): 10 mins',
-          'Kompally commercial high street: 20 mins',
-          'Secunderabad Railway Station: 50 mins',
-          'Gachibowli Financial District (via ORR): 60 mins',
-          'Rajiv Gandhi International Airport (Shamshabad): 70 mins direct expressway',
-          '700-acre Kandlakoya Reserve Forest: Directly adjacent & view facing',
-        ],
-      },
-    ],
-    []
+    () => lib.content.sections.map((s) => ({ ...s, icon: SECTION_ICON[s.icon] || FileText })),
+    [lib.content.sections]
   );
 
   const q = searchTerm.trim().toLowerCase();
@@ -203,8 +137,8 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
   // Search concordance matches across full documents
   const concordanceMatches: SearchMatch[] = useMemo(() => {
     if (!q) return [];
-    return searchProjectConcordance(q, selectedDocFilter, matchMode);
-  }, [q, selectedDocFilter, matchMode]);
+    return searchProjectConcordance(q, selectedDocFilter, matchMode, lib.verses);
+  }, [q, selectedDocFilter, matchMode, lib.verses]);
 
   // Matching quick sections
   const matchingQuickSections = useMemo(() => {
@@ -221,10 +155,11 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
 
   // Current reader document and chapter
   const currentReaderDoc = useMemo(() => {
-    return PROJECT_DOCUMENTS.find((d) => d.id === readerDocId) || PROJECT_DOCUMENTS[0];
-  }, [readerDocId]);
+    return documents.find((d) => d.id === readerDocId) || documents[0];
+  }, [documents, readerDocId]);
 
   const currentReaderChapter = useMemo(() => {
+    if (!currentReaderDoc) return undefined;
     return (
       currentReaderDoc.chapters.find((c) => c.chapterNumber === readerChapterNum) ||
       currentReaderDoc.chapters[0]
@@ -300,7 +235,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-2 rounded-lg text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB] transition"
             aria-label="Close modal"
           >
@@ -361,17 +296,33 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
               }`}
             >
               <FileText size={14} />
-              <span>Documents Folder ({PROJECT_DOCUMENTS.length})</span>
+              <span>Documents Folder ({documents.length})</span>
             </button>
+
+            {canEdit && (
+              <button
+                onClick={() => setActiveTab('edit')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                  activeTab === 'edit'
+                    ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
+                    : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
+                }`}
+              >
+                <Pencil size={14} />
+                <span>Edit library</span>
+              </button>
+            )}
           </div>
 
           <span className="text-[11px] text-[#6F8698] hidden md:inline-block pb-2">
-            Storage: <code className="bg-white/80 px-1.5 py-0.5 rounded border border-[#D3E3F0]">/documents</code>
+            {lib.custom && lib.updatedAt ? `Edited by ${lib.updatedBy || 'an admin'} · ${new Date(lib.updatedAt).toLocaleDateString()}` : <>Storage: <code className="bg-white/80 px-1.5 py-0.5 rounded border border-[#D3E3F0]">/documents</code></>}
           </span>
         </div>
 
+        {activeTab === 'edit' && canEdit && <LibraryEditor onDirty={setEditing} />}
+
         {/* Global Search Toolbar (available in all tabs) */}
-        <div className="p-3.5 sm:p-4 bg-[#E6EFF6] border-b border-[#D3E3F0] space-y-2.5 shrink-0">
+        <div className={`p-3.5 sm:p-4 bg-[#E6EFF6] border-b border-[#D3E3F0] space-y-2.5 shrink-0 ${activeTab === 'edit' ? 'hidden' : ''}`}>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3.5 top-3 text-[#7E93A6]" />
@@ -735,7 +686,10 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
         )}
 
         {/* Tab 2: Document Reader Mode (Bible-style chapter reader) */}
-        {activeTab === 'reader' && (
+        {activeTab === 'reader' && !currentReaderChapter && (
+          <div className="flex-1 grid place-items-center p-8 text-sm text-[#5E778C]">No documents with chapters in the library yet.</div>
+        )}
+        {activeTab === 'reader' && currentReaderDoc && currentReaderChapter && (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* Left Sidebar: Document / Chapter Index */}
             <div className="w-full md:w-72 bg-[#F5F9FC] border-b md:border-b-0 md:border-r border-[#D3E3F0] p-3 sm:p-4 overflow-y-auto shrink-0 space-y-3">
@@ -752,7 +706,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                   }}
                   className="w-full text-xs font-semibold p-2.5 rounded-xl border border-[#B9CCDB] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0]"
                 >
-                  {PROJECT_DOCUMENTS.map((doc) => (
+                  {documents.map((doc) => (
                     <option key={doc.id} value={doc.id}>
                       {doc.shortName}
                     </option>
@@ -1035,12 +989,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0B2A44] text-white">
-                {PROJECT_DOCUMENTS.length} Active Documents
+                {documents.length} Active Documents
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {PROJECT_DOCUMENTS.map((doc) => (
+              {documents.map((doc) => (
                 <div
                   key={doc.id}
                   className="bg-white rounded-xl p-5 border border-[#D3E3F0] hover:border-[#0B6BB0] shadow-xs transition flex flex-col justify-between"
@@ -1111,7 +1065,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
+              onClick={close}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#E6EFF6] hover:bg-[#D3E3F0] text-[#0B2A44] transition"
             >
               Close

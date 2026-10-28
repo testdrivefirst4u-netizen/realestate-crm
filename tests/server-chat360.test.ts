@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, businessNumberFrom, contacts, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
+import { apiKeyShapeProblem, businessNumberFrom, contacts, extractText, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -50,6 +50,28 @@ beforeEach(async () => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('message text', () => {
+  it('reads button / list replies, photos, locations and reactions instead of "[Message]"', () => {
+    const wr = (wab_response: any) => extractText({ wab_response });
+    expect(wr({ type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'b1', title: '2 BHK' } } })).toBe('2 BHK');
+    expect(wr({ type: 'interactive', interactive: { type: 'list_reply', list_reply: { id: 'l1', title: 'Site visit', description: 'This weekend' } } })).toBe('Site visit — This weekend');
+    expect(wr({ type: 'button', button: { payload: 'x', text: 'Call me' } })).toBe('Call me');
+    expect(wr({ type: 'image', image: { id: 'm1', mime_type: 'image/jpeg' } })).toBe('📷 Photo');
+    expect(wr({ type: 'document', document: { id: 'm2', filename: 'Floor plan.pdf' } })).toBe('📄 Floor plan.pdf');
+    expect(wr({ type: 'location', location: { latitude: 17.4, longitude: 78.3, name: 'Kondapur' } })).toBe('📍 Kondapur (17.4, 78.3)');
+    expect(wr({ type: 'reaction', reaction: { emoji: '👍', message_id: 'w' } })).toBe('Reacted 👍');
+    expect(wr({ type: 'interactive', interactive: { type: 'nfm_reply', nfm_reply: { response_json: '{"budget":"1 Cr","flow_token":"t"}' } } })).toBe('budget: 1 Cr');
+  });
+
+  it('a message stored as "[Message]" is read again from its saved payload', async () => {
+    await (await col(CFG.COLL.CHAT_MESSAGES)).insertOne({
+      _id: 'M1' as any, direction: 'Inbound', phone: '+919876543210', phoneLast10: '9876543210', text: '[Message]', timestamp: new Date(),
+      raw: JSON.stringify({ wab_response: { type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'b', title: 'Purchase' } } } }),
+    });
+    expect((await messages('9876543210'))[0].text).toBe('Purchase');
+  });
 });
 
 describe('webhook ingest', () => {

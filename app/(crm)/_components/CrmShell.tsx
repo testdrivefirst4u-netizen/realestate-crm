@@ -31,7 +31,7 @@ import type { CopilotContext, OpenCopilot } from '@/src/modules/ai/copilotContex
 import { useCrmEngine, type CrmEngine, type CrmEngineInit } from '@/src/core/engine';
 import { notifications } from '@/src/core/notifications';
 import { SIGNED_OUT_REASON_KEY } from '@/src/core/persistence';
-import { F, STAGES } from '@/src/core/config';
+import { F, REFRESH_EVENT, STAGES } from '@/src/core/config';
 import { nextFollowupDate } from '@/src/core/analytics';
 import { isSameDay } from '@/src/core/dates';
 import { TenantProvider, companyOf, hasFeature, resolveFeatures, type FeatureName } from '@/src/core/tenant';
@@ -146,6 +146,10 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const aiOn = on('aiCopilot');
   const aiConfigured = !!data.settings.aiConfigured && aiOn;
   const libraryOn = on('projectLibrary');
+  // the company's edited library, for the AI's document search too (the library window reloads it when opened)
+  useEffect(() => {
+    if (libraryOn) void import('@/src/documents/projectLibrary').then((m) => m.projectLibrary.load(), () => undefined);
+  }, [libraryOn]);
   /** JustConnect calls for this user: the call window and the phone inside the CRM (not for view-only users). */
   const callWindowOn = !!serverSettings?.justconnectConfigured && on('calls') && engine.can('calls.view') && !isViewOnly(currentUser);
   const rmOptions = useMemo(() => data.config.options[F.RM] || [], [data.config]);
@@ -202,6 +206,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   /** "Create lead" from the call window: the caller's number, filled in. */
   const [addLeadPhone, setAddLeadPhone] = useState('');
+  /** Bumped on every "New Enquiry": brings a minimised enquiry form back. */
+  const [addLeadSignal, setAddLeadSignal] = useState(0);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryInitialQuery, setLibraryInitialQuery] = useState('');
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -236,10 +242,12 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const openAddLead = useCallback(() => {
     setAddLeadPhone('');
     setIsAddLeadOpen(true);
+    setAddLeadSignal((n) => n + 1);
   }, []);
   const createLeadForCaller = useCallback((phone: string) => {
     setAddLeadPhone(phone);
     setIsAddLeadOpen(true);
+    setAddLeadSignal((n) => n + 1);
   }, []);
 
   /* ------------------------ Leads drill-down filter ---------------------- */
@@ -312,7 +320,10 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   );
 
   const unreadCount = notifItems.filter((n) => !n.read).length;
-  const refreshNow = () => engine.refresh({ silent: false, force: true });
+  const refreshNow = () => {
+    window.dispatchEvent(new Event(REFRESH_EVENT));
+    return engine.refresh({ silent: false, force: true });
+  };
 
   return (
     <CrmContext.Provider value={ctx}>
@@ -405,7 +416,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 onOpenCopilot={openCopilot}
               />
 
-              <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} defaultRm={serverSettings?.defaultRm} initialPhone={addLeadPhone} />
+              <AddLeadModal isOpen={isAddLeadOpen} onClose={() => setIsAddLeadOpen(false)} config={data.config} leads={data.leads} currentUser={currentUser} onAddLead={engine.addLead} aiConfigured={aiConfigured} defaultRm={serverSettings?.defaultRm} initialPhone={addLeadPhone} openSignal={addLeadSignal} />
 
               <CallWindow
                 enabled={callWindowOn}
@@ -424,6 +435,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                       setLibraryInitialQuery('');
                     }}
                     initialQuery={libraryInitialQuery}
+                    canEdit={engine.can('users.manage')}
                   />
                 )}
                 {isCsvModalOpen && <CsvImportExportModal isOpen={isCsvModalOpen} onClose={() => setIsCsvModalOpen(false)} leads={data.leads} onImport={engine.importLeads} canImport={engine.can('leads.import')} initialTab={csvModalTab} />}

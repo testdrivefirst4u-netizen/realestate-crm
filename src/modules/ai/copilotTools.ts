@@ -20,10 +20,11 @@
  * No React, no API calls — unit-testable (tests/copilotTools.test.ts, tests/copilot-*.test.ts).
  */
 import type { ChatMessage, CopilotAction, InventoryUnit, Lead, TaskItem } from '../../types/crm';
-import { DEFAULT_CONFIG, F, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS, FUNNEL_STAGES } from '../../core/config';
+import { DEFAULT_CONFIG, F, LEAD_DATE_FIELDS, RETIRED_STAGES, STAGES, STAGE_CLASS, FUNNEL_STAGES } from '../../core/config';
 import { dedupeUnitTypes, unitTypeBase } from '../../core/units';
 import { digitsOnly, samePhone } from '../../core/phone';
-import { PROJECT_DOCUMENTS, type DocVerse } from '../../documents/projectDocuments';
+import type { DocVerse } from '../../documents/projectDocuments';
+import { projectLibrary } from '../../documents/projectLibrary';
 import { AMAYA_KNOWLEDGE } from './amayaKnowledge';
 import type { CopilotContext } from './copilotContext';
 import {
@@ -460,15 +461,16 @@ export function resolveMonthKey(arg: unknown, now: Date): string | null {
   return d ? monthKey(d) : null;
 }
 
-const STAGE_VALUES: string[] = Object.values(STAGES);
+const STAGE_VALUES: string[] = Object.values(STAGES).filter((s) => !RETIRED_STAGES.includes(s));
 const STAGE_ALIASES: Record<string, string> = {
   nr: STAGES.NOT_RESPONDING, no_response: STAGES.NOT_RESPONDING, not_answering: STAGES.NOT_RESPONDING,
-  do_not_disturb: STAGES.DND,
+  // retired stages: now Disqualified - Not Interested
+  lost: STAGES.DQ_NI, junk: STAGES.DQ_NI, dnd: STAGES.DQ_NI, do_not_disturb: STAGES.DQ_NI,
   won: STAGES.BOOKED, closed_won: STAGES.BOOKED, booking: STAGES.BOOKED, bookings: STAGES.BOOKED,
   dq_budget: STAGES.DQ_BUDGET, disqualified_budget: STAGES.DQ_BUDGET, budget: STAGES.DQ_BUDGET,
   dq_location: STAGES.DQ_LOCATION, disqualified_location: STAGES.DQ_LOCATION, location: STAGES.DQ_LOCATION,
-  dq_rental: STAGES.DQ_RENTAL, disqualified_rental: STAGES.DQ_RENTAL, rental: STAGES.DQ_RENTAL,
-  dq_ni: STAGES.DQ_NI, disqualified_ni: STAGES.DQ_NI, not_interested: STAGES.DQ_NI,
+  dq_rental: STAGES.DQ_NI, disqualified_rental: STAGES.DQ_NI, rental: STAGES.DQ_NI,
+  dq_ni: STAGES.DQ_NI, disqualified_ni: STAGES.DQ_NI, not_interested: STAGES.DQ_NI, disqualified_not_interested: STAGES.DQ_NI, dq_not_interested: STAGES.DQ_NI,
   dq_timeline: STAGES.DQ_TIMELINE, disqualified_timeline: STAGES.DQ_TIMELINE, timeline: STAGES.DQ_TIMELINE,
   dq_project_type: STAGES.DQ_PROJECT, disqualified_project_type: STAGES.DQ_PROJECT,
   deleted: STAGES.TRASH, trashed: STAGES.TRASH, bin: STAGES.TRASH,
@@ -788,10 +790,13 @@ interface DocIndexEntry {
 }
 
 let docIndexCache: DocIndexEntry[] | null = null;
+/** The library the index was built from (rebuilt when an admin saves an edited library). */
+let docIndexFor: DocVerse[] | null = null;
 
 function docIndex(): DocIndexEntry[] {
-  if (docIndexCache) return docIndexCache;
-  const verses = PROJECT_DOCUMENTS.flatMap((d) => d.chapters.flatMap((c) => c.verses));
+  const verses = projectLibrary.get().verses;
+  if (docIndexCache && docIndexFor === verses) return docIndexCache;
+  docIndexFor = verses;
   docIndexCache = verses.map((verse, order) => {
     const text = docTokens(verse.text);
     const tags = docTokens(verse.tags.join(' | '));
@@ -909,7 +914,7 @@ export const TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
     parameters: {
       type: 'OBJECT',
       properties: {
-        stage: S('Stage name (New, Open, Warm, Hot, Qualified, Booked, Lost, Not Responding, DND, Junk, Disqualified - Budget/Location/Rental) or the pseudo-stages "active" (open pipeline) / "lost".'),
+        stage: S('Stage name (New, Open, Qualified, Warm, Hot, Booked, Not Responding, Disqualified - Budget/Location/Project Type/Timeline/Not Interested) or the pseudo-stages "active" (open pipeline) / "lost".'),
         source: S('Enquiry source, e.g. Instagram, Facebook, Website, WhatsApp, Chat360, Meta Ads, Google Ads, Reference, Walk-In, Inbound Call (partial match).'),
         rm: S('Assigned RM name ("me" = the signed-in user).'),
         unit_type: S('Unit type interested in, e.g. "2 BHK", "3 BHK".'),
@@ -999,7 +1004,7 @@ export const TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
       type: 'OBJECT',
       properties: {
         lead_id: S(LEAD_ID_DESC),
-        stage: S('Target stage: New, Open, Warm, Hot, Qualified, Booked, Lost, Not Responding, DND, Junk, Disqualified - Budget, Disqualified - Location, Disqualified - Rental.'),
+        stage: S('Target stage: New, Open, Qualified, Warm, Hot, Booked, Not Responding, Disqualified - Budget, Disqualified - Location, Disqualified - Project Type, Disqualified - Timeline, Disqualified - Not Interested.'),
       },
       required: ['lead_id', 'stage'],
     },
@@ -1904,7 +1909,7 @@ const SOURCE_WORDS: Array<[RegExp, string]> = [
   [/\bmeta ads?\b|\bmeta\b/, 'Meta'],
   [/\bgoogle( ads?)?\b/, 'Google'],
   [/\bwebsite\b|\bweb\b/, 'Website'],
-  [/\bwhats?app\b|\bwa\b/, 'WhatsApp'],
+  [/\bwhats?app\b|\bwa\b/, 'Chat360'], // the WhatsApp source is Chat360
   [/\bchat ?360\b/, 'Chat360'],
   [/\breferen(ce|ces|ral|rals)\b|\breferred\b/, 'Reference'],
   [/\bwalk[- ]?ins?\b/, 'Walk-In'],
@@ -2062,8 +2067,7 @@ export function quickIntent(text: string, ctx: ToolContext): QuickIntentResult |
     [/\bnew (leads?|enquir\w*)\b/, STAGES.NEW],
     [/\bopen (leads?|enquir\w*)\b/, STAGES.OPEN],
     [/\bnot responding\b|\bnon[- ]responsive\b/, STAGES.NOT_RESPONDING],
-    [/\bdnd\b/, STAGES.DND],
-    [/\bjunk\b/, STAGES.JUNK],
+    [/\bdnd\b|\bjunk\b/, STAGES.DQ_NI], // retired stages, now Disqualified - Not Interested
     [/\blost\b|\bdisqualified\b|\bdq\b/, 'lost'],
   ];
   for (const [re, stage] of stageMatch) {

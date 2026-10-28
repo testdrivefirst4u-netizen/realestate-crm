@@ -13,7 +13,7 @@ import { bumpVersion, col, ensureCounterAtLeast, getClient, getVersion, nextSeq 
 import { fail } from '../core/errors';
 import { addEvent, addTimeline, logError, serializeTimeline } from '../core/events';
 import {
-  applyFollowupEdits, blankLeadDoc, cellToUi, FOLLOWUP_RE, fromUiPatch, headersFor, nextFollowupSlot, toCellValue, toUiLead,
+  applyFollowupEdits, blankLeadDoc, canonicalStage, cellToUi, MERGED_VALUES, FOLLOWUP_RE, fromUiPatch, headersFor, nextFollowupSlot, toCellValue, toUiLead,
   type ArchivedLeadDoc, type LeadDoc,
 } from '../core/leadShape';
 import { getSecret, settingsAll } from '../core/settings';
@@ -140,7 +140,27 @@ export async function getAllLeads(ctx?: Ctx | null): Promise<{ headers: string[]
   return { headers: headersFor(docs), leads: docs.map((d) => toUiLead(d)!) };
 }
 
+/** Once per company and merge (Junk → Lost, Website/Whatsapp → Website): move the leads and drop the saved option. */
+async function applyMergedValues() {
+  const meta = await col<{ _id: string; value: string; moved?: number }>(CFG.COLL.META);
+  for (const m of MERGED_VALUES) {
+    if (await meta.findOne({ _id: m.id })) continue;
+    const r = await (await leadsCol()).updateMany({ [m.field]: { $regex: m.from } }, { $set: { [m.field]: m.to } });
+    await (await col(CFG.COLL.CONFIG)).deleteMany({ field: m.header, $or: [{ option: { $regex: m.from } }, { value: { $regex: m.from } }] });
+    await meta.updateOne({ _id: m.id }, { $set: { value: new Date().toISOString(), moved: r.modifiedCount } }, { upsert: true });
+    if (r.modifiedCount) {
+      await addEvent('leads_value_merged', 'Lead', '', `${m.label}: ${r.modifiedCount} lead${r.modifiedCount === 1 ? '' : 's'} moved`, `${m.header} is now "${m.to}".`, 'System');
+      await bumpVersion();
+    }
+  }
+}
+
 export async function getLeadsConfig(): Promise<{ fields: string[]; options: Record<string, string[]> }> {
+  try {
+    await applyMergedValues();
+  } catch (e) {
+    await logError('leads:mergeValues', 'MIGRATION', 'Could not move leads to the merged stage / source', e);
+  }
   const opts: Record<string, string[]> = {};
   CFG.DROPDOWNS.forEach((f) => (opts[f] = []));
   const rows = await (await col(CFG.COLL.CONFIG)).find({}).sort({ order: 1, _id: 1 }).toArray();
@@ -155,6 +175,13 @@ export async function getLeadsConfig(): Promise<{ fields: string[]; options: Rec
     for (const o of CFG.DEFAULT_OPTIONS[f]) if (!opts[f].includes(o)) opts[f].push(o);
   }
   opts[L.UNIT_TYPE] = dedupeUnitTypes(opts[L.UNIT_TYPE] || []);
+  for (const m of MERGED_VALUES) opts[m.header] = (opts[m.header] || []).filter((v) => !m.from.test(v));
+  // stages and sources in the agreed order; any the company added keep their place after them
+  for (const f of [L.STAGE, L.SOURCE]) {
+    const order = CFG.DEFAULT_OPTIONS[f] || [];
+    const rank = (v: string) => (order.includes(v) ? order.indexOf(v) : order.length);
+    opts[f] = opts[f].map((v, i) => ({ v, i })).sort((a, b) => rank(a.v) - rank(b.v) || a.i - b.i).map((x) => x.v);
+  }
   try {
     for (const u of await listUsers()) {
       if (u.status === 'Disabled' || u.role === 'Viewer') continue; // view-only users never own leads
@@ -207,7 +234,7 @@ function buildNewDoc(id: string, obj: Record<string, unknown>, actor: string, no
   doc.createdAt = now;
   doc.updatedAt = now;
   doc.updatedBy = actor;
-  doc.stage = String(obj[L.STAGE] || S.NEW).trim() || S.NEW;
+  doc.stage = canonicalStage(String(obj[L.STAGE] || S.NEW).trim()) || S.NEW;
   doc.phone = String(obj[L.PHONE] || '').trim();
   doc.phoneLast10 = last10(doc.phone);
   doc.followups = applyFollowupEdits([], dp.followups, actor);

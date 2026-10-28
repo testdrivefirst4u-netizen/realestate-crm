@@ -54,6 +54,10 @@ export const MAPPABLE_FIELDS = [
   'Site Visit Status',
   'Assigned RM',
   'Enquiry Source',
+  'Area',
+  'City',
+  'State',
+  'Country',
 ] as const;
 
 export const STATUS_OPTIONS: Array<{ value: InboundStatus; label: string }> = [

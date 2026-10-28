@@ -395,15 +395,15 @@ syn(STAGES.HOT, ['hot', 'very interested', 'highly interested', 'site visit sche
 syn(STAGES.QUALIFIED, ['qualified', 'site visit done', 'site visit completed', 'site visit complete', 'visit done', 'visit completed', 'visited', 'sv done', 'walk in', 'walkin', 'walk in done', 'negotiation', 'negotiating', 'under negotiation', 'booking in progress', 'booking under process', 'token', 'token paid', 'token received', 'advance paid', 'finalising', 'finalizing', 'closing']);
 syn(STAGES.BOOKED, ['booked', 'booking done', 'booking confirmed', 'booking complete', 'booking completed', 'closed won', 'won', 'converted', 'conversion', 'sold', 'sale', 'sale done', 'agreement', 'agreement signed', 'registered', 'registration done']);
 syn(STAGES.NOT_RESPONDING, ['not responding', 'no response', 'not reachable', 'unreachable', 'not answering', 'no answer', 'rnr', 'ringing no response', 'ring no response', 'switched off', 'not picking', 'not picking up', 'npc', 'nr', 'no reply', 'unresponsive', 'did not pick', 'call not answered', 'not connected']);
-syn(STAGES.DND, ['dnd', 'do not disturb', 'do not call', 'dnc', 'dont call', 'do not contact', 'blocked', 'unsubscribed', 'opt out', 'opted out']);
-syn(STAGES.LOST, ['lost', 'closed lost', 'lost lead', 'dropped', 'bought elsewhere', 'purchased elsewhere', 'went elsewhere', 'booked elsewhere']);
-syn(STAGES.JUNK, ['junk', 'spam', 'invalid', 'invalid number', 'wrong number', 'wrong no', 'incorrect number', 'fake', 'test', 'test lead', 'irrelevant', 'not relevant', 'bogus']);
+syn(STAGES.DQ_NI, ['dnd', 'do not disturb', 'do not call', 'dnc', 'dont call', 'do not contact', 'blocked', 'unsubscribed', 'opt out', 'opted out']);
+syn(STAGES.DQ_NI, ['lost', 'closed lost', 'lost lead', 'dropped', 'bought elsewhere', 'purchased elsewhere', 'went elsewhere', 'booked elsewhere']);
+syn(STAGES.DQ_NI, ['junk', 'spam', 'invalid', 'invalid number', 'wrong number', 'wrong no', 'incorrect number', 'fake', 'test', 'test lead', 'irrelevant', 'not relevant', 'bogus']);
 syn(STAGES.DQ_BUDGET, ['disqualified budget', 'dq budget', 'budget', 'budget issue', 'budget mismatch', 'out of budget', 'over budget', 'low budget', 'budget constraint', 'price too high', 'expensive', 'too expensive', 'dq price', 'price', 'disqualified price', 'not affordable', 'cannot afford']);
 syn(STAGES.DQ_LOCATION, ['disqualified location', 'dq location', 'location', 'location issue', 'location mismatch', 'wrong location', 'far', 'too far', 'distance', 'location not suitable', 'different location', 'other location', 'different city', 'other city', 'out of city', 'outstation']);
 syn(STAGES.DQ_NI, ['disqualified ni', 'dq ni', 'disqualified not interested', 'dq not interested', 'not interested', 'ni', 'no interest']);
 syn(STAGES.DQ_TIMELINE, ['disqualified timeline', 'dq timeline', 'timeline', 'timeline issue', 'wants ready to move', 'ready to move', 'immediate occupancy']);
 syn(STAGES.DQ_PROJECT, ['disqualified project type', 'dq project type', 'project type', 'wants villa', 'villa', 'plot', 'wants plot']);
-syn(STAGES.DQ_RENTAL, ['disqualified rental', 'disqualified rent', 'dq rental', 'dq rent', 'rental', 'rent', 'rent only', 'looking for rent', 'wants rent', 'rental enquiry', 'rental inquiry', 'rent enquiry', 'lease', 'on rent', 'for rent']);
+syn(STAGES.DQ_NI, ['disqualified rental', 'disqualified rent', 'dq rental', 'dq rent', 'rental', 'rent', 'rent only', 'looking for rent', 'wants rent', 'rental enquiry', 'rental inquiry', 'rent enquiry', 'lease', 'on rent', 'for rent']);
 syn(STAGES.TRASH, ['trash', 'trashed', 'bin', 'recycle bin', 'deleted', 'delete', 'removed']);
 
 /**

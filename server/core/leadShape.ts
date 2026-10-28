@@ -166,6 +166,26 @@ export function headersFor(docs: Array<Pick<LeadDoc, 'followups' | 'extra'>>): s
 
 /* ------------------------------ UI → doc -------------------------------- */
 
+/**
+ * Dropdown values that were removed and merged into another (old sheets, imports and integrations may still send
+ * them; existing leads are moved once — leads.ts → applyMergedValues):
+ *  - stages Lost, Junk, DND, Disqualified - Rental and Disqualified - NI → Disqualified - Not Interested
+ *  - stage Others → Not Responding
+ *  - sources Website/Whatsapp → Website, WhatsApp → Chat360
+ */
+export const MERGED_VALUES: Array<{ id: string; header: string; field: 'stage' | 'source'; from: RegExp; to: string; label: string }> = [
+  {
+    id: 'stagesMergedIntoNotInterested', header: L.STAGE, field: 'stage', to: CFG.STAGES.DQ_NI,
+    from: /^\s*(junk|lost|dnd|disqualified\s*[-–—]\s*(rental|ni)|disqualified\s*[–—]\s*not\s*interested)\s*$/i,
+    label: 'Lost, Junk, DND and Disqualified - Rental merged into Disqualified - Not Interested',
+  },
+  { id: 'othersMergedIntoNotResponding', header: L.STAGE, field: 'stage', from: /^\s*others?\s*$/i, to: CFG.STAGES.NOT_RESPONDING, label: 'Stage "Others" moved to Not Responding' },
+  { id: 'websiteWhatsappMergedIntoWebsite', header: L.SOURCE, field: 'source', from: /^\s*website\s*\/\s*whats\s*app\s*$/i, to: 'Website', label: 'Website/Whatsapp merged into Website' },
+  { id: 'whatsappMergedIntoChat360', header: L.SOURCE, field: 'source', from: /^\s*whats\s*app\s*$/i, to: 'Chat360', label: 'WhatsApp merged into Chat360' },
+];
+const mergedValue = (header: string, value: string): string => MERGED_VALUES.find((m) => m.header === header && m.from.test(value))?.to ?? value;
+export const canonicalStage = (stage: string): string => mergedValue(L.STAGE, stage);
+
 /** Port of Leads_toCell: undefined = skip, Date|null for date headers, string otherwise. */
 export function toCellValue(header: string, value: unknown): Date | null | string | undefined {
   if (value === undefined) return undefined;
@@ -175,6 +195,7 @@ export function toCellValue(header: string, value: unknown): Date | null | strin
   }
   if (value === null) return '';
   if (header === L.UNIT_TYPE) return normalizeUnitType(value);
+  if (header === L.STAGE || header === L.SOURCE) return mergedValue(header, String(value));
   if (typeof value === 'object' && !isDate(value)) return JSON.stringify(value);
   if (isDate(value)) return value.toISOString();
   return String(value);
