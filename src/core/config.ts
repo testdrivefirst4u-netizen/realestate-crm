@@ -46,6 +46,8 @@ export const F = {
   COUNTRY: 'Country',
   STATE: 'State',
   CITY: 'City',
+  /** Locality / neighbourhood within the city. */
+  AREA: 'Area',
   /** Which Meta ad a lead came from (extra columns, filled by Meta Lead Ads intake). */
   CAMPAIGN: 'Campaign',
   AD_SET: 'Ad Set',

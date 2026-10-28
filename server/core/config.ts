@@ -74,7 +74,7 @@ export const CFG = {
   },
 
   /** Where the prospect lives — kept in the lead's extra columns (not base headers), filled by intake aliases. */
-  LEAD_GEO: { COUNTRY: 'Country', STATE: 'State', CITY: 'City' },
+  LEAD_GEO: { COUNTRY: 'Country', STATE: 'State', CITY: 'City', AREA: 'Area' },
 
   /** Which ad a Meta lead came from — extra columns like LEAD_GEO, filled by intake aliases (meta_*). */
   LEAD_AD: { CAMPAIGN: 'Campaign', AD_SET: 'Ad Set', AD: 'Ad Name', FORM: 'Lead Form' },
@@ -116,7 +116,7 @@ export const CFG = {
     'Enquiry Source': ['Website', 'Website/Whatsapp', 'WhatsApp', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads',
       'Google Ads', 'Reference', 'Walk-In', 'Inbound Call'],
     'Unit Type Interested In': ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],
-    'Purchase or Rent': ['Purchase', 'Rent'],
+    'Purchase or Rent': ['Purchase', 'Rent', 'Investment'],
     'Site Visit Status': ['Prospect for Site Visit', 'Site Visit - Scheduled', 'Site Visit - Walk-In', 'Site Visit - Completed'],
     'Relationship to Prospect': ['Self', 'Son', 'Daughter', 'Granddaughter', 'Grandson', 'Sister', 'Brother', 'Friend', 'Colleague'],
     'Enquired For': ['Self', 'Parents', 'Grandparents', 'Father', 'Mother', 'Relative', 'Relatives', 'Family'],

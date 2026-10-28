@@ -1038,7 +1038,7 @@ export const TOOL_DECLARATIONS: GeminiFunctionDeclaration[] = [
   {
     name: 'update_lead',
     description:
-      'PROPOSE updating one or more fields of a lead (the user confirms in the app). Fields: name, phone, email, source, unit_type, purchase_or_rent, site_visit_status, site_visit_date, booking_date, next_followup, notes, rm, brochure, relationship, enquired_for, stage.',
+      'PROPOSE updating one or more fields of a lead (the user confirms in the app). Fields: name, phone, email, source, unit_type, purchase_or_rent (purpose: Purchase / Rent / Investment), site_visit_status, site_visit_date, booking_date, next_followup, notes, rm, brochure, relationship, enquired_for, stage.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -1422,7 +1422,7 @@ const FIELD_ALIASES: Record<string, string> = {
   stage: F.STAGE, lead_stage: F.STAGE, status: F.STAGE,
   source: F.SOURCE, enquiry_source: F.SOURCE, lead_source: F.SOURCE,
   unit_type: F.UNIT_TYPE, unit: F.UNIT_TYPE, unit_type_interested_in: F.UNIT_TYPE, configuration: F.UNIT_TYPE,
-  purchase_or_rent: F.PURCHASE_OR_RENT, purchase_type: F.PURCHASE_OR_RENT, intent: F.PURCHASE_OR_RENT,
+  purchase_or_rent: F.PURCHASE_OR_RENT, purchase_type: F.PURCHASE_OR_RENT, intent: F.PURCHASE_OR_RENT, purpose: F.PURCHASE_OR_RENT,
   site_visit_status: F.SITE_VISIT_STATUS, site_visit: F.SITE_VISIT_STATUS,
   site_visit_date: F.SITE_VISIT_DATE,
   booking_date: F.BOOKING_DATE,
@@ -1435,7 +1435,7 @@ const FIELD_ALIASES: Record<string, string> = {
 };
 const PROTECTED_FIELDS: string[] = [F.ID, F.CREATED_AT, F.UPDATED_AT, F.UPDATED_BY, F.LAST_FOLLOWUP, F.ENQUIRY_DATE];
 const UPDATABLE_FIELDS_HELP =
-  'name, phone, email, stage, source, unit_type, purchase_or_rent, site_visit_status, site_visit_date, booking_date, next_followup, notes, rm, brochure, relationship, enquired_for';
+  'name, phone, email, stage, source, unit_type, purchase_or_rent (purpose: Purchase / Rent / Investment), site_visit_status, site_visit_date, booking_date, next_followup, notes, rm, brochure, relationship, enquired_for';
 
 /** Map a friendly or canonical field name to the sheet column; null when unknown/protected. */
 export function resolveLeadField(input: unknown): string | null {

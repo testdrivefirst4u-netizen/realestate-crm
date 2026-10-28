@@ -60,6 +60,7 @@ interface FormState {
   country: string;
   state: string;
   city: string;
+  area: string;
   brochure: string;
   rm: string;
   notes: string;
@@ -68,7 +69,7 @@ interface FormState {
   forceCreate: boolean;
 }
 
-const GEO_KEY: Record<string, 'country' | 'state' | 'city'> = { [F.COUNTRY]: 'country', [F.STATE]: 'state', [F.CITY]: 'city' };
+const GEO_KEY: Record<string, 'country' | 'state' | 'city' | 'area'> = { [F.COUNTRY]: 'country', [F.STATE]: 'state', [F.CITY]: 'city', [F.AREA]: 'area' };
 
 const isVisitScheduled =(status: string) => status === SITE_VISIT.SCHEDULED;
 const isVisitDone = (status: string) => SITE_VISIT_DONE.includes(status);
@@ -90,6 +91,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
     country: 'India',
     state: '',
     city: '',
+    area: '',
     brochure: (config.options[F.BROCHURE] || []).includes('No') ? 'No' : '',
     rm: defaultRm && rmOptions.includes(defaultRm) ? defaultRm : currentUser?.name && rmOptions.includes(currentUser.name) ? currentUser.name : '',
     notes: '',
@@ -157,6 +159,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
       [F.COUNTRY]: form.country.trim(),
       [F.STATE]: form.state.trim(),
       [F.CITY]: form.city.trim(),
+      [F.AREA]: form.area.trim(),
       [F.BROCHURE]: form.brochure,
       [F.RM]: form.rm,
       [F.NOTES]: form.notes.trim(),
@@ -261,7 +264,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
             <Field label="Unit type interested in">
               <Select value={form.unitType} onChange={(e) => set('unitType', e.target.value)} options={opts(F.UNIT_TYPE, form.unitType)} placeholder="Select…" />
             </Field>
-            <Field label="Purchase or rent">
+            <Field label="Purpose">
               <Select value={form.purchaseOrRent} onChange={(e) => set('purchaseOrRent', e.target.value)} options={opts(F.PURCHASE_OR_RENT, form.purchaseOrRent)} placeholder="Select…" />
             </Field>
             <Field label="Site visit status">

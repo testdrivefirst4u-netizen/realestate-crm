@@ -66,7 +66,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = (props) => {
 type TabId = 'details' | 'timeline' | 'followups' | 'calls' | 'whatsapp' | 'files';
 type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead };
 
-const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY];
+const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY, F.AREA];
 
 const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
   const id = String(lead[F.ID]);
@@ -333,7 +333,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
                 <Field label="Unit type interested in">
                   <Select value={value(F.UNIT_TYPE)} onChange={(e) => setField(F.UNIT_TYPE, e.target.value)} options={opts(F.UNIT_TYPE)} placeholder="Select…" disabled={!canEdit} />
                 </Field>
-                <Field label="Purchase or rent">
+                <Field label="Purpose">
                   <Select value={value(F.PURCHASE_OR_RENT)} onChange={(e) => setField(F.PURCHASE_OR_RENT, e.target.value)} options={opts(F.PURCHASE_OR_RENT)} placeholder="Select…" disabled={!canEdit} />
                 </Field>
                 <Field label="Site visit status">
