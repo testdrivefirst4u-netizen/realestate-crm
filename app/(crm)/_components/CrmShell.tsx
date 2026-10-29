@@ -50,6 +50,8 @@ export interface CrmContextValue {
   /** Open a lead's detail drawer (`?lead=…` on the current screen). */
   openLead: (id: string) => void;
   openAddLead: () => void;
+  /** New Enquiry with this phone number filled in (an unknown caller). */
+  createLeadForPhone: (phone: string) => void;
   /** Opens the bulk upload (Excel / CSV import) window. */
   openImport: () => void;
   openLibrary: (query?: string) => void;
@@ -315,8 +317,8 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   };
 
   const ctx = useMemo<CrmContextValue>(
-    () => ({ engine, openLead, openAddLead, openImport, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions }),
-    [engine, openLead, openAddLead, openImport, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions]
+    () => ({ engine, openLead, openAddLead, createLeadForPhone: createLeadForCaller, openImport, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions }),
+    [engine, openLead, openAddLead, createLeadForCaller, openImport, openLibrary, openCopilot, showLeads, leadFilter, clearLeadFilter, on, aiConfigured, rmOptions]
   );
 
   const unreadCount = notifItems.filter((n) => !n.read).length;

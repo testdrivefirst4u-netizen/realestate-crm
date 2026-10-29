@@ -342,9 +342,44 @@ export async function transcribe(callId: string, ctx: Ctx): Promise<any> {
   }
   if (audio.data.length > TRANSCRIBE_MAX) throw fail('VALIDATION', 'Recording is larger than 19 MB; compress it (e.g. to MP3/OGG) before transcription.');
   const mime = /^(audio|video)\//.test(audio.mime) ? audio.mime : 'audio/mpeg';
-  const { transcription } = await transcribeAudio(audio.data.toString('base64'), mime, ctx);
+  const { transcription } = await transcribeAudio(audio.data.toString('base64'), mime, ctx, { speakers: true });
   if (!transcription) throw upstream('The AI returned an empty transcript. Please try again.');
-  return saveTranscript(call.id, transcription, 'AI', ctx);
+  // the transcription model often writes one paragraph: split it into Sales Executive / Customer turns
+  const labelled = hasSpeakers(transcription) ? transcription : await labelSpeakers(transcription, ctx).catch(() => transcription);
+  return saveTranscript(call.id, labelled, 'AI', ctx);
+}
+
+/** The transcript names who speaks ("Sales Executive: …", "Agent: …", "Customer: …") on at least one line. */
+const SPEAKER_LINE = /^\s*(?:[[(]?\s*(?:\d{1,2}:)?\d{1,2}:\d{2}\s*[\])]?\s*[-–]?\s*)?(sales\s*executive|executive|agent|customer)\s*[:\-–]/im;
+export const hasSpeakers = (text: string) => SPEAKER_LINE.test(String(text || ''));
+
+/**
+ * A plain transcript → one line per turn, "Sales Executive: …" / "Customer: …", every word kept as spoken. The
+ * original comes back when the AI's answer has no speakers or drops words (a cut-off answer on a long call).
+ */
+export async function labelSpeakers(transcript: string, ctx: Ctx): Promise<string> {
+  const text = String(transcript || '').trim();
+  if (!text) return text;
+  const prompt =
+    'Below is the transcript of a phone call between a sales executive of Amaya by Vera Vita (senior living residences, Hyderabad) and a customer, written without saying who speaks. ' +
+    'Rewrite it as a conversation: one line per turn, each starting with "Sales Executive:" or "Customer:". ' +
+    'The sales executive is the one calling from Amaya / its pre-sales team, introducing the project, answering questions or offering a visit; the other person is the customer. ' +
+    'Keep every word exactly as written, in the same order and language: do not summarise, translate, correct or add anything. Answer with the conversation only.\n\nTRANSCRIPT:\n' +
+    truncate(text, 60000);
+  const out = (await generateText(prompt, ctx, { maxOutputTokens: 8192, temperature: 0 })).replace(/^```[a-z]*\s*|\s*```$/g, '').trim();
+  const words = (s: string) => s.replace(/^\s*(sales\s*executive|customer)\s*:/gim, ' ').split(/\s+/).filter(Boolean).length;
+  return hasSpeakers(out) && words(out) >= words(text) * 0.85 ? out : text;
+}
+
+/** An older one-paragraph transcript of a call, split into Sales Executive / Customer turns (no new transcription). */
+export async function splitTranscript(callId: string, ctx: Ctx): Promise<any> {
+  const call = await getCall(callId);
+  if (!call) throw fail('NOT_FOUND', 'Call not found');
+  if (!call.transcript) throw fail('VALIDATION', 'This call has no transcript yet');
+  if (hasSpeakers(call.transcript)) return call;
+  const labelled = await labelSpeakers(call.transcript, ctx);
+  if (!hasSpeakers(labelled)) throw upstream('The AI could not tell the speakers apart in this transcript. Try "Re-transcribe".');
+  return updateCall(call.id, { transcript: labelled }, ctx);
 }
 
 /** Store a call's transcript (a file under the lead, the call, the timeline), then let the AI summarise it. */
@@ -502,4 +537,5 @@ export const actions: ActionMap = {
   uploadCallRecording: { fn: async (d, ctx) => { await assertCallAccess(ctx, d.callId); return uploadRecording(d, ctx); }, perm: 'calls.log' },
   transcribeCall: { fn: async (d, ctx) => { await assertCallAccess(ctx, d.callId); return transcribe(d.callId, ctx); }, perm: 'calls.log' },
   summarizeCall: { fn: async (d, ctx) => { await assertCallAccess(ctx, d.callId); return summarize(d.callId, ctx); }, perm: 'calls.log' },
+  splitCallTranscript: { fn: async (d, ctx) => { await assertCallAccess(ctx, d.callId); return splitTranscript(d.callId, ctx); }, perm: 'calls.log' },
 };

@@ -138,6 +138,15 @@ describe('other AI actions', () => {
     await expect(transcribeAudio('abcd', 'text/html', ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
+  it('a call recording is transcribed speaker by speaker (Sales Executive / Customer); dictation is not', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => okResp('Sales Executive: Hello.\nCustomer: Hi.'));
+    await transcribeAudio(Buffer.from('abc').toString('base64'), 'audio/wav', ctx, { speakers: true });
+    const prompt = (b: unknown) => JSON.parse(String(b)).contents[0].parts[1].text as string;
+    expect(prompt((fetchMock.mock.calls[0][1] as RequestInit).body)).toContain('[mm:ss] Sales Executive: …');
+    await transcribeAudio(Buffer.from('abc').toString('base64'), 'audio/wav', ctx);
+    expect(prompt((fetchMock.mock.calls[1][1] as RequestInit).body)).not.toContain('Sales Executive');
+  });
+
   it('transcribeAudio reads the transcription model\'s own answer shape (audioTranscription.text)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ audioTranscription: { text: 'RM: Hello. Customer: Tell me about the project.' } }] }, finishReason: 'STOP' }] }), { status: 200 }));
     const r = await transcribeAudio(Buffer.from('abc').toString('base64'), 'audio/wav', ctx);

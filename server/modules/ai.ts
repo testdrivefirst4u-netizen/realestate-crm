@@ -232,7 +232,16 @@ export async function reframe(text: string, ctx: Ctx): Promise<{ result: string;
 /* ------------------------------- transcription ----------------------------- */
 
 /** Transcribe audio bytes (base64). Used by aiTranscribe and by calls.transcribe. */
-export async function transcribeAudio(audioBase64: string, mimeType: string, ctx: Ctx): Promise<{ transcription: string }> {
+/** Call recordings: who said what, one line per turn, as "Sales Executive: …" / "Customer: …". */
+const CALL_TRANSCRIBE_PROMPT =
+  'This is a recorded phone call between a sales executive of Amaya by Vera Vita (senior living residences, Hyderabad) and a customer. ' +
+  'Transcribe it as a conversation: one line per turn, in the order spoken, each line written as "[mm:ss] Sales Executive: …" or "[mm:ss] Customer: …" — ' +
+  'mm:ss being when in the recording that turn starts, and the label being who is speaking. ' +
+  'The sales executive is the one introducing Amaya, asking about requirements or offering a visit; the other person is the customer. ' +
+  'Speakers may mix English, Hindi and Telugu; transcribe each sentence in the language spoken (Roman script for Hindi/Telugu is acceptable). ' +
+  'Do not add commentary or headings.';
+
+export async function transcribeAudio(audioBase64: string, mimeType: string, ctx: Ctx, opts: { speakers?: boolean } = {}): Promise<{ transcription: string }> {
   const clean = String(audioBase64 || '').replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
   if (!clean) throw fail('VALIDATION', 'audioBase64 is required');
   if (clean.length > MAX_AUDIO_B64) throw fail('VALIDATION', 'Audio is too large (max ~19 MB).');
@@ -242,7 +251,7 @@ export async function transcribeAudio(audioBase64: string, mimeType: string, ctx
   const resp = await generate(await modelFor('transcribe'), {
     contents: [{ role: 'user', parts: [
       { inlineData: { mimeType: mime, data: clean } },
-      { text: 'Transcribe this audio accurately. Speakers may mix English, Hindi and Telugu; transcribe each sentence in the language spoken (Roman script for Hindi/Telugu is acceptable). Do not add commentary.' },
+      { text: opts.speakers ? CALL_TRANSCRIBE_PROMPT : 'Transcribe this audio accurately. Speakers may mix English, Hindi and Telugu; transcribe each sentence in the language spoken (Roman script for Hindi/Telugu is acceptable). Do not add commentary.' },
     ] }],
     generationConfig: { temperature: 0 },
   }, { budgetMs: TRANSCRIBE_BUDGET_MS });

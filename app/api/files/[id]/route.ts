@@ -62,9 +62,16 @@ async function handle(req: Request, { params }: { params: Promise<{ id: string }
   // lead files follow the lead's visibility (RMs: own leads) — same answer as a missing file
   if (!info || !(await canSeeLead(session.user, info.leadId))) return json(404, 'NOT_FOUND', 'File not found');
 
+  // ?download=1 saves the file instead of opening it; &name=… gives it a readable name (the file's own extension is kept)
+  const sp = new URL(req.url).searchParams;
+  const wantDownload = sp.get('download') === '1';
+  const ext = (/\.[A-Za-z0-9]{1,5}$/.exec(info.name) || [''])[0];
+  const asked = String(sp.get('name') || '').replace(/[\\/\x00-\x1f]/g, ' ').replace(/\.[A-Za-z0-9]{1,5}$/, '').trim().slice(0, 120);
+  const downloadName = wantDownload && asked ? asked + ext : info.name;
+
   const headers: Record<string, string> = {
     'Content-Type': info.mime,
-    'Content-Disposition': contentDisposition(isInline(info.mime) ? 'inline' : 'attachment', info.name),
+    'Content-Disposition': contentDisposition(isInline(info.mime) && !wantDownload ? 'inline' : 'attachment', downloadName),
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'private, max-age=0',
     'Accept-Ranges': 'bytes',

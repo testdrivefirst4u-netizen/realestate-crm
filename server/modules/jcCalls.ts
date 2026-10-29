@@ -68,13 +68,20 @@ const SPEAKER: Record<string, string> = { agent: 'Agent', customer: 'Customer', 
 /** The conversation as text: JustConnect's own `text`, else built from its lines. '' while it is not ready. */
 export function jcTranscriptText(t: JcTranscript | null | undefined): string {
   if (!t || (t.status && t.status !== 'ready')) return '';
-  const own = String(t.text || '').trim();
-  if (own) return own;
-  return (Array.isArray(t.lines) ? t.lines : [])
-    .filter((l) => String(l?.text || '').trim())
-    .map((l) => `${SPEAKER[String(l.speaker)] || 'Speaker'}: ${String(l.text).trim()}`)
-    .join('\n');
+  const lines = (Array.isArray(t.lines) ? t.lines : []).filter((l) => String(l?.text || '').trim());
+  // line by line, with when in the call each was said ("[01:05] Agent: …") — the CRM shows it as a conversation
+  if (lines.length) {
+    return lines
+      .map((l) => `${Number.isFinite(Number(l.atSeconds)) ? `[${mmss(Number(l.atSeconds))}] ` : ''}${SPEAKER[String(l.speaker)] || 'Speaker'}: ${String(l.text).trim()}`)
+      .join('\n');
+  }
+  return String(t.text || '').trim();
 }
+
+const mmss = (sec: number) => {
+  const s = Math.max(0, Math.floor(sec));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};
 
 /** JustConnect's transcript of a call as text; '' when the call has none (404 no-transcript) or it is not ready yet. */
 export async function fetchJcTranscriptText(jcCallId: string): Promise<string> {
@@ -145,8 +152,12 @@ export async function ingestJcCall(c: JcCall, p?: People, ringing?: { id: string
   const user = agentUser || crmUserFor(c.rang?.[0], ppl);
   // for the call window (jcMyCall): whose phone rang, who took it, when it was answered
   const ringIds = [...new Set([...(c.rang || []), ...(ringing ? [ringing] : [])].map((a) => crmUserFor(a, ppl)?.id).filter(Boolean) as string[])];
+  // when the call was last live: now while it rings or talks; once it ended, the moment it ended — so a later save of
+  // an old call (its transcript, an outcome, the sync reading it again) never brings it back into the call window
+  const endedMs = c.endedAt ? Date.parse(c.endedAt) : NaN;
+  let liveAt = c.status === 'in-progress' ? new Date() : new Date(Number.isFinite(endedMs) ? Math.min(endedMs, Date.now()) : Date.now());
   const live = (doc: Record<string, unknown>) => ({
-    $set: { ...doc, jcAnsweredAt: c.answeredAt || '', jcLiveAt: new Date(), ...(agentUser ? { jcAgentUserId: agentUser.id } : {}) },
+    $set: { ...doc, jcAnsweredAt: c.answeredAt || '', jcLiveAt: liveAt, ...(agentUser ? { jcAgentUserId: agentUser.id } : {}) },
     ...(ringIds.length ? { $addToSet: { jcRingingUserIds: { $each: ringIds } } } : {}),
   });
   const actor = user?.name || c.agent?.name || PROVIDER;
@@ -165,6 +176,8 @@ export async function ingestJcCall(c: JcCall, p?: People, ringing?: { id: string
 
   const existing = await (await callsCol()).findOne({ provider: PROVIDER, providerCallId: c.id });
   if (existing) {
+    // ended with no end time from JustConnect: keep when it was last live
+    if (c.status !== 'in-progress' && !Number.isFinite(endedMs) && existing.status !== 'In Progress' && existing.jcLiveAt) liveAt = new Date(existing.jcLiveAt);
     await updateCall(String(existing._id), fields, ctx);
     await (await callsCol()).updateOne({ _id: existing._id }, live({ jcRecording: !!c.recording, jcVoicemail: !!c.voicemail, jcTranscript: c.transcript?.status || '', jcUpdatedAt: c.updatedAt || '' }));
     return { callId: String(existing._id), created: false, ended };

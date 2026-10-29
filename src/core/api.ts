@@ -349,6 +349,8 @@ export const api = {
       request<CallRecord>('uploadCallRecording', { callId, name, mime, base64 }, { timeoutMs: 180000 }),
     transcribe: (callId: string) => request<CallRecord>('transcribeCall', { callId }, { timeoutMs: 180000 }),
     summarize: (callId: string) => request<CallRecord>('summarizeCall', { callId }, { timeoutMs: 120000 }),
+    /** An older one-paragraph transcript, split into Sales Executive / Customer turns. */
+    splitTranscript: (callId: string) => request<CallRecord>('splitCallTranscript', { callId }, { timeoutMs: 120000 }),
   },
 
   ai: {

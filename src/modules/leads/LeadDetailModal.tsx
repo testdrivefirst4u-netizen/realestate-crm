@@ -264,7 +264,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
 
   return (
     <>
-      <Modal open onClose={requestClose} side title={title} subtitle={subtitle} footer={footer}>
+      <Modal open onClose={requestClose} side panelKey={String(lead?.[F.ID] || '')} title={title} subtitle={subtitle} footer={footer}>
         <div className="space-y-4">
           <Tabs<TabId> tabs={tabs} value={tab} onChange={setTab} />
 

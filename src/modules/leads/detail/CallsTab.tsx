@@ -17,6 +17,7 @@ import { CallButton } from '../../calls/CallButton';
 import { Badge, Button, EmptyState, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
 import { CALL_OUTCOMES, MAX_UPLOAD_BYTES, callStatusForOutcome, fileToBase64, formatBytes, useLazyResource } from '../shared';
 import { ListSkeleton } from '../../../components/Skeletons';
+import { TranscriptView } from '../../calls/TranscriptView';
 
 interface Props {
   lead: Lead;
@@ -113,7 +114,7 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
   };
 
   /* ----------------------------- per-call actions ----------------------------- */
-  const [busy, setBusy] = useState<Record<string, 'upload' | 'transcribe' | undefined>>({});
+  const [busy, setBusy] = useState<Record<string, 'upload' | 'transcribe' | 'split' | undefined>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -149,6 +150,19 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
       onChanged?.();
     } catch (e) {
       setActionError(reportError('leads.callTranscribe', e).userMessage);
+    } finally {
+      setBusy((b) => ({ ...b, [call.id]: undefined }));
+    }
+  };
+
+  const splitTranscript = async (call: CallRecord) => {
+    setActionError(null);
+    setBusy((b) => ({ ...b, [call.id]: 'split' }));
+    try {
+      replaceCall(await api.calls.splitTranscript(call.id));
+      toast('Transcript split', 'Now shown as Sales Executive and Customer', 'success');
+    } catch (e) {
+      setActionError(reportError('leads.callSplitTranscript', e).userMessage);
     } finally {
       setBusy((b) => ({ ...b, [call.id]: undefined }));
     }
@@ -242,6 +256,7 @@ export const CallsTab: React.FC<Props> = ({ lead, active, aiConfigured, onChange
             busy={busy[c.id]}
             onPickRecording={() => fileInputs.current[c.id]?.click()}
             onTranscribe={() => void transcribe(c)}
+            onSplitTranscript={() => void splitTranscript(c)}
             leadStage={String(lead[F.STAGE] || '')}
             onSetStage={(st) => void setStage(st)}
             onUpdated={() => { void calls.reload(); onChanged?.(); }}
@@ -290,14 +305,15 @@ const statusTone = (s: CallRecord['status']): 'sage' | 'rust' | 'amber' | 'muted
 const CallRow: React.FC<{
   call: CallRecord;
   aiConfigured: boolean;
-  busy?: 'upload' | 'transcribe';
+  busy?: 'upload' | 'transcribe' | 'split';
   onPickRecording: () => void;
   onTranscribe: () => void;
+  onSplitTranscript: () => void;
   fileInput: React.ReactNode;
   leadStage: string;
   onSetStage: (stage: string) => void;
   onUpdated: () => void;
-}> = ({ call, aiConfigured, busy, onPickRecording, onTranscribe, fileInput, leadStage, onSetStage, onUpdated }) => {
+}> = ({ call, aiConfigured, busy, onPickRecording, onTranscribe, onSplitTranscript, fileInput, leadStage, onSetStage, onUpdated }) => {
   const [showSummary, setShowSummary] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const hasRecording = !!(call.recordingUrl || call.recordingFileId);
@@ -398,7 +414,7 @@ const CallRow: React.FC<{
           )}
         </div>
       )}
-      {showTranscript && call.transcript && <div className="rounded-lg border border-[#D3E3F0] bg-[#FFFFFF] p-3 text-xs text-[#0F2233] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{call.transcript}</div>}
+      {showTranscript && call.transcript && <TranscriptView transcript={call.transcript} execName={call.loggedBy && call.loggedBy !== call.provider ? call.loggedBy : ''} customerName={call.customerName || ''} durationSec={call.durationSec} when={call.startTime || call.callDate} source={call.transcriptSource} onSplit={aiConfigured ? onSplitTranscript : undefined} splitting={busy === 'split'} maxHeightClass="max-h-96" />}
     </div>
   );
 };

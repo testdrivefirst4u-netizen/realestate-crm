@@ -76,7 +76,7 @@ export interface RouteResult {
 const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatures>, string]> = [
   [/^ai[A-Z]/, 'aiCopilot', 'AI features'],
   [/^chat360/, 'chat360', 'WhatsApp (Chat360)'],
-  [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall)$|^jc[A-Z]/, 'calls', 'Calls'],
+  [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall|splitCallTranscript)$|^jc[A-Z]/, 'calls', 'Calls'],
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],
   [/^library(Get|Save)$/, 'projectLibrary', 'The project library'],

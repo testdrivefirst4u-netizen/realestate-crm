@@ -23,7 +23,7 @@ import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
 import * as storage from '../server/modules/storage';
 import * as records from '../server/modules/records';
-import { actions, handleWebhook, listCalls, logCall, summarize, transcribe, updateCall, uploadRecording } from '../server/modules/calls';
+import { actions, handleWebhook, hasSpeakers, listCalls, logCall, splitTranscript, summarize, transcribe, updateCall, uploadRecording } from '../server/modules/calls';
 import { POST as telephonyPOST } from '../app/api/webhooks/telephony/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -155,18 +155,37 @@ describe('recordings, transcription & summary', () => {
     const call = await logCall({ leadId: 'ENQ-0007' }, ctx);
     await updateCall(call.id, { recordingFileId: 'F1' }, ctx);
     vi.mocked(storage.readFile).mockResolvedValue({ data: Buffer.from('audio'), mime: 'audio/mpeg', name: 'r.mp3', size: 5 });
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(gemini('Hello this is Meera')).mockResolvedValueOnce(gemini(SUMMARY));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(gemini('Hello this is Meera')).mockResolvedValueOnce(gemini('Customer: Hello this is Meera')).mockResolvedValueOnce(gemini(SUMMARY));
     const out = await transcribe(call.id, ctx);
     expect(out).toMatchObject({
-      transcript: 'Hello this is Meera', aiSummary: 'Meera wants a 2 BHK.', keyPoints: ['2 BHK', 'Budget 1 Cr'], followupActions: ['Send brochure'], outcome: 'Interested',
+      transcript: 'Customer: Hello this is Meera', aiSummary: 'Meera wants a 2 BHK.', keyPoints: ['2 BHK', 'Budget 1 Cr'], followupActions: ['Send brochure'], outcome: 'Interested',
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3); // audio → text, text → speakers, summary
     const audioBody = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
     expect(audioBody.contents[0].parts[0].inlineData).toEqual({ mimeType: 'audio/mpeg', data: Buffer.from('audio').toString('base64') });
     expect(vi.mocked(storage.saveFile).mock.calls.some((c) => c[0].category === 'Call Transcripts')).toBe(true);
     expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Next Follow-up Date': '2026-10-10T05:30:00.000Z' }, ctx);
     const types = (await (await col(CFG.COLL.TIMELINE)).find({ leadId: 'ENQ-0007' }).toArray()).map((r: any) => r.type);
     expect(types).toEqual(expect.arrayContaining(['call_transcript', 'call_summary']));
+  });
+
+  it('an older one-paragraph transcript is split into Sales Executive / Customer turns; an answer that drops words is refused', async () => {
+    const call = await logCall({ leadId: 'ENQ-0007' }, ctx);
+    const plain = 'Hello. My name is Pratyusha, calling from the pre-sales team at Amaya. Yes, I was looking for my parents actually.';
+    await updateCall(call.id, { transcript: plain }, ctx);
+    const split = 'Sales Executive: Hello. My name is Pratyusha, calling from the pre-sales team at Amaya.\nCustomer: Yes, I was looking for my parents actually.';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(gemini('Sales Executive: Hello.\nCustomer: Yes.')); // most words lost
+    await expect(splitTranscript(call.id, ctx)).rejects.toMatchObject({ code: 'SERVER' });
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(gemini(split));
+    expect((await splitTranscript(call.id, ctx)).transcript).toBe(split);
+    // already split: nothing more to do, no AI call
+    const again = vi.spyOn(globalThis, 'fetch');
+    again.mockClear();
+    expect((await splitTranscript(call.id, ctx)).transcript).toBe(split);
+    expect(again).not.toHaveBeenCalled();
+    expect(hasSpeakers('[00:03] Agent: Hi')).toBe(true);
+    expect(hasSpeakers(plain)).toBe(false);
   });
 
   it('summarize requires a transcript', async () => {
@@ -196,10 +215,11 @@ describe('recordings, transcription & summary', () => {
     fetchMock
       .mockResolvedValueOnce(new Response(Buffer.from('mp3data'), { status: 200, headers: { 'content-type': 'audio/mpeg' } }))
       .mockResolvedValueOnce(gemini('transcript text'))
+      .mockResolvedValueOnce(gemini('Sales Executive: transcript text'))
       .mockResolvedValueOnce(gemini(SUMMARY));
     const out = await transcribe(r.id, ctx);
-    expect(out.transcript).toBe('transcript text');
+    expect(out.transcript).toBe('Sales Executive: transcript text');
     expect(out.recordingUrl).toMatch(/^\/api\/files\//);
-    expect(fetchMock.mock.calls.at(-3)![0]).toBe('https://voice.zoho.in/r.mp3');
+    expect(fetchMock.mock.calls.at(-4)![0]).toBe('https://voice.zoho.in/r.mp3');
   });
 });

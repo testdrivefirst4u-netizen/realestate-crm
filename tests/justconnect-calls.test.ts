@@ -34,6 +34,8 @@ const WAV = Buffer.from('RIFF....WAVEfmt fake audio');
 /** What GET /call-logs/{id}/transcript answers (null = 404 no-transcript), and how often it was asked. */
 let jcTranscript: JcTranscript | null = null;
 let transcriptAsks = 0;
+/** How the CRM saves it: line by line, with when in the call each was said. */
+const JC_TEXT = '[00:01] Agent: Namaste, Amaya nundi Priya.\n[00:04] Customer: We want to visit on Saturday.';
 const JC_TRANSCRIPT: JcTranscript = {
   status: 'ready', languages: ['te-IN', 'en-IN'],
   lines: [{ speaker: 'agent', text: 'Namaste, Amaya nundi Priya.', atSeconds: 1.2, final: true }, { speaker: 'customer', text: 'We want to visit on Saturday.', atSeconds: 4.6, final: true }],
@@ -166,8 +168,9 @@ describe('after the call', () => {
 });
 
 describe("JustConnect's transcripts", () => {
-  it('builds the text from the lines when JustConnect sends none, and nothing while it is not ready', () => {
-    expect(jcTranscriptText({ ...JC_TRANSCRIPT, text: '' })).toBe('Agent: Namaste, Amaya nundi Priya.\nCustomer: We want to visit on Saturday.');
+  it('saves it line by line with when each was said; its plain text only without lines; nothing while it is not ready', () => {
+    expect(jcTranscriptText(JC_TRANSCRIPT)).toBe(JC_TEXT);
+    expect(jcTranscriptText({ status: 'ready', text: 'Agent: Hello.\nCustomer: Hi.' })).toBe('Agent: Hello.\nCustomer: Hi.');
     expect(jcTranscriptText({ ...JC_TRANSCRIPT, status: 'in-progress' })).toBe('');
     expect(jcTranscriptText(null)).toBe('');
   });
@@ -177,7 +180,7 @@ describe("JustConnect's transcripts", () => {
     const { callId } = await ingestJcCall(jcCall({ ref: lead[L.ID], transcript: { url: 'x', status: 'ready', lines: 2 } }));
     expect(await finishCall(callId, { transcript: JC_TRANSCRIPT })).toMatchObject({ recording: true, ai: true });
     const c = (await crmCalls())[0];
-    expect(c).toMatchObject({ transcript: JC_TRANSCRIPT.text, transcriptSource: 'JustConnect', aiTemperature: 'Hot', aiSummary: expect.stringContaining('2.5 BHK') });
+    expect(c).toMatchObject({ transcript: JC_TEXT, transcriptSource: 'JustConnect', aiTemperature: 'Hot', aiSummary: expect.stringContaining('2.5 BHK') });
     expect(c.transcriptFileId).toBeTruthy();
     expect(transcriptAsks).toBe(0); // it came in the event
     expect(JSON.stringify(await timelineForLead(lead[L.ID]))).toContain('Call transcript (JustConnect)');
@@ -194,7 +197,7 @@ describe("JustConnect's transcripts", () => {
     jcTranscript = JC_TRANSCRIPT;
     await ingestJcCall(jcCall({ id: 'jc7', customer: '9876500007', ref: lead[L.ID], endedAt, transcript: { url: 'x', status: 'ready', lines: 2 } }));
     expect(await finishCall(callId)).toMatchObject({ ai: true });
-    expect((await crmCalls())[0]).toMatchObject({ transcript: JC_TRANSCRIPT.text, transcriptSource: 'JustConnect' });
+    expect((await crmCalls())[0]).toMatchObject({ transcript: JC_TEXT, transcriptSource: 'JustConnect' });
     expect(transcriptAsks).toBe(1);
   });
 
@@ -211,7 +214,7 @@ describe("JustConnect's transcripts", () => {
     await finishCall(callId); // short call: recording only
     jcTranscript = JC_TRANSCRIPT;
     await transcribe(callId, admin);
-    expect((await crmCalls())[0]).toMatchObject({ transcript: JC_TRANSCRIPT.text, transcriptSource: 'JustConnect' });
+    expect((await crmCalls())[0]).toMatchObject({ transcript: JC_TEXT, transcriptSource: 'JustConnect' });
     await transcribe(callId, admin);
     expect((await crmCalls())[0]).toMatchObject({ transcript: expect.stringContaining('2.5 BHK'), transcriptSource: 'AI' });
   });
@@ -257,6 +260,20 @@ describe('call window (jcMyCall)', () => {
     expect(await jcMyCall({}, priya)).toBeNull();
     expect(await jcMyCall({ id: done!.id }, priya)).toMatchObject({ id: done!.id, phase: 'ended' });
     expect(await jcMyCall({ id: done!.id }, admin)).toBeNull();
+  });
+
+  it('an old call saved again (its transcript, an outcome, the sync reading it again) does not come back into the window', async () => {
+    const endedAt = new Date(Date.now() - 30 * 60_000).toISOString();
+    const old = inbound({ status: 'answered', agent: { id: 'ag1', name: 'Priya S' }, answeredAt: endedAt, endedAt, talkSeconds: 8 });
+    await ingestJcCall(old);
+    expect(await jcMyCall({}, priya)).toBeNull();
+    await ingestJcCall({ ...old, transcript: { url: 'x', status: 'ready', lines: 2 }, updatedAt: new Date().toISOString() });
+    await ingestJcCall(old);
+    expect(await jcMyCall({}, priya)).toBeNull();
+    // one that just ended still shows, for two minutes
+    const justNow = new Date(Date.now() - 20_000).toISOString();
+    await ingestJcCall(inbound({ id: 'in2', status: 'answered', agent: { id: 'ag1', name: 'Priya S' }, answeredAt: justNow, endedAt: justNow, talkSeconds: 8 }));
+    expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ended' });
   });
 
   it('a call a colleague picked up leaves my window', async () => {

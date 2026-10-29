@@ -58,6 +58,119 @@ export function outcomeTone(outcome: string | undefined | null): BadgeTone {
 export const callTime = (c: CallRecord): string => c.startTime || c.callDate || c.createdAt || '';
 
 export const hasRecording = (c: CallRecord): boolean => !!(c.recordingUrl || c.recordingFileId);
+
+/** Where the recording plays from: the CRM's stored file, else the provider's link. '' when there is none. */
+export const recordingSrc = (c: CallRecord): string => (c.recordingFileId ? `/api/files/${encodeURIComponent(c.recordingFileId)}` : String(c.recordingUrl || ''));
+
+/**
+ * A link that saves the recording as "<who> <yyyy-mm-dd hh-mm>.<ext>". A provider's own link is returned as it is
+ * (its server decides how it downloads).
+ */
+export function recordingDownloadUrl(c: CallRecord, who: string): string {
+  const src = recordingSrc(c);
+  if (!src.startsWith('/api/files/')) return src;
+  const t = new Date(callTime(c));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const when = Number.isNaN(t.getTime()) ? '' : ` ${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())} ${pad(t.getHours())}-${pad(t.getMinutes())}`;
+  const name = `${(who || c.phone || 'Call').replace(/[^\p{L}\p{N} +_-]/gu, ' ').replace(/\s+/g, ' ').trim() || 'Call'}${when}`;
+  return `${src}?download=1&name=${encodeURIComponent(name)}`;
+}
+
+export interface TranscriptTurn {
+  /** exec = the sales executive (JustConnect's "Agent"), customer, or ai (JustConnect's AI agent). */
+  speaker: 'exec' | 'customer' | 'ai';
+  text: string;
+  /** When in the call the turn starts, in seconds (from a "[mm:ss]" in front of the line). */
+  at?: number;
+}
+
+/** "[01:05] Customer: …", "(1:05) Customer – …" or "Customer: …" */
+const SPEAKER_RE = /^\s*(?:[[(]?\s*((?:\d{1,2}:)?\d{1,2}:\d{2})\s*[\])]?\s*[-–]?\s*)?(sales\s*executive|executive|agent|rm|sales|customer|caller|client|prospect|ai\s*agent)\s*[:\-–]\s*(.*)$/i;
+const toSeconds = (t: string) => t.split(':').map(Number).reduce((s, n) => s * 60 + n, 0);
+
+/** 65 → "01:05" (with hours when the call ran past an hour). */
+export const clockTime = (sec: number): string => {
+  const s = Math.max(0, Math.floor(sec));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+};
+
+/**
+ * A transcript as a conversation, when it is written one turn per line ("Agent: …", "Sales Executive: …",
+ * "Customer: …"). Lines without a speaker continue the turn before. null when no line names a speaker
+ * (an older transcript: shown as plain text).
+ */
+export function transcriptTurns(transcript: string | undefined | null): TranscriptTurn[] | null {
+  const turns: TranscriptTurn[] = [];
+  let labelled = 0;
+  for (const raw of String(transcript || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = SPEAKER_RE.exec(line);
+    if (m) {
+      labelled++;
+      const who = m[2].toLowerCase().replace(/\s+/g, ' ');
+      const speaker: TranscriptTurn['speaker'] = who === 'ai agent' ? 'ai' : ['customer', 'caller', 'client', 'prospect'].includes(who) ? 'customer' : 'exec';
+      const prev = turns[turns.length - 1];
+      if (prev && prev.speaker === speaker) prev.text += ' ' + m[3].trim(); // the same person still talking
+      else turns.push({ speaker, text: m[3].trim(), ...(m[1] ? { at: toSeconds(m[1]) } : {}) });
+    } else if (turns.length) {
+      turns[turns.length - 1].text += ' ' + line;
+    } else {
+      turns.push({ speaker: 'exec', text: line });
+    }
+  }
+  return labelled ? turns.filter((t) => t.text) : null;
+}
+
+/** How far back a missed call still asks to be called back. */
+export const CALL_BACK_DAYS = 14;
+
+/**
+ * Missed incoming calls nobody has dealt with yet: no call to that number since (any outgoing attempt counts), and no
+ * later call from it that was answered. Only the last CALL_BACK_DAYS days. Returns their call ids.
+ */
+export function callBackIds(calls: CallRecord[], now = Date.now()): Set<string> {
+  const since = now - CALL_BACK_DAYS * 86400000;
+  const byPhone = new Map<string, CallRecord[]>();
+  for (const c of calls) {
+    const k = last10(c.phone || '');
+    if (!k) continue;
+    if (!byPhone.has(k)) byPhone.set(k, []);
+    byPhone.get(k)!.push(c);
+  }
+  const out = new Set<string>();
+  for (const list of byPhone.values()) {
+    for (const c of list) {
+      const t = Date.parse(callTime(c)) || 0;
+      if (c.direction !== 'Inbound' || !MISSED_STATUSES.includes(String(c.status)) || t < since) continue;
+      const handled = list.some((o) => o !== c && (Date.parse(callTime(o)) || 0) > t && (o.direction === 'Outbound' || o.status === 'Completed'));
+      if (!handled) out.add(c.id);
+    }
+  }
+  return out;
+}
+
+/** Calls, answered, talk time and answer rate of a list (the figures above the call list). */
+export function callStats(calls: CallRecord[]): { calls: number; answered: number; talkSec: number; answerRate: number | null } {
+  const answered = calls.filter((c) => c.status === 'Completed').length;
+  const ended = calls.filter((c) => c.status !== 'In Progress').length;
+  return { calls: calls.length, answered, talkSec: calls.reduce((s, c) => s + (Number(c.durationSec) || 0), 0), answerRate: ended ? Math.round((answered / ended) * 100) : null };
+}
+
+/** Day heading for the call list: Today, Yesterday, else "Mon, 27 Oct" (with the year when it is not this year). */
+export function dayHeading(iso: string, now = new Date()): string {
+  const key = dateKey(iso);
+  if (!key) return 'Date unknown';
+  if (key === todayKey()) return 'Today';
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  if (key === dateKey(y.toISOString())) return 'Yesterday';
+  const d = new Date(`${key}T12:00:00`);
+  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', ...(key.slice(0, 4) !== todayKey().slice(0, 4) ? { year: 'numeric' } : {}) });
+}
 export const hasTranscript = (c: CallRecord): boolean => !!String(c.transcript || '').trim();
 export const hasSummary = (c: CallRecord): boolean => !!String(c.aiSummary || '').trim();
 
