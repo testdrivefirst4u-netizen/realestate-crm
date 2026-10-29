@@ -59,7 +59,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
 /* -------------------------------------------------------------------------- */
 
 /** The CRM's ocean theme, with the Sales MIS stage colours for the stages (so both screens read the same). */
-const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', planned: '#1D5585' };
+const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', nonResponding: '#C46A12', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', planned: '#1D5585' };
 const two = (n: number) => String(n).padStart(2, '0');
 
 const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]>; show: (label: string, ls: MisLead[]) => void }> = ({ title, sub, tiles, show }) => (
@@ -68,7 +68,7 @@ const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, st
       <span className="text-[13px] sm:text-sm font-bold tracking-wide text-[#0B2A44] uppercase">{title}</span>
       <span className="block text-[10.5px] font-medium text-[#5E778C]">{sub}</span>
     </div>
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 bg-white">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 bg-white">
       {tiles.map(([label, colour, ls, hint]) => (
         <button
           key={label}
@@ -101,6 +101,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
     ['Unqualified Leads', C.unqualified, p.unqualified, 'Of those: disqualified (budget, location, not interested…)'],
     ['New Enquiries', C.fresh, p.fresh, 'Of those: still at stage New'],
     ['Open Enquiries', C.open, p.open, 'Of those: stage Open or Not Responding'],
+    ['Non-Responding', C.nonResponding, p.nonResponding, 'Of the open enquiries: stage Not Responding (also counted in Open Enquiries)'],
     ['Site Visits', C.visits, p.visits, 'Site visits done in this period, by visit date'],
   ];
   const year = d.slice(0, 4);
@@ -116,6 +117,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
         ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, Warm, HOT, booked, or a site visit scheduled / done'],
         ['Warm Leads', C.warm, pipe.warm],
         ['Hot Leads', C.hot, pipe.hot],
+        ['Non-Responding', C.nonResponding, pipe.nonResponding, 'Open leads at stage Not Responding'],
         ['Site Visits Planned', C.planned, pipe.svPlanned, 'Prospect for site visit or visit scheduled, still open'],
         ['Site Visits Completed', C.visits, pipe.svDone, 'Site visit done or walk-in'],
       ],
@@ -151,7 +153,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
         </div>
       </div>
       {blocks.map((b) => <PerfBlock key={b.title} title={b.title} sub={b.sub} tiles={b.tiles} show={show} />)}
-      <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, new and open (open includes Not Responding), so those four add up to Leads Received. Site visits count visits done on those dates. The representative and source filters apply to every block; select any number to see the leads.</p>
+      <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, new and open, so those four add up to Leads Received; Non-Responding is the part of Open at stage Not Responding. Site visits count visits done on those dates. The representative and source filters apply to every block; select any number to see the leads.</p>
       {pipe.svDoneUndated.length > 0 && (
         <p className="text-[11px] text-[#B54708] px-1">
           {pipe.svDoneUndated.length} completed site visit{pipe.svDoneUndated.length === 1 ? ' has' : 's have'} no visit date, so {pipe.svDoneUndated.length === 1 ? 'it is' : 'they are'} counted in the overall total but not in the day, month or year.{' '}

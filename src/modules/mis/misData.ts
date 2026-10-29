@@ -381,9 +381,13 @@ export interface PerfRow {
   fresh: MisLead[];
   /** Open or Not Responding. */
   open: MisLead[];
+  /** Of the open ones: stage Not Responding (also counted in `open`). */
+  nonResponding: MisLead[];
   /** Site visits done in the period (by the visit's own date, whenever the lead came in). */
   visits: MisLead[];
 }
+
+const isNotResponding = (l: MisLead) => stageOf(l.lead) === STAGES.NOT_RESPONDING;
 
 const visitDay = (l: MisLead) => {
   if (!SITE_VISIT_DONE.includes(l.sv)) return '';
@@ -399,6 +403,7 @@ export function perfRow(list: MisLead[], range: Range): PerfRow {
     unqualified: received.filter((l) => l.stage === 'disqualified'),
     fresh: received.filter((l) => l.stage === 'new' && !passed(l)),
     open: received.filter((l) => l.stage === 'open' && !passed(l)), // includes Not Responding
+    nonResponding: received.filter((l) => l.stage === 'open' && !passed(l) && isNotResponding(l)),
     visits: list.filter((l) => { const d = visitDay(l); return !!d && inRange(d, range); }),
   };
 }
@@ -417,6 +422,8 @@ export function pipelineNow(list: MisLead[]) {
     qualified: list.filter(passed),
     warm: list.filter((l) => l.stage === 'warm'),
     hot: list.filter((l) => l.stage === 'hot'),
+    /** still open, at stage Not Responding */
+    nonResponding: list.filter((l) => l.stage === 'open' && isNotResponding(l)),
     /** still open, with a visit to come: "Prospect for Site Visit" or "Scheduled" (teams use both for a planned visit) */
     svPlanned: list.filter((l) => PLANNED_SV.includes(l.sv) && !['disqualified', 'ni', 'booked'].includes(l.stage)),
     svDone: list.filter((l) => SITE_VISIT_DONE.includes(l.sv)),

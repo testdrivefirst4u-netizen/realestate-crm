@@ -188,6 +188,7 @@ describe('enquiry performance (FTD / MTD / YTD)', () => {
     expect(ids(ftd.unqualified)).toEqual(['c']);
     expect(ids(ftd.fresh)).toEqual(['e']);
     expect(ids(ftd.open)).toEqual(['d']); // Not Responding counts as open
+    expect(ids(ftd.nonResponding)).toEqual(['d']); // and is shown on its own too
     for (const row of [ftd, perfRow(all, r.mtd), perfRow(all, r.ytd)]) {
       expect(row.qualified.length + row.unqualified.length + row.fresh.length + row.open.length).toBe(row.received.length);
     }
@@ -219,7 +220,7 @@ describe('YTD / MTD screen (server render)', () => {
     const leads = [lead('1', STAGES.QUALIFIED, { [F.ENQUIRY_DATE]: `${today}T11:00:00+05:30` }), lead('2', STAGES.NOT_RESPONDING, { [F.ENQUIRY_DATE]: `${today}T12:00:00+05:30` })];
     const html = renderToStaticMarkup(createElement(PerformanceView, { leads, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
     if (process.env.MIS_HTML) (await import('node:fs')).writeFileSync(process.env.MIS_HTML, html);
-    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'New Enquiries', 'Open Enquiries', 'Site Visits Completed']) expect(html).toContain(t);
+    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'New Enquiries', 'Open Enquiries', 'Non-Responding', 'Site Visits Completed']) expect(html).toContain(t);
   });
 });
 
