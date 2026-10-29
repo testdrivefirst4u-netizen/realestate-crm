@@ -113,7 +113,7 @@ export const CFG = {
   DEFAULT_OPTIONS: {
     'Lead Stage': ['New', 'Open', 'Qualified', 'Warm', 'Hot', 'Booked', 'Not Responding',
       'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Project Type', 'Disqualified - Timeline',
-      'Disqualified - Not Interested', 'Trash'],
+      'Disqualified - Not Interested', 'Lost', 'Trash'],
     'Enquiry Source': ['Website', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads',
       'Google Ads', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL'],
     'Unit Type Interested In': ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],

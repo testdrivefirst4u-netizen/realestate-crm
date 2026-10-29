@@ -465,7 +465,7 @@ const STAGE_VALUES: string[] = Object.values(STAGES).filter((s) => !RETIRED_STAG
 const STAGE_ALIASES: Record<string, string> = {
   nr: STAGES.NOT_RESPONDING, no_response: STAGES.NOT_RESPONDING, not_answering: STAGES.NOT_RESPONDING,
   // retired stages: now Disqualified - Not Interested
-  lost: STAGES.DQ_NI, junk: STAGES.DQ_NI, dnd: STAGES.DQ_NI, do_not_disturb: STAGES.DQ_NI,
+  lost: STAGES.LOST, closed_lost: STAGES.LOST, junk: STAGES.DQ_NI, dnd: STAGES.DQ_NI, do_not_disturb: STAGES.DQ_NI,
   won: STAGES.BOOKED, closed_won: STAGES.BOOKED, booking: STAGES.BOOKED, bookings: STAGES.BOOKED,
   dq_budget: STAGES.DQ_BUDGET, disqualified_budget: STAGES.DQ_BUDGET, budget: STAGES.DQ_BUDGET,
   dq_location: STAGES.DQ_LOCATION, disqualified_location: STAGES.DQ_LOCATION, location: STAGES.DQ_LOCATION,

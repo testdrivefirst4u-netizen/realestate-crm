@@ -131,8 +131,8 @@ export const FUNNEL_STAGES: string[] = [
   STAGES.BOOKED,
 ];
 
-/** Stages no longer offered (merged into Disqualified - Not Interested; the server moves old leads and maps them on save). */
-export const RETIRED_STAGES: string[] = [STAGES.LOST, STAGES.JUNK, STAGES.DND, STAGES.DQ_RENTAL];
+/** Stages no longer offered (merged into Disqualified - Not Interested; the server moves old leads and maps them on save). Lost is offered again. */
+export const RETIRED_STAGES: string[] = [STAGES.JUNK, STAGES.DND, STAGES.DQ_RENTAL];
 
 /** Stage classification — the single source of truth for every KPI. */
 export const STAGE_CLASS = {
@@ -197,6 +197,7 @@ export const DEFAULT_CONFIG = {
       STAGES.DQ_PROJECT,
       STAGES.DQ_TIMELINE,
       STAGES.DQ_NI,
+      STAGES.LOST,
       STAGES.TRASH,
     ],
     [F.SOURCE]: [
