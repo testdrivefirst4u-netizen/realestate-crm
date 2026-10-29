@@ -1,32 +1,20 @@
+/**
+ * The Project Library: every project document (brochure, floor plans, packages, prices, legal papers and the files
+ * the team adds) split into numbered passages, so any word or figure can be found and quoted.
+ *
+ * Layout: a side menu (Search · Documents · Quick facts · Edit) with the documents listed under it; on phones the
+ * menu becomes a row of tabs. Admins and the chosen library editors can add PDF / Word / Excel files and edit.
+ */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  X,
-  Search,
-  BookOpen,
-  MapPin,
-  Building,
-  ShieldCheck,
-  DollarSign,
-  HeartHandshake,
-  Sparkles,
-  Copy,
-  Check,
-  Share2,
-  FileText,
-  ArrowRight,
-  Download,
-  BookMarked,
-  Eye,
-  Pencil,
+  ArrowLeft, ArrowRight, BookOpen, Building, Check, ChevronLeft, ChevronRight, Copy, DollarSign, Download, FileText,
+  HeartHandshake, Library, MapPin, Pencil, Search, Share2, ShieldCheck, Sparkles, Upload, X,
 } from 'lucide-react';
-import {
-  DocVerse,
-  searchProjectConcordance,
-  SearchMatch,
-  highlightTerms,
-} from '../documents/projectDocuments';
+import { DocVerse, searchProjectConcordance, SearchMatch, highlightTerms } from '../documents/projectDocuments';
 import { projectLibrary, useProjectLibrary } from '../documents/projectLibrary';
 import { LibraryEditor } from './LibraryEditor';
+import { FileKindIcon, LibraryUpload } from './LibraryUpload';
+import { cx } from './ui';
 
 interface LibraryModalProps {
   isOpen: boolean;
@@ -36,23 +24,27 @@ interface LibraryModalProps {
   canEdit?: boolean;
 }
 
+type Tab = 'search' | 'documents' | 'reader' | 'facts' | 'edit';
+
 const SECTION_ICON: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   building: Building, shield: ShieldCheck, money: DollarSign, heart: HeartHandshake, sparkles: Sparkles, map: MapPin, book: BookOpen, file: FileText,
 };
 
+const POPULAR = ['MediCiti', '1,533', '2.5 BHK', 'Vaastu', 'Vegetarian', 'TG RERA', 'Ambulance', 'Milestones', 'BSP ₹8,999', 'Kandlakoya', 'Escrow', 'Buggy'];
+
 /** Escaped HTML of `text` with `q` (user input) highlighted — see highlightTerms. */
 const highlightText = (text: string, q: string): string => highlightTerms(text, q ? [q] : []);
 
-/** ".md" — the extension of the file a download link actually serves. */
-function downloadExtension(url: string): string {
-  const m = String(url || '').match(/\.([A-Za-z0-9]+)(?:[?#].*)?$/);
-  return m ? `.${m[1].toLowerCase()}` : '';
+/** ".pdf" — from the document's file name, else from its download link. */
+function extensionOf(fileName: string, url: string): string {
+  const m = /\.([A-Za-z0-9]{1,5})$/.exec(fileName || '') || /\.([A-Za-z0-9]+)(?:[?#].*)?$/.exec(url || '');
+  return m ? m[1].toUpperCase() : '';
 }
 
-/** Last path segment of the download URL, used as the suggested file name. */
-function downloadFileName(url: string): string {
-  const clean = String(url || '').split(/[?#]/)[0];
-  const seg = clean.split('/').filter(Boolean).pop() || '';
+/** The name a download is saved as. */
+function downloadName(fileName: string, url: string): string {
+  if (fileName) return fileName;
+  const seg = String(url || '').split(/[?#]/)[0].split('/').filter(Boolean).pop() || '';
   try {
     return decodeURIComponent(seg);
   } catch {
@@ -60,25 +52,60 @@ function downloadFileName(url: string): string {
   }
 }
 
-export const LibraryModal: React.FC<LibraryModalProps> = ({
-  isOpen,
-  onClose,
-  initialQuery = '',
-  canEdit: isAdmin = false,
-}) => {
+const CATEGORY_TONE: Record<string, string> = {
+  'Brochure': 'bg-sky-50 text-sky-800 border-sky-200',
+  'Floor Plans': 'bg-violet-50 text-violet-800 border-violet-200',
+  'Monthly Packages': 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  'Pricing & Payment': 'bg-amber-50 text-amber-800 border-amber-200',
+  'Legal & RERA': 'bg-rose-50 text-rose-800 border-rose-200',
+};
+const CategoryPill: React.FC<{ category: string }> = ({ category }) => (
+  <span className={cx('inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap', CATEGORY_TONE[category] || 'bg-[#F2F7FB] text-[#5E778C] border-[#D3E3F0]')}>{category}</span>
+);
+
+const IconBtn: React.FC<{ title: string; onClick: () => void; children: React.ReactNode; tone?: 'green' }> = ({ title, onClick, children, tone }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={title}
+    aria-label={title}
+    className={cx('p-1.5 rounded-lg border transition', tone === 'green' ? 'text-emerald-700 border-emerald-200 hover:bg-emerald-50' : 'text-[#5E778C] border-[#D3E3F0] hover:text-[#0B2A44] hover:bg-[#F2F7FB]')}
+  >
+    {children}
+  </button>
+);
+
+export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, initialQuery = '', canEdit: isAdmin = false }) => {
   const lib = useProjectLibrary();
   // admins, plus the people an admin chose as library editors (the server says which)
   const canEdit = isAdmin || lib.canEdit;
   const documents = lib.documents;
+  const [tab, setTab] = useState<Tab>('search');
   const [searchTerm, setSearchTerm] = useState(initialQuery);
-  const [activeTab, setActiveTab] = useState<'search' | 'reader' | 'quickSpecs' | 'repository' | 'edit'>('search');
+  const [docFilter, setDocFilter] = useState('all');
+  const [matchMode, setMatchMode] = useState<'any' | 'phrase' | 'all'>('any');
+  const [showUpload, setShowUpload] = useState(false);
   /** The editor has changes not saved yet. */
   const [editing, setEditing] = useState(false);
+
+  // reader
+  const [readerDocId, setReaderDocId] = useState('');
+  const [readerChapter, setReaderChapter] = useState(1);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightedRef = useRef<HTMLDivElement | null>(null);
+  const readerTop = useRef<HTMLDivElement | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // the company's latest library each time it opens
   useEffect(() => {
     if (isOpen) void projectLibrary.load(true);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSearchTerm(initialQuery);
+    if (initialQuery.trim()) setTab('search');
+  }, [isOpen, initialQuery]);
 
   const close = () => {
     if (editing && !window.confirm('Close without saving your library changes?')) return;
@@ -87,26 +114,6 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
   };
   const closeRef = useRef(close);
   closeRef.current = close;
-  const [selectedDocFilter, setSelectedDocFilter] = useState<string>('all');
-  const [matchMode, setMatchMode] = useState<'any' | 'phrase' | 'all'>('any');
-
-  // Reader state
-  const [readerDocId, setReaderDocId] = useState<string>('brochure');
-  const [readerChapterNum, setReaderChapterNum] = useState<number>(1);
-  const [highlightVerseId, setHighlightVerseId] = useState<string | null>(null);
-  const highlightedVerseRef = useRef<HTMLDivElement | null>(null);
-
-  // Copy feedback
-  const [copiedVerseId, setCopiedVerseId] = useState<string | null>(null);
-
-  // Re-sync the search box whenever the modal is (re)opened or the caller changes the query.
-  useEffect(() => {
-    if (!isOpen) return;
-    setSearchTerm(initialQuery);
-    if (initialQuery.trim()) setActiveTab('search');
-  }, [isOpen, initialQuery]);
-
-  // Escape closes the modal, like every other modal in the app.
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -116,963 +123,435 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen]);
 
-  // "Read in context": once the reader tab has rendered, bring the highlighted verse into view.
+  // a document filter that no longer exists (removed in the editor) goes back to all documents
   useEffect(() => {
-    if (!isOpen || activeTab !== 'reader' || !highlightVerseId) return;
-    const el = highlightedVerseRef.current;
-    if (!el) return;
-    try {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } catch {
-      el.scrollIntoView();
-    }
-  }, [isOpen, activeTab, highlightVerseId, readerDocId, readerChapterNum]);
-
-  // Quick Reference Sections (the company's saved library, or the built-in one)
-  const quickSections = useMemo(
-    () => lib.content.sections.map((s) => ({ ...s, icon: SECTION_ICON[s.icon] || FileText })),
-    [lib.content.sections]
-  );
+    if (docFilter !== 'all' && !documents.some((d) => d.id === docFilter)) setDocFilter('all');
+  }, [documents, docFilter]);
 
   const q = searchTerm.trim().toLowerCase();
+  const matches: SearchMatch[] = useMemo(() => (q ? searchProjectConcordance(q, docFilter, matchMode, lib.verses) : []), [q, docFilter, matchMode, lib.verses]);
+  const facts = useMemo(() => lib.content.sections.map((s) => ({ ...s, Icon: SECTION_ICON[s.icon] || FileText })), [lib.content.sections]);
+  const matchingFacts = useMemo(
+    () => (q ? facts.map((s) => ({ ...s, items: s.items.filter((i) => i.toLowerCase().includes(q) || s.category.toLowerCase().includes(q)) })).filter((s) => s.items.length) : facts),
+    [q, facts],
+  );
 
-  // Search concordance matches across full documents
-  const concordanceMatches: SearchMatch[] = useMemo(() => {
-    if (!q) return [];
-    return searchProjectConcordance(q, selectedDocFilter, matchMode, lib.verses);
-  }, [q, selectedDocFilter, matchMode, lib.verses]);
+  const readerDoc = documents.find((d) => d.id === readerDocId) || documents[0];
+  const chapter = readerDoc?.chapters.find((c) => c.chapterNumber === readerChapter) || readerDoc?.chapters[0];
 
-  // Matching quick sections
-  const matchingQuickSections = useMemo(() => {
-    if (!q) return quickSections;
-    return quickSections
-      .map((s) => ({
-        ...s,
-        items: s.items.filter(
-          (item) => item.toLowerCase().includes(q) || s.category.toLowerCase().includes(q)
-        ),
-      }))
-      .filter((s) => s.items.length > 0);
-  }, [q, quickSections]);
+  // "Open in document": bring the passage into view once the reader shows it; otherwise start at the top
+  useEffect(() => {
+    if (!isOpen || tab !== 'reader') return;
+    const el = highlightId ? highlightedRef.current : null;
+    try {
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else readerTop.current?.scrollTo({ top: 0 });
+    } catch {
+      /* old browsers */
+    }
+  }, [isOpen, tab, highlightId, readerDocId, readerChapter]);
 
-  // Current reader document and chapter
-  const currentReaderDoc = useMemo(() => {
-    return documents.find((d) => d.id === readerDocId) || documents[0];
-  }, [documents, readerDocId]);
+  const openDoc = (docId: string, chapterNumber = 1, verseId: string | null = null) => {
+    setReaderDocId(docId);
+    setReaderChapter(chapterNumber);
+    setHighlightId(verseId);
+    setTab('reader');
+  };
 
-  const currentReaderChapter = useMemo(() => {
-    if (!currentReaderDoc) return undefined;
-    return (
-      currentReaderDoc.chapters.find((c) => c.chapterNumber === readerChapterNum) ||
-      currentReaderDoc.chapters[0]
-    );
-  }, [currentReaderDoc, readerChapterNum]);
-
-  // Popular search suggestions
-  const popularKeywords = [
-    'MediCiti',
-    '1,533',
-    '2.5 BHK',
-    'Vaastu',
-    'Vegetarian',
-    'TG RERA',
-    'Ambulance',
-    'Milestones',
-    'BSP ₹8,999',
-    'Kandlakoya',
-    'Escrow',
-    'Grab rails',
-    'Single',
-    'Buggy',
-  ];
-
-  const handleCopyPassage = (verse: DocVerse) => {
-    const quote = `"${verse.text}"\n— Amaya Knowledge Base [${verse.reference}: ${verse.docTitle}]`;
+  const copyPassage = (v: DocVerse) => {
+    const quote = `"${v.text}"\n— Amaya Project Library [${v.reference}: ${v.docTitle}]`;
     try {
       void navigator.clipboard?.writeText(quote).catch(() => {});
     } catch {
-      /* clipboard unavailable (insecure context) — the UI still confirms the selection */
+      /* clipboard unavailable (insecure context) — the UI still confirms */
     }
-    setCopiedVerseId(verse.id);
-    setTimeout(() => setCopiedVerseId(null), 2000);
+    setCopiedId(v.id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
-
-  const handleShareWhatsApp = (verse: DocVerse) => {
-    const text = encodeURIComponent(
-      `*Amaya by Vera Vita — Project Reference [${verse.reference}]*\n\n"${verse.text}"\n\n_Source: ${verse.docTitle}_`
-    );
+  const shareWhatsApp = (v: DocVerse) => {
+    const text = encodeURIComponent(`*Amaya by Vera Vita — ${v.docShortName}*\n\n${v.text}\n\n_Source: ${v.docTitle} (${v.reference})_`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
-  const handleJumpToReader = (verse: DocVerse) => {
-    setReaderDocId(verse.docId);
-    setReaderChapterNum(verse.chapterNumber);
-    setHighlightVerseId(verse.id);
-    setActiveTab('reader');
-  };
+  const passageCount = lib.verses.length;
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-[#0B2A44]/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#D3E3F0] max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[#D3E3F0] flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-[#0B6BB0]/15 text-[#0B6BB0] shadow-xs">
-              <BookOpen size={22} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-serif text-lg sm:text-xl font-bold text-[#0B2A44]">
-                  Amaya Project Library & Document Concordance
-                </h2>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#0B6BB0]/15 text-[#0B5E9C] border border-[#0B6BB0]/30">
-                  Bible-Style Search
-                </span>
-              </div>
-              <p className="text-xs text-[#5E778C] line-clamp-1">
-                Verse-by-verse indexing across Brochure, Floor Plans, Packages, Payment Milestones & Legal Documents
-              </p>
-            </div>
+  const navItem = (id: Tab, label: string, Icon: React.ComponentType<{ size?: number }>, count?: number) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setTab(id)}
+      className={cx(
+        'flex items-center gap-2.5 rounded-xl text-[13px] font-semibold transition whitespace-nowrap',
+        'px-3 py-2 md:w-full',
+        tab === id || (id === 'documents' && tab === 'reader') ? 'bg-[#0B2A44] text-white shadow-xs' : 'text-[#3E5A70] hover:bg-white hover:text-[#0B2A44]',
+      )}
+    >
+      <Icon size={16} />
+      <span className="flex-1 text-left">{label}</span>
+      {count !== undefined && <span className={cx('text-[10px] px-1.5 rounded-full', tab === id ? 'bg-white/20' : 'bg-[#E6EFF6] text-[#5E778C]')}>{count}</span>}
+    </button>
+  );
+
+  const passageCard = ({ verse, highlightedText }: SearchMatch) => (
+    <div key={verse.id} className="bg-white rounded-xl border border-[#D3E3F0] hover:border-[#0B6BB0]/60 p-4 transition">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#5E778C] mb-2">
+        <span className="font-semibold text-[#0B2A44]">{verse.docShortName}</span>
+        <span>›</span>
+        <span className="truncate max-w-[16rem]">{verse.chapterTitle}</span>
+        {verse.pageNumber && <span className="px-1.5 rounded bg-[#F2F7FB]">Page {verse.pageNumber}</span>}
+        <span className="ml-auto font-mono text-[10px] text-[#7E93A6]">{verse.reference}</span>
+      </div>
+      <p className="text-sm text-[#0A1F33] leading-relaxed" dangerouslySetInnerHTML={{ __html: highlightedText }} />
+      <div className="flex items-center gap-1.5 mt-3">
+        <IconBtn title={copiedId === verse.id ? 'Copied' : 'Copy with source'} onClick={() => copyPassage(verse)}>
+          {copiedId === verse.id ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+        </IconBtn>
+        <IconBtn title="Send on WhatsApp" tone="green" onClick={() => shareWhatsApp(verse)}><Share2 size={14} /></IconBtn>
+        <button
+          type="button"
+          onClick={() => openDoc(verse.docId, verse.chapterNumber, verse.id)}
+          className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-[#0B6BB0] hover:bg-[#EEF6FC]"
+        >
+          Open in document <ArrowRight size={12} />
+        </button>
+      </div>
+    </div>
+  );
+
+  const documentCard = (doc: (typeof documents)[number]) => {
+    const ext = extensionOf(doc.fileName, doc.downloadUrl);
+    return (
+      <div key={doc.id} className="bg-white rounded-xl border border-[#D3E3F0] hover:border-[#0B6BB0]/60 hover:shadow-xs transition p-4 flex gap-3">
+        <div className="h-11 w-11 rounded-xl bg-[#F2F7FB] grid place-items-center shrink-0">
+          <FileKindIcon name={doc.fileName || doc.downloadUrl} size={22} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <h4 className="text-sm font-bold text-[#0B2A44] leading-snug flex-1 min-w-0">{doc.title}</h4>
+            <CategoryPill category={doc.category} />
           </div>
-          <button
-            onClick={close}
-            className="p-2 rounded-lg text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB] transition"
-            aria-label="Close modal"
-          >
+          {doc.summary && <p className="text-xs text-[#5E778C] mt-1 line-clamp-2">{doc.summary}</p>}
+          <div className="text-[11px] text-[#7E93A6] mt-1.5">{doc.chapters.length} {doc.chapters.length === 1 ? 'section' : 'sections'} · {doc.verses.length} passages{ext ? ` · ${ext}` : ''}</div>
+          <div className="flex items-center gap-2 mt-2.5">
+            <button type="button" onClick={() => openDoc(doc.id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110">
+              <BookOpen size={13} /> Read
+            </button>
+            {doc.downloadUrl && (
+              <a href={doc.downloadUrl} download={downloadName(doc.fileName, doc.downloadUrl)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D3E3F0] text-[#0B2A44] hover:bg-[#F2F7FB]">
+                <Download size={13} /> Download{ext ? ` ${ext}` : ''}
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-[#0B2A44]/60 backdrop-blur-xs z-50 flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-[#F5F9FC] sm:rounded-2xl shadow-2xl border border-[#D3E3F0] max-w-6xl w-full h-full sm:h-[92vh] flex flex-col overflow-hidden">
+        {/* header */}
+        <div className="px-4 sm:px-5 py-3.5 bg-white border-b border-[#D3E3F0] flex items-center gap-3 shrink-0">
+          <div className="p-2.5 rounded-xl bg-[#0B6BB0]/12 text-[#0B6BB0]"><Library size={22} /></div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-lg font-bold text-[#0B2A44] leading-tight">Project Library</h2>
+            <p className="text-[11px] sm:text-xs text-[#5E778C] truncate">
+              {documents.length} documents · {passageCount} passages{lib.custom && lib.updatedAt ? ` · updated by ${lib.updatedBy || 'an admin'} on ${new Date(lib.updatedAt).toLocaleDateString()}` : ''}
+            </p>
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowUpload(true);
+                setTab('documents');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#0B6BB0] text-white hover:brightness-110 shadow-xs"
+            >
+              <Upload size={14} /> <span className="hidden sm:inline">Add files</span>
+            </button>
+          )}
+          <button type="button" onClick={close} className="p-2 rounded-lg text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB]" aria-label="Close library">
             <X size={20} />
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="bg-[#F2F7FB] px-4 pt-2.5 border-b border-[#D3E3F0] flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto pb-2 scrollbar-none">
-            <button
-              onClick={() => setActiveTab('search')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                activeTab === 'search'
-                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
-                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
-              }`}
-            >
-              <Search size={14} />
-              <span>Concordance Search</span>
-              {q && concordanceMatches.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-[#0B6BB0] text-white">
-                  {concordanceMatches.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('reader')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                activeTab === 'reader'
-                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
-                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
-              }`}
-            >
-              <BookMarked size={14} />
-              <span>Document Reader</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('quickSpecs')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                activeTab === 'quickSpecs'
-                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
-                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
-              }`}
-            >
-              <Building size={14} />
-              <span>Quick Reference Specs</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('repository')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                activeTab === 'repository'
-                  ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
-                  : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
-              }`}
-            >
-              <FileText size={14} />
-              <span>Documents Folder ({documents.length})</span>
-            </button>
-
-            {canEdit && (
-              <button
-                onClick={() => setActiveTab('edit')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                  activeTab === 'edit'
-                    ? 'bg-white text-[#0B2A44] shadow-xs border border-[#D3E3F0]'
-                    : 'text-[#5E778C] hover:text-[#0B2A44] hover:bg-white/60'
-                }`}
-              >
-                <Pencil size={14} />
-                <span>Edit library</span>
-              </button>
-            )}
-          </div>
-
-          <span className="text-[11px] text-[#6F8698] hidden md:inline-block pb-2">
-            {lib.custom && lib.updatedAt ? `Edited by ${lib.updatedBy || 'an admin'} · ${new Date(lib.updatedAt).toLocaleDateString()}` : <>Storage: <code className="bg-white/80 px-1.5 py-0.5 rounded border border-[#D3E3F0]">/documents</code></>}
-          </span>
-        </div>
-
-        {activeTab === 'edit' && canEdit && <LibraryEditor onDirty={setEditing} />}
-
-        {/* Global Search Toolbar (available in all tabs) */}
-        <div className={`p-3.5 sm:p-4 bg-[#E6EFF6] border-b border-[#D3E3F0] space-y-2.5 shrink-0 ${activeTab === 'edit' ? 'hidden' : ''}`}>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-3 text-[#7E93A6]" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  if (activeTab !== 'search' && activeTab !== 'reader') {
-                    setActiveTab('search');
-                  }
-                }}
-                placeholder="Search any word or phrase: MediCiti, 1,533 sq.ft, Vaastu, 2.5 BHK, food package, RERA, 8,999..."
-                className="w-full bg-white text-xs sm:text-sm pl-10 pr-9 py-2.5 rounded-xl border border-[#B9CCDB] focus:outline-none focus:border-[#0B6BB0] focus:ring-1 focus:ring-[#0B6BB0] text-[#0B2A44] placeholder-[#7E93A6] shadow-2xs"
-              />
-              {searchTerm && (
+        <div className="flex-1 flex flex-col md:flex-row min-h-0">
+          {/* menu: a side column on desktop, a row of tabs on phones */}
+          <nav className="md:w-60 shrink-0 border-b md:border-b-0 md:border-r border-[#D3E3F0] bg-[#EEF4F9] p-2 md:p-3 flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto scrollbar-none">
+            {navItem('search', 'Search', Search)}
+            {navItem('documents', 'Documents', FileText, documents.length)}
+            {navItem('facts', 'Quick facts', Building, facts.length)}
+            {canEdit && navItem('edit', 'Edit library', Pencil)}
+            <div className="hidden md:block pt-4 pb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7E93A6]">Read a document</div>
+            <div className="hidden md:block space-y-0.5">
+              {documents.map((d) => (
                 <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-3 text-[#7E93A6] hover:text-[#0B2A44]"
+                  key={d.id}
+                  type="button"
+                  onClick={() => openDoc(d.id)}
+                  title={d.title}
+                  className={cx('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition', tab === 'reader' && readerDoc?.id === d.id ? 'bg-white text-[#0B2A44] font-semibold shadow-2xs' : 'text-[#3E5A70] hover:bg-white/70')}
                 >
-                  <X size={15} />
+                  <FileKindIcon name={d.fileName || d.downloadUrl} size={14} />
+                  <span className="truncate">{d.shortName || d.title}</span>
                 </button>
-              )}
+              ))}
             </div>
+          </nav>
 
-            {/* Document Filter Dropdown */}
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={selectedDocFilter}
-                  onChange={(e) => setSelectedDocFilter(e.target.value)}
-                  className="text-xs px-3 py-2.5 rounded-xl border border-[#B9CCDB] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0] shadow-2xs"
-                >
-                  <option value="all">All Documents (Full Canon)</option>
-                  <option value="brochure">📖 Master Brochure</option>
-                  <option value="floor-plans">📐 Floor Plans & Layouts</option>
-                  <option value="monthly-packages">🥗 Monthly Care Packages</option>
-                  <option value="payment-schedule">💳 Payment Milestones</option>
-                  <option value="legal-rera">⚖️ Legal & RERA Sanctions</option>
-                </select>
-              </div>
+          {/* content */}
+          <div className="flex-1 min-w-0 flex flex-col min-h-0">
+            {tab === 'edit' && canEdit && <LibraryEditor onDirty={setEditing} />}
 
-              {/* Match Mode */}
-              <div className="flex rounded-xl border border-[#B9CCDB] bg-white p-0.5 shadow-2xs text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => setMatchMode('any')}
-                  className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-                    matchMode === 'any' ? 'bg-[#0B2A44] text-white shadow-2xs' : 'text-[#5E778C] hover:text-[#0B2A44]'
-                  }`}
-                  title="Matches any of the search words"
-                >
-                  Any Word
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMatchMode('phrase')}
-                  className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-                    matchMode === 'phrase' ? 'bg-[#0B2A44] text-white shadow-2xs' : 'text-[#5E778C] hover:text-[#0B2A44]'
-                  }`}
-                  title="Matches exact consecutive phrase"
-                >
-                  Exact Phrase
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMatchMode('all')}
-                  className={`px-2.5 py-1.5 rounded-lg font-medium transition ${
-                    matchMode === 'all' ? 'bg-[#0B2A44] text-white shadow-2xs' : 'text-[#5E778C] hover:text-[#0B2A44]'
-                  }`}
-                  title="Matches all words anywhere in the passage"
-                >
-                  All Words
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick search chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-[11px]">
-            <span className="text-[#6F8698] font-medium shrink-0 flex items-center gap-1">
-              <Sparkles size={11} className="text-[#0B6BB0]" />
-              Quick lookup:
-            </span>
-            {popularKeywords.map((kw) => (
-              <button
-                key={kw}
-                onClick={() => {
-                  setSearchTerm(kw);
-                  setActiveTab('search');
-                }}
-                className={`px-2 py-0.5 rounded-full border transition shrink-0 ${
-                  searchTerm.toLowerCase() === kw.toLowerCase()
-                    ? 'bg-[#0B6BB0] text-white border-[#0B6BB0]'
-                    : 'bg-white text-[#5E778C] border-[#D3E3F0] hover:border-[#0B6BB0] hover:text-[#0B2A44]'
-                }`}
-              >
-                {kw}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tab 1: Concordance Search View (Bible-style search) */}
-        {activeTab === 'search' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            {/* Search Summary Header */}
-            {q ? (
-              <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3 shadow-xs">
-                <div>
-                  <h3 className="font-serif text-sm sm:text-base font-bold text-[#0B2A44] flex items-center gap-2">
-                    <span>Search Results for:</span>
-                    <span className="text-[#0B6BB0] font-sans font-semibold bg-white px-2.5 py-0.5 rounded-lg border border-[#D3E3F0]">
-                      "{searchTerm}"
-                    </span>
-                  </h3>
-                  <p className="text-xs text-[#5E778C] mt-0.5">
-                    Found{' '}
-                    <strong className="text-[#0B2A44]">{concordanceMatches.length}</strong> matching passages across{' '}
-                    <strong className="text-[#0B2A44]">
-                      {new Set(concordanceMatches.map((m) => m.verse.docId)).size}
-                    </strong>{' '}
-                    project documents &{' '}
-                    <strong className="text-[#0B2A44]">{matchingQuickSections.length}</strong> quick spec categories.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      if (concordanceMatches.length > 0) {
-                        handleJumpToReader(concordanceMatches[0].verse);
-                      }
-                    }}
-                    disabled={concordanceMatches.length === 0}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 disabled:opacity-40 transition"
-                  >
-                    <BookMarked size={13} />
-                    <span>Read in Book Mode</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] text-center space-y-2">
-                <BookOpen size={28} className="mx-auto text-[#0B6BB0]/60" />
-                <h3 className="font-serif text-base font-bold text-[#0B2A44]">
-                  Search Full Project Documentation Like a Bible Concordance
-                </h3>
-                <p className="text-xs text-[#5E778C] max-w-xl mx-auto leading-relaxed">
-                  Enter any word, unit size, amenity, distance, clause, or financial term to instantly discover every cited verse across the Brochure, Floor Plans, Monthly Care Packages, Payment Schedule, and Legal Sanctions.
-                </p>
-              </div>
-            )}
-
-            {/* Document Verses Section (Concordance Results) */}
-            {concordanceMatches.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-1 border-b border-[#D3E3F0]">
-                  <h4 className="font-serif text-sm font-bold text-[#0B2A44] flex items-center gap-2">
-                    <FileText size={16} className="text-[#0B6BB0]" />
-                    <span>Project Document Passages ({concordanceMatches.length})</span>
-                  </h4>
-                  <span className="text-[11px] text-[#6F8698]">
-                    Click "Read in Context" to open full chapter
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {concordanceMatches.map(({ verse, highlightedText }) => {
-                    const isCopied = copiedVerseId === verse.id;
-
-                    return (
-                      <div
-                        key={verse.id}
-                        className="bg-white rounded-xl p-4 sm:p-5 border border-[#D3E3F0] hover:border-[#0B6BB0] shadow-xs transition group flex flex-col justify-between"
-                      >
-                        {/* Reference citation header */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-[#F2F7FB]">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-md text-xs font-bold font-mono bg-[#0B2A44] text-white tracking-wide">
-                              [{verse.reference}]
-                            </span>
-                            <span className="text-xs font-semibold text-[#0B2A44]">
-                              {verse.docShortName} — Chapter {verse.chapterNumber}: {verse.chapterTitle}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {verse.pageNumber && (
-                              <span className="text-[10px] text-[#7E93A6] px-2 py-0.5 rounded bg-[#F2F7FB] font-medium">
-                                Page {verse.pageNumber}
-                              </span>
-                            )}
-                            <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-[#0B6BB0]/10 text-[#0B5E9C]">
-                              {verse.category}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Verse Text with Bible-style typography */}
-                        <div className="text-sm font-serif text-[#0A1F33] leading-relaxed mb-4 pl-3 border-l-2 border-[#0B6BB0]/40">
-                          <span className="font-sans font-bold text-xs text-[#0B6BB0] mr-2">
-                            § {verse.chapterNumber}.{verse.verseNumber}
-                          </span>
-                          <span
-                            dangerouslySetInnerHTML={{
-                              __html: highlightedText,
-                            }}
-                          />
-                        </div>
-
-                        {/* Tags & Action Buttons */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#F2F7FB]">
-                          <div className="flex flex-wrap gap-1">
-                            {verse.tags.slice(0, 4).map((tag, tIdx) => (
-                              <span
-                                key={tIdx}
-                                className="text-[10px] bg-[#F2F7FB] text-[#5E778C] px-2 py-0.5 rounded-full"
-                              >
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleCopyPassage(verse)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-[#5E778C] hover:text-[#0B2A44] hover:bg-[#F2F7FB] transition border border-[#D3E3F0]/80"
-                              title="Copy verse text with citation"
-                            >
-                              {isCopied ? (
-                                <>
-                                  <Check size={12} className="text-emerald-600" />
-                                  <span className="text-emerald-700 font-semibold">Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy size={12} />
-                                  <span>Copy Verse</span>
-                                </>
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => handleShareWhatsApp(verse)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium text-[#1E7E34] hover:bg-emerald-50 transition border border-emerald-200"
-                              title="Share passage on WhatsApp"
-                            >
-                              <Share2 size={12} />
-                              <span>WhatsApp</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleJumpToReader(verse)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition shadow-2xs"
-                            >
-                              <span>Read in Context</span>
-                              <ArrowRight size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Quick Reference Summary Cards (Always accessible) */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between pb-1 border-b border-[#D3E3F0]">
-                <h4 className="font-serif text-sm font-bold text-[#0B2A44] flex items-center gap-2">
-                  <Building size={16} className="text-[#0B6BB0]" />
-                  <span>
-                    Quick Reference Summary Cards{' '}
-                    {q && `(${matchingQuickSections.length} matching sections)`}
-                  </span>
-                </h4>
-                <button
-                  onClick={() => setActiveTab('quickSpecs')}
-                  className="text-xs text-[#0B6BB0] hover:underline font-semibold"
-                >
-                  View All Specs →
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {matchingQuickSections.map((section, sIdx) => {
-                  const SectionIcon = section.icon;
-
-                  return (
-                    <div
-                      key={sIdx}
-                      className="bg-white rounded-xl p-4 border border-[#D3E3F0] shadow-xs flex flex-col justify-between"
+            {tab === 'search' && (
+              <div className="flex-1 overflow-y-auto">
+                <div className="sticky top-0 z-10 bg-[#F5F9FC]/95 backdrop-blur-xs border-b border-[#D3E3F0] p-3 sm:p-4 space-y-2.5">
+                  <div className="relative">
+                    <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
+                    <input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search any word or figure: MediCiti, 1,533 sq.ft, Vaastu, food package, RERA…"
+                      className="w-full bg-white text-sm pl-10 pr-9 py-2.5 rounded-xl border border-[#B9CCDB] focus:outline-none focus:border-[#0B6BB0] focus:ring-1 focus:ring-[#0B6BB0] text-[#0B2A44] placeholder-[#7E93A6]"
+                    />
+                    {searchTerm && (
+                      <button type="button" onClick={() => setSearchTerm('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7E93A6] hover:text-[#0B2A44]">
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={docFilter}
+                      onChange={(e) => setDocFilter(e.target.value)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-[#B9CCDB] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0] max-w-[14rem]"
+                      aria-label="Search in"
                     >
-                      <div>
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E6EFF6]">
-                          <div className="flex items-center gap-2">
-                            <SectionIcon size={16} className="text-[#0B6BB0]" />
-                            <h5 className="font-serif text-sm font-bold text-[#0B2A44]">
-                              {section.category}
-                            </h5>
-                          </div>
-                          <span className="text-[10px] font-mono bg-[#F2F7FB] text-[#5E778C] px-2 py-0.5 rounded">
-                            {section.docRef}
-                          </span>
-                        </div>
+                      <option value="all">All documents</option>
+                      {documents.map((d) => <option key={d.id} value={d.id}>{d.shortName || d.title}</option>)}
+                    </select>
+                    <div className="flex rounded-lg border border-[#B9CCDB] bg-white p-0.5 text-[11px]">
+                      {([['any', 'Any word'], ['all', 'All words'], ['phrase', 'Exact phrase']] as const).map(([m, label]) => (
+                        <button key={m} type="button" onClick={() => setMatchMode(m)} className={cx('px-2.5 py-1 rounded-md font-medium transition', matchMode === m ? 'bg-[#0B2A44] text-white' : 'text-[#5E778C] hover:text-[#0B2A44]')}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {q && <span className="text-[11px] text-[#5E778C] ml-auto">{matches.length} passages · {new Set(matches.map((m) => m.verse.docId)).size} documents</span>}
+                  </div>
+                </div>
 
-                        <div className="space-y-1.5">
-                          {section.items.map((item, iIdx) => (
-                            <div
-                              key={iIdx}
-                              className="text-xs text-[#0F2233] leading-relaxed flex items-start gap-2 py-0.5"
-                            >
-                              <span className="text-[#0B6BB0] font-bold mt-0.5">•</span>
-                              <span className="flex-1">
-                                {q ? (
-                                  <span
-                                    dangerouslySetInnerHTML={{
-                                      __html: highlightText(item, q),
-                                    }}
-                                  />
-                                ) : (
-                                  item
-                                )}
-                              </span>
-                            </div>
+                <div className="p-3 sm:p-5 space-y-5">
+                  {!q && (
+                    <>
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#5E778C] mb-2 flex items-center gap-1.5"><Sparkles size={12} className="text-[#0B6BB0]" /> Popular searches</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {POPULAR.map((kw) => (
+                            <button key={kw} type="button" onClick={() => setSearchTerm(kw)} className="px-2.5 py-1 rounded-full text-xs bg-white border border-[#D3E3F0] text-[#3E5A70] hover:border-[#0B6BB0] hover:text-[#0B2A44]">
+                              {kw}
+                            </button>
                           ))}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Zero results state */}
-            {q && concordanceMatches.length === 0 && matchingQuickSections.length === 0 && (
-              <div className="bg-white p-8 rounded-xl border border-[#D3E3F0] text-center space-y-3">
-                <Search size={32} className="mx-auto text-[#7E93A6]" />
-                <h4 className="font-serif text-base font-bold text-[#0B2A44]">
-                  No direct verses found for "{searchTerm}"
-                </h4>
-                <p className="text-xs text-[#5E778C] max-w-md mx-auto">
-                  Try switching the match mode to <strong>"Any Word"</strong> or search for broader keywords like <em>"BHK"</em>, <em>"Medchal"</em>, <em>"Amenities"</em>, <em>"RERA"</em>, or <em>"Hospital"</em>.
-                </p>
-                <div className="pt-2">
-                  <button
-                    onClick={() => {
-                      setMatchMode('any');
-                      setSelectedDocFilter('all');
-                    }}
-                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110"
-                  >
-                    Reset Filters & Try Again
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tab 2: Document Reader Mode (Bible-style chapter reader) */}
-        {activeTab === 'reader' && !currentReaderChapter && (
-          <div className="flex-1 grid place-items-center p-8 text-sm text-[#5E778C]">No documents with chapters in the library yet.</div>
-        )}
-        {activeTab === 'reader' && currentReaderDoc && currentReaderChapter && (
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* Left Sidebar: Document / Chapter Index */}
-            <div className="w-full md:w-72 bg-[#F5F9FC] border-b md:border-b-0 md:border-r border-[#D3E3F0] p-3 sm:p-4 overflow-y-auto shrink-0 space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-[#5E778C] uppercase tracking-wider block mb-1.5">
-                  Select Book / Document
-                </label>
-                <select
-                  value={readerDocId}
-                  onChange={(e) => {
-                    setReaderDocId(e.target.value);
-                    setReaderChapterNum(1);
-                    setHighlightVerseId(null);
-                  }}
-                  className="w-full text-xs font-semibold p-2.5 rounded-xl border border-[#B9CCDB] bg-white text-[#0B2A44] focus:outline-none focus:border-[#0B6BB0]"
-                >
-                  {documents.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.shortName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-[#5E778C] uppercase tracking-wider block mb-1.5">
-                  Chapters in this Document
-                </label>
-                <div className="space-y-1">
-                  {currentReaderDoc.chapters.map((ch) => (
-                    <button
-                      key={ch.chapterNumber}
-                      onClick={() => {
-                        setReaderChapterNum(ch.chapterNumber);
-                        setHighlightVerseId(null);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between ${
-                        readerChapterNum === ch.chapterNumber
-                          ? 'bg-[#0B2A44] text-white shadow-2xs'
-                          : 'bg-white/70 hover:bg-white text-[#0F2233] border border-transparent hover:border-[#D3E3F0]'
-                      }`}
-                    >
-                      <span className="truncate">
-                        Chapter {ch.chapterNumber}: {ch.title}
-                      </span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                          readerChapterNum === ch.chapterNumber
-                            ? 'bg-white/20 text-white'
-                            : 'bg-[#E6EFF6] text-[#5E778C]'
-                        }`}
-                      >
-                        {ch.verses.length}v
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Document Metadata card */}
-              <div className="p-3 bg-white rounded-xl border border-[#D3E3F0] text-xs space-y-2">
-                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${currentReaderDoc.badgeColor}`}>
-                  {currentReaderDoc.category}
-                </span>
-                <p className="text-[11px] text-[#5E778C] leading-relaxed">
-                  {currentReaderDoc.summary}
-                </p>
-                <div className="pt-1 flex items-center justify-between gap-2 border-t border-[#F2F7FB]">
-                  <span className="text-[10px] text-[#7E93A6] truncate" title={currentReaderDoc.fileName}>{currentReaderDoc.fileName}</span>
-                  <a
-                    href={currentReaderDoc.downloadUrl}
-                    download={downloadFileName(currentReaderDoc.downloadUrl)}
-                    className="text-[10px] font-semibold text-[#0B6BB0] hover:underline inline-flex items-center gap-1 shrink-0"
-                  >
-                    <Download size={11} />
-                    <span>Download {downloadExtension(currentReaderDoc.downloadUrl)}</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Chapter Content formatted like a Bible book */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#FFFFFF] space-y-6">
-              {/* Chapter Header */}
-              <div className="pb-4 border-b border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs font-semibold text-[#0B6BB0] uppercase tracking-wider">
-                    {currentReaderDoc.shortName}
-                  </span>
-                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#0B2A44] mt-0.5">
-                    Chapter {currentReaderChapter.chapterNumber}: {currentReaderChapter.title}
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={currentReaderDoc.downloadUrl}
-                    download={downloadFileName(currentReaderDoc.downloadUrl)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D3E3F0] bg-white text-[#0B2A44] hover:bg-[#F2F7FB] transition"
-                  >
-                    <Download size={13} />
-                    <span>Download Markdown ({downloadExtension(currentReaderDoc.downloadUrl)})</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Verse-by-verse chapter reader */}
-              <div className="space-y-4 max-w-3xl">
-                {currentReaderChapter.verses.map((verse) => {
-                  const isHighlighted = highlightVerseId === verse.id;
-                  const isCopied = copiedVerseId === verse.id;
-
-                  return (
-                    <div
-                      key={verse.id}
-                      id={verse.id}
-                      ref={isHighlighted ? highlightedVerseRef : undefined}
-                      className={`p-4 rounded-xl transition border ${
-                        isHighlighted
-                          ? 'bg-[#EEF6FC] border-[#0B6BB0] shadow-md ring-2 ring-[#0B6BB0]/40'
-                          : 'bg-white border-[#E6EFF6] hover:border-[#D3E3F0]'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-serif font-bold text-sm text-[#0B6BB0]">
-                              § {verse.chapterNumber}.{verse.verseNumber}
-                            </span>
-                            <span className="text-[10px] font-mono text-[#7E93A6]">
-                              [{verse.reference}]
-                            </span>
-                            {verse.pageNumber && (
-                              <span className="text-[10px] text-[#7E93A6]">
-                                (Page {verse.pageNumber})
-                              </span>
-                            )}
-                          </div>
-                          <p className="font-serif text-sm sm:text-base text-[#0A1F33] leading-relaxed">
-                            {q ? (
-                              <span
-                                dangerouslySetInnerHTML={{
-                                  __html: highlightText(verse.text, q),
-                                }}
-                              />
-                            ) : (
-                              verse.text
-                            )}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0 pt-1">
-                          <button
-                            onClick={() => handleCopyPassage(verse)}
-                            className="p-1.5 rounded-md text-[#7E93A6] hover:text-[#0B2A44] hover:bg-[#F2F7FB]"
-                            title="Copy verse"
-                          >
-                            {isCopied ? (
-                              <Check size={14} className="text-emerald-600" />
-                            ) : (
-                              <Copy size={14} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleShareWhatsApp(verse)}
-                            className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50"
-                            title="Share on WhatsApp"
-                          >
-                            <Share2 size={14} />
-                          </button>
-                        </div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#5E778C] mb-2">Documents</div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{documents.map(documentCard)}</div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    </>
+                  )}
 
-              {/* Chapter Next / Previous controls */}
-              <div className="flex items-center justify-between pt-6 border-t border-[#D3E3F0]">
-                <button
-                  onClick={() => {
-                    if (readerChapterNum > 1) {
-                      setReaderChapterNum(readerChapterNum - 1);
-                      setHighlightVerseId(null);
-                    }
-                  }}
-                  disabled={readerChapterNum <= 1}
-                  className="px-3.5 py-2 rounded-lg text-xs font-semibold border border-[#D3E3F0] bg-white text-[#0B2A44] hover:bg-[#F2F7FB] disabled:opacity-40 transition"
-                >
-                  ← Previous Chapter
-                </button>
+                  {q && matches.length > 0 && <div className="space-y-2.5">{matches.map(passageCard)}</div>}
 
-                <span className="text-xs font-medium text-[#5E778C]">
-                  Chapter {readerChapterNum} of {currentReaderDoc.chapters.length}
-                </span>
-
-                <button
-                  onClick={() => {
-                    if (readerChapterNum < currentReaderDoc.chapters.length) {
-                      setReaderChapterNum(readerChapterNum + 1);
-                      setHighlightVerseId(null);
-                    }
-                  }}
-                  disabled={readerChapterNum >= currentReaderDoc.chapters.length}
-                  className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 disabled:opacity-40 transition"
-                >
-                  Next Chapter →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Quick Reference Specs View (Original Library Content preserved) */}
-        {activeTab === 'quickSpecs' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] flex items-center justify-between gap-3">
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#0B2A44]">
-                  Quick Reference Project Specifications
-                </h3>
-                <p className="text-xs text-[#5E778C]">
-                  Executive summaries of unit sizes, pricing slabs, food care packages & Clubhouse amenities
-                </p>
-              </div>
-              <button
-                onClick={() => setActiveTab('search')}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition"
-              >
-                Switch to Bible Concordance Search
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {matchingQuickSections.map((section, sIdx) => {
-                const SectionIcon = section.icon;
-
-                return (
-                  <div
-                    key={sIdx}
-                    className="bg-white rounded-xl p-5 border border-[#D3E3F0] shadow-xs flex flex-col justify-between"
-                  >
+                  {q && matchingFacts.length > 0 && (
                     <div>
-                      <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-[#E6EFF6]">
-                        <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-[#0B6BB0]/10 text-[#0B6BB0]">
-                            <SectionIcon size={16} />
-                          </div>
-                          <h4 className="font-serif text-base font-bold text-[#0B2A44]">
-                            {section.category}
-                          </h4>
-                        </div>
-                        <span className="text-[11px] font-mono text-[#0B5E9C] bg-[#0B6BB0]/10 px-2 py-0.5 rounded">
-                          {section.docRef}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        {section.items.map((item, iIdx) => (
-                          <div
-                            key={iIdx}
-                            className="text-xs text-[#0F2233] leading-relaxed flex items-start gap-2 py-0.5"
-                          >
-                            <span className="text-[#0B6BB0] font-bold">•</span>
-                            <span className="flex-1">
-                              {q ? (
-                                <span
-                                  dangerouslySetInnerHTML={{
-                                    __html: highlightText(item, q),
-                                  }}
-                                />
-                              ) : (
-                                item
-                              )}
-                            </span>
+                      <div className="text-[11px] font-semibold text-[#5E778C] mb-2">From quick facts</div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {matchingFacts.map((s, i) => (
+                          <div key={i} className="bg-white rounded-xl border border-[#D3E3F0] p-3.5">
+                            <div className="flex items-center gap-2 text-xs font-bold text-[#0B2A44] mb-1.5"><s.Icon size={14} className="text-[#0B6BB0]" /> {s.category}</div>
+                            <ul className="space-y-1">
+                              {s.items.map((item, j) => (
+                                <li key={j} className="text-xs text-[#0F2233] leading-relaxed flex gap-2"><span className="text-[#0B6BB0]">•</span><span dangerouslySetInnerHTML={{ __html: highlightText(item, q) }} /></li>
+                              ))}
+                            </ul>
                           </div>
                         ))}
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                  )}
 
-        {/* Tab 4: Documents Folder Repository */}
-        {activeTab === 'repository' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            <div className="bg-[#F7FAFD] p-4 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-serif text-base font-bold text-[#0B2A44]">
-                  Official Project Documents Folder Repository
-                </h3>
-                <p className="text-xs text-[#5E778C]">
-                  All documents are permanently stored in the project's <code className="bg-white px-1.5 py-0.5 rounded border border-[#D3E3F0]">/documents</code> directory, accessible via search, direct read mode, or download.
-                </p>
+                  {q && !matches.length && !matchingFacts.length && (
+                    <div className="bg-white rounded-xl border border-[#D3E3F0] p-8 text-center space-y-2">
+                      <Search size={28} className="mx-auto text-[#7E93A6]" />
+                      <h4 className="text-sm font-bold text-[#0B2A44]">Nothing found for “{searchTerm}”</h4>
+                      <p className="text-xs text-[#5E778C]">Try fewer or broader words, like “BHK”, “amenities” or “hospital”.</p>
+                      {(matchMode !== 'any' || docFilter !== 'all') && (
+                        <button type="button" onClick={() => { setMatchMode('any'); setDocFilter('all'); }} className="mt-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white">
+                          Search all documents, any word
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0B2A44] text-white">
-                {documents.length} Active Documents
-              </span>
-            </div>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-white rounded-xl p-5 border border-[#D3E3F0] hover:border-[#0B6BB0] shadow-xs transition flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${doc.badgeColor}`}>
-                        {doc.category}
-                      </span>
-                      <span className="text-[10px] font-mono text-[#7E93A6]">
-                        {doc.chapters.length} Chapters • {doc.verses.length} Indexed Verses
-                      </span>
-                    </div>
+            {tab === 'documents' && (
+              <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-[#0B2A44]">Documents</h3>
+                    <p className="text-xs text-[#5E778C]">Read online or download the original. {canEdit ? 'Add PDF, Word or Excel files and their text becomes searchable.' : ''}</p>
+                  </div>
+                  {canEdit && !showUpload && (
+                    <button type="button" onClick={() => setShowUpload(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#0B6BB0] text-[#0B6BB0] hover:bg-[#EEF6FC]">
+                      <Upload size={13} /> Add files
+                    </button>
+                  )}
+                </div>
+                {canEdit && showUpload && (
+                  <LibraryUpload
+                    disabled={editing ? 'Save or discard your changes in “Edit library” first.' : undefined}
+                    onAdded={(id) => openDoc(id)}
+                  />
+                )}
+                {documents.length ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">{documents.map(documentCard)}</div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-[#D3E3F0] p-8 text-center text-sm text-[#5E778C]">No documents yet.</div>
+                )}
+              </div>
+            )}
 
-                    <div>
-                      <h4 className="font-serif text-base font-bold text-[#0B2A44] leading-snug">
-                        {doc.title}
-                      </h4>
-                      <p className="text-xs text-[#5E778C] mt-1.5 leading-relaxed">
-                        {doc.summary}
-                      </p>
-                    </div>
-
-                    <div className="p-2.5 rounded-lg bg-[#F2F7FB] text-[11px] text-[#0F2233] font-mono space-y-1">
-                      <div className="break-all">Source: {doc.fileName}</div>
-                      <div className="text-[10px] text-[#7E93A6] break-all">Download: {doc.downloadUrl}</div>
+            {tab === 'reader' && (!readerDoc || !chapter) && (
+              <div className="flex-1 grid place-items-center p-8 text-sm text-[#5E778C]">This document has no text yet.</div>
+            )}
+            {tab === 'reader' && readerDoc && chapter && (
+              <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+                {/* sections of this document */}
+                <div className="lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-[#D3E3F0] bg-white p-3 overflow-y-auto max-h-44 lg:max-h-none">
+                  <button type="button" onClick={() => setTab('documents')} className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0B6BB0] hover:underline mb-2">
+                    <ArrowLeft size={12} /> All documents
+                  </button>
+                  <div className="flex items-start gap-2 mb-2">
+                    <FileKindIcon name={readerDoc.fileName || readerDoc.downloadUrl} size={18} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-[#0B2A44] leading-snug">{readerDoc.title}</div>
+                      <div className="mt-1"><CategoryPill category={readerDoc.category} /></div>
                     </div>
                   </div>
-
-                  <div className="pt-4 mt-3 border-t border-[#E6EFF6] flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => {
-                        setReaderDocId(doc.id);
-                        setReaderChapterNum(1);
-                        setHighlightVerseId(null);
-                        setActiveTab('reader');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition shadow-2xs"
-                    >
-                      <Eye size={13} />
-                      <span>Read in Library</span>
-                    </button>
-
-                    <a
-                      href={doc.downloadUrl}
-                      download={downloadFileName(doc.downloadUrl)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D3E3F0] text-[#0B2A44] hover:bg-[#F2F7FB] transition"
-                    >
-                      <Download size={13} />
-                      <span>Download {downloadExtension(doc.downloadUrl)}</span>
+                  {readerDoc.downloadUrl && (
+                    <a href={readerDoc.downloadUrl} download={downloadName(readerDoc.fileName, readerDoc.downloadUrl)} className="flex items-center justify-center gap-1.5 w-full px-3 py-1.5 mb-3 rounded-lg text-xs font-semibold border border-[#D3E3F0] text-[#0B2A44] hover:bg-[#F2F7FB]">
+                      <Download size={13} /> Download {extensionOf(readerDoc.fileName, readerDoc.downloadUrl)}
                     </a>
+                  )}
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7E93A6] mb-1 px-1">Sections</div>
+                  <div className="space-y-0.5">
+                    {readerDoc.chapters.map((c) => (
+                      <button
+                        key={c.chapterNumber}
+                        type="button"
+                        onClick={() => { setReaderChapter(c.chapterNumber); setHighlightId(null); }}
+                        className={cx('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition', chapter.chapterNumber === c.chapterNumber ? 'bg-[#0B2A44] text-white' : 'text-[#3E5A70] hover:bg-[#F2F7FB]')}
+                      >
+                        <span className={cx('w-5 text-right tabular-nums text-[10px]', chapter.chapterNumber === c.chapterNumber ? 'text-white/70' : 'text-[#7E93A6]')}>{c.chapterNumber}</span>
+                        <span className="truncate flex-1">{c.title}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Footer */}
-        <div className="p-3 sm:p-4 bg-white border-t border-[#D3E3F0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#5E778C] shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-[#0B2A44]">Amaya by Vera Vita Living</span>
-            <span>•</span>
-            <span>TG RERA: P02200011109</span>
-            <span>•</span>
-            <span>Munirabad, Medchal, Hyderabad</span>
-          </div>
+                {/* the section's text */}
+                <div ref={readerTop} className="flex-1 overflow-y-auto bg-white">
+                  <div className="max-w-3xl mx-auto px-4 sm:px-8 py-5 sm:py-7">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0B6BB0]">{readerDoc.shortName} · Section {chapter.chapterNumber} of {readerDoc.chapters.length}</div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-[#0B2A44] mt-1 mb-5">{chapter.title}</h3>
+                    <div className="space-y-1">
+                      {chapter.verses.map((v) => {
+                        const lit = highlightId === v.id;
+                        return (
+                          <div
+                            key={v.id}
+                            id={v.id}
+                            ref={lit ? highlightedRef : undefined}
+                            className={cx('group relative flex gap-3 rounded-lg px-2 py-2 -mx-2 transition', lit ? 'bg-[#EEF6FC] ring-2 ring-[#0B6BB0]/40' : 'hover:bg-[#F7FAFD]')}
+                          >
+                            <span className="w-8 shrink-0 text-right text-[10px] font-mono text-[#9AB0C2] pt-1 tabular-nums">{v.chapterNumber}.{v.verseNumber}</span>
+                            <p className="flex-1 text-[15px] text-[#0A1F33] leading-relaxed">
+                              {q ? <span dangerouslySetInnerHTML={{ __html: highlightText(v.text, q) }} /> : v.text}
+                              {v.pageNumber && <span className="ml-2 text-[10px] text-[#9AB0C2] whitespace-nowrap">p. {v.pageNumber}</span>}
+                            </p>
+                            <div className="flex items-start gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
+                              <IconBtn title={copiedId === v.id ? 'Copied' : 'Copy with source'} onClick={() => copyPassage(v)}>
+                                {copiedId === v.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                              </IconBtn>
+                              <IconBtn title="Send on WhatsApp" tone="green" onClick={() => shareWhatsApp(v)}><Share2 size={13} /></IconBtn>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between mt-8 pt-4 border-t border-[#E6EFF6]">
+                      <button
+                        type="button"
+                        disabled={chapter.chapterNumber <= 1}
+                        onClick={() => { setReaderChapter(chapter.chapterNumber - 1); setHighlightId(null); }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#D3E3F0] text-[#0B2A44] hover:bg-[#F2F7FB] disabled:opacity-40"
+                      >
+                        <ChevronLeft size={14} /> Previous
+                      </button>
+                      <button
+                        type="button"
+                        disabled={chapter.chapterNumber >= readerDoc.chapters.length}
+                        onClick={() => { setReaderChapter(chapter.chapterNumber + 1); setHighlightId(null); }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0B2A44] text-white hover:brightness-110 disabled:opacity-40"
+                      >
+                        Next <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={close}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#E6EFF6] hover:bg-[#D3E3F0] text-[#0B2A44] transition"
-            >
-              Close
-            </button>
+            {tab === 'facts' && (
+              <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-[#0B2A44]">Quick facts</h3>
+                  <p className="text-xs text-[#5E778C]">The key numbers at a glance: unit sizes, prices, packages and amenities.</p>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {facts.map((s, i) => (
+                    <div key={i} className="bg-white rounded-xl border border-[#D3E3F0] p-4">
+                      <div className="flex items-center gap-2 pb-2 mb-2 border-b border-[#EEF4F9]">
+                        <div className="p-1.5 rounded-lg bg-[#0B6BB0]/10 text-[#0B6BB0]"><s.Icon size={15} /></div>
+                        <h4 className="text-sm font-bold text-[#0B2A44] flex-1">{s.category}</h4>
+                        {s.docRef && <span className="text-[10px] font-mono text-[#7E93A6]">{s.docRef}</span>}
+                      </div>
+                      <ul className="space-y-1.5">
+                        {s.items.map((item, j) => (
+                          <li key={j} className="text-xs text-[#0F2233] leading-relaxed flex gap-2"><span className="text-[#0B6BB0]">•</span><span>{item}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* footer */}
+        <div className="px-4 py-2 bg-white border-t border-[#D3E3F0] hidden sm:flex items-center gap-2 text-[11px] text-[#5E778C] shrink-0">
+          <span className="font-semibold text-[#0B2A44]">Amaya by Vera Vita Living</span>
+          <span>·</span>
+          <span>TG RERA: P02200011109</span>
+          <span>·</span>
+          <span>Munirabad, Medchal, Hyderabad</span>
         </div>
       </div>
     </div>

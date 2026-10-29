@@ -9,10 +9,14 @@ import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { str, truncate } from '../core/utils';
+import { defaultLibrary } from '../../src/documents/libraryContent';
+import { readLibraryFile } from './libraryFiles';
+import { decodeBase64, deleteFile, isAllowedMime, sanitizeFilename, saveFile } from './storage';
 
 const DOC_ID = 'content';
 const EDITORS_ID = 'editors';
-const MAX_BYTES = 1_500_000;
+const MAX_BYTES = 4_000_000;
+const MAX_DOCUMENTS = 60;
 const CATEGORIES = ['Brochure', 'Floor Plans', 'Monthly Packages', 'Pricing & Payment', 'Legal & RERA'];
 const ICONS = ['building', 'shield', 'money', 'heart', 'sparkles', 'map', 'book', 'file'];
 
@@ -36,7 +40,7 @@ function safeLink(v: unknown): string {
 /** Keep only the known shape, with limits (the content is shown to every user and searched by the AI). */
 export function cleanLibrary(input: any) {
   const ids = new Set<string>();
-  const documents = arr(input?.documents, 40).map((d: any, i: number) => {
+  const documents = arr(input?.documents, MAX_DOCUMENTS).map((d: any, i: number) => {
     let id = text(d?.id, 60).replace(/[^a-z0-9-]/gi, '-').toLowerCase() || `doc-${i + 1}`;
     while (ids.has(id)) id += '-2';
     ids.add(id);
@@ -124,9 +128,97 @@ export async function librarySave(d: { content: unknown }, ctx: Ctx) {
   return libraryGet(ctx);
 }
 
+/* ------------------------------ adding files ------------------------------ */
+
+/** Files arrive in pieces small enough for one request each (the host limits a request to ~4.5 MB). */
+const PART_B64 = 4_200_000;
+const MAX_PARTS = Math.ceil(CFG.UPLOAD_MAX_BYTES / 3_000_000);
+const uploadsCol = () => col<any>(CFG.COLL.LIBRARY_UPLOADS);
+const uploadIdOk = (v: unknown) => /^[a-z0-9-]{8,40}$/i.test(str(v));
+
+export async function libraryUploadPart(d: { uploadId: string; index: number; base64: string }, ctx: Ctx) {
+  if (!(await canEditLibrary(ctx))) throw fail('FORBIDDEN', 'Only admins and the chosen library editors can add files to the Project Library');
+  const index = Number(d?.index);
+  if (!uploadIdOk(d?.uploadId) || !Number.isInteger(index) || index < 0 || index >= MAX_PARTS) throw fail('VALIDATION', 'Bad upload piece');
+  if (str(d?.base64).length > PART_B64) throw fail('VALIDATION', 'Upload piece is too large');
+  const data = decodeBase64(d.base64);
+  const uploads = await uploadsCol();
+  await uploads.updateOne(
+    { _id: `${d.uploadId}:${index}` },
+    { $set: { uploadId: str(d.uploadId), index, data, by: str(ctx.user?.email).toLowerCase(), createdAt: new Date() } },
+    { upsert: true },
+  );
+  return { ok: true };
+}
+
+/** "Payment_Schedule-v2.pdf" → "Payment Schedule v2". */
+const titleFromName = (name: string) => name.replace(/\.[a-z0-9]{1,5}$/i, '').replace(/[_]+/g, ' ').replace(/\s*-\s*/g, ' – ').replace(/\s+/g, ' ').trim() || 'Uploaded document';
+
+/** A sensible category from the file name; the editor can change it. */
+export function guessCategory(name: string): string {
+  const n = name.toLowerCase();
+  if (/rera|legal|agreement|sale deed|approval|sanction|noc|title/.test(n)) return 'Legal & RERA';
+  if (/price|pricing|payment|cost|schedule|milestone|bsp|quote/.test(n)) return 'Pricing & Payment';
+  if (/floor|plan|layout|unit|bhk/.test(n)) return 'Floor Plans';
+  if (/package|care|food|meal|service|monthly/.test(n)) return 'Monthly Packages';
+  return 'Brochure';
+}
+
+/**
+ * Put the uploaded pieces together, keep the original file (downloadable from the library), read its text into
+ * chapters and passages and add it to the library as a new document.
+ */
+export async function libraryImport(d: { uploadId: string; parts: number; name: string; mime: string; title?: string; category?: string }, ctx: Ctx) {
+  if (!(await canEditLibrary(ctx))) throw fail('FORBIDDEN', 'Only admins and the chosen library editors can add files to the Project Library');
+  const parts = Number(d?.parts);
+  if (!uploadIdOk(d?.uploadId) || !Number.isInteger(parts) || parts < 1 || parts > MAX_PARTS) throw fail('VALIDATION', 'Bad upload');
+  const uploads = await uploadsCol();
+  const by = str(ctx.user?.email).toLowerCase();
+  const pieces = await uploads.find({ uploadId: str(d.uploadId), by }).sort({ index: 1 }).toArray();
+  await uploads.deleteMany({ $or: [{ uploadId: str(d.uploadId) }, { createdAt: { $lt: new Date(Date.now() - 86_400_000) } }] });
+  if (pieces.length !== parts || pieces.some((p, i) => p.index !== i)) throw fail('VALIDATION', 'The upload did not arrive complete. Please try again.');
+  const data = Buffer.concat(pieces.map((p) => Buffer.from(p.data.buffer ?? p.data)));
+  if (data.length > CFG.UPLOAD_MAX_BYTES) throw fail('VALIDATION', `File is larger than ${Math.round(CFG.UPLOAD_MAX_BYTES / (1024 * 1024))} MB.`);
+
+  const name = sanitizeFilename(d.name);
+  const mime = str(d.mime).split(';')[0].trim().toLowerCase() || 'application/octet-stream';
+  const chapters = await readLibraryFile(data, name, mime, ctx);
+
+  const current = await (await libraryCol()).findOne({ _id: DOC_ID });
+  const content = current?.content || defaultLibrary();
+  if (content.documents.length >= MAX_DOCUMENTS) throw fail('VALIDATION', `The library already has ${MAX_DOCUMENTS} documents. Remove one before adding another.`);
+
+  const file = await saveFile({ category: 'Library', name, mime: isAllowedMime(mime) ? mime : 'application/octet-stream', data, uploadedBy: ctx.user?.name || '', description: 'Project Library' });
+  const title = text(d.title, 200) || titleFromName(name);
+  const refName = title.split(/\s+/).slice(0, 3).join(' ').slice(0, 40);
+  const first = chapters[0].passages[0]?.text || '';
+  const doc = {
+    id: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'document',
+    title, shortName: title.slice(0, 80), refName, refTitle: title, idPrefix: '',
+    category: CATEGORIES.includes(str(d.category)) ? str(d.category) : guessCategory(name),
+    badgeColor: '', summary: truncate(first, 300), fileName: name, downloadUrl: file.url,
+    chapters: chapters.map((c) => ({ title: c.title, passages: c.passages.map((p) => ({ text: p.text, tags: [], ...(p.pageNumber ? { pageNumber: p.pageNumber } : {}) })) })),
+  };
+  let next;
+  try {
+    next = cleanLibrary({ ...content, documents: [...content.documents, doc] });
+    if (JSON.stringify(next).length > MAX_BYTES) throw fail('VALIDATION', 'This file has too much text for the library. Upload a shorter file or split it into parts.');
+    await (await libraryCol()).updateOne({ _id: DOC_ID }, { $set: { content: next, updatedAt: new Date(), updatedBy: ctx.user?.name || '' } }, { upsert: true });
+  } catch (e) {
+    await deleteFile(file.fileId); // no orphan file when the library was not saved
+    throw e;
+  }
+  const added = next.documents[next.documents.length - 1];
+  const passages = added.chapters.reduce((n, c) => n + c.passages.length, 0);
+  await auditLog(ctx, 'Project Library File Added', 'Library', DOC_ID, `${name} → “${added.title}”: ${added.chapters.length} chapters, ${passages} passages`);
+  return { ...(await libraryGet(ctx)), added: { id: added.id, title: added.title, chapters: added.chapters.length, passages } };
+}
+
 export const actions: ActionMap = {
   libraryGet: { fn: (_d, ctx) => libraryGet(ctx) },
   // admins (users.manage) and the chosen library editors — checked inside
   librarySave: { fn: (d, ctx) => librarySave(d, ctx) },
+  libraryUploadPart: { fn: (d, ctx) => libraryUploadPart(d, ctx) },
+  libraryImport: { fn: (d, ctx) => libraryImport(d, ctx) },
   librarySetEditors: { fn: (d, ctx) => librarySetEditors(d, ctx), perm: 'users.manage' },
 };

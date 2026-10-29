@@ -258,6 +258,21 @@ export async function transcribeAudio(audioBase64: string, mimeType: string, ctx
   return { transcription: textOf(resp) };
 }
 
+/** The text of a scanned PDF (pictures of pages): read by the model, one "=== Page n ===" line before each page. */
+export async function readDocumentText(data: Buffer, mimeType: string, ctx: Ctx): Promise<string> {
+  const b64 = data.toString('base64');
+  if (b64.length > MAX_AUDIO_B64) throw fail('VALIDATION', 'This scanned PDF is too large to read (max ~19 MB). Upload a smaller copy or a PDF with selectable text.');
+  await consumeQuota(ctx);
+  const resp = await generate(await modelFor('chat'), {
+    contents: [{ role: 'user', parts: [
+      { inlineData: { mimeType, data: b64 } },
+      { text: 'Copy out all the text in this document, page by page, exactly as written. Before each page write a line "=== Page n ===". Write tables as one row per line with cells separated by " | ". Do not summarise and do not add commentary.' },
+    ] }],
+    generationConfig: { temperature: 0 },
+  }, { budgetMs: TRANSCRIBE_BUDGET_MS });
+  return textOf(resp);
+}
+
 /* ------------------------------- text generation --------------------------- */
 
 /** Plain text generation with the configured model (used by call summaries, lead summaries). */

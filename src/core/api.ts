@@ -431,6 +431,11 @@ export const api = {
     save: (content: LibraryContent | null) => request<LibraryResponse>('librarySave', { content }),
     /** Admins: who else may edit the library (e-mails of active users). */
     setEditors: (emails: string[]) => request<LibraryResponse>('librarySetEditors', { emails }),
+    /** One ~3 MB piece of a file being added (pieces keep each request under the host's size limit). */
+    uploadPart: (uploadId: string, index: number, base64: string) => request<{ ok: boolean }>('libraryUploadPart', { uploadId, index, base64 }, { timeoutMs: 120000 }),
+    /** Read the uploaded file into a new library document. */
+    importFile: (d: { uploadId: string; parts: number; name: string; mime: string; title?: string; category?: string }) =>
+      request<LibraryResponse & { added: { id: string; title: string; chapters: number; passages: number } }>('libraryImport', d, { timeoutMs: 300000 }),
   },
 
   dev: {

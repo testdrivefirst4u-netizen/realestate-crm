@@ -25,6 +25,7 @@
     "nodemailer": "^10.0.15",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "unpdf": "^1.4.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

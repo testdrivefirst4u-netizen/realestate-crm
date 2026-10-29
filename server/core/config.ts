@@ -44,6 +44,8 @@ export const CFG = {
     COUNTERS: 'counters',
     META: 'meta',
     LIBRARY: 'projectLibrary',
+    /** pieces of a file being uploaded to the library (removed once it is added) */
+    LIBRARY_UPLOADS: 'libraryUploads',
     LOGIN_ATTEMPTS: 'loginAttempts',
     FILES_BUCKET: 'files', // GridFS bucket (lead documents, call recordings)
   },

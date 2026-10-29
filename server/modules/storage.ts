@@ -123,7 +123,7 @@ export async function deleteFile(fileId: string) {
 }
 
 /** Decode a (possibly data:-URL prefixed) base64 payload, checking the size before allocating. */
-function decodeBase64(base64: unknown): Buffer {
+export function decodeBase64(base64: unknown): Buffer {
   const clean = String(base64 || '').replace(/^data:[^;,]*(;[^,]*)?;base64,/, '').replace(/\s+/g, '');
   if (!clean) throw fail('VALIDATION', 'File content is empty');
   const approx = Math.floor((clean.length * 3) / 4);
