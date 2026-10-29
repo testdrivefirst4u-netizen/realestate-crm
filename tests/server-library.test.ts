@@ -65,3 +65,30 @@ describe('project library', () => {
     expect((await as('Ravi', 'libraryGet')).data.content).toBeNull();
   });
 });
+
+describe('library editors', () => {
+  it('an admin names editors; a named manager can save, others cannot; only admins see or change the list', async () => {
+    const content = defaultLibrary();
+    content.sections[0].items.push('Edited by a library editor');
+
+    expect((await as('Meera', 'libraryGet')).data).toMatchObject({ canEdit: false });
+    expect((await as('Meera', 'libraryGet')).data.editors).toBeUndefined();
+    expect((await as('Asha', 'libraryGet')).data).toMatchObject({ canEdit: true, editors: [] });
+
+    expect((await as('Meera', 'librarySetEditors', { emails: ['meera@library.test'] })).status).toBe('error');
+    expect((await as('Asha', 'librarySetEditors', { emails: ['nobody@library.test'] })).status).toBe('error');
+    const set = await as('Asha', 'librarySetEditors', { emails: ['Meera@Library.test'] });
+    expect(set.status).toBe('success');
+    expect(set.data.editors).toEqual(['meera@library.test']);
+
+    expect((await as('Meera', 'libraryGet')).data.canEdit).toBe(true);
+    const saved = await as('Meera', 'librarySave', { content });
+    expect(saved.status).toBe('success');
+    expect(saved.data.updatedBy).toBe('Meera');
+    expect((await as('Ravi', 'librarySave', { content })).status).toBe('error');
+    expect((await as('Ravi', 'libraryGet')).data.canEdit).toBe(false);
+
+    await as('Asha', 'librarySetEditors', { emails: [] });
+    expect((await as('Meera', 'librarySave', { content })).status).toBe('error');
+  });
+});

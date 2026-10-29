@@ -9,7 +9,7 @@
  */
 import { API, SYNC } from './config';
 import { AppError, ErrorCode, toAppError } from './errors';
-import type { LibraryContent } from '../documents/projectLibrary';
+import type { LibraryContent, LibraryResponse } from '../documents/projectLibrary';
 import type {
   AuthSession,
   CallRecord,
@@ -425,10 +425,12 @@ export const api = {
   },
 
   /** Retired Developer Mode actions — kept for API compatibility; the server answers with an explanatory error. */
-  /** The company's Project Library (null content = the library built into the app). Saving is for admins. */
+  /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
   library: {
-    get: () => request<{ content: LibraryContent | null; updatedAt: string; updatedBy: string }>('libraryGet'),
-    save: (content: LibraryContent | null) => request<{ content: LibraryContent | null; updatedAt: string; updatedBy: string }>('librarySave', { content }),
+    get: () => request<LibraryResponse>('libraryGet'),
+    save: (content: LibraryContent | null) => request<LibraryResponse>('librarySave', { content }),
+    /** Admins: who else may edit the library (e-mails of active users). */
+    setEditors: (emails: string[]) => request<LibraryResponse>('librarySetEditors', { emails }),
   },
 
   dev: {

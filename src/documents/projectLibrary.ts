@@ -33,6 +33,8 @@ export interface LibraryDoc {
 }
 export interface LibrarySection { category: string; docRef: string; icon: SectionIcon | string; items: string[] }
 export interface LibraryContent { documents: LibraryDoc[]; sections: LibrarySection[] }
+/** What the server answers: `editors` comes only to admins. */
+export interface LibraryResponse { content: LibraryContent | null; updatedAt: string; updatedBy: string; canEdit?: boolean; editors?: string[] }
 
 const DEFAULT_SECTIONS: LibrarySection[] = [
   {
@@ -178,12 +180,16 @@ export interface LibraryState {
   updatedAt: string;
   updatedBy: string;
   loaded: boolean;
+  /** This user may edit the library (an admin or a chosen library editor). */
+  canEdit: boolean;
+  /** Who else may edit it — known to admins only. */
+  editors?: string[];
 }
 
 const stateFor = (content: LibraryContent | null, meta: Partial<LibraryState> = {}): LibraryState => {
   const c = content || defaultLibrary();
   const documents = buildDocuments(c);
-  return { content: c, documents, verses: documents.flatMap((d) => d.verses), custom: !!content, updatedAt: '', updatedBy: '', loaded: false, ...meta };
+  return { content: c, documents, verses: documents.flatMap((d) => d.verses), custom: !!content, updatedAt: '', updatedBy: '', loaded: false, canEdit: false, ...meta };
 };
 
 let state: LibraryState = stateFor(null);
@@ -197,8 +203,8 @@ export const projectLibrary = {
     return () => listeners.delete(fn);
   },
   /** Use the content the server returned (`null` = built-in). */
-  set(r: { content: LibraryContent | null; updatedAt?: string; updatedBy?: string }) {
-    state = stateFor(r.content, { updatedAt: r.updatedAt || '', updatedBy: r.updatedBy || '', loaded: true });
+  set(r: LibraryResponse) {
+    state = stateFor(r.content, { updatedAt: r.updatedAt || '', updatedBy: r.updatedBy || '', loaded: true, canEdit: !!r.canEdit, editors: r.editors });
     listeners.forEach((l) => l());
   },
   /** Fetch the company's library (once; `force` again, e.g. when the library opens). Failures keep what is shown. */

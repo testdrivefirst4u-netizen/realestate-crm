@@ -1,7 +1,8 @@
 /**
  * Sales automation: auto-reassign of untouched new leads (working hours, once per RM, managers told), site-visit
  * reminders to the RM's phone (day before / 2 hours before, once each), the evening summary notification, the RM
- * leaderboard, campaign spend and the backup restore test. Everything is free — no WhatsApp is sent.
+ * leaderboard, campaign spend, the backup restore test, and the automations (WhatsApp welcome and site-visit templates,
+ * AI Hot → stage Hot, missed calls not called back).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -132,6 +133,78 @@ describe('site-visit reminders (to the RM, free)', () => {
     await addLead({ [L.NAME]: 'Nobody', [L.PHONE]: '9876500008', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: new Date(noon.getTime() + 60 * 60000).toISOString() }, admin);
     expect((await SO.sendVisitReminders(cfg({ visitReminders: false }), noon)).sent).toBe(0);
     expect((await SO.sendVisitReminders(cfg(), noon)).sent).toBe(1);
+  });
+});
+
+describe('automations', () => {
+  it('fills a template\'s values from the lead', () => {
+    const lead = { name: 'Meera Kapoor', phone: '+919876500009', assignedRm: 'Priya Sharma', unitType: '2 BHK', siteVisitDate: makeZoned(2026, 10, 20, 11, 30) } as any;
+    expect(SO.fillTemplateValues('{first_name}, {rm}, {visit_date}, {visit_time}, Amaya', lead, 'Amaya')).toEqual(['Meera', 'Priya Sharma', '20 Oct 2026', '11:30 AM', 'Amaya']);
+    expect(SO.fillTemplateValues('name={name}, unit={unit}', lead)).toEqual(['name=Meera Kapoor', 'unit=2 BHK']);
+    expect(SO.fillTemplateValues('', lead)).toEqual([]);
+  });
+
+  it('settings: template values may only name known fields; missed-call alert at least 5 minutes', async () => {
+    await expect(updateSettings({ salesOps: { welcomeTemplate: 'amaya_welcome', welcomeValues: '{first_name}, {budget}' } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(updateSettings({ salesOps: { missedAlertMin: 2 } }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    const s = await updateSettings({ salesOps: { welcomeTemplate: 'amaya_welcome', welcomeValues: '{first_name}, {rm}', hotFromAi: true, missedAlertMin: 30 } }, admin);
+    expect(s.salesOps).toMatchObject({ welcomeTemplate: 'amaya_welcome', welcomeValues: '{first_name}, {rm}', hotFromAi: true, missedAlertMin: 30 });
+  });
+
+  it('WhatsApp welcome: the template goes to a new lead once; not to leads that came in on WhatsApp; off when empty', async () => {
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma', [L.SOURCE]: 'Facebook' }, admin);
+    expect(await SO.welcomeNewLead(lead[L.ID])).toBe(false); // off
+    await updateSettings({ salesOps: { welcomeTemplate: 'amaya_welcome', welcomeValues: '{first_name}, {rm}' } }, admin);
+    expect(await SO.welcomeNewLead(lead[L.ID])).toBe(true);
+    expect(chatSend).toHaveBeenCalledWith(expect.objectContaining({ templateName: 'amaya_welcome', params: ['Meera', 'Priya Sharma'], leadId: lead[L.ID] }), expect.objectContaining({ user: expect.objectContaining({ name: 'Automation' }) }));
+    expect(await SO.welcomeNewLead(lead[L.ID])).toBe(false); // once
+    const { lead: wa } = await addLead({ [L.NAME]: 'Ravi', [L.PHONE]: '9876500010', [L.SOURCE]: 'Chat360' }, admin);
+    expect(await SO.welcomeNewLead(wa[L.ID])).toBe(false);
+    expect(chatSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('AI says Hot: an earlier-stage lead moves to Hot and the RM and managers are told, once per call; later stages stay', async () => {
+    await pushSubscribe(device(1), priya);
+    await pushSubscribe(device(2), admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma', [L.STAGE]: 'Warm' }, admin);
+    expect(await SO.onAiHot('CALL-1', lead[L.ID], 'Wants to visit Saturday')).toBe(false); // off
+    await updateSettings({ salesOps: { hotFromAi: true } }, admin);
+    expect(await SO.onAiHot('CALL-1', lead[L.ID], 'Wants to visit Saturday')).toBe(true);
+    expect((await getLead(lead[L.ID]))![L.STAGE]).toBe('Hot');
+    expect(pushSent.map((p) => p.endpoint).sort()).toEqual(['https://push.example/dev1', 'https://push.example/dev2']);
+    expect(pushSent[0].body).toMatchObject({ title: 'Hot lead: Meera Kapoor', url: `/leads?lead=${lead[L.ID]}` });
+    expect(JSON.stringify(await timelineForLead(lead[L.ID]))).toContain('the AI read the call as Hot');
+    const { lead: booked } = await addLead({ [L.NAME]: 'Booked One', [L.PHONE]: '9876500011', [L.STAGE]: 'Booked' }, admin);
+    expect(await SO.onAiHot('CALL-2', booked[L.ID], '')).toBe(false);
+  });
+
+  it('site visit: the customer gets the WhatsApp reminder the day before, once', async () => {
+    const visitAt = makeZoned(2026, 10, 20, 11, 30);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma', [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.SCHEDULED, [L.SITE_VISIT_DATE]: visitAt.toISOString() }, admin);
+    const c = cfg({ reassignAfterMin: 0, visitReminders: false, visitTemplate: 'site_visit_reminder', visitValues: '{first_name}, {visit_date}, {visit_time}' });
+    await SO.sendVisitReminders(c, makeZoned(2026, 10, 19, 10, 5));
+    await SO.sendVisitReminders(c, makeZoned(2026, 10, 19, 16, 0));
+    expect(chatSend).toHaveBeenCalledTimes(1);
+    expect(chatSend).toHaveBeenCalledWith(expect.objectContaining({ templateName: 'site_visit_reminder', params: ['Meera', '20 Oct 2026', '11:30 AM'], leadId: lead[L.ID] }), expect.anything());
+  });
+
+  it('missed call nobody called back: managers and the RM are told once; a call-back clears it', async () => {
+    await pushSubscribe(device(2), admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876500009', [L.RM]: 'Priya Sharma' }, admin);
+    const calls = await col<any>(CFG.COLL.CALLS);
+    const now = new Date();
+    const at = (min: number) => new Date(now.getTime() - min * 60000);
+    await calls.insertMany([
+      { _id: 'C1', leadId: lead[L.ID], phone: '+919876500009', phoneLast10: '9876500009', direction: 'Inbound', status: 'Missed', startTime: at(45) },
+      { _id: 'C2', phone: '+919876500012', phoneLast10: '9876500012', direction: 'Inbound', status: 'Missed', startTime: at(50) },
+      { _id: 'C3', phone: '+919876500012', phoneLast10: '9876500012', direction: 'Outbound', status: 'No Answer', startTime: at(40) }, // called back
+      { _id: 'C4', phone: '+919876500013', phoneLast10: '9876500013', direction: 'Inbound', status: 'Missed', startTime: at(10) }, // not yet 30 min
+    ] as any[]);
+    const c = cfg({ reassignAfterMin: 0, missedAlertMin: 30 });
+    expect(await SO.alertUnreturnedMissed(c, now)).toEqual({ alerted: 1 });
+    expect(pushSent[0].body).toMatchObject({ title: 'Not called back: Meera Kapoor', url: `/leads?lead=${lead[L.ID]}` });
+    expect(await SO.alertUnreturnedMissed(c, now)).toEqual({ alerted: 0 }); // once
+    expect(await SO.alertUnreturnedMissed(cfg({ missedAlertMin: 0 }), now)).toEqual({ alerted: 0 }); // off
   });
 });
 

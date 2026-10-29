@@ -446,6 +446,14 @@ export async function summarize(callId: string, ctx: Ctx): Promise<any> {
         await updateLead(call.leadId, { [L.NEXT_FOLLOWUP]: result.nextFollowup }, ctx);
       } catch { /* non-fatal */ }
     }
+    // automation (Settings › Alerts & follow-ups): a Hot call moves the lead to Hot and tells the RM and managers
+    if (result.temperature === 'Hot') {
+      try {
+        await (await import('./salesOps')).onAiHot(call.id, call.leadId, result.temperatureReason);
+      } catch (e: any) {
+        await logError('automation.aiHot', 'INTERNAL', e?.message, e?.stack, '', { callId: call.id });
+      }
+    }
   }
   return updated;
 }

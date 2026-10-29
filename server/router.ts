@@ -79,7 +79,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall|splitCallTranscript)$|^jc[A-Z]/, 'calls', 'Calls'],
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],
-  [/^library(Get|Save)$/, 'projectLibrary', 'The project library'],
+  [/^library(Get|Save|SetEditors)$/, 'projectLibrary', 'The project library'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
   [/LeadSource|^listInboundLog$|^retryInbound$/, ['websiteApi', 'googleSheets', 'metaLeads'], 'Website forms & lead API'],
   // googleStatus is not gated (it only says whether the platform is configured and which e-mail to share with)

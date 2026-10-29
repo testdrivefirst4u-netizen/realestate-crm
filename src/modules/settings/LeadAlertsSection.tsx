@@ -4,7 +4,7 @@
  * follow-up sequence (server: modules/leadAlerts.ts, modules/salesOps.ts, modules/push.ts).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { BellRing, CalendarCheck, CalendarClock, Moon, Repeat, Save, UserCheck } from 'lucide-react';
+import { BellRing, CalendarCheck, CalendarClock, MessageCircle, Moon, Repeat, Save, UserCheck, Zap } from 'lucide-react';
 import { UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -33,8 +33,20 @@ interface SalesOps {
   summaryPush: boolean;
   summaryHour: number;
   summaryTo: string;
+  welcomeTemplate: string;
+  welcomeValues: string;
+  visitTemplate: string;
+  visitValues: string;
+  hotFromAi: boolean;
+  missedAlertMin: number;
+  missedAlertTo: string;
 }
-const OPS_DEFAULTS: SalesOps = { reassignAfterMin: 0, reassignMax: 1, workStartHour: 9, workEndHour: 20, visitReminders: true, summaryPush: false, summaryHour: 19, summaryTo: '' };
+const OPS_DEFAULTS: SalesOps = {
+  reassignAfterMin: 0, reassignMax: 1, workStartHour: 9, workEndHour: 20, visitReminders: true, summaryPush: false, summaryHour: 19, summaryTo: '',
+  welcomeTemplate: '', welcomeValues: '', visitTemplate: '', visitValues: '', hotFromAi: false, missedAlertMin: 0, missedAlertTo: '',
+};
+/** What a WhatsApp template's values may name (server: salesOps.TEMPLATE_FIELDS). */
+const TEMPLATE_FIELDS = '{first_name}, {name}, {rm}, {unit}, {visit_date}, {visit_time}, {company}';
 
 const SEQ_DEFAULTS: SequenceConfig = { enabled: true, days: [1, 3, 7], hour: 10, autoNotRespondingDays: 0 };
 
@@ -167,6 +179,59 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
             </Field>
           </div>
           <p className="text-xs text-[#5E778C]">The clock only runs in working hours: a lead that arrives at night gets the full time from the moment the office opens. Only leads still at stage <strong>New</strong> from the last 24 hours are moved, and only to users with the RM role.</p>
+        </div>
+      </Card>
+
+      <Card title={<span className="inline-flex items-center gap-2"><Zap size={16} className="text-[#0B6BB0]" /> Automations</span>} subtitle="Things the CRM does by itself, each switched on here. They run within a few minutes and appear on the lead's timeline as “Automation”.">
+        <div className="space-y-5">
+          <Toggle
+            checked={ops.hotFromAi}
+            disabled={!editable}
+            onChange={(v) => setOp('hotFromAi', v)}
+            label="AI says Hot → move the lead to Hot and tell the RM and managers"
+            hint="After a call, when the AI reads it as Hot, a lead at New, Open, Warm or Not Responding moves to Hot. Qualified, Booked and closed leads are left as they are."
+          />
+
+          <div className="space-y-2">
+            <Field label="Missed call not called back → tell the managers after" hint="An incoming call that was missed, where nobody has called the number since. One alert per number per day; the RM is told too. 0 = off.">
+              <div className="flex items-center gap-2">
+                <input className={inputCls + ' !w-24'} type="number" min={0} max={1440} value={ops.missedAlertMin} disabled={!editable} onChange={(e) => setOp('missedAlertMin', Number(e.target.value) || 0)} />
+                <span className="text-xs text-[#5E778C]">minutes</span>
+              </div>
+            </Field>
+            {ops.missedAlertMin > 0 && (
+              <Field label="Tell" hint="Nobody ticked = every Admin and Manager.">
+                <UserPicker users={active} chosen={new Set(list(ops.missedAlertTo))} disabled={!editable} onToggle={(e, on) => setOp('missedAlertTo', toggleIn(ops.missedAlertTo, e, on))} />
+              </Field>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-[#E6EFF6] p-3 space-y-3">
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[#0B2A44]"><MessageCircle size={15} className="text-[#22A06B]" /> WhatsApp messages to customers</div>
+            {!s.chat360Configured && <InlineNotice tone="warning">Chat360 is not connected, so no WhatsApp messages are sent. Connect it under Settings › WhatsApp, AI &amp; calls.</InlineNotice>}
+            <p className="text-xs text-[#5E778C]">
+              Only <strong>approved WhatsApp templates</strong> from Chat360 can be sent (WhatsApp's rule for first messages). Type the template's exact name, and its values in order, separated by commas.
+              A value can be fixed text or one of {TEMPLATE_FIELDS}. Chat360 charges for each template message.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Welcome every new lead: template" hint="Leave empty for off. Not sent to leads that came in on WhatsApp (they are already chatting).">
+                <input className={inputCls} value={ops.welcomeTemplate} disabled={!editable} onChange={(e) => setOp('welcomeTemplate', e.target.value)} placeholder="e.g. amaya_welcome" />
+              </Field>
+              <Field label="Its values" hint="e.g. {first_name}, {rm}">
+                <input className={inputCls} value={ops.welcomeValues} disabled={!editable || !ops.welcomeTemplate.trim()} onChange={(e) => setOp('welcomeValues', e.target.value)} placeholder="{first_name}, {rm}" />
+              </Field>
+              <Field label="Site visit reminder (day before): template" hint="Sent to the customer from 10 AM the day before a scheduled visit. Leave empty for off.">
+                <input className={inputCls} value={ops.visitTemplate} disabled={!editable} onChange={(e) => setOp('visitTemplate', e.target.value)} placeholder="e.g. site_visit_reminder" />
+              </Field>
+              <Field label="Its values" hint="e.g. {first_name}, {visit_date}, {visit_time}">
+                <input className={inputCls} value={ops.visitValues} disabled={!editable || !ops.visitTemplate.trim()} onChange={(e) => setOp('visitValues', e.target.value)} placeholder="{first_name}, {visit_date}, {visit_time}" />
+              </Field>
+            </div>
+          </div>
+
+          <p className="text-xs text-[#5E778C]">
+            Moving untouched new leads to another RM is under <strong>Move untouched leads on</strong> above; marking quiet leads Not Responding is in the <strong>Follow-up sequence</strong> below.
+          </p>
         </div>
       </Card>
 

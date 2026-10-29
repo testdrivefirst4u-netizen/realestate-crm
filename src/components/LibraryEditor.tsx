@@ -1,18 +1,83 @@
 /**
- * The Project Library's "Edit library" tab (Admins): Quick Reference Specs and every document — its details,
- * chapters and passages (one passage per line). Saved for the whole company; "Restore original" goes back to the
- * library built into the app. Passages keep their search tags while their text is unchanged.
+ * The Project Library's "Edit library" tab (Admins and the chosen library editors): Quick Reference Specs and every
+ * document — its details, chapters and passages (one passage per line). Saved for the whole company; "Restore
+ * original" goes back to the library built into the app. Passages keep their search tags while their text is
+ * unchanged. Admins also choose who else may edit ("Who can edit").
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, RotateCcw, Save, Trash2, UserCog } from 'lucide-react';
 import { api } from '../core/api';
 import { toAppError } from '../core/errors';
 import { toast } from '../core/notifications';
+import { normalizeRole, roleLabel } from '../core/rbac';
 import {
   LIBRARY_CATEGORIES, SECTION_ICONS, projectLibrary, useProjectLibrary,
   type LibraryCategory, type LibraryContent, type LibraryDoc, type LibraryPassage,
 } from '../documents/projectLibrary';
+import type { UserAccount } from '../types/crm';
 import { Button, Field, Select, cx, inputCls } from './ui';
+
+/** Admins only: tick the people who may edit the library besides the admins. */
+const EditorsPanel: React.FC<{ editors: string[] }> = ({ editors }) => {
+  const [users, setUsers] = useState<UserAccount[] | null>(null);
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(editors));
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    api.settings.users.list().then(setUsers).catch((e) => {
+      setUsers([]);
+      toast('Could not load the team', toAppError(e).userMessage, 'alert');
+    });
+  }, []);
+  const dirty = JSON.stringify([...chosen].sort()) !== JSON.stringify([...editors].sort());
+  // admins (and the platform account) can always edit; view-only users never can
+  const people = (users || []).filter((u) => u.status !== 'Disabled' && !['Admin', 'Developer', 'Viewer'].includes(normalizeRole(u.role)));
+  const save = async () => {
+    setSaving(true);
+    try {
+      projectLibrary.set(await api.library.setEditors([...chosen]));
+      toast('Library editors saved', chosen.size ? `${chosen.size} ${chosen.size === 1 ? 'person' : 'people'} can now edit the library.` : 'Only admins can edit the library.', 'success');
+    } catch (e) {
+      toast('Not saved', toAppError(e).userMessage, 'alert');
+    }
+    setSaving(false);
+  };
+  return (
+    <div className="space-y-3 max-w-xl">
+      <p className="text-xs text-[#5E778C]">Admins can always edit the library. Tick anyone else who should be able to edit it. Everyone in the company can read it.</p>
+      {users === null ? (
+        <p className="text-xs text-[#7E93A6]">Loading the team…</p>
+      ) : people.length === 0 ? (
+        <p className="text-xs text-[#7E93A6]">No other active users yet.</p>
+      ) : (
+        <div className="rounded-xl border border-[#D3E3F0] bg-white divide-y divide-[#EAF1F7]">
+          {people.map((u) => {
+            const e = u.email.toLowerCase();
+            return (
+              <label key={e} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#F5F9FC]">
+                <input
+                  type="checkbox"
+                  className="accent-[#0B6BB0]"
+                  checked={chosen.has(e)}
+                  onChange={(ev) => setChosen((p) => {
+                    const n = new Set(p);
+                    if (ev.target.checked) n.add(e);
+                    else n.delete(e);
+                    return n;
+                  })}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-[#0B2A44] truncate">{u.name || u.email}</span>
+                  <span className="block text-[11px] text-[#7E93A6] truncate">{u.email} · {roleLabel(u.role)}</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+      <Button icon={<Save size={13} />} disabled={!dirty || saving} onClick={save}>{saving ? 'Saving…' : 'Save editors'}</Button>
+    </div>
+  );
+};
 
 interface DraftChapter { title: string; text: string }
 type DraftDoc = Omit<LibraryDoc, 'chapters'> & { chapters: DraftChapter[] };
@@ -164,10 +229,17 @@ export const LibraryEditor: React.FC<{ onDirty: (dirty: boolean) => void }> = ({
           <button type="button" onClick={addDocument} className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-[#0B6BB0] hover:bg-white/70">
             <Plus size={13} /> Add document
           </button>
+          {lib.editors && (
+            <>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7E93A6] pt-3 pb-1 px-1">Access</div>
+              {navBtn('editors', <span className="inline-flex items-center gap-1.5"><UserCog size={13} /> Who can edit</span>)}
+            </>
+          )}
         </div>
 
         {/* editor */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {open === 'editors' && lib.editors && <EditorsPanel editors={lib.editors} />}
           {open === 'specs' && (
             <>
               <p className="text-xs text-[#5E778C]">The summary cards on the Quick Reference Specs tab. One point per line.</p>

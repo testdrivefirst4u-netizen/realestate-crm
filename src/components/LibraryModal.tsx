@@ -32,7 +32,7 @@ interface LibraryModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialQuery?: string;
-  /** Admins may edit the library (documents, passages, quick specs). */
+  /** Admins may edit the library (documents, passages, quick specs); so may the chosen library editors. */
   canEdit?: boolean;
 }
 
@@ -64,9 +64,11 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({
   isOpen,
   onClose,
   initialQuery = '',
-  canEdit = false,
+  canEdit: isAdmin = false,
 }) => {
   const lib = useProjectLibrary();
+  // admins, plus the people an admin chose as library editors (the server says which)
+  const canEdit = isAdmin || lib.canEdit;
   const documents = lib.documents;
   const [searchTerm, setSearchTerm] = useState(initialQuery);
   const [activeTab, setActiveTab] = useState<'search' | 'reader' | 'quickSpecs' | 'repository' | 'edit'>('search');

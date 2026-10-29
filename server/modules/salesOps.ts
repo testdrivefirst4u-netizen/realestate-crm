@@ -5,8 +5,12 @@
  *   - auto-reassign: a fresh New lead nobody has acted on (no follow-up, call, WhatsApp or stage change) within
  *     `reassignAfterMin` working minutes moves to the next RM, who is alerted as usual; managers are told;
  *   - site-visit reminders: a phone notification to the assigned RM the day before (from 10 AM) and 2 hours before;
- *   - evening summary: once a day at `summaryHour`, a phone notification with the day's numbers to chosen users.
- * Everything is free (Web Push and e-mail) — no WhatsApp or SMS.
+ *     with `visitTemplate`, a WhatsApp template to the customer the day before;
+ *   - evening summary: once a day at `summaryHour`, a phone notification with the day's numbers to chosen users;
+ *   - missed calls not returned: nobody called the number back within `missedAlertMin` minutes → managers are told.
+ * Automations on events: a new lead gets the WhatsApp welcome template (`welcomeTemplate`, leads.addLead), and a call
+ * the AI reads as Hot moves an earlier-stage lead to Hot and tells the RM and managers (`hotFromAi`, calls.summarize).
+ * Phone notifications and e-mail are free; WhatsApp messages are approved Chat360 templates only (Chat360 bills them).
  * leaderboard({ days }) — follow-ups, calls, site visits and bookings per RM.
  * campaignSpend — ad spend per campaign and month (entered by hand) for cost per lead / visit / booking in MIS.
  */
@@ -18,7 +22,8 @@ import { fail } from '../core/errors';
 import { addEvent, addTimeline, logError } from '../core/events';
 import type { LeadDoc } from '../core/leadShape';
 import { settingSet, settingsAll } from '../core/settings';
-import { currentTenant } from '../core/tenant';
+import { after } from 'next/server';
+import { currentTenant, runWithTenant } from '../core/tenant';
 import { dateKey, fmtDate, fmtTime, localHour, makeZoned, safeJsonParse } from '../core/utils';
 import { notifyAdmins } from './adminAlerts';
 import { idsByEmail, idsByName, sendPush } from './push';
@@ -45,11 +50,24 @@ export interface SalesOps {
   summaryHour: number;
   /** E-mails of the users who get the summary. */
   summaryTo: string;
+  /** WhatsApp welcome: an approved Chat360 template sent to every new lead ('' = off), and its values. */
+  welcomeTemplate: string;
+  welcomeValues: string;
+  /** WhatsApp to the customer the day before a scheduled site visit ('' = off), and its values. */
+  visitTemplate: string;
+  visitValues: string;
+  /** A call the AI reads as Hot moves an earlier-stage lead to Hot, and the RM and managers are told. */
+  hotFromAi: boolean;
+  /** A missed incoming call nobody has called back within this many minutes: managers are told; 0 = off. */
+  missedAlertMin: number;
+  /** Who is told (e-mails of active users); empty = every Admin and Manager. */
+  missedAlertTo: string;
 }
 
 export const SALES_OPS_DEFAULTS: SalesOps = {
   reassignAfterMin: 0, reassignMax: 1, workStartHour: 9, workEndHour: 20,
   visitReminders: true, summaryPush: false, summaryHour: 19, summaryTo: '',
+  welcomeTemplate: '', welcomeValues: '', visitTemplate: '', visitValues: '', hotFromAi: false, missedAlertMin: 0, missedAlertTo: '',
 };
 
 const int = (v: unknown, d: number, lo: number, hi: number) => {
@@ -72,6 +90,13 @@ export function parseSalesOps(raw: unknown): SalesOps {
     summaryPush: bool(o.summaryPush),
     summaryHour: int(o.summaryHour, D.summaryHour, 0, 23),
     summaryTo: s('summaryTo'),
+    welcomeTemplate: s('welcomeTemplate').slice(0, 120),
+    welcomeValues: s('welcomeValues').slice(0, 500),
+    visitTemplate: s('visitTemplate').slice(0, 120),
+    visitValues: s('visitValues').slice(0, 500),
+    hotFromAi: bool(o.hotFromAi),
+    missedAlertMin: int(o.missedAlertMin, D.missedAlertMin, 0, 24 * 60),
+    missedAlertTo: s('missedAlertTo'),
   };
 }
 
@@ -84,8 +109,61 @@ export async function validateSalesOps(raw: unknown): Promise<string> {
   const to = EMAILS(c.summaryTo);
   for (const e of to) if (!active.has(e)) throw fail('VALIDATION', `Summary recipients must be active CRM users (${e} is not)`);
   if (c.summaryPush && !to.length) throw fail('VALIDATION', 'Choose who gets the evening summary');
-  return JSON.stringify({ ...c, summaryTo: to.join(', ') });
+  if (c.missedAlertMin && c.missedAlertMin < 5) throw fail('VALIDATION', 'Give the team at least 5 minutes to call a missed caller back');
+  const missedTo = EMAILS(c.missedAlertTo);
+  for (const e of missedTo) if (!active.has(e)) throw fail('VALIDATION', `Missed-call alert recipients must be active CRM users (${e} is not)`);
+  for (const [k, v] of [['welcomeValues', c.welcomeValues], ['visitValues', c.visitValues]] as const) {
+    const unknown = (v.match(/\{[^}]*\}/g) || []).filter((t) => !TEMPLATE_FIELDS.includes(t.slice(1, -1).trim().toLowerCase()));
+    if (unknown.length) throw fail('VALIDATION', `Unknown value ${unknown[0]} in the ${k === 'welcomeValues' ? 'welcome' : 'site-visit'} message. Use ${TEMPLATE_FIELDS.map((f) => `{${f}}`).join(', ')}.`);
+  }
+  return JSON.stringify({ ...c, summaryTo: to.join(', '), missedAlertTo: missedTo.join(', ') });
 }
+
+/* ------------------------- WhatsApp template values ----------------------- */
+
+/** What a template's values may name: "{first_name}, {visit_date}" → the lead's own details. */
+export const TEMPLATE_FIELDS = ['name', 'first_name', 'phone', 'rm', 'unit', 'visit_date', 'visit_time', 'company'];
+
+/**
+ * A template's values, filled in for one lead: comma-separated, each a fixed word or a {field} (or "key={field}" for
+ * a template with named variables).
+ */
+export function fillTemplateValues(spec: string, lead: Pick<LeadDoc, 'name' | 'phone' | 'assignedRm' | 'unitType' | 'siteVisitDate'>, company = ''): string[] {
+  const name = String(lead.name || '').trim();
+  const v: Record<string, string> = {
+    name, first_name: name.split(/\s+/)[0] || name, phone: String(lead.phone || ''), rm: String(lead.assignedRm || ''),
+    unit: String(lead.unitType || ''), visit_date: fmtDate(lead.siteVisitDate), visit_time: fmtTime(lead.siteVisitDate), company,
+  };
+  return String(spec || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => p.replace(/\{\s*([a-z_]+)\s*\}/gi, (_, k: string) => v[k.toLowerCase()] ?? ''));
+}
+
+const AUTOMATION_CTX: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Automation' }, action: 'automation' };
+
+/** Send an approved WhatsApp template (Chat360) to a lead. false when WhatsApp is not available or it failed (logged). */
+async function sendLeadTemplate(lead: LeadDoc, template: string, values: string, what: string): Promise<boolean> {
+  const t = currentTenant();
+  if (!template || (t && !t.features.chat360)) return false;
+  if (String(lead.phone || '').replace(/\D/g, '').length < 10) return false;
+  try {
+    const company = String((await settingsAll()).appName || '');
+    const { send } = await import('./chat360');
+    await send({ phone: lead.phone, templateName: template, params: fillTemplateValues(values, lead, company), leadId: lead._id }, AUTOMATION_CTX);
+    return true;
+  } catch (e: any) {
+    if (e?.code !== 'NOT_CONFIGURED') await logError('automation.whatsapp', e?.code || 'INTERNAL', `${what}: ${e?.message}`, e?.stack, '', { leadId: lead._id, template });
+    return false;
+  }
+}
+
+/** Every active Admin and Manager (who hear about things going wrong), or the chosen people. */
+const managersOr = (emails: string, users: PublicUser[]) => {
+  const chosen = EMAILS(emails);
+  return chosen.length ? idsByEmail(chosen, users) : users.filter((u) => u.status !== 'Disabled' && (u.role === 'Admin' || u.role === 'Manager')).map((u) => u.id);
+};
 
 /* -------------------------------- helpers -------------------------------- */
 
@@ -179,10 +257,10 @@ export async function reassignStale(cfg: SalesOps, now = new Date()): Promise<{ 
 
 export async function sendVisitReminders(cfg: SalesOps, now = new Date()): Promise<{ sent: number; failed: number }> {
   const out = { sent: 0, failed: 0 };
-  if (!cfg.visitReminders) return out;
+  if (!cfg.visitReminders && !cfg.visitTemplate) return out;
   const tomorrow = dateKey(new Date(now.getTime() + 24 * HOUR));
   const visits = await (await leadsCol())
-    .find({ siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, siteVisitDate: { $gt: now, $lte: new Date(now.getTime() + 48 * HOUR) }, stage: { $nin: [S.TRASH, S.DELETED, S.DND, S.JUNK] }, assignedRm: { $nin: ['', null] } } as any)
+    .find({ siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, siteVisitDate: { $gt: now, $lte: new Date(now.getTime() + 48 * HOUR) }, stage: { $nin: [S.TRASH, S.DELETED, S.DND, S.JUNK, S.LOST], $not: /^Disqualified/ } } as any)
     .limit(300)
     .toArray();
   if (!visits.length) return out;
@@ -193,6 +271,11 @@ export async function sendVisitReminders(cfg: SalesOps, now = new Date()): Promi
     // 2 hours before; and the day before from 10 AM (skipped when the visit is close anyway)
     const kind = left <= 2 * HOUR ? 'h2' : dateKey(at) === tomorrow && localHour(now) >= 10 && left > 4 * HOUR ? 'd1' : '';
     if (!kind) continue;
+    // the day before: the customer's WhatsApp reminder too (when a template is set)
+    if (kind === 'd1' && cfg.visitTemplate && (await claimOnce(`visitwa:${l._id}:${at.toISOString()}`))) {
+      await sendLeadTemplate(l, cfg.visitTemplate, cfg.visitValues, 'Site-visit reminder');
+    }
+    if (!cfg.visitReminders) continue;
     const ids = idsByName([l.assignedRm], users);
     if (!ids.length || !(await claimOnce(`visit:${l._id}:${at.toISOString()}:${kind}`))) continue;
     const r = await sendPush(ids, {
@@ -203,6 +286,101 @@ export async function sendVisitReminders(cfg: SalesOps, now = new Date()): Promi
     });
     if (r.sent) out.sent++;
     else out.failed++;
+  }
+  return out;
+}
+
+/* ---------------------------- WhatsApp welcome --------------------------- */
+
+/** Sources whose leads are already talking to us on WhatsApp: no welcome template. */
+const CHATTING_SOURCES = /^(chat ?360|whats ?app)$/i;
+
+/** Send the welcome template to a new lead (once). */
+export async function welcomeNewLead(leadId: string): Promise<boolean> {
+  const cfg = parseSalesOps((await settingsAll()).salesOps);
+  if (!cfg.welcomeTemplate) return false;
+  const lead = await (await leadsCol()).findOne({ _id: leadId });
+  if (!lead || CHATTING_SOURCES.test(String(lead.source || '').trim()) || [S.TRASH, S.DELETED].includes(lead.stage as any)) return false;
+  if (!(await claimOnce('welcome:' + leadId))) return false;
+  return sendLeadTemplate(lead, cfg.welcomeTemplate, cfg.welcomeValues, 'WhatsApp welcome');
+}
+
+/** After a new lead is saved (after the response: saving never waits for or fails because of WhatsApp). Nothing is queued when the welcome is off. */
+export async function scheduleWelcome(leadId: string) {
+  const tenant = currentTenant();
+  if (!parseSalesOps((await settingsAll()).salesOps).welcomeTemplate) return;
+  const task = () => (tenant ? runWithTenant(tenant, () => welcomeNewLead(leadId)) : welcomeNewLead(leadId)).then(() => undefined, () => undefined);
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
+}
+
+/* ------------------------------- AI says Hot ------------------------------ */
+
+/** Stages a Hot call moves on to Hot (later stages — Qualified, Booked — and closed ones stay as they are). */
+const BEFORE_HOT: string[] = [S.NEW, S.OPEN, S.WARM, S.NOT_RESPONDING];
+
+/** The AI read a call as Hot: move an earlier-stage lead to Hot, and tell its RM and the managers (once per call). */
+export async function onAiHot(callId: string, leadId: string, reason: string): Promise<boolean> {
+  const cfg = parseSalesOps((await settingsAll()).salesOps);
+  if (!cfg.hotFromAi || !leadId) return false;
+  const lead = await (await leadsCol()).findOne({ _id: leadId });
+  if (!lead || !BEFORE_HOT.includes(String(lead.stage))) return false;
+  if (!(await claimOnce('aihot:' + callId))) return false;
+  const from = String(lead.stage);
+  await updateLead(leadId, { [L.STAGE]: S.HOT }, AUTOMATION_CTX);
+  await addTimeline(leadId, 'automation', `Moved to Hot: the AI read the call as Hot`, reason || `Was ${from}`, 'Automation', 'Call', callId);
+  const users = await listUsers();
+  const ids = [...new Set([...idsByName([lead.assignedRm], users), ...managersOr('', users)])];
+  if (ids.length) {
+    await sendPush(ids, {
+      title: `Hot lead: ${lead.name}`,
+      body: [`Moved ${from} → Hot after the call`, reason].filter(Boolean).join(' · ').slice(0, 180),
+      url: `/leads?lead=${encodeURIComponent(leadId)}`,
+      tag: `hot-${leadId}`,
+    });
+  }
+  return true;
+}
+
+/* --------------------------- missed calls not returned -------------------- */
+
+/** Missed incoming calls nobody has called back within `missedAlertMin` minutes: managers are told (once per call). */
+export async function alertUnreturnedMissed(cfg: SalesOps, now = new Date()): Promise<{ alerted: number }> {
+  const out = { alerted: 0 };
+  if (!cfg.missedAlertMin) return out;
+  const calls = await col<any>(CFG.COLL.CALLS);
+  const cutoff = new Date(now.getTime() - cfg.missedAlertMin * 60000);
+  const missed = await calls
+    .find({ direction: 'Inbound', status: { $in: ['Missed', 'No Answer', 'Voicemail'] }, startTime: { $gte: new Date(now.getTime() - 24 * HOUR), $lte: cutoff }, phoneLast10: { $nin: ['', null] } })
+    .sort({ startTime: 1 })
+    .limit(200)
+    .toArray();
+  if (!missed.length) return out;
+  const users = await listUsers();
+  const seen = new Set<string>();
+  for (const c of missed) {
+    if (seen.has(c.phoneLast10)) continue; // one alert per number
+    seen.add(c.phoneLast10);
+    // dealt with: somebody called the number since, or a later call from it was answered
+    const handled = await calls.countDocuments({ phoneLast10: c.phoneLast10, startTime: { $gt: c.startTime }, $or: [{ direction: 'Outbound' }, { status: 'Completed' }] }, { limit: 1 });
+    if (handled) continue;
+    if (!(await claimOnce(`missedalert:${c.phoneLast10}:${dateKey(c.startTime)}`))) continue;
+    const lead = c.leadId ? await (await leadsCol()).findOne({ _id: c.leadId }) : null;
+    const who = lead?.name || c.customerName || c.phone;
+    const ids = [...new Set([...managersOr(cfg.missedAlertTo, users), ...(lead?.assignedRm ? idsByName([lead.assignedRm], users) : [])])];
+    if (!ids.length) continue;
+    const mins = Math.round((now.getTime() - new Date(c.startTime).getTime()) / 60000);
+    const r = await sendPush(ids, {
+      title: `Not called back: ${who}`,
+      body: `Missed call ${mins} min ago${lead?.assignedRm ? ` · RM ${lead.assignedRm}` : ''} · ${c.phone}`,
+      url: lead ? `/leads?lead=${encodeURIComponent(lead._id)}` : '/calls',
+      tag: `missed-back-${c.phoneLast10}`,
+    });
+    if (r.sent) out.alerted++;
+    if (lead) await addTimeline(lead._id, 'automation', 'Missed call not called back', `Managers told after ${mins} minutes`, 'Automation', 'Call', String(c._id));
   }
   return out;
 }
@@ -252,7 +430,8 @@ export async function runLeadWatch(now = new Date()) {
   const reassigned = await reassignStale(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { moved: 0, stuck: 0 }; });
   const visits = await sendVisitReminders(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0, failed: 0 }; });
   const summary = await sendEveningSummary(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
-  return { reassigned, visits, summary };
+  const missed = await alertUnreturnedMissed(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
+  return { reassigned, visits, summary, missed };
 }
 
 /* ------------------------------- leaderboard ----------------------------- */

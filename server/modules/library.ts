@@ -1,15 +1,17 @@
 /**
  * Project Library: the company's own copy of the library content (documents with their chapters and passages,
- * and the Quick Specs sections). Nothing saved = the library built into the app. Admins edit it; everyone reads it.
+ * and the Quick Specs sections). Nothing saved = the library built into the app. Admins edit it, and so do the people
+ * an admin names as library editors (stored beside the content); everyone reads it.
  */
 import type { ActionMap } from '../core/actions';
-import { auditLog, type Ctx } from '../core/auth';
+import { auditLog, can, listUsers, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { str, truncate } from '../core/utils';
 
 const DOC_ID = 'content';
+const EDITORS_ID = 'editors';
 const MAX_BYTES = 1_500_000;
 const CATEGORIES = ['Brochure', 'Floor Plans', 'Monthly Packages', 'Pricing & Payment', 'Legal & RERA'];
 const ICONS = ['building', 'shield', 'money', 'heart', 'sparkles', 'map', 'book', 'file'];
@@ -73,18 +75,44 @@ export function cleanLibrary(input: any) {
   return { documents, sections };
 }
 
-export async function libraryGet(): Promise<{ content: ReturnType<typeof cleanLibrary> | null; updatedAt: string; updatedBy: string }> {
+async function editorEmails(): Promise<string[]> {
+  const doc = await (await libraryCol()).findOne({ _id: EDITORS_ID });
+  return Array.isArray(doc?.emails) ? doc.emails.map((e: unknown) => str(e).toLowerCase()).filter(Boolean) : [];
+}
+
+/** Admins, plus the people an admin named as library editors. */
+async function canEditLibrary(ctx: Ctx | undefined): Promise<boolean> {
+  if (!ctx?.user) return false;
+  if (can(ctx.user, 'users.manage')) return true;
+  return (await editorEmails()).includes(str(ctx.user.email).toLowerCase());
+}
+
+export async function libraryGet(ctx?: Ctx): Promise<{ content: ReturnType<typeof cleanLibrary> | null; updatedAt: string; updatedBy: string; canEdit: boolean; editors?: string[] }> {
   const doc = await (await libraryCol()).findOne({ _id: DOC_ID });
-  return { content: doc?.content || null, updatedAt: doc?.updatedAt ? new Date(doc.updatedAt).toISOString() : '', updatedBy: str(doc?.updatedBy) };
+  const out = { content: doc?.content || null, updatedAt: doc?.updatedAt ? new Date(doc.updatedAt).toISOString() : '', updatedBy: str(doc?.updatedBy), canEdit: await canEditLibrary(ctx) };
+  // only admins see (and change) who the editors are
+  return ctx?.user && can(ctx.user, 'users.manage') ? { ...out, editors: await editorEmails() } : out;
+}
+
+/** Admins choose who else may edit the library (active CRM users). */
+export async function librarySetEditors(d: { emails: unknown }, ctx: Ctx) {
+  const list: unknown[] = Array.isArray(d?.emails) ? d.emails.slice(0, 100) : [];
+  const wanted = [...new Set(list.map((e) => str(e).trim().toLowerCase()).filter(Boolean))];
+  const active = new Set((await listUsers()).filter((u) => u.status !== 'Disabled').map((u) => u.email.toLowerCase()));
+  for (const e of wanted) if (!active.has(e)) throw fail('VALIDATION', `Library editors must be active CRM users (${e} is not)`);
+  await (await libraryCol()).updateOne({ _id: EDITORS_ID }, { $set: { emails: wanted, updatedAt: new Date(), updatedBy: ctx.user?.name || '' } }, { upsert: true });
+  await auditLog(ctx, 'Project Library Editors', 'Library', EDITORS_ID, wanted.length ? wanted.join(', ') : 'Admins only');
+  return libraryGet(ctx);
 }
 
 /** Save the company's library; `content: null` goes back to the library built into the app. */
 export async function librarySave(d: { content: unknown }, ctx: Ctx) {
+  if (!(await canEditLibrary(ctx))) throw fail('FORBIDDEN', 'Only admins and the chosen library editors can change the Project Library');
   const lib = await libraryCol();
   if (d?.content === null) {
     await lib.deleteOne({ _id: DOC_ID });
     await auditLog(ctx, 'Project Library Reset', 'Library', DOC_ID, 'Back to the built-in project library');
-    return libraryGet();
+    return libraryGet(ctx);
   }
   if (!d?.content || typeof d.content !== 'object') throw fail('VALIDATION', 'Nothing to save');
   const content = cleanLibrary(d.content);
@@ -93,11 +121,12 @@ export async function librarySave(d: { content: unknown }, ctx: Ctx) {
   await lib.updateOne({ _id: DOC_ID }, { $set: { content, updatedAt: new Date(), updatedBy: ctx.user?.name || '' } }, { upsert: true });
   const passages = content.documents.reduce((n, x) => n + x.chapters.reduce((m, c) => m + c.passages.length, 0), 0);
   await auditLog(ctx, 'Project Library Updated', 'Library', DOC_ID, `${content.documents.length} documents, ${passages} passages, ${content.sections.length} quick-spec sections`);
-  return libraryGet();
+  return libraryGet(ctx);
 }
 
 export const actions: ActionMap = {
-  libraryGet: { fn: () => libraryGet() },
-  // admins only (users.manage: Admin and the platform's Developer account)
-  librarySave: { fn: (d, ctx) => librarySave(d, ctx), perm: 'users.manage' },
+  libraryGet: { fn: (_d, ctx) => libraryGet(ctx) },
+  // admins (users.manage) and the chosen library editors — checked inside
+  librarySave: { fn: (d, ctx) => librarySave(d, ctx) },
+  librarySetEditors: { fn: (d, ctx) => librarySetEditors(d, ctx), perm: 'users.manage' },
 };

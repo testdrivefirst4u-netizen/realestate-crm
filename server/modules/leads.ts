@@ -303,7 +303,8 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   if (autoFollowup) created.timeline[0].details += ' · first follow-up ' + fmtHuman(autoFollowup);
   await runEffects(created);
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
-  scheduleLeadAlerts(lead, 'created'); // e-mail the RM / auto WhatsApp reply, after the response
+  scheduleLeadAlerts(lead, 'created'); // e-mail / phone alert to the RM, after the response
+  void import('./salesOps').then((m) => m.scheduleWelcome(id)).catch(() => undefined); // WhatsApp welcome template, when switched on
   if (await getSecret('JUSTCONNECT_API_KEY')) void import('./jcSync').then((m) => m.scheduleContactPush(id), () => undefined); // caller name in JustConnect
   // calls from this number before it was a lead (a new caller): onto the lead, with their recording and AI notes
   try {
