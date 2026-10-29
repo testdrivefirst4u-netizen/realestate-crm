@@ -12,6 +12,7 @@ import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { addTimeline } from '../core/events';
 import { assertLeadAccess } from '../core/scope';
+import { assertPhoneAccess } from '../core/scopeGuards';
 import { digits, truncate } from '../core/utils';
 import { jc, JustConnectError, type JcAgent } from '../integrations/justconnect';
 import { getLead } from './leads';
@@ -125,7 +126,7 @@ export async function jcClickToCall(d: { leadId?: string; phone?: string }, ctx:
     if (!lead) throw fail('NOT_FOUND', 'Lead not found');
     phone = phone || String(lead[L.PHONE] || '');
     label = String(lead[L.NAME] || '');
-  }
+  } else if (phone) await assertPhoneAccess(ctx, phone); // a typed number of another RM's lead is refused like that lead
   if (digits(phone).length < 10) throw fail('VALIDATION', 'This lead has no phone number to call.');
   const me = await (await usersCol()).findOne({ _id: ctx.user.id }, { projection: { jcAgent: 1, phone: 1 } as any }) as (UserDocJc & { phone?: string }) | null;
   const saved = me?.jcAgent || '';

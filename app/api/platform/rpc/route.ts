@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import { platformDispatch } from '@/server/platform/router';
 import { errEnvelope } from '@/server/core/errors';
-import { setSessionCookie } from '@/server/core/request';
+import { clientIp, setSessionCookie } from '@/server/core/request';
 import { PLATFORM_COOKIE, clearPlatformSessionCookie, setPlatformSessionCookie } from '@/server/platform/cookie';
 
 export const runtime = 'nodejs';
@@ -60,11 +60,10 @@ export async function POST(req: Request) {
   const action = String(body?.action || '');
   if (!action) return json(errEnvelope('VALIDATION', 'action is required'), 400);
 
-  const fwd = req.headers.get('x-forwarded-for') || '';
   const result = await platformDispatch(action, body.data || {}, {
     token: readCookie(req, PLATFORM_COOKIE),
     userAgent: req.headers.get('user-agent') || '',
-    ip: (fwd.split(',')[0] || req.headers.get('x-real-ip') || '').trim(),
+    ip: clientIp(req.headers),
   });
 
   // "Open company settings": the support session token goes into the CRM session cookie, never into JSON.

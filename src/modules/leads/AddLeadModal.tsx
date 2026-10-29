@@ -57,7 +57,7 @@ interface FormState {
   siteVisitDate: string; // datetime-local — sent only for Scheduled / Completed / Walk-In
   /** siteVisitDate holds the automatic "now" default rather than a time the user chose. */
   siteVisitDateAuto: boolean;
-  relationship: string;
+  salutation: string;
   enquiredFor: string;
   country: string;
   state: string;
@@ -90,7 +90,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
     unitType: '',
     purchaseOrRent: '',
     siteVisitStatus: (config.options[F.SITE_VISIT_STATUS] || []).includes(SITE_VISIT.PROSPECT) ? SITE_VISIT.PROSPECT : '',
-    relationship: '',
+    salutation: '',
     enquiredFor: '',
     country: 'India',
     state: '',
@@ -164,7 +164,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
       [F.UNIT_TYPE]: form.unitType,
       [F.PURCHASE_OR_RENT]: form.purchaseOrRent,
       [F.SITE_VISIT_STATUS]: form.siteVisitStatus,
-      [F.RELATIONSHIP]: form.relationship,
+      [F.SALUTATION]: form.salutation,
       [F.ENQUIRED_FOR]: form.enquiredFor,
       [F.COUNTRY]: form.country.trim(),
       [F.STATE]: form.state.trim(),
@@ -227,7 +227,10 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
           <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6]">Prospect</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Prospect name *">
-              <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ramesh Verma" className={inputCls} autoFocus required />
+              <div className="flex gap-2">
+                <Select value={form.salutation} onChange={(e) => set('salutation', e.target.value)} options={opts(F.SALUTATION, form.salutation)} placeholder="Title" aria-label="Salutation" className="w-24 shrink-0" />
+                <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ramesh Verma" className={inputCls} autoFocus required />
+              </div>
             </Field>
             <Field label="Phone number *" hint={form.phone && phoneOk ? formatPhone(form.phone) : 'Indian mobile (10 digits) or with +91'}>
               <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="98490 12345" inputMode="tel" className={cx(inputCls, duplicate && !form.forceCreate && 'border-amber-400')} required />
@@ -243,9 +246,6 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
             </Field>
             <Field label="Considering other project" hint="Name of a project they are also looking at">
               <input value={form.otherProject} onChange={(e) => set('otherProject', e.target.value)} placeholder="e.g. Project name" className={inputCls} />
-            </Field>
-            <Field label="Relationship to prospect" hint="Who is enquiring">
-              <Select value={form.relationship} onChange={(e) => set('relationship', e.target.value)} options={opts(F.RELATIONSHIP, form.relationship)} placeholder="Select…" />
             </Field>
             <Field label="Enquired for" hint="Who will live in the home">
               <Select value={form.enquiredFor} onChange={(e) => set('enquiredFor', e.target.value)} options={opts(F.ENQUIRED_FOR, form.enquiredFor)} placeholder="Select…" />

@@ -301,7 +301,10 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
               <h4 className="text-sm font-bold text-[#0B2A44] pb-1 border-b border-[#E6EFF6]">Prospect</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Prospect name">
-                  <input value={value(F.NAME)} onChange={(e) => setField(F.NAME, e.target.value)} disabled={!canEdit} className={inputCls} />
+                  <div className="flex gap-2">
+                    <Select value={value(F.SALUTATION)} onChange={(e) => setField(F.SALUTATION, e.target.value)} options={opts(F.SALUTATION)} placeholder="Title" aria-label="Salutation" disabled={!canEdit} className="w-24 shrink-0" />
+                    <input value={value(F.NAME)} onChange={(e) => setField(F.NAME, e.target.value)} disabled={!canEdit} className={inputCls} />
+                  </div>
                 </Field>
                 <Field label="Phone number" hint={value(F.PHONE) ? formatPhone(value(F.PHONE)) : undefined}>
                   <input value={value(F.PHONE)} onChange={(e) => setField(F.PHONE, e.target.value)} disabled={!canEdit} className={inputCls} inputMode="tel" />
@@ -313,9 +316,6 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
                   <Select value={value(F.SOURCE)} onChange={(e) => setField(F.SOURCE, e.target.value)} options={opts(F.SOURCE)} placeholder="Select…" disabled={!canEdit} />
                 </Field>
                 <Field label="Enquiry date">{dateInput(F.ENQUIRY_DATE)}</Field>
-                <Field label="Relationship to prospect">
-                  <Select value={value(F.RELATIONSHIP)} onChange={(e) => setField(F.RELATIONSHIP, e.target.value)} options={opts(F.RELATIONSHIP)} placeholder="Select…" disabled={!canEdit} />
-                </Field>
                 <Field label="Enquired for">
                   <Select value={value(F.ENQUIRED_FOR)} onChange={(e) => setField(F.ENQUIRED_FOR, e.target.value)} options={opts(F.ENQUIRED_FOR)} placeholder="Select…" disabled={!canEdit} />
                 </Field>

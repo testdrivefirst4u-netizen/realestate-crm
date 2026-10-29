@@ -149,7 +149,33 @@ const xmlText = (xml: string) =>
     .join('')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 
+/* ---------------------------- zip size guard ----------------------------- */
+
+const MAX_UNZIPPED = 150 * 1024 * 1024;
+const MAX_ENTRY = 80 * 1024 * 1024;
+
+/**
+ * Word and Excel files are zip archives: refuse one that would unpack to far more than any real document
+ * (a "zip bomb" would otherwise exhaust the server's memory). Only the archive's index is read here.
+ */
+export function assertZipSize(data: Buffer, what: string): void {
+  let total = 0;
+  try {
+    unzipSync(new Uint8Array(data), {
+      filter: (f) => {
+        total += f.originalSize;
+        if (f.originalSize > MAX_ENTRY || total > MAX_UNZIPPED) throw new Error('too big');
+        return false; // nothing is unpacked
+      },
+    });
+  } catch (e: any) {
+    if (e?.message === 'too big') throw fail('VALIDATION', `This ${what} file unpacks to too much data to read. Save it again (or as PDF) and retry.`);
+    throw fail('VALIDATION', `This ${what} file could not be opened. Save it again and retry.`);
+  }
+}
+
 function readDocx(data: Buffer): ImportedChapter[] {
+  assertZipSize(data, 'Word');
   let xml = '';
   try {
     const files = unzipSync(new Uint8Array(data), { filter: (f) => f.name === 'word/document.xml' });
@@ -201,6 +227,7 @@ function readDocx(data: Buffer): ImportedChapter[] {
 /* --------------------------------- Excel --------------------------------- */
 
 async function readXlsx(data: Buffer): Promise<ImportedChapter[]> {
+  assertZipSize(data, 'Excel');
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(data as any);

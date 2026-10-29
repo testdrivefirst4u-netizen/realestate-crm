@@ -37,7 +37,7 @@ beforeEach(async () => {
 describe('bulk download of call recordings', () => {
   it('zips the recordings with readable names; leaves out calls the user may not see and calls without one', async () => {
     const adminToken = await signIn('Asha Admin', 'Admin');
-    const asha = await t.ctx('Admin', 'Asha Admin');
+    const asha = await t.ctx('Admin', 'Asha Admin 2');
     const { lead: mine } = await addLead({ 'Prospect Name': 'Meera Rao', 'Phone Number': '9000000001', 'Assigned RM': 'Ravi Rao' }, asha);
     const { lead: other } = await addLead({ 'Prospect Name': 'Kiran Das', 'Phone Number': '9000000002', 'Assigned RM': 'Someone Else' }, asha);
     const rec = async (leadId: string, name: string, audio: string) => {

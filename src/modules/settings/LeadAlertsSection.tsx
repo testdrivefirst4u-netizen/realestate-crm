@@ -46,7 +46,7 @@ const OPS_DEFAULTS: SalesOps = {
   welcomeTemplate: '', welcomeValues: '', visitTemplate: '', visitValues: '', hotFromAi: false, missedAlertMin: 0, missedAlertTo: '',
 };
 /** What a WhatsApp template's values may name (server: salesOps.TEMPLATE_FIELDS). */
-const TEMPLATE_FIELDS = '{first_name}, {name}, {rm}, {unit}, {visit_date}, {visit_time}, {company}';
+const TEMPLATE_FIELDS = '{salutation}, {first_name}, {name}, {rm}, {unit}, {visit_date}, {visit_time}, {company}';
 
 const SEQ_DEFAULTS: SequenceConfig = { enabled: true, days: [1, 3, 7], hour: 10, autoNotRespondingDays: 0 };
 

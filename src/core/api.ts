@@ -428,7 +428,8 @@ export const api = {
   /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
   library: {
     get: () => request<LibraryResponse>('libraryGet'),
-    save: (content: LibraryContent | null) => request<LibraryResponse>('librarySave', { content }),
+    /** `baseUpdatedAt`: when the library being edited was saved; the server refuses if someone saved since. */
+    save: (content: LibraryContent | null, baseUpdatedAt?: string) => request<LibraryResponse>('librarySave', { content, baseUpdatedAt }),
     /** Admins: who else may edit the library (e-mails of active users). */
     setEditors: (emails: string[]) => request<LibraryResponse>('librarySetEditors', { emails }),
     /** One ~3 MB piece of a file being added (pieces keep each request under the host's size limit). */

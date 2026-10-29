@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
   const syncLabel = offline ? 'Offline' : sync.status === 'error' ? 'Sync error' : sync.status === 'syncing' || sync.status === 'loading' ? 'Syncing' : 'Synced';
   const syncColor = syncBad ? '#A1301A' : '#14653F';
 
-  /** Rail entry of a group: a link to its first screen (panel open) or a flyout menu (panel closed). */
+  /** Rail entry of a group: a link to its first screen (panel open, or a group of one screen such as Inventory), else a flyout menu. */
   const railGroup = (g: Group, expanded: boolean) => {
     const Icon = g.icon;
     const on = g.id === activeGroup;
@@ -113,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
     const cls = 'group relative w-full h-[50px] flex items-center justify-center focus-visible:outline-none';
     return (
       <div key={g.id} className="relative w-full flex justify-center">
-        {expanded ? (
+        {expanded || g.items.length === 1 ? (
           <Link href={viewHref(g.items[0].id)} onClick={go} className={cls} title={g.label} aria-label={g.label}>{inner}</Link>
         ) : (
           <button type="button" onClick={() => { setProfileOpen(false); setFlyout(flyout === g.id ? null : g.id); }} aria-haspopup="menu" aria-expanded={flyout === g.id} className={cls} title={g.label} aria-label={g.label}>{inner}</button>
@@ -181,7 +181,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2 mt-1 pb-2">
-        {groups.map((g) => (
+        {groups.map((g) => g.items.length === 1 ? (
+          // a screen of its own (Inventory, Tasks): one link with its icon, no heading over it
+          <Link key={g.id} href={viewHref(g.items[0].id)} onClick={go} aria-current={currentView === g.items[0].id ? 'page' : undefined}
+            className={`mt-3 flex items-center gap-2.5 rounded-[10px] py-1.5 px-2 -ml-2 text-[13px] font-extrabold tracking-[.02em] ${mobile ? 'min-h-[42px]' : ''} ${currentView === g.items[0].id ? 'bg-[#EEF6FC] text-[#0B6BB0]' : 'text-[#0A1F33] hover:bg-[#EEF6FC]'}`}>
+            <g.icon size={17} strokeWidth={2} className="shrink-0" />
+            <span className="flex-1 truncate">{g.items[0].label}</span><Count item={g.items[0]} />
+          </Link>
+        ) : (
           <div key={g.id}>
             <div className={`text-[11px] font-extrabold tracking-[.08em] uppercase mt-3 mb-1 ${g.id === activeGroup ? 'text-[#0B6BB0]' : 'text-[#0A1F33]'}`}>{g.label}</div>
             <div className="border-l border-[#DCE8F2] ml-1 flex flex-col">

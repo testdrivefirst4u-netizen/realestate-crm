@@ -11,6 +11,7 @@ import { runWithTenant } from '@/server/core/tenant';
 import { getTenantBySlug } from '@/server/platform/registry';
 import { rateHit } from '@/server/modules/intake';
 import { bookVisit, listSlots, visitConfig } from '@/server/modules/visits';
+import { clientIp } from '@/server/core/request';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     return json(errEnvelope('VALIDATION', 'Invalid request'), 400, origin);
   }
   if (String(body._gotcha ?? '').trim()) return json({ status: 'success', data: { at: String(body.at ?? '') } }, 201, origin); // bots: pretend success
-  const ip = ((req.headers.get('x-forwarded-for') || '').split(',')[0] || req.headers.get('x-real-ip') || '').trim();
+  const ip = clientIp(req.headers);
   return runWithTenant(tenant, async () => {
     if (!(await rateHit('visit-ip', ip, 6))) return json(errEnvelope('RATE_LIMIT', 'Too many bookings from this connection — please wait a minute'), 429, origin);
     try {

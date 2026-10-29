@@ -27,14 +27,15 @@ beforeEach(async () => {
   sendNotification.mockImplementation(async () => ({ statusCode: 201 }));
 });
 
-const sub = (n: number) => ({ subscription: { endpoint: `https://push.example/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
+const sub = (n: number) => ({ subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
 
 describe('device subscriptions', () => {
   it('saves a device per user, names it, and refuses bad subscriptions', async () => {
     const s = await pushSubscribe(sub(1), rm);
     expect(s).toMatchObject({ configured: true, publicKey: 'test-public-key', devices: [{ device: 'iPhone · Safari' }] });
     await expect(pushSubscribe({ subscription: { endpoint: 'http://insecure.example/x', keys: sub(1).subscription.keys } }, rm)).rejects.toMatchObject({ code: 'VALIDATION' });
-    await expect(pushSubscribe({ subscription: { endpoint: 'https://push.example/x', keys: { p256dh: 'short', auth: '!' } } }, rm)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(pushSubscribe({ subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys: { p256dh: 'short', auth: '!' } } }, rm)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(pushSubscribe({ subscription: { endpoint: 'https://attacker.example/x', keys: sub(1).subscription.keys } }, rm)).rejects.toMatchObject({ code: 'VALIDATION' }); // not a browser push service
     expect(deviceName('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36')).toBe('Android · Chrome');
   });
 
@@ -52,7 +53,7 @@ describe('device subscriptions', () => {
     const s = await pushSubscribe(sub(2), rm);
     await pushUnsubscribe({ id: s.devices[0].id }, other); // not theirs: nothing happens
     expect((await pushStatus(rm)).devices).toHaveLength(2);
-    await pushUnsubscribe({ endpoint: 'https://push.example/dev1' }, rm);
+    await pushUnsubscribe({ endpoint: 'https://fcm.googleapis.com/fcm/send/dev1' }, rm);
     expect((await pushStatus(rm)).devices).toHaveLength(1);
   });
 

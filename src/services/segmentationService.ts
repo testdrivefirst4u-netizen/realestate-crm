@@ -29,7 +29,7 @@ export const SEGMENT_FIELDS: string[] = [
   F.SITE_VISIT_STATUS,
   F.RM,
   F.PURCHASE_OR_RENT,
-  F.RELATIONSHIP,
+  F.SALUTATION,
   F.ENQUIRED_FOR,
   F.BROCHURE,
   F.NAME,
@@ -155,7 +155,7 @@ export const DEFAULT_SEGMENTS: ClientSegment[] = [
     matchType: 'ANY',
     rules: [
       { field: F.ENQUIRED_FOR, operator: 'contains', value: 'Parents' },
-      { field: F.RELATIONSHIP, operator: 'in', value: 'Son,Daughter' },
+      { field: F.ENQUIRED_FOR, operator: 'in', value: 'Father,Mother,Grandparents' },
     ],
     createdBy: 'System',
     createdAt: '2026-08-15T00:00:00.000Z',

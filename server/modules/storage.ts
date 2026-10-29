@@ -83,7 +83,7 @@ export async function setFileLead(fileId: string, leadId: string): Promise<void>
   await (await col<any>(CFG.COLL.FILES_BUCKET + '.files')).updateOne({ _id: oid }, { $set: { 'metadata.leadId': str(leadId) } });
 }
 
-export interface StoredFileInfo { id: ObjectId; mime: string; name: string; size: number; leadId?: string }
+export interface StoredFileInfo { id: ObjectId; mime: string; name: string; size: number; leadId?: string; category?: string }
 
 /** File metadata without the bytes (used by the download route). */
 export async function statFile(fileId: string): Promise<StoredFileInfo | null> {
@@ -91,7 +91,7 @@ export async function statFile(fileId: string): Promise<StoredFileInfo | null> {
   if (!oid) return null;
   const f: any = await (await col(`${CFG.COLL.FILES_BUCKET}.files`)).findOne({ _id: oid });
   if (!f) return null;
-  return { id: oid, mime: normMime(f.metadata?.mime || f.contentType), name: str(f.filename) || 'file', size: Number(f.length) || 0, leadId: str(f.metadata?.leadId) || undefined };
+  return { id: oid, mime: normMime(f.metadata?.mime || f.contentType), name: str(f.filename) || 'file', size: Number(f.length) || 0, leadId: str(f.metadata?.leadId) || undefined, category: str(f.metadata?.category) || undefined };
 }
 
 /** Stream a stored file (optionally a byte range, `end` exclusive) — for the download route. */

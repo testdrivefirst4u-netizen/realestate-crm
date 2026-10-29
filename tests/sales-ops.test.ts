@@ -49,7 +49,7 @@ beforeEach(async () => {
   process.env.VAPID_PUBLIC_KEY = 'test-public-key';
   process.env.VAPID_PRIVATE_KEY = 'test-private-key';
 });
-const device = (n: number) => ({ subscription: { endpoint: `https://push.example/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
+const device = (n: number) => ({ subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
 
 const leads = () => col<any>(CFG.COLL.LEADS);
 const noon = makeZoned(2026, 10, 19, 12, 0);
@@ -64,8 +64,12 @@ async function newLead(name: string, phone: string, rm = 'Priya Sharma', assigne
 describe('auto-reassign', () => {
   it('the clock starts when working hours open', () => {
     const night = makeZoned(2026, 10, 19, 2, 0);
-    expect(SO.reassignDue(night, { reassignAfterMin: 15, workStartHour: 9 })).toEqual(makeZoned(2026, 10, 19, 9, 15));
-    expect(SO.reassignDue(noon, { reassignAfterMin: 15, workStartHour: 9 })).toEqual(makeZoned(2026, 10, 19, 12, 15));
+    const hours = { reassignAfterMin: 15, workStartHour: 9, workEndHour: 20 };
+    expect(SO.reassignDue(night, hours)).toEqual(makeZoned(2026, 10, 19, 9, 15));
+    expect(SO.reassignDue(noon, hours)).toEqual(makeZoned(2026, 10, 19, 12, 15));
+    // after closing: the full time the next morning; just before closing: the rest of it the next morning
+    expect(SO.reassignDue(makeZoned(2026, 10, 19, 21, 0), { ...hours, reassignAfterMin: 30 })).toEqual(makeZoned(2026, 10, 20, 9, 30));
+    expect(SO.reassignDue(makeZoned(2026, 10, 19, 19, 50), { ...hours, reassignAfterMin: 30 })).toEqual(makeZoned(2026, 10, 20, 9, 20));
   });
 
   it('moves an untouched new lead to the other RM once; a lead with a follow-up stays', async () => {
@@ -142,6 +146,7 @@ describe('automations', () => {
     expect(SO.fillTemplateValues('{first_name}, {rm}, {visit_date}, {visit_time}, Amaya', lead, 'Amaya')).toEqual(['Meera', 'Priya Sharma', '20 Oct 2026', '11:30 AM', 'Amaya']);
     expect(SO.fillTemplateValues('name={name}, unit={unit}', lead)).toEqual(['name=Meera Kapoor', 'unit=2 BHK']);
     expect(SO.fillTemplateValues('', lead)).toEqual([]);
+    expect(SO.fillTemplateValues('{salutation} {name}', { ...lead, extra: { Salutation: 'Mrs.' } } as any)).toEqual(['Mrs. Meera Kapoor']);
   });
 
   it('settings: template values may only name known fields; missed-call alert at least 5 minutes', async () => {
@@ -171,7 +176,7 @@ describe('automations', () => {
     await updateSettings({ salesOps: { hotFromAi: true } }, admin);
     expect(await SO.onAiHot('CALL-1', lead[L.ID], 'Wants to visit Saturday')).toBe(true);
     expect((await getLead(lead[L.ID]))![L.STAGE]).toBe('Hot');
-    expect(pushSent.map((p) => p.endpoint).sort()).toEqual(['https://push.example/dev1', 'https://push.example/dev2']);
+    expect(pushSent.map((p) => p.endpoint).sort()).toEqual(['https://fcm.googleapis.com/fcm/send/dev1', 'https://fcm.googleapis.com/fcm/send/dev2']);
     expect(pushSent[0].body).toMatchObject({ title: 'Hot lead: Meera Kapoor', url: `/leads?lead=${lead[L.ID]}` });
     expect(JSON.stringify(await timelineForLead(lead[L.ID]))).toContain('the AI read the call as Hot');
     const { lead: booked } = await addLead({ [L.NAME]: 'Booked One', [L.PHONE]: '9876500011', [L.STAGE]: 'Booked' }, admin);

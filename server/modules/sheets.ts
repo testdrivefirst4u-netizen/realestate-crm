@@ -336,6 +336,8 @@ async function findSheetSource(id: unknown): Promise<SourceDoc> {
 export async function syncSheetImport(sourceId: unknown, ctx: Ctx | null, opts: { deadline?: number } = {}): Promise<SyncResult> {
   const src = await findSheetSource(sourceId);
   const deadline = opts.deadline ?? Date.now() + MANUAL_SYNC_BUDGET_MS;
+  // every run re-checks the claim (sheets linked before claims existed get claimed now, first come first served)
+  await claimSheet(String(src.config.sheet?.spreadsheetId || ''));
   const res = await withLock(await sourcesCol(), src._id, () => syncLocked(src, deadline));
   if (ctx) await auditLog(ctx, 'Google Sheet Synced', 'Settings', src._id, `${src.name}: ${res.message}`);
   return res;
@@ -605,6 +607,7 @@ function cellFor(lead: Record<string, string>, header: string): string {
 /** Rewrite the export tab with the current leads (manual: ctx = the user; cron: null). */
 export async function runSheetExport(d: Req<'runSheetExport'>, ctx: Ctx | null): Promise<Res<'runSheetExport'>> {
   const cur = await findExport(d?.id);
+  await claimSheet(cur.spreadsheetId); // never write into a sheet another company has linked
   const c = await exportsCol();
   const access = sheetAccessFor(cur.auth);
   await withLock(c, cur._id, async () => {

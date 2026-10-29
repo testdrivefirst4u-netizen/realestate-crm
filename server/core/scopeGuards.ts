@@ -30,17 +30,42 @@ export async function assertTaskAccess(ctx: Ctx, taskId: unknown) {
 
 /* --------------------------------- calls --------------------------------- */
 
-export async function filterCalls<T extends { leadId?: string; loggedBy?: string }>(user: UserLike, calls: T[]): Promise<T[]> {
+/**
+ * Calls an RM may see: their own calls, and calls of leads they may see. A call not linked to a lead (a webhook /
+ * JustConnect call from a number) follows the lead its number belongs to; one from a number that is no lead yet is
+ * shown only when RMs also see unassigned leads ('own_unassigned') — managers handle the rest.
+ */
+export async function filterCalls<T extends { leadId?: string; loggedBy?: string; phone?: string }>(user: UserLike, calls: T[]): Promise<T[]> {
   const r = await restrictionFor(user);
   if (!r) return calls;
   const ids = (await visibleLeadIds(user))!;
-  return calls.filter((c) => !str(c.leadId) || ids.has(str(c.leadId)) || sameName(c.loggedBy, r.name));
+  // the lead each unlinked call's number belongs to (one query for all of them)
+  const keys = [...new Set(calls.filter((c) => !str(c.leadId) && !sameName(c.loggedBy, r.name)).map((c) => last10(c.phone)).filter((k) => k.length === 10))];
+  const owner = new Map<string, string>();
+  if (keys.length) {
+    for (const l of await (await col(CFG.COLL.LEADS)).find({ phoneLast10: { $in: keys }, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1, phoneLast10: 1 } }).sort({ createdAt: 1 }).toArray()) {
+      if (!owner.has(l.phoneLast10)) owner.set(l.phoneLast10, String(l._id));
+    }
+  }
+  return calls
+    .filter((c) => {
+      if (sameName(c.loggedBy, r.name)) return true;
+      if (str(c.leadId)) return ids.has(str(c.leadId));
+      const lead = owner.get(last10(c.phone));
+      return lead ? ids.has(lead) : r.mode === 'own_unassigned';
+    })
+    .map((c: any) => {
+      // the suggested lead for an unlinked call is shown only when the user may see that lead
+      if (!c.matchedLeadId || ids.has(str(c.matchedLeadId))) return c;
+      const { matchedLeadId: _a, matchedName: _b, matchedStage: _c, matchedRM: _d, ...rest } = c;
+      return rest;
+    });
 }
 
 export async function assertCallAccess(ctx: Ctx, callId: unknown) {
-  const c: any = await (await col(CFG.COLL.CALLS)).findOne({ _id: str(callId) as any }, { projection: { leadId: 1, loggedBy: 1 } });
+  const c: any = await (await col(CFG.COLL.CALLS)).findOne({ _id: str(callId) as any }, { projection: { leadId: 1, loggedBy: 1, phone: 1 } });
   if (!c) return;
-  if (!(await filterCalls(ctx.user, [{ leadId: c.leadId, loggedBy: c.loggedBy }])).length) throw fail('NOT_FOUND', 'Call not found: ' + str(callId));
+  if (!(await filterCalls(ctx.user, [{ leadId: c.leadId, loggedBy: c.loggedBy, phone: c.phone }])).length) throw fail('NOT_FOUND', 'Call not found: ' + str(callId));
 }
 
 /* -------------------------------- WhatsApp -------------------------------- */
@@ -57,6 +82,13 @@ export async function assertPhoneAccess(ctx: Ctx, phone: unknown) {
   if (!key) return;
   const c: any = await (await col(CFG.COLL.CHAT_CONTACTS)).findOne({ phoneLast10: key }, { projection: { leadId: 1 } });
   if (c && !(await filterContacts(ctx.user, [{ leadId: c.leadId }])).length) throw fail('NOT_FOUND', 'Conversation not found');
+  // a number typed in directly: if it belongs to another RM's lead, the same answer as for that lead
+  if (!c || !str(c.leadId)) {
+    const ids = await visibleLeadIds(ctx.user);
+    if (!ids) return;
+    const lead: any = await (await col(CFG.COLL.LEADS)).find({ phoneLast10: key, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1 } }).sort({ createdAt: 1 }).limit(1).next();
+    if (lead && !ids.has(String(lead._id))) throw fail('NOT_FOUND', 'Conversation not found');
+  }
 }
 
 /* ------------------------------ notifications ----------------------------- */

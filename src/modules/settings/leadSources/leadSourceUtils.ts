@@ -49,7 +49,7 @@ export const MAPPABLE_FIELDS = [
   'Unit Type Interested In',
   'Purchase or Rent',
   'Enquired For',
-  'Relationship to Prospect',
+  'Salutation',
   'Site Visit Date',
   'Site Visit Status',
   'Assigned RM',

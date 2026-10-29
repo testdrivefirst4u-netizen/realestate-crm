@@ -38,6 +38,8 @@ describe('two-step sign-in — CRM users', () => {
     await expect(login(email, 'correct-horse-1', net, '123456')).rejects.toMatchObject({ code: 'AUTH_FAILED', details: { totpRequired: true } });
     await expect(login(email, 'wrong-password-1', net, totpCode(secretOf(s)))).rejects.toMatchObject({ code: 'AUTH_FAILED', message: 'Invalid email or password' });
     const ok = await login(email, 'correct-horse-1', net, totpCode(secretOf(s)));
+    // the same code cannot be used a second time (seen over a shoulder, phished)
+    await expect(login(email, 'correct-horse-1', net, totpCode(secretOf(s)))).rejects.toMatchObject({ code: 'AUTH_FAILED', details: { totpRequired: true } });
     expect(ok.user.twoFactor).toBe(true);
 
     await expect(totpDisable(ctx, 'nope')).rejects.toMatchObject({ code: 'VALIDATION' });

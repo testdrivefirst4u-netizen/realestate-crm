@@ -372,7 +372,7 @@ describe('claims', () => {
 describe('connect flow', () => {
   // Connecting Facebook is platform-support work (role Developer); company Admins no longer manage settings.
   async function signIn(role: 'Developer' | 'Admin' | 'Manager' = 'Developer', email = 'boss@meta.test') {
-    await createUser({ name: 'Boss ' + role, email, password: 'long-enough-pw', role, mustChangePassword: false }, null);
+    await createUser({ name: `Boss ${role} ${email.split('@')[0]}`, email, password: 'long-enough-pw', role, mustChangePassword: false }, null);
     const r = await login(email, 'long-enough-pw', { userAgent: 'vitest', ip: '10.2.2.2' });
     return { token: r.token, userId: r.user.id, cookie: `CMP-test.${r.token}` };
   }

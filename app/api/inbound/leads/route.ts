@@ -19,6 +19,7 @@ import { getTenantById } from '@/server/platform/registry';
 import { logError } from '@/server/core/events';
 import { flatValue, ingestLead, rateHit, sourcesCol, type IngestResult } from '@/server/modules/intake';
 import { resolveApiKey, toSource } from '@/server/modules/leadSources';
+import { clientIp } from '@/server/core/request';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -134,7 +135,7 @@ export async function POST(req: Request) {
   const origin = req.headers.get('origin');
   const open = corsHeaders(origin); // used until the source (and its allowed origins) is known
   const url = new URL(req.url);
-  const ip = ((req.headers.get('x-forwarded-for') || '').split(',')[0] || req.headers.get('x-real-ip') || '').trim();
+  const ip = clientIp(req.headers);
 
   let fields: Record<string, unknown>;
   try {

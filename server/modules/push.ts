@@ -66,6 +66,8 @@ export function deviceName(ua: string): string {
   return browser ? `${os} · ${browser}` : os;
 }
 
+const PUSH_HOSTS = /^(fcm\.googleapis\.com|android\.googleapis\.com|([a-z0-9-]+\.)*push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)*notify\.windows\.com)$/i;
+
 function validSubscription(d: any): { endpoint: string; keys: { p256dh: string; auth: string } } {
   const endpoint = String(d?.endpoint || '');
   let u: URL;
@@ -75,6 +77,8 @@ function validSubscription(d: any): { endpoint: string; keys: { p256dh: string; 
     throw fail('VALIDATION', 'Invalid push subscription');
   }
   if (u.protocol !== 'https:' || endpoint.length > 1000) throw fail('VALIDATION', 'Invalid push subscription');
+  // only the browsers' own push services (Chrome/Edge/Android, Firefox, Apple, Windows): the server never posts anywhere else
+  if (!PUSH_HOSTS.test(u.hostname)) throw fail('VALIDATION', 'This browser\'s push service is not supported');
   const p256dh = String(d?.keys?.p256dh || '');
   const auth = String(d?.keys?.auth || '');
   if (!/^[A-Za-z0-9_-]{20,200}={0,2}$/.test(p256dh) || !/^[A-Za-z0-9_-]{8,100}={0,2}$/.test(auth)) throw fail('VALIDATION', 'Invalid push subscription keys');

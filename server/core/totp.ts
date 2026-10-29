@@ -53,14 +53,19 @@ export function totpCode(secret: string, nowMs = Date.now(), step = 0, digits = 
 
 /** True when `code` matches now or one window either side (phone clocks drift). Constant-time compare. */
 export function verifyTotp(secret: string, code: unknown, nowMs = Date.now()): boolean {
+  return totpStepOf(secret, code, nowMs) !== null;
+}
+
+/** The 30-second step `code` belongs to (now or one either side), or null — kept so a used code cannot be used again. */
+export function totpStepOf(secret: string, code: unknown, nowMs = Date.now()): number | null {
   const c = String(code ?? '').replace(/\s/g, '');
-  if (!/^\d{6}$/.test(c) || !secret) return false;
-  let ok = false;
+  if (!/^\d{6}$/.test(c) || !secret) return null;
+  let found: number | null = null;
   for (const step of [-1, 0, 1]) {
     const want = Buffer.from(totpCode(secret, nowMs, step));
-    if (crypto.timingSafeEqual(want, Buffer.from(c))) ok = true;
+    if (crypto.timingSafeEqual(want, Buffer.from(c))) found = Math.floor(nowMs / 1000 / 30) + step;
   }
-  return ok;
+  return found;
 }
 
 /** otpauth:// link an authenticator app understands (tap on a phone, or paste). */

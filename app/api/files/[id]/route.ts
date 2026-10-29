@@ -6,7 +6,10 @@ import { Readable } from 'node:stream';
 import { NextResponse } from 'next/server';
 import { can, validateSession } from '@/server/core/auth';
 import { errEnvelope } from '@/server/core/errors';
-import { canSeeLead } from '@/server/core/scope';
+import { CFG } from '@/server/core/config';
+import { col } from '@/server/core/db';
+import { canSeeLead, restrictionFor } from '@/server/core/scope';
+import { filterCalls } from '@/server/core/scopeGuards';
 import { requestBase, withRequestTenant } from '@/server/core/request';
 import { openFileStream, statFile } from '@/server/modules/storage';
 
@@ -47,6 +50,12 @@ function parseRange(header: string | null, size: number): { start: number; end: 
   return { start, end: endIncl + 1 };
 }
 
+async function canSeeRecording(user: Parameters<typeof filterCalls>[0], fileId: string): Promise<boolean> {
+  if (!(await restrictionFor(user))) return true;
+  const call: any = await (await col(CFG.COLL.CALLS)).findOne({ $or: [{ recordingFileId: fileId }, { recordingUrl: `/api/files/${fileId}` }] }, { projection: { leadId: 1, loggedBy: 1, phone: 1 } });
+  return !!call && (await filterCalls(user, [call])).length > 0;
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   return withRequestTenant(() => handle(req, ctx));
 }
@@ -61,6 +70,8 @@ async function handle(req: Request, { params }: { params: Promise<{ id: string }
   const info = await statFile(id);
   // lead files follow the lead's visibility (RMs: own leads) — same answer as a missing file
   if (!info || !(await canSeeLead(session.user, info.leadId))) return json(404, 'NOT_FOUND', 'File not found');
+  // a recording of a call not linked to a lead follows that call's visibility (the Call History rule)
+  if (!info.leadId && info.category === 'Call Recordings' && !(await canSeeRecording(session.user, id))) return json(404, 'NOT_FOUND', 'File not found');
 
   // ?download=1 saves the file instead of opening it; &name=… gives it a readable name (the file's own extension is kept)
   const sp = new URL(req.url).searchParams;

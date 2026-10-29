@@ -414,6 +414,8 @@ export function perfRanges(day: string): { ftd: Range; mtd: Range; ytd: Range } 
 }
 
 const PLANNED_SV: string[] = [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED];
+/** Not disqualified, not interested and not booked yet: a visit still to happen counts. */
+const stillOpen = (l: MisLead) => !['disqualified', 'ni', 'booked'].includes(l.stage);
 
 /** The pipeline as it stands, all dates. */
 export function pipelineNow(list: MisLead[]) {
@@ -425,7 +427,12 @@ export function pipelineNow(list: MisLead[]) {
     /** still open, at stage Not Responding */
     nonResponding: list.filter((l) => l.stage === 'open' && isNotResponding(l)),
     /** still open, with a visit to come: "Prospect for Site Visit" or "Scheduled" (teams use both for a planned visit) */
-    svPlanned: list.filter((l) => PLANNED_SV.includes(l.sv) && !['disqualified', 'ni', 'booked'].includes(l.stage)),
+    svPlanned: list.filter((l) => PLANNED_SV.includes(l.sv) && stillOpen(l)),
+    booked: list.filter((l) => l.stage === 'booked'),
+    /** "Site Visits - Pipeline": still open, marked Prospect for Site Visit (a visit to be fixed) */
+    svPipeline: list.filter((l) => l.sv === SITE_VISIT.PROSPECT && stillOpen(l)),
+    /** "Site Visits - Scheduled": still open, with the visit booked */
+    svScheduled: list.filter((l) => l.sv === SITE_VISIT.SCHEDULED && stillOpen(l)),
     svDone: list.filter((l) => SITE_VISIT_DONE.includes(l.sv)),
     /** done, but with no visit date — they cannot count in the FTD / MTD / YTD site visits */
     svDoneUndated: list.filter((l) => SITE_VISIT_DONE.includes(l.sv) && !visitDay(l)),

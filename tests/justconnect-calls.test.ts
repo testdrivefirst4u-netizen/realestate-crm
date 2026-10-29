@@ -157,7 +157,7 @@ describe('after the call', () => {
   });
 
   it('a missed incoming call notifies the RM on their phone and asks for a call-back', async () => {
-    await pushSubscribe({ subscription: { endpoint: 'https://push.example/p', keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } }, priya);
+    await pushSubscribe({ subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/p', keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } }, priya);
     const { lead } = await addLead({ [L.NAME]: 'Missed One', [L.PHONE]: '9876500006', [L.RM]: 'Priya Sharma' }, admin);
     const { callId } = await ingestJcCall(jcCall({ id: 'jc6', direction: 'inbound', status: 'missed', customer: '9876500006', agent: null, talkSeconds: 0, recording: null }));
     expect(await finishCall(callId)).toMatchObject({ missed: true });
@@ -224,11 +224,13 @@ describe('catch-up sync', () => {
   it('pulls changed calls, finishes them, and remembers where it got to', async () => {
     await updateProfile(priya, { name: 'Priya Sharma' });
     const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
-    jcLog = [jcCall({ ref: lead[L.ID] }), jcCall({ id: 'jc9', direction: 'internal', customer: null, updatedAt: '2026-10-26T09:05:00.000Z' })];
+    // inside the first sync's window (the last 3 days), whatever today's date is
+    const lastChange = new Date(Date.now() - 60_000).toISOString();
+    jcLog = [jcCall({ ref: lead[L.ID] }), jcCall({ id: 'jc9', direction: 'internal', customer: null, updatedAt: lastChange })];
     const r = await syncJcCalls({ deadline: Date.now() + 20000 });
     expect(r).toMatchObject({ saved: 1, created: 1 });
     expect(r.finished).toBe(1);
-    expect((await settingsAll()).jcCallsCursor).toBe('2026-10-26T09:05:00.000Z');
+    expect((await settingsAll()).jcCallsCursor).toBe(lastChange);
     // again: nothing new
     expect(await syncJcCalls({ deadline: Date.now() + 20000 })).toMatchObject({ created: 0 });
     expect(await crmCalls()).toHaveLength(1);

@@ -9,7 +9,7 @@
  *     transcription is started by a user (it can take minutes and costs AI quota).
  */
 import type { ActionMap } from '../core/actions';
-import { assertLeadAccess } from '../core/scope';
+import { assertLeadAccess, canSeeLead } from '../core/scope';
 import { assertCallAccess, filterCalls } from '../core/scopeGuards';
 import { auditLog, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
@@ -327,7 +327,8 @@ export async function transcribe(callId: string, ctx: Ctx): Promise<any> {
   const localId = call.recordingFileId || (/^\/api\/files\/([A-Za-z0-9_-]+)$/.exec(call.recordingUrl || '') || [])[1] || '';
   if (localId) {
     const f = await readFile(localId);
-    if (!f) throw fail('NOT_FOUND', 'The recording file could not be found');
+    // only a recording of this call's lead (or one the user may see anyway)
+    if (!f || (f.leadId && f.leadId !== call.leadId && !(await canSeeLead(ctx.user, f.leadId)))) throw fail('NOT_FOUND', 'The recording file could not be found');
     audio = { data: f.data, mime: f.mime, name: f.name };
   } else if (call.recordingUrl && /^https?:\/\//i.test(call.recordingUrl)) {
     audio = await downloadRecording(call.recordingUrl);
@@ -535,6 +536,8 @@ export async function handleWebhook(payload: any, provider: string): Promise<unk
 function clientPatch(p: any) {
   if (!p || typeof p !== 'object') return p;
   const { recordingFileId: _r, transcriptFileId: _t, loggedBy: _l, createdAt: _c, ...rest } = p;
+  // a recording link from the browser may point outside (https) only: never at a file stored in the CRM (another lead's)
+  if (rest.recordingUrl && !/^https?:\/\//i.test(String(rest.recordingUrl))) delete rest.recordingUrl;
   return rest;
 }
 

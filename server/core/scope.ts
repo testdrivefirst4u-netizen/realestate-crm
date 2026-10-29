@@ -22,7 +22,7 @@ import { escapeRegex, str } from './utils';
 export type LeadVisibility = 'own' | 'own_unassigned' | 'all';
 export const LEAD_VISIBILITY: LeadVisibility[] = ['own', 'own_unassigned', 'all'];
 
-type UserLike = Pick<PublicUser, 'name' | 'role'> | null | undefined;
+type UserLike = (Pick<PublicUser, 'name' | 'role'> & { id?: string }) | null | undefined;
 
 export async function leadVisibility(): Promise<LeadVisibility> {
   const v = str((await settingsAll()).rmLeadVisibility) as LeadVisibility;
@@ -31,7 +31,8 @@ export async function leadVisibility(): Promise<LeadVisibility> {
 
 /** The restriction for this user, or null when the user sees every lead. */
 export async function restrictionFor(user: UserLike): Promise<{ name: string; mode: Exclude<LeadVisibility, 'all'> } | null> {
-  if (!user || user.name === 'System' || can(user, 'leads.viewAll')) return null;
+  // the CRM's own jobs run as the SYSTEM account (by id — a person's name can never make them that)
+  if (!user || user.id === 'SYSTEM' || can(user, 'leads.viewAll')) return null;
   const mode = await leadVisibility();
   if (mode === 'all') return null;
   return { name: str(user.name), mode };

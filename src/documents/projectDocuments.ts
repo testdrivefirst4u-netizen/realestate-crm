@@ -1112,15 +1112,17 @@ const escapeHtml = (s: string) => String(s).replace(/[&<>"']/g, (c) => HTML_ESCA
 const MARK_OPEN = '<mark class="bg-[#C89D66]/30 text-[#1D2F3F] font-bold px-1 rounded-xs border-b border-[#A9825A]">';
 
 /**
- * `text` as HTML with every term wrapped in <mark>. The text is escaped first and all terms are matched in one
- * pass, so neither the document nor the (user-typed) terms can inject markup or match inside an earlier <mark>.
+ * `text` as HTML with every term wrapped in <mark>. All terms are matched in one pass on the plain text, and each
+ * piece is escaped after, so neither the document nor the (user-typed) terms can inject markup — and a search for
+ * "39" or "amp" never matches inside an escape like "&#39;".
  */
 export function highlightTerms(text: string, terms: string[]): string {
-  const safe = escapeHtml(text);
-  const parts = terms.map((t) => escapeHtml(String(t || '').trim())).filter(Boolean).sort((a, b) => b.length - a.length);
-  if (!parts.length) return safe;
+  const raw = String(text);
+  const parts = terms.map((t) => String(t || '').trim()).filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!parts.length) return escapeHtml(raw);
   const re = new RegExp(`(${parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
-  return safe.replace(re, `${MARK_OPEN}$1</mark>`);
+  // split with a capture group: odd pieces are the matches
+  return raw.split(re).map((piece, i) => (i % 2 ? `${MARK_OPEN}${escapeHtml(piece)}</mark>` : escapeHtml(piece))).join('');
 }
 
 export interface SearchMatch {

@@ -129,6 +129,8 @@ const move = <T,>(list: T[], i: number, by: -1 | 1): T[] => {
 export const LibraryEditor: React.FC<{ onDirty: (dirty: boolean) => void }> = ({ onDirty }) => {
   const lib = useProjectLibrary();
   const [base, setBase] = useState<LibraryContent>(lib.content);
+  /** When the library the draft started from was saved — sent back so a newer save by someone else is not overwritten. */
+  const [baseAt, setBaseAt] = useState(lib.updatedAt);
   const [draft, setDraft] = useState<Draft>(() => toDraft(lib.content));
   const [open, setOpen] = useState<string>('specs');
   const [saving, setSaving] = useState(false);
@@ -141,6 +143,7 @@ export const LibraryEditor: React.FC<{ onDirty: (dirty: boolean) => void }> = ({
   useEffect(() => {
     if (!dirty && lib.content !== base) {
       setBase(lib.content);
+      setBaseAt(lib.updatedAt);
       setDraft(toDraft(lib.content));
     }
   }, [lib.content]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -178,10 +181,11 @@ export const LibraryEditor: React.FC<{ onDirty: (dirty: boolean) => void }> = ({
     setSaving(true);
     try {
       const content = fromDraft(draft, base);
-      const r = await api.library.save(content);
+      const r = await api.library.save(content, baseAt);
       projectLibrary.set(r);
       const saved = r.content || content;
       setBase(saved);
+      setBaseAt(r.updatedAt);
       setDraft(toDraft(saved));
       toast('Library saved', 'Everyone in the company now sees the updated library.', 'success');
     } catch (e) {
@@ -198,6 +202,7 @@ export const LibraryEditor: React.FC<{ onDirty: (dirty: boolean) => void }> = ({
       projectLibrary.set(r);
       const fresh = projectLibrary.get().content;
       setBase(fresh);
+      setBaseAt(r.updatedAt);
       setDraft(toDraft(fresh));
       setOpen('specs');
       toast('Original library restored', '', 'success');

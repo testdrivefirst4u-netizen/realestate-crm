@@ -6,7 +6,8 @@
  *   and transparently upgraded to bcrypt on the next successful sign-in.
  * - Sessions: random 256-bit token, stored only as a SHA-256 hash; sent to the browser in an
  *   httpOnly, SameSite=Lax cookie (never in localStorage or URLs). Sliding 12 h expiry.
- * - Login throttling: 8 failures per email+IP in 15 minutes locks that pair for 15 minutes.
+ * - Login throttling: 8 failures per email+IP in 15 minutes locks that pair for 15 minutes; 25 failures for one
+ *   account from any addresses within 30 minutes lock that account for 30 minutes.
  * - Same error for unknown, disabled and wrong-password accounts (no account enumeration).
  * - Audit entries record before/after values for changed fields when the caller provides them.
  */
@@ -17,7 +18,7 @@ import { fail } from './errors';
 import { currentTenant } from './tenant';
 import { claimEmail, releaseEmail } from '../platform/registry';
 import { e164, randomPassword, randomToken, sha256Base64, sha256Hex, str, truncate, shortId } from './utils';
-import { generateTotpSecret, groupSecret, openTotpSecret, otpauthUri, sealTotpSecret, verifyTotp } from './totp';
+import { generateTotpSecret, groupSecret, openTotpSecret, otpauthUri, sealTotpSecret, totpStepOf, verifyTotp } from './totp';
 
 export interface PublicUser {
   id: string;
@@ -58,6 +59,8 @@ export interface UserDoc {
   support?: boolean;
   /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
   totpSecret?: string;
+  /** The 30-second step of the last authenticator code used to sign in (that code and older ones are refused). */
+  totpLastStep?: number;
   totpPending?: string;
 }
 
@@ -167,6 +170,10 @@ export async function hashPassword(pw: string) {
   return bcrypt.hash(pw, 12);
 }
 
+let dummy: Promise<string> | null = null;
+/** A bcrypt hash to compare against when there is no such user (made once, on first need). */
+const dummyHash = () => (dummy ??= bcrypt.hash('no-such-user-' + Math.random(), 12));
+
 async function verifyPassword(u: UserDoc, pw: string): Promise<boolean> {
   const stored = String(u.passwordHash || '');
   if (!stored) return false;
@@ -183,11 +190,27 @@ function checkNewPassword(pw: string) {
 
 /* -------------------------------- users ---------------------------------- */
 
+/** Names the CRM itself writes as the actor or the RM (a person must never be mistaken for these). */
+const RESERVED_NAMES = ['system', 'automation', 'auto-reassign', 'auto-reply', 'rm alert', 'unassigned', 'platform support'];
+const nameKey = (n: string) => n.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Leads, calls and tasks are given to RMs by name, so names must be unique (ignoring case and spaces) and may not
+ * be one the CRM uses itself — otherwise renaming yourself would show you someone else's leads.
+ */
+async function checkUserName(name: string, exceptId?: string) {
+  const key = nameKey(name);
+  if (RESERVED_NAMES.includes(key)) throw fail('VALIDATION', `“${name.trim()}” is reserved by the CRM. Choose another name.`);
+  const all = await (await users()).find({}, { projection: { _id: 1, name: 1 } }).toArray();
+  if (all.some((x) => x._id !== exceptId && nameKey(String(x.name || '')) === key)) throw fail('CONFLICT', `Another user is already called “${name.trim()}”. Add a surname or initial.`);
+}
+
 export async function createUser(data: any, actor: Ctx | null) {
   const email = String(data.email || '').trim().toLowerCase();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw fail('VALIDATION', 'A valid email address is required');
   if (!String(data.name || '').trim()) throw fail('VALIDATION', 'Name is required');
   if (await findUserByEmail(email)) throw fail('CONFLICT', 'A user with this email already exists');
+  await checkUserName(String(data.name));
   const supplied = String(data.password || '').trim();
   const password = supplied || randomPassword(12);
   if (supplied) checkNewPassword(supplied);
@@ -231,6 +254,7 @@ export async function updateUser(data: any, ctx: Ctx) {
   if (data.name !== undefined) {
     const n = String(data.name).trim();
     if (!n) throw fail('VALIDATION', 'Name is required');
+    if (nameKey(n) !== nameKey(u.name || '')) await checkUserName(n, u._id);
     set.name = n;
   }
   if (data.email !== undefined) {
@@ -288,19 +312,28 @@ export async function updateUser(data: any, ctx: Ctx) {
   return publicUser((await findUserById(u._id))!);
 }
 
-/** Any signed-in user may change their own display name and profile photo. */
+/**
+ * Any signed-in user may change their own profile photo and phone. The display name too — except Agents (RMs):
+ * leads are given to RMs by name, so their name is changed by an admin or manager.
+ */
 export async function updateProfile(ctx: Ctx, data: any) {
   if (!ctx.user) throw fail('AUTH_REQUIRED', 'Please sign in');
   const patch: any = { id: ctx.user.id };
   if (data && data.name !== undefined) {
     const n = String(data.name || '').trim();
     if (!n) throw fail('VALIDATION', 'Name is required');
-    patch.name = n;
+    if (nameKey(n) !== nameKey(ctx.user.name || '')) {
+      if (!can(ctx.user, 'users.manageAgents')) throw fail('FORBIDDEN', 'Ask an admin or manager to change your name: your leads are assigned to it.');
+      patch.name = n;
+    }
   }
   if (data && data.avatar !== undefined) patch.avatar = data.avatar === null ? '' : data.avatar;
   if (data && data.phone !== undefined) patch.phone = data.phone === null ? '' : data.phone;
   if (data && data.callVia !== undefined) patch.callVia = data.callVia === 'direct' ? 'direct' : 'justconnect';
-  if (Object.keys(patch).length === 1) throw fail('VALIDATION', 'Nothing to update');
+  if (Object.keys(patch).length === 1) {
+    if (data && data.name !== undefined) return publicUser((await findUserById(ctx.user.id))!); // same name: nothing changes
+    throw fail('VALIDATION', 'Nothing to update');
+  }
   return updateUser(patch, ctx);
 }
 
@@ -323,6 +356,9 @@ export async function deleteUser(id: string, ctx: Ctx) {
 
 const MAX_FAILURES = 8;
 const LOCK_MINUTES = 15;
+/** Per account, from any number of addresses: guessing spread over many IPs is stopped too. */
+const ACCOUNT_MAX_FAILURES = 25;
+const ACCOUNT_LOCK_MINUTES = 30;
 
 async function attempts() {
   return col<{ _id?: any; key: string; count: number; expiresAt: Date; lockedUntil?: Date }>(CFG.COLL.LOGIN_ATTEMPTS);
@@ -336,15 +372,15 @@ async function assertNotLocked(key: string) {
   }
 }
 
-async function recordFailure(key: string) {
+async function recordFailure(key: string, max = MAX_FAILURES, minutes = LOCK_MINUTES) {
   const c = await attempts();
   const res = await c.findOneAndUpdate(
     { key },
-    { $inc: { count: 1 }, $setOnInsert: { expiresAt: new Date(Date.now() + LOCK_MINUTES * 60000) } },
+    { $inc: { count: 1 }, $setOnInsert: { expiresAt: new Date(Date.now() + minutes * 60000) } },
     { upsert: true, returnDocument: 'after' }
   );
-  if (res && res.count >= MAX_FAILURES) {
-    const until = new Date(Date.now() + LOCK_MINUTES * 60000);
+  if (res && res.count >= max) {
+    const until = new Date(Date.now() + minutes * 60000);
     await c.updateOne({ key }, { $set: { lockedUntil: until, expiresAt: until } });
   }
 }
@@ -363,21 +399,31 @@ export const TOTP_WRONG_MSG = 'That code is not right. Check the time on your ph
 
 export async function login(email: string, password: string, ctx: Pick<Ctx, 'userAgent' | 'ip'>, code?: string): Promise<LoginResult> {
   const key = `${String(email || '').trim().toLowerCase()}|${ctx.ip || ''}`;
+  const accountKey = `account|${String(email || '').trim().toLowerCase()}`;
   await assertNotLocked(key);
-  const u = await findUserByEmail(email);
-  const okPw = u ? await verifyPassword(u, password) : false;
-  if (!u || !okPw || u.status === 'Disabled') {
+  await assertNotLocked(accountKey);
+  const failed = async () => {
     await recordFailure(key);
+    await recordFailure(accountKey, ACCOUNT_MAX_FAILURES, ACCOUNT_LOCK_MINUTES);
+  };
+  const u = await findUserByEmail(email);
+  // an unknown email takes as long as a wrong password, so timing does not reveal who has an account
+  const okPw = u ? await verifyPassword(u, password) : (await bcrypt.compare(String(password), await dummyHash()), false);
+  if (!u || !okPw || u.status === 'Disabled') {
+    await failed();
     throw fail('AUTH_FAILED', 'Invalid email or password');
   }
   if (u.totpSecret) {
     if (!str(code)) throw fail('AUTH_FAILED', TOTP_REQUIRED_MSG, { totpRequired: true });
-    if (!verifyTotp(openTotpSecret(u.totpSecret), code)) {
-      await recordFailure(key);
+    const step = totpStepOf(openTotpSecret(u.totpSecret), code);
+    // a code works once: one already used (seen over a shoulder, phished) is refused
+    const used = step !== null && !!u.totpLastStep && step <= u.totpLastStep;
+    if (step === null || used || (await (await users()).updateOne({ _id: u._id, $or: [{ totpLastStep: { $exists: false } }, { totpLastStep: { $lt: step } }] } as any, { $set: { totpLastStep: step } })).matchedCount === 0) {
+      await failed();
       throw fail('AUTH_FAILED', TOTP_WRONG_MSG, { totpRequired: true });
     }
   }
-  await (await attempts()).deleteOne({ key });
+  await (await attempts()).deleteMany({ key: { $in: [key, accountKey] } });
 
   // upgrade legacy SHA-256 hashes to bcrypt now that we know the password
   if (u.legacySalt !== undefined) {

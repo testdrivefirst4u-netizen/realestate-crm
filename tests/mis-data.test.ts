@@ -208,6 +208,10 @@ describe('enquiry performance (FTD / MTD / YTD)', () => {
     expect(ids(p.svPlanned)).toEqual(['j', 'k']);
     expect(ids(p.svDone)).toEqual(['f', 'm']);
     expect(ids(p.svDoneUndated)).toEqual(['m']);
+    // the overall block: Warm, Hot, Booked, and visits in the pipeline (prospect) / scheduled
+    expect(ids(p.booked)).toEqual(['g']);
+    expect(ids(p.svPipeline)).toEqual(['k']); // l is not interested: left out
+    expect(ids(p.svScheduled)).toEqual(['j']);
   });
 });
 
@@ -220,7 +224,8 @@ describe('YTD / MTD screen (server render)', () => {
     const leads = [lead('1', STAGES.QUALIFIED, { [F.ENQUIRY_DATE]: `${today}T11:00:00+05:30` }), lead('2', STAGES.NOT_RESPONDING, { [F.ENQUIRY_DATE]: `${today}T12:00:00+05:30` })];
     const html = renderToStaticMarkup(createElement(PerformanceView, { leads, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
     if (process.env.MIS_HTML) (await import('node:fs')).writeFileSync(process.env.MIS_HTML, html);
-    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'New Enquiries', 'Open Enquiries', 'Non-Responding', 'Site Visits Completed']) expect(html).toContain(t);
+    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'New Enquiries', 'Open Enquiries', 'Non-Responding', 'Site Visits - Pipeline', 'Site Visits - Scheduled', 'Booked']) expect(html).toContain(t);
+    for (const t of ['Total Enquiries', 'Site Visits Completed', 'Site Visits Planned']) expect(html).not.toContain(t);
   });
 });
 

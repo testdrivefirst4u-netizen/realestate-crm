@@ -48,6 +48,8 @@ export const F = {
   CITY: 'City',
   /** Locality / neighbourhood within the city. */
   AREA: 'Area',
+  /** How to address the prospect: Mr. / Mrs. / Dr. … (extra column). */
+  SALUTATION: 'Salutation',
   /** Who referred the prospect, and a competing project they are considering (extra columns). */
   REFERRED_BY: 'Referred By',
   OTHER_PROJECT: 'Considering Other Project',
@@ -178,7 +180,7 @@ export const DEFAULT_CONFIG = {
     F.UNIT_TYPE,
     F.PURCHASE_OR_RENT,
     F.SITE_VISIT_STATUS,
-    F.RELATIONSHIP,
+    F.SALUTATION,
     F.ENQUIRED_FOR,
     F.RM,
     F.BROCHURE,
@@ -214,9 +216,9 @@ export const DEFAULT_CONFIG = {
       'BTL',
     ],
     [F.UNIT_TYPE]: ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],
-    [F.PURCHASE_OR_RENT]: ['Purchase', 'Rent'],
+    [F.PURCHASE_OR_RENT]: ['Purchase', 'Rent', 'Investment'],
     [F.SITE_VISIT_STATUS]: [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED, SITE_VISIT.WALK_IN, SITE_VISIT.COMPLETED],
-    [F.RELATIONSHIP]: ['Self', 'Son', 'Daughter', 'Granddaughter', 'Grandson', 'Sister', 'Brother', 'Friend', 'Colleague'],
+    [F.SALUTATION]: ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Col.', 'Capt.'],
     [F.ENQUIRED_FOR]: ['Self', 'Parents', 'Grandparents', 'Father', 'Mother', 'Relative', 'Relatives', 'Family'],
     [F.RM]: [] as string[], // filled from the users / config collections at runtime
     [F.BROCHURE]: ['Yes', 'No'],

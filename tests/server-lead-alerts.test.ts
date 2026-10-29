@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 const user = (name: string, email: string, status: 'Active' | 'Disabled' = 'Active') => ({ id: email, name, email, role: 'RM', status }) as unknown as PublicUser;
-const device = (n: number) => ({ subscription: { endpoint: `https://push.example/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
+const device = (n: number) => ({ subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/dev${n}`, keys: { p256dh: 'B'.repeat(87), auth: 'A'.repeat(22) } } });
 
 describe('lead alert rules', () => {
   it('defaults to a phone notification and an e-mail to the RM; old WhatsApp settings are ignored', () => {
@@ -113,7 +113,7 @@ describe('sending', () => {
     await pushSubscribe(device(3), admin); // not the RM, not on the list
     const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '+91 98765 43210', [L.RM]: 'Priya Sharma', [L.SOURCE]: 'Website' }, admin);
     expect(await sendLeadAlerts(lead, 'created')).toEqual({ emailed: 1, pushed: 2 });
-    expect(pushSent.map((p) => p.endpoint).sort()).toEqual(['https://push.example/dev1', 'https://push.example/dev2']);
+    expect(pushSent.map((p) => p.endpoint).sort()).toEqual(['https://fcm.googleapis.com/fcm/send/dev1', 'https://fcm.googleapis.com/fcm/send/dev2']);
     expect(pushSent[0].body).toMatchObject({ title: 'New lead: Meera Kapoor', url: `/leads?lead=${lead[L.ID]}` });
     expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: rm.user!.email, subject: 'New lead: Meera Kapoor · Website' }));
     expect(chatSend).not.toHaveBeenCalled();

@@ -148,11 +148,16 @@ const BADGE = 'bg-slate-100 text-slate-900 border-slate-300';
 
 /** Editable content → the documents the library shows (numbered chapters and passages with references). */
 export function buildDocuments(content: LibraryContent): ProjectDocument[] {
+  // passage ids must be unique across documents: a second "PAY" (an uploaded "Payment …" file) becomes "PAY2"
+  const used = new Set<string>();
   return content.documents.map((d) => {
+    let prefix = d.idPrefix || 'DOC';
+    for (let n = 2; used.has(prefix); n++) prefix = `${d.idPrefix || 'DOC'}${n}`;
+    used.add(prefix);
     const chapters = d.chapters.map((c, ci) => {
       const chapterNumber = ci + 1;
       const verses: DocVerse[] = c.passages.map((p, pi) => ({
-        id: `${d.idPrefix}-${chapterNumber}:${pi + 1}`,
+        id: `${prefix}-${chapterNumber}:${pi + 1}`,
         docId: d.id, docTitle: d.refTitle || d.title, docShortName: d.refName, category: d.category,
         chapterNumber, chapterTitle: c.title, verseNumber: pi + 1,
         reference: `${d.refName} ${chapterNumber}:${pi + 1}`,

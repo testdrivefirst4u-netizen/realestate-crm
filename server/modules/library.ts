@@ -110,7 +110,26 @@ export async function librarySetEditors(d: { emails: unknown }, ctx: Ctx) {
 }
 
 /** Save the company's library; `content: null` goes back to the library built into the app. */
-export async function librarySave(d: { content: unknown }, ctx: Ctx) {
+/**
+ * Save the content only if the library is still the one it was based on (`basedOn`: its updatedAt; null = nothing
+ * saved yet, the built-in library). False when someone saved in between.
+ */
+async function writeLibrary(content: unknown, basedOn: Date | null, ctx: Ctx): Promise<boolean> {
+  const lib = await libraryCol();
+  const set = { content, updatedAt: new Date(), updatedBy: ctx.user?.name || '' };
+  if (basedOn === null) {
+    try {
+      await lib.insertOne({ _id: DOC_ID, ...set });
+      return true;
+    } catch (e: any) {
+      if (e?.code === 11000) return false;
+      throw e;
+    }
+  }
+  return (await lib.updateOne({ _id: DOC_ID, updatedAt: basedOn }, { $set: set })).matchedCount === 1;
+}
+
+export async function librarySave(d: { content: unknown; baseUpdatedAt?: string }, ctx: Ctx) {
   if (!(await canEditLibrary(ctx))) throw fail('FORBIDDEN', 'Only admins and the chosen library editors can change the Project Library');
   const lib = await libraryCol();
   if (d?.content === null) {
@@ -122,7 +141,17 @@ export async function librarySave(d: { content: unknown }, ctx: Ctx) {
   const content = cleanLibrary(d.content);
   if (!content.documents.length && !content.sections.length) throw fail('VALIDATION', 'The library cannot be empty. Use "Restore original" instead.');
   if (JSON.stringify(content).length > MAX_BYTES) throw fail('VALIDATION', 'The library is too large. Shorten or remove some passages.');
-  await lib.updateOne({ _id: DOC_ID }, { $set: { content, updatedAt: new Date(), updatedBy: ctx.user?.name || '' } }, { upsert: true });
+  if (typeof d.baseUpdatedAt === 'string') {
+    // the editor says which saved library it started from: refuse if someone saved since (e.g. added a file)
+    const basedOn = d.baseUpdatedAt ? new Date(d.baseUpdatedAt) : null;
+    if (basedOn && isNaN(basedOn.getTime())) throw fail('VALIDATION', 'Bad library version');
+    if (!(await writeLibrary(content, basedOn, ctx))) {
+      const now = await lib.findOne({ _id: DOC_ID }, { projection: { updatedBy: 1 } });
+      throw fail('CONFLICT', `${now?.updatedBy || 'Someone'} changed the library after you started editing. Copy your changes, close and reopen the library, then make them again.`);
+    }
+  } else {
+    await lib.updateOne({ _id: DOC_ID }, { $set: { content, updatedAt: new Date(), updatedBy: ctx.user?.name || '' } }, { upsert: true });
+  }
   const passages = content.documents.reduce((n, x) => n + x.chapters.reduce((m, c) => m + c.passages.length, 0), 0);
   await auditLog(ctx, 'Project Library Updated', 'Library', DOC_ID, `${content.documents.length} documents, ${passages} passages, ${content.sections.length} quick-spec sections`);
   return libraryGet(ctx);
@@ -184,10 +213,6 @@ export async function libraryImport(d: { uploadId: string; parts: number; name: 
   const mime = str(d.mime).split(';')[0].trim().toLowerCase() || 'application/octet-stream';
   const chapters = await readLibraryFile(data, name, mime, ctx);
 
-  const current = await (await libraryCol()).findOne({ _id: DOC_ID });
-  const content = current?.content || defaultLibrary();
-  if (content.documents.length >= MAX_DOCUMENTS) throw fail('VALIDATION', `The library already has ${MAX_DOCUMENTS} documents. Remove one before adding another.`);
-
   const file = await saveFile({ category: 'Library', name, mime: isAllowedMime(mime) ? mime : 'application/octet-stream', data, uploadedBy: ctx.user?.name || '', description: 'Project Library' });
   const title = text(d.title, 200) || titleFromName(name);
   const refName = title.split(/\s+/).slice(0, 3).join(' ').slice(0, 40);
@@ -201,9 +226,16 @@ export async function libraryImport(d: { uploadId: string; parts: number; name: 
   };
   let next;
   try {
-    next = cleanLibrary({ ...content, documents: [...content.documents, doc] });
-    if (JSON.stringify(next).length > MAX_BYTES) throw fail('VALIDATION', 'This file has too much text for the library. Upload a shorter file or split it into parts.');
-    await (await libraryCol()).updateOne({ _id: DOC_ID }, { $set: { content: next, updatedAt: new Date(), updatedBy: ctx.user?.name || '' } }, { upsert: true });
+    // added to the library as it is now; if someone saves in between, read it again (nothing of theirs is lost)
+    for (let attempt = 0; ; attempt++) {
+      const current = await (await libraryCol()).findOne({ _id: DOC_ID });
+      const content = current?.content || defaultLibrary();
+      if (content.documents.length >= MAX_DOCUMENTS) throw fail('VALIDATION', `The library already has ${MAX_DOCUMENTS} documents. Remove one before adding another.`);
+      next = cleanLibrary({ ...content, documents: [...content.documents, doc] });
+      if (JSON.stringify(next).length > MAX_BYTES) throw fail('VALIDATION', 'This file has too much text for the library. Upload a shorter file or split it into parts.');
+      if (await writeLibrary(next, current ? current.updatedAt : null, ctx)) break;
+      if (attempt >= 4) throw fail('CONFLICT', 'The library is being changed by someone else right now. Please try again.');
+    }
   } catch (e) {
     await deleteFile(file.fileId); // no orphan file when the library was not saved
     throw e;

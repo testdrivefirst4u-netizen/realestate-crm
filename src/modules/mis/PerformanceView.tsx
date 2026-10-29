@@ -59,7 +59,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
 /* -------------------------------------------------------------------------- */
 
 /** The CRM's ocean theme, with the Sales MIS stage colours for the stages (so both screens read the same). */
-const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', nonResponding: '#C46A12', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', planned: '#1D5585' };
+const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', nonResponding: '#C46A12', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', booked: '#1F7A4D', planned: '#1D5585' };
 const two = (n: number) => String(n).padStart(2, '0');
 
 const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]>; show: (label: string, ls: MisLead[]) => void }> = ({ title, sub, tiles, show }) => (
@@ -113,13 +113,11 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
       title: 'Pipeline stages & conversions (overall)',
       sub: 'All enquiries, as they stand now',
       tiles: [
-        ['Total Enquiries', C.received, pipe.total],
-        ['Qualified Leads', C.qualified, pipe.qualified, 'Qualified, Warm, HOT, booked, or a site visit scheduled / done'],
-        ['Warm Leads', C.warm, pipe.warm],
-        ['Hot Leads', C.hot, pipe.hot],
-        ['Non-Responding', C.nonResponding, pipe.nonResponding, 'Open leads at stage Not Responding'],
-        ['Site Visits Planned', C.planned, pipe.svPlanned, 'Prospect for site visit or visit scheduled, still open'],
-        ['Site Visits Completed', C.visits, pipe.svDone, 'Site visit done or walk-in'],
+        ['Warm', C.warm, pipe.warm, 'Leads at stage Warm'],
+        ['Hot', C.hot, pipe.hot, 'Leads at stage Hot'],
+        ['Booked', C.booked, pipe.booked, 'Leads at stage Booked'],
+        ['Site Visits - Pipeline', C.planned, pipe.svPipeline, 'Site visit status “Prospect for Site Visit”, still open'],
+        ['Site Visits - Scheduled', C.visits, pipe.svScheduled, 'Site visit status “Site Visit - Scheduled”, still open'],
       ],
     },
   ];

@@ -22,7 +22,7 @@ import { tenantKey } from '../core/tenant';
 import { addEvent, addTimeline, logError } from '../core/events';
 import { getSecret, settingSet, settingsAll } from '../core/settings';
 import { bool, digits, e164, last10, maskSecret, num, parseDate, safeJsonParse, shortId, str, toIso, truncate } from '../core/utils';
-import { addLead, findLeadByPhone, getLead, type UiLead } from './leads';
+import { addLead, findLeadByPhone, getLead, updateLead, type UiLead } from './leads';
 
 const L = CFG.LEAD;
 const FETCH_TIMEOUT_MS = 20_000;
@@ -226,7 +226,49 @@ function serializeContact(r: any) {
 
 /* --------------------------------- reads --------------------------------- */
 
+/**
+ * Leads saved as "WhatsApp +91…" (or as their number) before the customer's name was known: take the WhatsApp name
+ * from their saved messages. Runs at most once a day per company (when the WhatsApp screen is opened).
+ */
+export async function fixPlaceholderNames(force = false): Promise<number> {
+  if (!force) {
+    try {
+      await (await col<any>(CFG.COLL.META)).insertOne({ _id: `once:wanames:${new Date().toISOString().slice(0, 10)}`, at: new Date() });
+    } catch {
+      return 0; // already done today
+    }
+  }
+  const leads = await (await col<any>(CFG.COLL.LEADS))
+    .find({ $or: [{ name: { $regex: '^\\s*whats ?app\\b', $options: 'i' } }, { name: { $regex: '^[+\\d\\s()-]{6,}$' } }, { name: '' }], phoneLast10: { $nin: ['', null] }, stage: { $ne: CFG.STAGES.DELETED } }, { projection: { _id: 1, name: 1, phone: 1, phoneLast10: 1 } })
+    .limit(1000)
+    .toArray();
+  let fixed = 0;
+  for (const l of leads) {
+    const rows = await (await msgs()).find({ phoneLast10: l.phoneLast10, direction: 'Inbound' }).sort({ timestamp: -1 }).limit(20).project({ raw: 1 }).toArray();
+    let name = '';
+    for (const r of rows) {
+      try {
+        name = extractName(JSON.parse(String(r.raw || '')));
+      } catch {
+        name = '';
+      }
+      if (name) break;
+    }
+    if (!name || !isPlaceholderName(l.name, l.phone)) continue;
+    try {
+      await updateLead(String(l._id), { [L.NAME]: name }, chat360Ctx());
+      await (await contactsCol()).updateOne({ phoneLast10: l.phoneLast10 }, { $set: { contactName: name } });
+      fixed++;
+    } catch (e: any) {
+      await logError('chat360.fixNames', e?.code || 'INTERNAL', e?.message, e?.stack, '', { leadId: l._id });
+    }
+  }
+  if (fixed) await bumpVersion();
+  return fixed;
+}
+
 export async function contacts(): Promise<any[]> {
+  await fixPlaceholderNames().catch(() => 0);
   const rows = await (await contactsCol()).find({}).sort({ lastMessageAt: -1 }).limit(5000).toArray();
   return rows.map(serializeContact).filter((c) => c.phone);
 }
@@ -439,9 +481,33 @@ export function businessNumberFrom(p: any, customer: string): string {
   return d.length >= 10 && d.length <= 15 && last10(d) !== last10(customer) ? e164(d) : '';
 }
 
-function extractName(p: any): string {
-  const v = deepFind(p, ['profile_name', 'contact_name', 'name', 'customer_name', 'user_name']);
-  return truncate(typeof v === 'string' ? v.trim() : v && v.name ? String(v.name) : '', 120);
+/**
+ * The customer's WhatsApp name: Chat360's own fields first, then WhatsApp's contact profile
+ * (wab_response.contacts[0].profile.name). A loose "name" deep inside the payload (a location, a template, a
+ * button) is never taken for the customer's name.
+ */
+export function extractName(p: any): string {
+  if (!p || typeof p !== 'object') return '';
+  const pick = (v: unknown) => (typeof v === 'string' ? v.trim() : v && typeof v === 'object' && typeof (v as any).name === 'string' ? String((v as any).name).trim() : '');
+  const wr = p.wab_response || p.data || p.message || {};
+  const contact = Array.isArray(wr?.contacts) ? wr.contacts[0] : Array.isArray(p.contacts) ? p.contacts[0] : null;
+  const candidates = [
+    deepFind(p, ['profile_name', 'contact_name', 'customer_name', 'sender_name', 'user_name', 'wa_name', 'push_name']),
+    contact?.profile?.name, contact?.name?.formatted_name,
+    p.name, p.user?.name, p.customer?.name, p.contact?.name,
+  ];
+  for (const c of candidates) {
+    const n = pick(c);
+    // not a number or an id dressed as a name
+    if (n && !/^[+\d\s()-]{6,}$/.test(n)) return truncate(n, 120);
+  }
+  return '';
+}
+
+/** A lead name the CRM made up because WhatsApp gave none ("WhatsApp +91…", the number itself, or empty). */
+export function isPlaceholderName(name: unknown, phone = ''): boolean {
+  const n = String(name || '').trim();
+  return !n || /^whats ?app\b/i.test(n) || /^[+\d\s()-]{6,}$/.test(n) || (!!phone && last10(n) === last10(phone));
 }
 
 function extractMedia(p: any): string {
@@ -496,7 +562,11 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   const eventId = providerKey || shortId('C360');
 
   const inbound = type === 'message_received' || type === 'incoming_message' || type === 'message' || /lead/.test(type);
-  const statusEvent = /delivered|read|sent/.test(type) && !inbound;
+  // Everything that is not the customer writing: delivery / read receipts, and messages sent to the customer —
+  // by an agent in the Chat360 console, by the Chat360 chatbot or a campaign (e.g. template_message_sent,
+  // session_message_sent, bot_message_sent, message_sent, outgoing_message). Those are never shown as the customer's.
+  const outgoingEvent = !inbound && /sent|outgoing|outbound|bot|agent|reply|broadcast|campaign/.test(type) && !/deliver|read|fail/.test(type);
+  const statusEvent = !inbound && (outgoingEvent || /deliver|read|fail|sent/.test(type));
   const phone = extractPhone(payload, inbound);
   if (!phone) {
     await logError('chat360.webhook', 'VALIDATION', `No phone number in payload (${type})`, '', 'webhook', { keys: Object.keys(payload).slice(0, 40) });
@@ -506,7 +576,7 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   // Status updates for messages we sent (idempotent, so not subject to de-duplication).
   if (statusEvent) {
     const mid = str(payload.m_id || payload.message_id);
-    const status = /read/.test(type) ? 'read' : /deliver/.test(type) ? 'delivered' : 'sent';
+    const status = /read/.test(type) ? 'read' : /deliver/.test(type) ? 'delivered' : /fail/.test(type) ? 'failed' : 'sent';
     let changed = false;
     let known = false;
     if (mid) {
@@ -514,14 +584,20 @@ export async function handleWebhook(payload: any): Promise<unknown> {
       known = r.matchedCount > 0;
       changed = r.modifiedCount > 0;
     }
-    if ((type === 'template_message_sent' || type === 'session_message_sent') && !known) {
-      // an agent sent a message from the Chat360 console — log it as outbound (once)
+    if (outgoingEvent && !known) {
+      // sent from Chat360 itself (console, chatbot, campaign), not from the CRM — log it as outbound (once), so the
+      // whole conversation shows in the CRM
+      const text = extractText(payload) || (payload.template_name ? `Template: ${payload.template_name}` : '');
+      if (!text && !extractMedia(payload)) return { ok: true, ignored: 'empty' };
       const rec = await record({
-        id: mid || undefined, eventId, dedupeKey: providerKey || undefined, direction: 'Outbound', phone, text: extractText(payload),
-        mediaUrl: extractMedia(payload), status: 'sent', agent: 'Chat360 Console', type: payload.msg_type || payload.template_name || 'text',
-        raw: payload, ts: payload.created,
+        id: mid || undefined, eventId, dedupeKey: providerKey || undefined, direction: 'Outbound', phone, text,
+        mediaUrl: extractMedia(payload), status: 'sent', agent: /bot/.test(type) ? 'Chat360 Bot' : /broadcast|campaign/.test(type) ? 'Chat360 Campaign' : 'Chat360 Console',
+        type: payload.msg_type || payload.template_name || 'text', raw: payload, ts: payload.created,
       });
       if (!rec) return { ok: true, duplicate: true };
+      const lead = await findLeadByPhone(phone).catch(() => null);
+      if (lead) await (await msgs()).updateOne({ _id: rec.id as any }, { $set: { leadId: lead[L.ID] || '', contactName: lead[L.NAME] || '' } });
+      await upsertContact(phone, { lastMessageAt: new Date(), lastMessage: truncate(text, 200), ...(lead ? { leadId: lead[L.ID] || '' } : {}) });
       changed = true;
     }
     if (changed) await bumpVersion();
@@ -552,6 +628,15 @@ export async function handleWebhook(payload: any): Promise<unknown> {
     await logError('chat360.resolveLead', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { phone: last10(phone) });
   }
   const leadId = lead ? lead[L.ID] || '' : '';
+  // the lead was saved as "WhatsApp +91…" (no name in that first message): use the customer's WhatsApp name now
+  if (lead && name && isPlaceholderName(lead[L.NAME], phone)) {
+    try {
+      await updateLead(leadId, { [L.NAME]: name }, chat360Ctx());
+      lead = { ...lead, [L.NAME]: name };
+    } catch (e: any) {
+      await logError('chat360.leadName', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { leadId });
+    }
+  }
   const displayName = name || (lead ? lead[L.NAME] || '' : '');
   if (lead) await (await msgs()).updateOne({ _id: rec.id as any }, { $set: { leadId, contactName: displayName } });
 

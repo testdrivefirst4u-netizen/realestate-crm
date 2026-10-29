@@ -165,3 +165,23 @@ describe('adding a file to the library', () => {
     expect((await as('Asha', 'libraryGet')).data.content).toBeNull();
   });
 });
+
+describe('search highlighting', () => {
+  it('escapes the text and the terms, and never matches inside an escape', async () => {
+    const { highlightTerms } = await import('../src/documents/projectDocuments');
+    expect(highlightTerms("Owner's <b>flat</b>", ['39'])).toBe('Owner&#39;s &lt;b&gt;flat&lt;/b&gt;');
+    expect(highlightTerms('Tom & Jerry', ['amp'])).toBe('Tom &amp; Jerry');
+    const lit = highlightTerms('2.5 BHK <script>', ['bhk', '<script>']);
+    expect(lit).not.toContain('<script>');
+    expect((lit.match(/<mark/g) || []).length).toBe(2);
+  });
+});
+
+describe('zip bombs', () => {
+  it('a Word file that would unpack to far too much is refused before it is unpacked', async () => {
+    const huge = new Uint8Array(200 * 1024 * 1024); // zeros: compresses to a few hundred KB
+    const bomb = Buffer.from(zipSync({ 'word/document.xml': huge }, { level: 9 }));
+    expect(bomb.length).toBeLessThan(2 * 1024 * 1024);
+    await expect(readLibraryFile(bomb, 'bomb.docx', '', SYSTEM_CTX)).rejects.toThrow(/too much data/);
+  });
+});

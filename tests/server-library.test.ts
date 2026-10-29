@@ -92,3 +92,19 @@ describe('library editors', () => {
     expect((await as('Meera', 'librarySave', { content })).status).toBe('error');
   });
 });
+
+describe('saving over someone else', () => {
+  it('a save based on an older library is refused; one based on the latest goes through', async () => {
+    const content = defaultLibrary();
+    const first = await as('Asha', 'librarySave', { content, baseUpdatedAt: '' });
+    expect(first.status).toBe('success');
+    // someone else saves after Asha opened the editor
+    expect((await as('Asha', 'librarySave', { content, baseUpdatedAt: first.data.updatedAt })).status).toBe('success');
+    const stale = await as('Asha', 'librarySave', { content, baseUpdatedAt: first.data.updatedAt });
+    expect(stale).toMatchObject({ status: 'error', code: 'CONFLICT' });
+    // nothing saved yet is also a version: a second "first save" is refused
+    await as('Asha', 'librarySave', { content: null });
+    expect((await as('Asha', 'librarySave', { content, baseUpdatedAt: '' })).status).toBe('success');
+    expect((await as('Asha', 'librarySave', { content, baseUpdatedAt: '' }))).toMatchObject({ code: 'CONFLICT' });
+  });
+});

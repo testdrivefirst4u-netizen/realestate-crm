@@ -88,6 +88,7 @@ alias(L.PHONE, ['phone', 'mobile', 'phone_number', 'phonenumber', 'mobile_number
 alias(L.EMAIL, ['email', 'e_mail', 'email_address', 'your_email', 'mail']);
 alias(L.NOTES, ['message', 'notes', 'note', 'comments', 'comment', 'enquiry', 'inquiry', 'your_message', 'remarks', 'requirement']);
 alias(L.UNIT_TYPE, ['unit', 'unit_type', 'bhk', 'configuration', 'unit_type_interested_in']);
+alias('Salutation', ['salutation', 'prefix', 'name_title', 'name_prefix', 'honorific']);
 alias('Referred By', ['referred_by', 'referredby', 'referral', 'referral_name', 'referred_by_name', 'reference_name', 'referrer']);
 alias('Considering Other Project', ['other_project', 'considering_other_project', 'other_projects', 'competitor', 'competing_project', 'other_project_name']);
 alias(CFG.LEAD_GEO.AREA, ['area', 'locality', 'your_area', 'area_name', 'neighbourhood', 'neighborhood', 'sector', 'colony']);

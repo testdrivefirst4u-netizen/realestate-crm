@@ -122,17 +122,18 @@ export async function validateSalesOps(raw: unknown): Promise<string> {
 /* ------------------------- WhatsApp template values ----------------------- */
 
 /** What a template's values may name: "{first_name}, {visit_date}" → the lead's own details. */
-export const TEMPLATE_FIELDS = ['name', 'first_name', 'phone', 'rm', 'unit', 'visit_date', 'visit_time', 'company'];
+export const TEMPLATE_FIELDS = ['salutation', 'name', 'first_name', 'phone', 'rm', 'unit', 'visit_date', 'visit_time', 'company'];
 
 /**
  * A template's values, filled in for one lead: comma-separated, each a fixed word or a {field} (or "key={field}" for
  * a template with named variables).
  */
-export function fillTemplateValues(spec: string, lead: Pick<LeadDoc, 'name' | 'phone' | 'assignedRm' | 'unitType' | 'siteVisitDate'>, company = ''): string[] {
+export function fillTemplateValues(spec: string, lead: Pick<LeadDoc, 'name' | 'phone' | 'assignedRm' | 'unitType' | 'siteVisitDate'> & { extra?: Record<string, string> }, company = ''): string[] {
   const name = String(lead.name || '').trim();
   const v: Record<string, string> = {
     name, first_name: name.split(/\s+/)[0] || name, phone: String(lead.phone || ''), rm: String(lead.assignedRm || ''),
     unit: String(lead.unitType || ''), visit_date: fmtDate(lead.siteVisitDate), visit_time: fmtTime(lead.siteVisitDate), company,
+    salutation: String(lead.extra?.Salutation || '').trim(),
   };
   return String(spec || '')
     .split(',')
@@ -143,19 +144,30 @@ export function fillTemplateValues(spec: string, lead: Pick<LeadDoc, 'name' | 'p
 
 const AUTOMATION_CTX: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Automation' }, action: 'automation' };
 
+/** Wait before the one retry of a failed automatic WhatsApp (shorter in tests). */
+const RETRY_MS = process.env.VITEST ? 10 : 4000;
+
 /** Send an approved WhatsApp template (Chat360) to a lead. false when WhatsApp is not available or it failed (logged). */
 async function sendLeadTemplate(lead: LeadDoc, template: string, values: string, what: string): Promise<boolean> {
   const t = currentTenant();
   if (!template || (t && !t.features.chat360)) return false;
   if (String(lead.phone || '').replace(/\D/g, '').length < 10) return false;
-  try {
-    const company = String((await settingsAll()).appName || '');
-    const { send } = await import('./chat360');
-    await send({ phone: lead.phone, templateName: template, params: fillTemplateValues(values, lead, company), leadId: lead._id }, AUTOMATION_CTX);
-    return true;
-  } catch (e: any) {
-    if (e?.code !== 'NOT_CONFIGURED') await logError('automation.whatsapp', e?.code || 'INTERNAL', `${what}: ${e?.message}`, e?.stack, '', { leadId: lead._id, template });
-    return false;
+  const company = String((await settingsAll()).appName || '');
+  const { send } = await import('./chat360');
+  // sent once (the claim is taken before): a brief Chat360 / network hiccup gets one more try a few seconds later
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await send({ phone: lead.phone, templateName: template, params: fillTemplateValues(values, lead, company), leadId: lead._id }, AUTOMATION_CTX);
+      return true;
+    } catch (e: any) {
+      const permanent = ['NOT_CONFIGURED', 'VALIDATION', 'FORBIDDEN', 'NOT_FOUND'].includes(e?.code);
+      if (!permanent && attempt < 2) {
+        await new Promise((r) => setTimeout(r, RETRY_MS));
+        continue;
+      }
+      if (e?.code !== 'NOT_CONFIGURED') await logError('automation.whatsapp', e?.code || 'INTERNAL', `${what}: ${e?.message}`, e?.stack, '', { leadId: lead._id, template, attempt });
+      return false;
+    }
   }
 }
 
@@ -182,12 +194,25 @@ const leadsCol = () => col<LeadDoc>(CFG.COLL.LEADS);
 
 /* ----------------------------- auto-reassign ----------------------------- */
 
-/** When the working-hours clock for a lead given out at `assignedAt` runs out (minutes after the later of the two). */
-export function reassignDue(assignedAt: Date, cfg: Pick<SalesOps, 'reassignAfterMin' | 'workStartHour'>): Date {
-  const k = dateKey(assignedAt).split('-').map(Number);
-  const opens = makeZoned(k[0], k[1], k[2], cfg.workStartHour);
-  const from = assignedAt < opens ? opens : assignedAt;
-  return new Date(from.getTime() + cfg.reassignAfterMin * 60000);
+/**
+ * When the working-hours clock for a lead given out at `assignedAt` runs out: only minutes between opening and
+ * closing count, so a lead given out at 9 PM (or 10 minutes before closing) gets its full time the next morning.
+ */
+export function reassignDue(assignedAt: Date, cfg: Pick<SalesOps, 'reassignAfterMin' | 'workStartHour' | 'workEndHour'>): Date {
+  let left = cfg.reassignAfterMin * 60000;
+  let t = assignedAt;
+  for (let day = 0; day < 14; day++) {
+    const k = dateKey(t).split('-').map(Number);
+    const opens = makeZoned(k[0], k[1], k[2], cfg.workStartHour);
+    const closes = makeZoned(k[0], k[1], k[2], cfg.workEndHour);
+    if (t < opens) t = opens;
+    if (t < closes) {
+      if (left <= closes.getTime() - t.getTime()) return new Date(t.getTime() + left);
+      left -= closes.getTime() - t.getTime();
+    }
+    t = new Date(opens.getTime() + 24 * HOUR); // the next day's opening
+  }
+  return t;
 }
 
 /** Did anyone act on the lead since it was given to the current RM? */
@@ -268,8 +293,8 @@ export async function sendVisitReminders(cfg: SalesOps, now = new Date()): Promi
   for (const l of visits) {
     const at = new Date(l.siteVisitDate!);
     const left = at.getTime() - now.getTime();
-    // 2 hours before; and the day before from 10 AM (skipped when the visit is close anyway)
-    const kind = left <= 2 * HOUR ? 'h2' : dateKey(at) === tomorrow && localHour(now) >= 10 && left > 4 * HOUR ? 'd1' : '';
+    // 2 hours before; and the day before between 10 AM and 9 PM (skipped when the visit is close anyway)
+    const kind = left <= 2 * HOUR ? 'h2' : dateKey(at) === tomorrow && localHour(now) >= 10 && localHour(now) < 21 && left > 4 * HOUR ? 'd1' : '';
     if (!kind) continue;
     // the day before: the customer's WhatsApp reminder too (when a template is set)
     if (kind === 'd1' && cfg.visitTemplate && (await claimOnce(`visitwa:${l._id}:${at.toISOString()}`))) {
@@ -355,19 +380,19 @@ export async function alertUnreturnedMissed(cfg: SalesOps, now = new Date()): Pr
   const cutoff = new Date(now.getTime() - cfg.missedAlertMin * 60000);
   const missed = await calls
     .find({ direction: 'Inbound', status: { $in: ['Missed', 'No Answer', 'Voicemail'] }, startTime: { $gte: new Date(now.getTime() - 24 * HOUR), $lte: cutoff }, phoneLast10: { $nin: ['', null] } })
-    .sort({ startTime: 1 })
+    .sort({ startTime: -1 }) // newest first: a number's latest missed call is the one that counts
     .limit(200)
     .toArray();
   if (!missed.length) return out;
   const users = await listUsers();
   const seen = new Set<string>();
   for (const c of missed) {
-    if (seen.has(c.phoneLast10)) continue; // one alert per number
+    if (seen.has(c.phoneLast10)) continue; // one alert per number (its latest missed call; older ones are covered by it)
     seen.add(c.phoneLast10);
     // dealt with: somebody called the number since, or a later call from it was answered
     const handled = await calls.countDocuments({ phoneLast10: c.phoneLast10, startTime: { $gt: c.startTime }, $or: [{ direction: 'Outbound' }, { status: 'Completed' }] }, { limit: 1 });
     if (handled) continue;
-    if (!(await claimOnce(`missedalert:${c.phoneLast10}:${dateKey(c.startTime)}`))) continue;
+    if (!(await claimOnce(`missedalert:${c._id}`))) continue;
     const lead = c.leadId ? await (await leadsCol()).findOne({ _id: c.leadId }) : null;
     const who = lead?.name || c.customerName || c.phone;
     const ids = [...new Set([...managersOr(cfg.missedAlertTo, users), ...(lead?.assignedRm ? idsByName([lead.assignedRm], users) : [])])];

@@ -70,6 +70,35 @@ describe('lead visibility', () => {
     expect((await as('Asha', 'appendRemark', { id: 'ENQ-0001', remark: 'my own lead' })).status).toBe('success');
   });
 
+  it("renaming cannot widen what an RM sees: no 'System', no other RM's name, and RMs cannot rename themselves", async () => {
+    expect(await as('Asha', 'updateProfile', { data: { name: 'System' } })).toMatchObject({ status: 'error' });
+    expect(await as('Asha', 'updateProfile', { data: { name: 'Ravi' } })).toMatchObject({ status: 'error' });
+    expect((await as('Asha', 'updateProfile', { data: { name: 'Asha', phone: '' } })).status).toBe('success'); // unchanged name is fine
+    expect(leadIds(await as('Asha', 'getAllLeads'))).toEqual(['ENQ-0001']);
+    // managers can rename, but not to a reserved name or another user's name (case and spaces ignored)
+    const users = (await as('Meera', 'listUsers')).data;
+    const asha = users.find((u: any) => u.name === 'Asha');
+    expect(await as('Meera', 'saveUser', { data: { id: asha.id, name: 'system' } })).toMatchObject({ status: 'error' });
+    expect(await as('Meera', 'saveUser', { data: { id: asha.id, name: '  ravi ' } })).toMatchObject({ status: 'error', code: 'CONFLICT' });
+    expect((await as('Meera', 'saveUser', { data: { id: asha.id, name: 'Asha Rao' } })).status).toBe('success');
+  });
+
+  it("calls not linked to a lead follow the lead their number belongs to; unknown numbers only with 'own_unassigned'", async () => {
+    const calls = await col(CFG.COLL.CALLS);
+    const at = new Date();
+    await calls.insertMany([
+      { _id: 'CALL-R', leadId: '', phone: '9000000002', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
+      { _id: 'CALL-A', leadId: '', phone: '9000000001', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
+      { _id: 'CALL-N', leadId: '', phone: '9111111111', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
+    ] as any[]);
+    const seen = async (who: string) => ((await as(who, 'getCalls')).data as any[]).map((c) => c.id).sort();
+    expect(await seen('Asha')).toEqual(['CALL-A']); // not Ravi's caller, not an unknown number
+    expect(await seen('Meera')).toEqual(['CALL-A', 'CALL-N', 'CALL-R']);
+    expect((await as('Asha', 'transcribeCall', { callId: 'CALL-R' }))).toMatchObject({ code: 'NOT_FOUND' });
+    await settingSet('rmLeadVisibility', 'own_unassigned', 'test');
+    expect(await seen('Asha')).toEqual(['CALL-A', 'CALL-N']);
+  });
+
   it("the duplicate-phone message does not reveal another RM's customer", async () => {
     const r = await as('Asha', 'addLead', { data: { 'Prospect Name': 'Dup', 'Phone Number': '9000000002' } });
     expect(r).toMatchObject({ status: 'error', code: 'CONFLICT' });

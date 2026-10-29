@@ -233,8 +233,8 @@ export async function finishCall(callId: string, opts: { transcript?: JcTranscri
     // 1. recording (or voicemail) into the CRM's file storage — also for a caller who is not a lead yet (it moves to
     //    the lead when the call is linked: calls.attachToLead)
     const kind = doc.jcRecording ? 'recording' : doc.jcVoicemail ? 'voicemail' : '';
-    if (kind && !doc.recordingFileId && !doc.jcAudioTried) {
-      await c.updateOne({ _id: callId }, { $set: { jcAudioTried: true } });
+    // claimed atomically: the webhook and the catch-up sync can reach a call at the same moment
+    if (kind && !doc.recordingFileId && !doc.jcAudioTried && (await c.updateOne({ _id: callId, jcAudioTried: { $ne: true } }, { $set: { jcAudioTried: true } })).modifiedCount === 1) {
       try {
         const data = await fetchAudio(String(doc.providerCallId), kind);
         const file = await saveFile({ leadId: doc.leadId || '', category: 'Call Recordings', name: `${callId}_${kind}.wav`, mime: 'audio/wav', data, uploadedBy: doc.loggedBy || PROVIDER, description: `${kind === 'voicemail' ? 'Voicemail' : 'Recording'} of ${callId} (JustConnect)` });
@@ -242,7 +242,9 @@ export async function finishCall(callId: string, opts: { transcript?: JcTranscri
         if (doc.leadId) await addTimeline(doc.leadId, 'call_recording', kind === 'voicemail' ? 'Voicemail saved' : 'Call recording saved', 'From JustConnect', doc.loggedBy || PROVIDER, 'Call', callId);
         out.recording = true;
       } catch (e: any) {
-        await c.updateOne({ _id: callId }, { $unset: { jcAudioTried: '' } }); // try again on the next sync
+        // try again on the next sync — at most 5 times (a recording that is always refused is not fetched forever)
+        const tries = Number(doc.jcAudioFails || 0) + 1;
+        await c.updateOne({ _id: callId }, tries < 5 ? { $unset: { jcAudioTried: '' }, $set: { jcAudioFails: tries } } : { $set: { jcAudioFails: tries } });
         await logError('justconnect.recording', 'SERVER', e?.message, e?.stack, '', { callId });
       }
     }
@@ -282,8 +284,8 @@ export async function finishCall(callId: string, opts: { transcript?: JcTranscri
     } catch { /* non-fatal */ }
 
     // 4. missed incoming call → RM is told, call-back asked
-    if (fresh && fresh.direction === 'Inbound' && ['Missed', 'Voicemail'].includes(fresh.status) && !fresh.jcMissedNotified) {
-      await c.updateOne({ _id: callId }, { $set: { jcMissedNotified: true } });
+    if (fresh && fresh.direction === 'Inbound' && ['Missed', 'Voicemail'].includes(fresh.status) && !fresh.jcMissedNotified
+      && (await c.updateOne({ _id: callId, jcMissedNotified: { $ne: true } }, { $set: { jcMissedNotified: true } })).modifiedCount === 1) {
       const lead = fresh.leadId ? await getLead(fresh.leadId) : null;
       const who = lead ? String(lead[L.NAME] || fresh.phone) : String(fresh.phone);
       const users = await listUsers();
@@ -412,6 +414,7 @@ async function pendingFinish(limit = 20): Promise<string[]> {
         { jcTranscript: { $in: ['in-progress', 'ready'] }, transcript: { $in: ['', null] }, jcAiTried: { $ne: true }, status: { $in: ['Completed', 'Voicemail'] }, durationSec: { $gte: AI_MIN_TALK_SEC } },
       ],
     }, { projection: { _id: 1 } })
+    .sort({ createdAt: -1 }) // newest first: an old call stuck waiting never holds back new ones
     .limit(limit)
     .toArray();
   return rows.map((r) => String(r._id));

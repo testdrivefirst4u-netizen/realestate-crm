@@ -21,7 +21,11 @@ afterEach(() => vi.unstubAllGlobals());
 describe('sidebar', () => {
   it('lists every screen in its group, marks the current one and shows counts', () => {
     const html = sidebar({ counts: { leads: 248, followupsToday: 5, tasksPending: 12, unreadChats: 4 } });
-    for (const g of ['Overview', 'Leads', 'Messages', 'Templates &amp; Documents', 'Inventory', 'Tasks', 'Admin']) expect(html).toContain(`>${g}</div>`);
+    for (const g of ['Overview', 'Leads', 'Messages', 'Templates &amp; Documents', 'Admin']) expect(html).toContain(`>${g}</div>`);
+    // a screen of its own: a direct link with its icon (no heading, no one-item pop-up)
+    expect(html).toContain('title="Inventory" aria-label="Inventory" href="/inventory"');
+    expect(html).toContain('title="Tasks" aria-label="Tasks" href="/tasks"');
+    expect(html).not.toContain('>Inventory</div>');
     expect(html).not.toContain('>Property</div>');
     for (const s of ['Dashboard', 'Reports', 'Audit Log', 'All Leads', 'Enquiry Status', 'Follow-ups', 'Client Segments', 'WhatsApp (Chat360)', 'Call History', 'Templates', 'Tasks &amp; Notes', 'Documents', 'Inventory', 'Settings']) expect(html).toContain(`>${s}</span>`);
     expect(html).toMatch(/aria-current="page"[^>]*><span class="truncate">All Leads/);
@@ -33,9 +37,9 @@ describe('sidebar', () => {
 
   it('hides screens the plan leaves out', () => {
     const html = sidebar({ features: { inventory: false } });
-    expect(html).toContain('>Tasks</div>');
+    expect(html).toContain('>Tasks &amp; Notes</span>');
     expect(html).not.toContain('>Inventory</span>');
-    expect(html).not.toContain('>Inventory</div>'); // its own icon goes too
+    expect(html).not.toContain('href="/inventory"'); // its own icon goes too
   });
 
   it('collapsed: only the rail, with group buttons and Expand navigation', () => {

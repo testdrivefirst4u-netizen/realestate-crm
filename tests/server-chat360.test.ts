@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, businessNumberFrom, contacts, extractText, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
+import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -148,6 +148,48 @@ describe('webhook ingest', () => {
     // our own CRM-sent message echoed back as session_message_sent is not duplicated
     await handleWebhook({ event_type: 'session_message_sent', event_response_id: 'evt-o', m_id: 'wamid.out1', receiver_num: '919876543210' });
     expect((await messages('9876543210')).filter((m) => m.direction === 'Outbound')).toHaveLength(2);
+  });
+
+  it('the whole conversation: the Chat360 chatbot and campaigns show as sent messages, never as the customer', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue(LEAD as any);
+    await handleWebhook(inbound());
+    await handleWebhook({ event_type: 'bot_message_sent', event_response_id: 'evt-b1', m_id: 'wamid.b1', receiver_num: '919876543210', wab_response: { text: { body: 'Thanks! Pick a unit type.' } } });
+    await handleWebhook({ event_type: 'broadcast_message_sent', event_response_id: 'evt-b2', m_id: 'wamid.b2', receiver_num: '919876543210', template_name: 'diwali_offer' });
+    await handleWebhook({ event_type: 'sent_message_delivered', event_response_id: 'evt-b3', m_id: 'wamid.b1', receiver_num: '919876543210' });
+    const all = await messages('9876543210');
+    expect(all.map((m) => [m.direction, m.agent, m.text])).toEqual([
+      ['Inbound', '', 'Hello, is a 2 BHK available?'],
+      ['Outbound', 'Chat360 Bot', 'Thanks! Pick a unit type.'],
+      ['Outbound', 'Chat360 Campaign', 'Template: diwali_offer'],
+    ]);
+    expect(all[1].status).toBe('delivered');
+    expect(all[1].leadId).toBe('ENQ-0007'); // linked to the lead
+  });
+});
+
+describe('customer names', () => {
+  it('takes the WhatsApp profile name, never a location or template name', () => {
+    expect(extractName({ wab_response: { contacts: [{ profile: { name: 'Anita Rao' }, wa_id: '91987' }] } })).toBe('Anita Rao');
+    expect(extractName({ profile_name: 'Meera' })).toBe('Meera');
+    expect(extractName({ wab_response: { location: { name: 'Medchal', latitude: 1 } } })).toBe('');
+    expect(extractName({ customer_name: '+91 98765 43210' })).toBe('');
+  });
+
+  it('a lead made as "WhatsApp +91…" gets the real name from a later message; a real name is never overwritten', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'evt-n2', wab_response: { contacts: [{ profile: { name: 'Anita Rao' } }], type: 'text', text: { body: 'hi' } } }));
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita Rao' }, expect.anything());
+    vi.mocked(leads.updateLead).mockClear();
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue(LEAD as any); // "Meera Rao": a real name
+    await handleWebhook(inbound({ profile_name: 'Meera R', event_response_id: 'evt-n3' }));
+    expect(leads.updateLead).not.toHaveBeenCalled();
+  });
+
+  it('leads saved earlier with a made-up name are fixed from their saved messages', async () => {
+    await (await col(CFG.COLL.LEADS)).insertOne({ _id: 'ENQ-0042', name: 'WhatsApp +919811122233', phone: '+919811122233', phoneLast10: '9811122233', stage: 'New' } as any);
+    await (await col(CFG.COLL.CHAT_MESSAGES)).insertOne({ _id: 'MSG-old', phone: '919811122233', phoneLast10: '9811122233', direction: 'Inbound', text: 'hi', timestamp: new Date(), raw: JSON.stringify({ profile_name: 'Suresh Kumar' }) } as any);
+    expect(await fixPlaceholderNames(true)).toBe(1);
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0042', { 'Prospect Name': 'Suresh Kumar' }, expect.anything());
   });
 });
 

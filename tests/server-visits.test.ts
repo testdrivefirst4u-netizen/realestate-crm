@@ -5,6 +5,7 @@ vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/ser
 
 import { startTestDb } from './helpers/mongo';
 import { CFG } from '../server/core/config';
+import { col } from '../server/core/db';
 import { updateSettings } from '../server/core/settings';
 import { addLead, getLeadDoc } from '../server/modules/leads';
 import { bookVisit, listSlots, parseVisitBooking, visitConfig } from '../server/modules/visits';
@@ -67,15 +68,22 @@ describe('booking', () => {
     await expect(bookVisit({ name: 'Someone', phone: '9876500099', at: slot.at }, NOW)).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
-  it('schedules the visit on an existing lead with the same phone', async () => {
+  it('an existing lead with the same phone is not changed: its RM gets a request to confirm', async () => {
     await enable({ capacity: 3 });
     await addLead({ [L.NAME]: 'Rajiv Menon', [L.PHONE]: '9876500002' }, admin);
     const slot = (await listSlots(await visitConfig(), NOW))[2].slots[1];
     expect(await bookVisit({ name: 'Rajiv M', phone: '98765 00002', at: slot.at }, NOW)).toEqual({ at: slot.at, existing: true });
     const lead = (await getLeadDoc('ENQ-0001'))!;
-    expect(lead.siteVisitStatus).toBe(CFG.SITE_VISIT.SCHEDULED);
-    expect(lead.followups.at(-1)!.text).toMatch(/Site visit booked online/);
+    expect(lead.siteVisitStatus || '').not.toBe(CFG.SITE_VISIT.SCHEDULED); // a stranger typing the number cannot reschedule
+    expect(lead.followups.at(-1)!.text).toMatch(/Online visit request .*Not scheduled yet/);
+    const task = await (await col(CFG.COLL.TASKS)).findOne({ leadId: 'ENQ-0001' });
+    expect(task).toMatchObject({ createdBy: 'Visit booking' });
+    expect(String(task!.name)).toMatch(/Confirm online visit request/);
     expect(await getLeadDoc('ENQ-0002')).toBeNull();
+    // a flood from one number stops after 3 a day
+    await bookVisit({ name: 'R', phone: '9876500002', at: slot.at }, NOW);
+    await bookVisit({ name: 'R', phone: '9876500002', at: slot.at }, NOW);
+    await expect(bookVisit({ name: 'R', phone: '9876500002', at: slot.at }, NOW)).rejects.toMatchObject({ code: 'RATE_LIMIT' });
   });
 
   it('rejects bad input, invented times and bookings when switched off', async () => {

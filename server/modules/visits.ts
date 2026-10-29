@@ -13,7 +13,9 @@ import { fail } from '../core/errors';
 import type { LeadDoc } from '../core/leadShape';
 import { settingsAll } from '../core/settings';
 import { dateKey, digits, makeZoned, safeJsonParse, truncate } from '../core/utils';
-import { addLead, appendRemark, findLeadByPhone, updateLead } from './leads';
+import { SYSTEM_CTX } from '../core/auth';
+import { addLead, appendRemark, findLeadByPhone } from './leads';
+import { addTask } from './tasks';
 
 const L = CFG.LEAD;
 const SCHEDULED = CFG.SITE_VISIT.SCHEDULED;
@@ -163,8 +165,13 @@ export async function bookVisit(input: BookingInput, now = new Date()): Promise<
 
   const existing = await findLeadByPhone(phone);
   if (existing && existing[L.STAGE] !== CFG.STAGES.TRASH) {
-    await updateLead(existing[L.ID], { [L.SITE_VISIT_STATUS]: SCHEDULED, [L.SITE_VISIT_DATE]: at.toISOString() }, null);
-    await appendRemark(existing[L.ID], `Site visit booked online for ${when}${notes ? ` — ${notes}` : ''}`, null, at.toISOString(), 'Visit booking');
+    // anyone can type a customer's number on this public page: an existing lead is never changed from here.
+    // The request goes to its RM to confirm with the customer (who then schedules the visit in the CRM).
+    const id = existing[L.ID];
+    const recent = await (await col(CFG.COLL.TASKS)).countDocuments({ leadId: id, createdBy: 'Visit booking', createdAt: { $gte: new Date(now.getTime() - 86_400_000) } }, { limit: 3 });
+    if (recent >= 3) throw fail('RATE_LIMIT', 'This number has already asked for a visit today. We will call you to confirm.');
+    await appendRemark(id, `Online visit request for ${when} (from the booking page, as “${name}”)${notes ? ` — ${notes}` : ''}. Not scheduled yet: call the customer to confirm.`, null, at.toISOString(), 'Visit booking');
+    await addTask({ name: `Confirm online visit request: ${when}`, leadId: id, datetime: new Date(Math.min(at.getTime(), now.getTime() + 3_600_000)).toISOString(), assignedTo: String(existing[L.RM] || '') || 'Visit booking' }, { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Visit booking' } });
     return { at: at.toISOString(), existing: true };
   }
   await addLead(

@@ -110,7 +110,7 @@ export const CFG = {
   },
 
   DROPDOWNS: ['Lead Stage', 'Enquiry Source', 'Unit Type Interested In', 'Purchase or Rent', 'Site Visit Status',
-    'Relationship to Prospect', 'Enquired For', 'Assigned RM', 'Brochure Shared'],
+    'Salutation', 'Enquired For', 'Assigned RM', 'Brochure Shared'],
 
   DEFAULT_OPTIONS: {
     'Lead Stage': ['New', 'Open', 'Qualified', 'Warm', 'Hot', 'Booked', 'Not Responding',
@@ -121,7 +121,8 @@ export const CFG = {
     'Unit Type Interested In': ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],
     'Purchase or Rent': ['Purchase', 'Rent', 'Investment'],
     'Site Visit Status': ['Prospect for Site Visit', 'Site Visit - Scheduled', 'Site Visit - Walk-In', 'Site Visit - Completed'],
-    'Relationship to Prospect': ['Self', 'Son', 'Daughter', 'Granddaughter', 'Grandson', 'Sister', 'Brother', 'Friend', 'Colleague'],
+    // how to address the prospect ("Relationship to Prospect" is no longer asked; old values stay on the lead)
+    'Salutation': ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Col.', 'Capt.'],
     'Enquired For': ['Self', 'Parents', 'Grandparents', 'Father', 'Mother', 'Relative', 'Relatives', 'Family'],
     'Assigned RM': [] as string[],
     'Brochure Shared': ['Yes', 'No'],

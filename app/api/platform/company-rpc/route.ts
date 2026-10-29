@@ -13,6 +13,7 @@ import { errEnvelope } from '@/server/core/errors';
 import { PLATFORM_COOKIE } from '@/server/platform/cookie';
 import { validateSaSession } from '@/server/platform/superAdmins';
 import { openCompanySupport } from '@/server/platform/companies';
+import { clientIp } from '@/server/core/request';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -76,8 +77,7 @@ export async function POST(req: Request) {
   const sa = saToken ? await validateSaSession(saToken) : null;
   if (!sa) return json(errEnvelope('AUTH_REQUIRED', 'Your console session has ended — sign in again'), 401);
 
-  const fwd = req.headers.get('x-forwarded-for') || '';
-  const meta = { userAgent: req.headers.get('user-agent') || '', ip: (fwd.split(',')[0] || req.headers.get('x-real-ip') || '').trim() };
+  const meta = { userAgent: req.headers.get('user-agent') || '', ip: clientIp(req.headers) };
   const run = (token: string) => dispatch(action, body?.data || {}, { companyId, token, ...meta });
 
   const [cookieCompany, cookieToken] = readCookie(req, COOKIE).split('.');

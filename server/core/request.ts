@@ -20,16 +20,24 @@ export function parseSessionCookie(raw: string | undefined | null): { companyId:
   return { companyId: v.slice(0, i), token: v.slice(i + 1) };
 }
 
+/**
+ * The visitor's address, from headers the host sets itself: on Vercel x-vercel-forwarded-for / x-real-ip (a visitor
+ * cannot forge them). The first X-Forwarded-For entry is only a fallback — a visitor can put anything there.
+ */
+export function clientIp(h: { get(name: string): string | null }): string {
+  const own = (h.get('x-vercel-forwarded-for') || '').split(',')[0].trim() || (h.get('x-real-ip') || '').trim();
+  return own || (h.get('x-forwarded-for') || '').split(',')[0].trim();
+}
+
 export async function requestBase(): Promise<RequestBase> {
   const c = await cookies();
   const h = await headers();
-  const fwd = h.get('x-forwarded-for') || '';
   const { companyId, token } = parseSessionCookie(c.get(CFG.SESSION_COOKIE)?.value);
   return {
     companyId,
     token,
     userAgent: h.get('user-agent') || '',
-    ip: (fwd.split(',')[0] || h.get('x-real-ip') || '').trim(),
+    ip: clientIp(h),
   };
 }
 

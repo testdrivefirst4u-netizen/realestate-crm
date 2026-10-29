@@ -2,7 +2,7 @@
  * POST /api/calls/recordings — several call recordings in one ZIP (Call History → select → Download recordings).
  * Body: { ids: string[] } (call ids, at most MAX_FILES). Needs a signed-in session with calls.view and storage.view;
  * only calls the user may see are included (the Call History rule: scopeGuards.filterCalls). Files are stored in the
- * ZIP as they are (audio is already compressed) and streamed one at a time, named "<who> <yyyy-mm-dd hh-mm>.<ext>".
+ * ZIP as they are (audio is already compressed) and streamed piece by piece as the browser reads them, named "<who> <yyyy-mm-dd hh-mm>.<ext>".
  */
 import { NextResponse } from 'next/server';
 import { Zip, ZipPassThrough } from 'fflate';
@@ -13,14 +13,16 @@ import { errEnvelope } from '@/server/core/errors';
 import { isSameOrigin, withRequestTenant } from '@/server/core/request';
 import { filterCalls } from '@/server/core/scopeGuards';
 import { settingsAll } from '@/server/core/settings';
-import { readFile } from '@/server/modules/storage';
+import { openFileStream, statFile } from '@/server/modules/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// a large download takes a while: let it finish rather than cut the ZIP off part-way
+export const maxDuration = 300;
 
 /** Recordings in one download, and their total size. */
 const MAX_FILES = 100;
-const MAX_BYTES = 500 * 1024 * 1024;
+const MAX_BYTES = 300 * 1024 * 1024;
 
 const json = (status: number, code: string, message: string) =>
   NextResponse.json(errEnvelope(code, message), { status, headers: { 'Cache-Control': 'no-store' } });
@@ -66,47 +68,77 @@ async function handle(req: Request, token: string): Promise<Response> {
   allowed.sort((a, b) => (Date.parse(b.startTime || b.callDate || b.createdAt) || 0) - (Date.parse(a.startTime || a.callDate || a.createdAt) || 0));
   const timeZone = String((await settingsAll()).timeZone || 'Asia/Kolkata');
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const zip = new Zip((err, chunk, final) => {
-        if (err) return controller.error(err);
-        controller.enqueue(chunk);
-        if (final) controller.close();
-      });
-      const used = new Set<string>();
-      const skipped: string[] = [];
-      let total = 0;
-      for (const r of allowed) {
-        const who = clean(String(r.customerName || '')) || clean(String(r.phone || '')) || 'Call';
-        const label = `${who} ${stamp(r.startTime || r.callDate || r.createdAt, timeZone)}`.trim();
-        try {
-          const f = await readFile(String(r.recordingFileId));
-          if (!f) {
-            skipped.push(`${label}: the file is missing`);
-            continue;
-          }
-          if (total + f.data.length > MAX_BYTES) {
-            skipped.push(`${label}: left out, the download would pass ${Math.round(MAX_BYTES / 1048576)} MB`);
-            continue;
-          }
-          total += f.data.length;
-          const ext = (/\.[A-Za-z0-9]{1,5}$/.exec(f.name) || ['.wav'])[0];
-          let name = label + ext;
-          for (let n = 2; used.has(name.toLowerCase()); n++) name = `${label} (${n})${ext}`;
-          used.add(name.toLowerCase());
-          const entry = new ZipPassThrough(name);
-          zip.add(entry);
-          entry.push(new Uint8Array(f.data.buffer, f.data.byteOffset, f.data.byteLength), true);
-        } catch {
-          skipped.push(`${label}: could not be read`);
-        }
+  // Made as the browser reads it (pull): one recording at a time, piece by piece from storage, so only a few
+  // pieces are ever held in memory however many recordings are chosen.
+  const out: Uint8Array[] = [];
+  let finished = false;
+  let failure: unknown = null;
+  const zip = new Zip((err, chunk, final) => {
+    if (err) failure = err;
+    else out.push(chunk);
+    if (final) finished = true;
+  });
+  const used = new Set<string>();
+  const skipped: string[] = [];
+  let total = 0;
+  let next = 0;
+  let ended = false;
+  let current: { entry: ZipPassThrough; pieces: AsyncIterator<Buffer>; label: string } | null = null;
+
+  /** Feed the ZIP a little more: the next piece of the current recording, or start the next one, or finish. */
+  const step = async () => {
+    if (current) {
+      try {
+        const r = await current.pieces.next();
+        if (r.done) {
+          current.entry.push(new Uint8Array(0), true);
+          current = null;
+        } else current.entry.push(new Uint8Array(r.value.buffer, r.value.byteOffset, r.value.byteLength));
+      } catch {
+        skipped.push(`${current.label}: stopped part-way (could not be read)`);
+        current.entry.push(new Uint8Array(0), true);
+        current = null;
       }
+      return;
+    }
+    if (next < allowed.length) {
+      const r = allowed[next++];
+      const who = clean(String(r.customerName || '')) || clean(String(r.phone || '')) || 'Call';
+      const label = `${who} ${stamp(r.startTime || r.callDate || r.createdAt, timeZone)}`.trim();
+      try {
+        const info = await statFile(String(r.recordingFileId));
+        if (!info) return void skipped.push(`${label}: the file is missing`);
+        if (total + info.size > MAX_BYTES) return void skipped.push(`${label}: left out, the download would pass ${Math.round(MAX_BYTES / 1048576)} MB`);
+        total += info.size;
+        const ext = (/\.[A-Za-z0-9]{1,5}$/.exec(info.name) || ['.wav'])[0];
+        let name = label + ext;
+        for (let n = 2; used.has(name.toLowerCase()); n++) name = `${label} (${n})${ext}`;
+        used.add(name.toLowerCase());
+        const entry = new ZipPassThrough(name);
+        zip.add(entry);
+        current = { entry, pieces: (await openFileStream(info))[Symbol.asyncIterator](), label };
+      } catch {
+        skipped.push(`${label}: could not be read`);
+      }
+      return;
+    }
+    if (!ended) {
+      ended = true;
       if (skipped.length) {
         const note = new ZipPassThrough('Not included.txt');
         zip.add(note);
         note.push(new TextEncoder().encode(skipped.join('\r\n') + '\r\n'), true);
       }
       zip.end();
+    }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      while (!out.length && !finished && !failure) await step();
+      if (failure) return controller.error(failure);
+      if (out.length) controller.enqueue(out.shift()!);
+      else controller.close();
     },
   });
 
