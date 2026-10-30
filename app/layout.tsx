@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { RouteLoader } from '@/src/components/RouteLoader';
 
 const title = 'CRM';
 const description = 'Sales CRM for real-estate teams';
@@ -30,7 +31,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100..900;1,100..900&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) add attributes to <body> before React hydrates. */}
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        {/* BroaddCast loader: on every full page load (runs before the page paints and adds its own element,
+            outside React's tree) and, faster, on every move to another page (RouteLoader). */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="/brand-loader.js" />
+        <RouteLoader />
+        {children}
+      </body>
     </html>
   );
 }
