@@ -615,6 +615,72 @@ async function saveSentByChat360(payload: any, phone: string, type: string, mid:
   return 'saved';
 }
 
+/** Chat360's own variables in a chatbot session — everything else in `variables` is an answer to a bot question. */
+const BOT_SYSTEM_VARS = /^@?(name|room_id|session|session_id|user_.*|lead_score|country_code|room_created|room_updated|end_user_time|archieve_count|first_response|last_response|followers_count|current_datetime|current_variable|profile_username|catalog_cart_details|recent_context_wamid|waba_catalog_total_price)$/i;
+
+/** "For Relatives" → the Enquired For option it means ('' when none fits). */
+export function enquiredForFrom(answer: string): string {
+  const a = answer.toLowerCase();
+  if (/grand ?parent/.test(a)) return 'Grandparents';
+  if (/parent/.test(a)) return 'Parents';
+  if (/father|dad/.test(a)) return 'Father';
+  if (/mother|mom|mum/.test(a)) return 'Mother';
+  if (/relative/.test(a)) return 'Relatives';
+  if (/family/.test(a)) return 'Family';
+  if (/\b(self|myself|me|for me)\b/.test(a)) return 'Self';
+  return '';
+}
+
+/**
+ * Chat360 `lead_captured`: the chatbot collected the customer's details (data.variables: @name typed by the
+ * customer, @user_name = WhatsApp name, @user_number, and one variable per answered question). The lead gets the
+ * name (when it has only "WhatsApp +91…") and Enquired For; the chat and the lead's timeline get a summary.
+ */
+async function handleLeadCaptured(payload: any, cfg: ChatCfg) {
+  const v: Record<string, unknown> = payload.data.variables;
+  const val = (k: string) => (typeof v[k] === 'string' || typeof v[k] === 'number' ? String(v[k]).trim() : '');
+  const phone = digits(val('@user_number') || extractPhone(payload, true));
+  if (phone.length < 10) return { ok: true, ignored: 'no-phone' };
+  const typed = val('@name');
+  const name = (typed && !/^[+\d\s()-]{6,}$/.test(typed) ? typed : '') || val('@user_name');
+  const answers = Object.entries(v)
+    .filter(([k, x]) => !BOT_SYSTEM_VARS.test(k) && (typeof x === 'string' || typeof x === 'number') && String(x).trim())
+    .map(([, x]) => truncate(String(x).trim(), 200));
+  const session = str(val('@session_id') || val('@session') || payload.room_id);
+
+  let lead: UiLead | null = null;
+  try {
+    lead = await resolveLead(phone, name, cfg);
+  } catch (e: any) {
+    await logError('chat360.resolveLead', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { phone: last10(phone) });
+  }
+  const leadId = lead ? lead[L.ID] || '' : '';
+  if (lead) {
+    const patch: Record<string, string> = {};
+    if (name && isPlaceholderName(lead[L.NAME], phone)) patch[L.NAME] = name;
+    const forWhom = answers.map(enquiredForFrom).find(Boolean);
+    if (forWhom && !String(lead[L.ENQUIRED_FOR] || '').trim()) patch[L.ENQUIRED_FOR] = forWhom;
+    if (Object.keys(patch).length) {
+      try {
+        await updateLead(leadId, patch, chat360Ctx());
+        lead = { ...lead, ...patch };
+      } catch (e: any) {
+        await logError('chat360.leadCaptured', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { leadId });
+      }
+    }
+  }
+  const summary = [`🤖 Chatbot details${name ? ` — name: ${name}` : ''}`, ...answers.map((a) => `• ${a}`)].join('\n');
+  const rec = await record({
+    eventId: session ? `lead:${session}` : shortId('C360'), dedupeKey: session ? `lead:${session}` : undefined, direction: 'Outbound', phone,
+    contactName: (lead && lead[L.NAME]) || name, leadId, text: summary, status: 'sent', agent: 'Chat360 Bot', type: 'lead_captured', raw: payload,
+  });
+  if (!rec) return { ok: true, duplicate: true };
+  await upsertContact(phone, { contactName: (lead && lead[L.NAME]) || name, ...(leadId ? { leadId, assignedRM: lead![L.RM] || '' } : {}), lastMessageAt: new Date(), lastMessage: truncate(summary, 200) });
+  if (leadId) await addTimeline(leadId, 'chat_received', 'Chatbot collected details', summary, 'Chat360 Bot', 'Chat', rec.id);
+  await bumpVersion();
+  return { ok: true, leadId: leadId || null };
+}
+
 /** Process one inbound webhook payload (already authenticated by the route). */
 export async function handleWebhook(payload: any): Promise<unknown> {
   if (!payload || typeof payload !== 'object') return { ok: true, ignored: 'empty' };
@@ -627,6 +693,8 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   if (/chatroom|session_data|chat_session|assign|template_update|^sms|^rcs|email/.test(type)) return { ok: true, ignored: type };
   // Chat360's sample event (sent when a webhook is saved or tested): never a chat in the CRM
   if (isChat360Sample(payload)) return { ok: true, ignored: 'sample' };
+  // the chatbot finished collecting details: name, phone and answers are in data.variables
+  if (type === 'lead_captured' && payload?.data?.variables && typeof payload.data.variables === 'object') return handleLeadCaptured(payload, cfg);
   const providerKey = str(payload.event_response_id || payload.m_id || payload.message_id);
   const eventId = providerKey || shortId('C360');
 

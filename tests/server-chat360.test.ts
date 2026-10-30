@@ -490,3 +490,49 @@ describe('chatbot steps sent by the Chat360 bot flow (its Webhook component)', (
     expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Test' }, expect.anything());
   });
 });
+
+describe('events panel through the real webhook address', () => {
+  const post = (url: string, body: unknown) => webhookPOST(new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+  it('counts received messages, bot-flow steps and refused calls', async () => {
+    await post('http://x/api/webhooks/chat360?company=test&secret=hook-secret', inbound());
+    await post('http://x/api/webhooks/chat360?company=test&secret=hook-secret', { event_type: 'bot_message_sent', phone: '919876543210', customer_name: 'Test', text: 'Thank you Test' });
+    await post('http://x/api/webhooks/chat360?company=test&secret=wrong', inbound({ event_response_id: 'x9' }));
+    await post('http://x/api/webhooks/chat360?company=test', inbound({ event_response_id: 'x10' }));
+    const ev = (await webhookStats()).map((s) => s.event).sort();
+    expect(ev).toEqual(['(refused: no secret in the URL)', '(refused: wrong secret in the URL)', 'bot_message_sent', 'message_received']);
+  });
+});
+
+describe('lead_captured (the chatbot collected details)', () => {
+  const captured = (over: Record<string, unknown> = {}) => ({
+    '': '', source: 'Chat360', message: 'New lead captured', event_type: 'lead_captured', room_id: 'room-1', user_id: 1,
+    data: { tags: [], room_id: 'room-1', variables: {
+      '@name': 'Anita', '@ckgve': 'Talk to Sales Advisor', '@iokht': 'For Relatives', '@room_id': 'room-1', '@session': 'sess-1', '@session_id': 'sess-1',
+      '@user_opt': true, '@user_name': 'Anita Rao', '@lead_score': 0, '@user_number': '919876543210', '@country_code': 91,
+      '@first_response': 'Thank you for reaching Amaya Senior Living.', '@last_response': 'Talk to Sales Advisor', archieve_count: 1, ...over,
+    } },
+  });
+
+  it('renames a "WhatsApp +91…" lead to the typed name, fills Enquired For and shows the answers in the chat', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210', 'Enquired For': '' } as any);
+    vi.mocked(leads.updateLead).mockClear();
+    expect(await handleWebhook(captured())).toEqual({ ok: true, leadId: 'ENQ-0007' });
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita', 'Enquired For': 'Relatives' }, expect.anything());
+    const [m] = await messages('9876543210');
+    expect(m).toMatchObject({ direction: 'Outbound', agent: 'Chat360 Bot' });
+    expect(m.text).toBe('🤖 Chatbot details — name: Anita\n• Talk to Sales Advisor\n• For Relatives');
+    // the same session again (a retry) is not added twice
+    expect(await handleWebhook(captured())).toEqual({ ok: true, duplicate: true });
+  });
+
+  it('a lead with a real name keeps it; no lead yet: one is created with the name', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue(LEAD as any);
+    vi.mocked(leads.updateLead).mockClear();
+    await handleWebhook(captured({ '@session_id': 'sess-2', '@session': 'sess-2', '@iokht': 'Just looking' }));
+    expect(leads.updateLead).not.toHaveBeenCalled();
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue(null);
+    vi.mocked(leads.addLead).mockClear();
+    await handleWebhook(captured({ '@session_id': 'sess-3', '@session': 'sess-3', '@user_number': '918888777766' }));
+    expect(vi.mocked(leads.addLead).mock.calls[0][0]).toMatchObject({ 'Prospect Name': 'Anita', 'Phone Number': '+918888777766' });
+  });
+});
