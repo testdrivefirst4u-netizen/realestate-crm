@@ -25,7 +25,7 @@ const MAX_BODY = 2 * 1024 * 1024;
 
 /** CRM actions the console's company settings may run. */
 const COMPANY_SETTINGS_ACTIONS = new Set([
-  'getSettings', 'updateSettings', 'setSecret', 'aiTest', 'chat360Test', 'listUsers',
+  'getSettings', 'updateSettings', 'setSecret', 'aiTest', 'chat360Test', 'chat360WebhookStats', 'chat360Backfill', 'listUsers',
   'metaSyncReport', 'retryMetaLeads', 'backfillMetaSource',
   'listLeadBackups', 'getLeadBackup', 'createLeadBackup', 'verifyLeadBackup',
   'jcTest', 'jcAgents', 'jcSetAgent', 'jcSyncCalls', 'jcContactStatus', 'jcSyncContacts',
