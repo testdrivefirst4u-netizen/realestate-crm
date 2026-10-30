@@ -324,6 +324,26 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
   /** Which webhook events Chat360 has sent: shows whether the chatbot's and agents' messages reach the CRM. */
   const [c360Events, setC360Events] = useState<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string; payload: string }> | null>(null);
   const [c360Open, setC360Open] = useState('');
+  /** Bringing in old chats from Chat360: running totals while it works, and the end result. */
+  const [backfill, setBackfill] = useState<{ running: boolean; rooms: number; named: number; synced: number; added: number; left: number; error: string } | null>(null);
+  const runBackfill = async () => {
+    const tot = { running: true, rooms: 0, named: 0, synced: 0, added: 0, left: 0, error: '' };
+    setBackfill({ ...tot });
+    let step: { phase?: 'rooms' | 'messages'; offset?: number } = {};
+    try {
+      for (let i = 0; i < 200; i++) {
+        const r = await api.chat360.backfill(step);
+        Object.assign(tot, { rooms: tot.rooms + r.rooms, named: tot.named + r.named, synced: tot.synced + r.synced, added: tot.added + r.added, left: r.left });
+        setBackfill({ ...tot });
+        if (r.done) break;
+        step = { phase: r.phase, offset: r.offset };
+      }
+      toast('Old chats brought in', `${tot.synced} chats · ${tot.added} messages added · ${tot.named} names filled`, 'success');
+    } catch (e) {
+      tot.error = toAppError(e).userMessage;
+    }
+    setBackfill({ ...tot, running: false });
+  };
   const loadC360Events = () => api.chat360.webhookStats().then(setC360Events).catch(() => setC360Events([]));
   useEffect(() => {
     void loadC360Events();
@@ -571,6 +591,26 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
               <Button variant="secondary" onClick={testC360} loading={c360Busy} icon={<Wand2 size={13} />}>Test connection</Button>
             </div>
             {c360Test && <InlineNotice tone={c360Test.ok ? 'success' : 'warning'}><span className="whitespace-pre-line">{c360Test.message}</span></InlineNotice>}
+
+            {/* old chats: every Chat360 chat's conversation and the customer's name, once */}
+            <div className="rounded-xl border border-[#D3E3F0] p-3 space-y-2">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[#0B2A44]">Bring in old chats from Chat360</div>
+                  <p className="text-[11px] text-[#5E778C]">Every chat in your Chat360 inbox: the whole conversation (chatbot, brochure, agents, customer) and the name the customer gave the bot for leads still called &ldquo;WhatsApp 91…&rdquo;. Safe to run again — nothing is added twice.</p>
+                </div>
+                <Button variant="secondary" disabled={!canEdit} loading={!!backfill?.running} onClick={() => void runBackfill()} icon={<RefreshCw size={13} />}>
+                  {backfill?.running ? 'Bringing in…' : 'Bring in old chats'}
+                </Button>
+              </div>
+              {backfill && (
+                <InlineNotice tone={backfill.error ? 'warning' : backfill.running ? 'info' : 'success'}>
+                  {backfill.error
+                    ? `Stopped: ${backfill.error}`
+                    : `${backfill.rooms} Chat360 chats found · ${backfill.named} lead names filled · ${backfill.synced} conversations brought in (${backfill.added} messages added)${backfill.running && backfill.left ? ` · ${backfill.left} to go` : ''}${backfill.running ? '…' : ' — done.'}`}
+                </InlineNotice>
+              )}
+            </div>
 
             {/* what Chat360 actually sends */}
             <div>

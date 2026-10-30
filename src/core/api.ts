@@ -347,6 +347,9 @@ export const api = {
     test: () => request<{ ok: boolean; message: string }>('chat360Test'),
     /** Which webhook events Chat360 has sent (count, first / last time, payload shape). */
     webhookStats: () => request<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string; payload: string }>>('chat360WebhookStats'),
+    /** One batch of bringing in old chats from Chat360 (call again with the returned phase / offset until done). */
+    backfill: (d: { phase?: 'rooms' | 'messages'; offset?: number }) =>
+      request<{ done: boolean; phase: 'rooms' | 'messages'; offset: number; rooms: number; named: number; synced: number; added: number; left: number }>('chat360Backfill', d, { timeoutMs: 120000 }),
     mapContact: (phone: string, leadId: string) => request<void>('chat360MapContact', { phone, leadId }),
     markRead: (phone: string) => request<void>('chat360MarkRead', { phone }),
   },

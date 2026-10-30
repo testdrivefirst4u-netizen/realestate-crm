@@ -987,6 +987,78 @@ export async function syncConversation(phone: string, opts: { force?: boolean } 
 /** Not a usable name from the bot's @name variable (empty, a number, "@name" itself, no letters). */
 const isMadeUpBotName = (n: string) => !n.trim() || n.trim().startsWith('@') || isPlaceholderName(n) || !/\p{L}/u.test(n);
 
+/**
+ * Settings › Chat360 › "Bring in old chats": one batch of the whole inbox. Phase 1 pages through Chat360's chat list
+ * (`offset` = chats seen so far): each chat becomes a CRM chat (linked to the lead with that number) and a lead still
+ * called "WhatsApp +91…" gets the name the customer gave the bot. Phase 2 brings in each chat's conversation.
+ * Stops at `deadline`; call again with the returned `offset` until `done`. Safe to run again (nothing is doubled).
+ */
+export async function backfillFromChat360(d: { offset?: number; phase?: 'rooms' | 'messages' }, deadline = Date.now() + 45_000): Promise<{ done: boolean; phase: 'rooms' | 'messages'; offset: number; rooms: number; named: number; synced: number; added: number; left: number }> {
+  const cfg = await chatCfg();
+  if (!cfg.loginEmail || !cfg.loginPassword) throw fail('NOT_CONFIGURED', 'Add the Chat360 login (e-mail and password) under Settings → Integrations → Chat360 first.');
+  const out = { done: false, phase: d?.phase === 'messages' ? 'messages' as const : 'rooms' as const, offset: Math.max(0, Number(d?.offset) || 0), rooms: 0, named: 0, synced: 0, added: 0, left: 0 };
+  const contactsC = await contactsCol();
+
+  if (out.phase === 'rooms') {
+    const admin = jwtUserId(await accessToken(cfg));
+    if (!/^\d+$/.test(admin)) throw fail('SERVER', 'Could not read the Chat360 account id from its login.');
+    while (Date.now() < deadline) {
+      const body = await chat360Get(cfg, `/api/clientwidget_updated/listing/active/${admin}?current_length=${out.offset}&admin_id=${admin}&assigned=0&room_source=&room_name=`);
+      const rooms: any[] = Array.isArray(body?.data) ? body.data : [];
+      for (const r of rooms) {
+        const phone = digits(str(r?.variables?.['@user_number']));
+        const roomId = str(r?.room_id);
+        if (phone.length < 10 || !roomId) continue;
+        out.rooms++;
+        const botName = str(r.variables?.['@name']);
+        const name = !isMadeUpBotName(botName) ? truncate(botName, 120) : '';
+        const lead = await findLeadByPhone(phone).catch(() => null);
+        if (lead && name && isPlaceholderName(lead[L.NAME], phone)) {
+          try {
+            await updateLead(lead[L.ID], { [L.NAME]: name }, chat360Ctx());
+            out.named++;
+          } catch (e: any) {
+            await logError('chat360.backfillName', e?.code || 'INTERNAL', e?.message, e?.stack, '', { leadId: lead[L.ID] });
+          }
+        }
+        const updated = r.updated_on ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(str(r.updated_on)) ? str(r.updated_on) : str(r.updated_on) + 'Z') : null;
+        const set: Record<string, any> = { c360RoomId: roomId };
+        if (lead) Object.assign(set, { leadId: lead[L.ID] || '', assignedRM: lead[L.RM] || '' });
+        if (name || lead) set.contactName = (lead && !isPlaceholderName(lead[L.NAME], phone) ? lead[L.NAME] : '') || name;
+        const existing = await contactsC.findOne({ phoneLast10: last10(phone) }, { projection: { _id: 1, lastMessageAt: 1 } });
+        if (!existing) {
+          Object.assign(set, { lastMessage: truncate(chat360Text(str(r.last_message)), 200), lastMessageAt: updated && !isNaN(updated.getTime()) ? updated : new Date() });
+        }
+        await upsertContact(phone, set);
+      }
+      out.offset += rooms.length;
+      if (!rooms.length || body?.has_more === false) {
+        out.phase = 'messages';
+        out.offset = 0;
+        break;
+      }
+    }
+    if (out.phase === 'rooms') return out;
+  }
+
+  // phase 2: each chat's conversation, chats not yet brought in first
+  const todo = await contactsC.find({ c360RoomId: { $nin: ['', null] }, c360Backfilled: { $ne: true } }, { projection: { phone: 1 } }).sort({ lastMessageAt: -1 }).limit(500).toArray();
+  for (const c of todo) {
+    if (Date.now() > deadline) break;
+    try {
+      out.added += await syncConversation(str(c.phone), { force: true });
+    } catch (e: any) {
+      await logError('chat360.backfillChat', e?.code || 'UPSTREAM', e?.message, e?.stack, '', { phone: last10(str(c.phone)) });
+    }
+    await contactsC.updateOne({ _id: c._id }, { $set: { c360Backfilled: true } });
+    out.synced++;
+  }
+  out.left = await contactsC.countDocuments({ c360RoomId: { $nin: ['', null] }, c360Backfilled: { $ne: true } });
+  out.done = out.left === 0;
+  if (out.named || out.added) await bumpVersion();
+  return out;
+}
+
 /** The chat's messages for the CRM: first brings in from Chat360 whatever the webhook did not carry. */
 export async function messagesWithSync(phone: string): Promise<any[]> {
   try {
@@ -1148,6 +1220,8 @@ export const actions: ActionMap = {
   chat360Send: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); await assertLeadAccess(ctx, d.leadId); return send(d, ctx); }, perm: 'chat.send' },
   chat360Test: { fn: () => test(), perm: 'settings.view' },
   chat360WebhookStats: { fn: () => webhookStats(), perm: 'settings.view' },
+  // Settings › Chat360 › Bring in old chats (one batch per call; the page calls again until done)
+  chat360Backfill: { fn: (d) => backfillFromChat360(d), perm: 'settings.edit' },
   chat360MapContact: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); await assertLeadAccess(ctx, d.leadId); return mapContact(d.phone, d.leadId, ctx); }, perm: 'chat.send' },
   chat360MarkRead: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return markRead(d.phone); }, perm: 'chat.view' },
 };

@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
+import { apiKeyShapeProblem, backfillFromChat360, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -636,4 +636,53 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
     const { messagesWithSync } = await import('../server/modules/chat360');
     return messagesWithSync('919876543210');
   }
+});
+
+describe('bringing in old chats from Chat360', () => {
+  const tokenFor = (userId: number) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ token_type: 'access', exp: Math.floor(Date.now() / 1000) + 3600, user_id: userId })).toString('base64url')}.sig`;
+  const iso = (ms: number) => new Date(ms).toISOString().replace('Z', '');
+  const rooms = [
+    { room_id: 'room-a', updated_on: iso(Date.now() - 3600e3), last_message: 'Thank you', variables: { '@name': 'Anita', '@user_number': '919876543210' } },
+    { room_id: 'room-b', updated_on: iso(Date.now() - 7200e3), last_message: 'Hi', variables: { '@name': '@name', '@user_number': '918888777766' } },
+  ];
+  let spy: any;
+  beforeEach(async () => {
+    await settingSet('chat360LoginEmail', 'crm@amaya.test', 'test');
+    await t.secret('CHAT360_LOGIN_PASSWORD', 'pw-bf-' + Math.random().toString(36).slice(2));
+    spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 });
+      if (url.endsWith('/api/auth/login')) return json({ access: tokenFor(104984) });
+      if (url.includes('/listing/active/104984')) {
+        const at = Number(new URL(url).searchParams.get('current_length'));
+        return json({ data: at === 0 ? rooms : [], has_more: at === 0 });
+      }
+      const m = /clientwidget_updated\/(room-[ab])\/messages/.exec(url);
+      if (m) return json({ history: [{ text: `Welcome (${m[1]})`, sender: 'bot', message_id: `${m[1]}-1`, created_on: iso(Date.now() - 3600e3), extra: {} }], previous_cursor: null });
+      return new Response('{}', { status: 404 });
+    });
+  });
+  afterEach(() => spy.mockRestore());
+
+  it('every chat gets its conversation; leads still called "WhatsApp +91…" get the name given to the bot; running again adds nothing', async () => {
+    vi.mocked(leads.findLeadByPhone).mockImplementation(async (p: string) => (String(p).endsWith('9876543210') ? ({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any) : null));
+    vi.mocked(leads.updateLead).mockClear();
+    let step: any = {};
+    let total = { rooms: 0, named: 0, synced: 0, added: 0 };
+    for (let i = 0; i < 5; i++) {
+      const r = await backfillFromChat360(step);
+      total = { rooms: total.rooms + r.rooms, named: total.named + r.named, synced: total.synced + r.synced, added: total.added + r.added };
+      if (r.done) break;
+      step = { phase: r.phase, offset: r.offset };
+    }
+    expect(total).toEqual({ rooms: 2, named: 1, synced: 2, added: 2 });
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita' }, expect.anything());
+    expect((await messages('8888777766')).map((m) => m.text)).toEqual(['Welcome (room-b)']); // a chat the CRM had never seen
+    expect((await contacts()).length).toBe(2);
+    // again (the stand-in lead keeps its made-up name, so only the messages are checked): nothing doubled
+    const again = await backfillFromChat360({});
+    const again2 = await backfillFromChat360({ phase: again.phase, offset: again.offset });
+    expect(again.added + again2.added).toBe(0); // no message added twice
+    expect((await messages('9876543210')).length).toBe(1);
+  });
 });
