@@ -493,13 +493,15 @@ export function extractName(p: any): string {
   const contact = Array.isArray(wr?.contacts) ? wr.contacts[0] : Array.isArray(p.contacts) ? p.contacts[0] : null;
   const candidates = [
     deepFind(p, ['profile_name', 'contact_name', 'customer_name', 'sender_name', 'user_name', 'wa_name', 'push_name']),
+    // on Chat360's message_received the customer is the "receiver" (receiver_num / receiver_name)
+    p.receiver_name,
     contact?.profile?.name, contact?.name?.formatted_name,
     p.name, p.user?.name, p.customer?.name, p.contact?.name,
   ];
   for (const c of candidates) {
     const n = pick(c);
-    // not a number or an id dressed as a name
-    if (n && !/^[+\d\s()-]{6,}$/.test(n)) return truncate(n, 120);
+    // not a number or an id dressed as a name, and at least one letter ("😊" is not a name)
+    if (n && !/^[+\d\s()-]{6,}$/.test(n) && /\p{L}/u.test(n)) return truncate(n, 120);
   }
   return '';
 }

@@ -536,3 +536,10 @@ describe('lead_captured (the chatbot collected details)', () => {
     expect(vi.mocked(leads.addLead).mock.calls[0][0]).toMatchObject({ 'Prospect Name': 'Anita', 'Phone Number': '+918888777766' });
   });
 });
+
+describe('customer name on message_received', () => {
+  it('Chat360 puts the WhatsApp name in receiver_name; an emoji alone is not a name', () => {
+    expect(extractName({ event_type: 'message_received', receiver_num: '919381492161', receiver_name: 'Ravi Kumar' })).toBe('Ravi Kumar');
+    expect(extractName({ event_type: 'message_received', receiver_num: '919381492161', receiver_name: '😊' })).toBe('');
+  });
+});
