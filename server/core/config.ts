@@ -34,6 +34,8 @@ export const CFG = {
     EVENTS: 'events',
     TIMELINE: 'activities',
     CHAT_MESSAGES: 'waMessages',
+    /** which Chat360 webhook events arrive (count, last time, a sample) — Settings › Integrations › Chat360 */
+    CHAT_WEBHOOK_EVENTS: 'chat360WebhookEvents',
     CHAT_CONTACTS: 'waContacts',
     CALLS: 'calls',
     DOCUMENTS: 'documents',

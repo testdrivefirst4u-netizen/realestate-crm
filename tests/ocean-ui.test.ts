@@ -1,4 +1,4 @@
-/** Ocean design: the rail + panel sidebar (groups, counts, collapse) and the redesigned dashboard. */
+/** Ocean design: the navy sidebar (sections, icons, counts, collapse) and the redesigned dashboard. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -19,34 +19,35 @@ const sidebar = (props: Record<string, unknown> = {}) => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('sidebar', () => {
-  it('lists every screen in its group, marks the current one and shows counts', () => {
+  it('lists every screen with its icon under its section, marks the current one and shows counts', () => {
     const html = sidebar({ counts: { leads: 248, followupsToday: 5, tasksPending: 12, unreadChats: 4 } });
-    for (const g of ['Overview', 'Leads', 'Messages', 'Templates &amp; Documents', 'Admin']) expect(html).toContain(`>${g}</div>`);
-    // a screen of its own: a direct link with its icon (no heading, no one-item pop-up)
-    expect(html).toContain('title="Inventory" aria-label="Inventory" href="/inventory"');
-    expect(html).toContain('title="Tasks" aria-label="Tasks" href="/tasks"');
-    expect(html).not.toContain('>Inventory</div>');
+    for (const g of ['Overview', 'Leads', 'Messages', 'Workspace', 'Admin']) expect(html).toContain(`>${g}</div>`);
     expect(html).not.toContain('>Property</div>');
     for (const s of ['Dashboard', 'Reports', 'Audit Log', 'All Leads', 'Enquiry Status', 'Follow-ups', 'Client Segments', 'WhatsApp (Chat360)', 'Call History', 'Templates', 'Tasks &amp; Notes', 'Documents', 'Inventory', 'Settings']) expect(html).toContain(`>${s}</span>`);
-    expect(html).toMatch(/aria-current="page"[^>]*><span class="truncate">All Leads/);
+    // Inventory opens straight away (a link of its own, no pop-up)
+    expect(html).toContain('href="/inventory"');
+    expect(html).not.toContain('aria-haspopup="menu"');
+    expect(html).toMatch(/aria-current="page"[^>]*>.*?<span class="truncate flex-1[^"]*">All Leads/);
     for (const n of ['248', '5', '12', '4']) expect(html).toContain(`>${n}</span>`);
     expect(html).not.toContain('New Enquiry');
     expect(html).toContain('Collapse navigation');
     expect(html).toContain('Developed by');
+    expect(html).toContain('Rahul Mehta'); // the profile card
+    expect(html).toContain('aria-label="Sign out"');
   });
 
   it('hides screens the plan leaves out', () => {
     const html = sidebar({ features: { inventory: false } });
     expect(html).toContain('>Tasks &amp; Notes</span>');
     expect(html).not.toContain('>Inventory</span>');
-    expect(html).not.toContain('href="/inventory"'); // its own icon goes too
+    expect(html).not.toContain('href="/inventory"');
   });
 
-  it('collapsed: only the rail, with group buttons and Expand navigation', () => {
-    const html = sidebar({ isCollapsed: true });
+  it('collapsed: icons only (named for screen readers), with Expand navigation', () => {
+    const html = sidebar({ isCollapsed: true, counts: { followupsToday: 3 } });
     expect(html).not.toContain('>All Leads</span>');
-    expect(html).toContain('aria-label="Leads"');
-    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('aria-label="All Leads"');
+    expect(html).toContain('aria-label="Inventory"');
     expect(html).toContain('aria-label="Expand navigation"');
   });
 });

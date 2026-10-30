@@ -553,11 +553,53 @@ async function record(m: RecordIn) {
 
 /* --------------------------------- webhook --------------------------------- */
 
+const webhookEventsCol = () => col<any>(CFG.COLL.CHAT_WEBHOOK_EVENTS);
+
+/**
+ * Keep a tally of the webhook events Chat360 sends (count, last time, the last payload's shape) so Settings can show
+ * which ones arrive — e.g. whether the chatbot's and agents' messages are being sent to the CRM at all.
+ */
+async function noteWebhookEvent(type: string, payload: any) {
+  const shape = (o: any, depth = 0): any =>
+    !o || typeof o !== 'object' || depth > 2 ? typeof o : Array.isArray(o) ? [o.length ? shape(o[0], depth + 1) : 'empty'] : Object.fromEntries(Object.keys(o).slice(0, 25).map((k) => [k, shape(o[k], depth + 1)]));
+  await (await webhookEventsCol()).updateOne(
+    { _id: truncate(type || '(no event type)', 80) },
+    { $inc: { count: 1 }, $set: { lastAt: new Date(), lastShape: truncate(JSON.stringify(shape(payload)), 1500) }, $setOnInsert: { firstAt: new Date() } },
+    { upsert: true },
+  );
+}
+
+/** The webhook events seen so far, newest first (Settings › Integrations › Chat360). */
+export async function webhookStats(): Promise<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string }>> {
+  const rows = await (await webhookEventsCol()).find({}).sort({ lastAt: -1 }).limit(50).toArray();
+  return rows.map((r) => ({ event: String(r._id), count: num(r.count), firstAt: toIso(r.firstAt), lastAt: toIso(r.lastAt), shape: str(r.lastShape) }));
+}
+
+/**
+ * A message sent from Chat360 itself (console, chatbot, campaign), not from the CRM: logged as outbound (once), so
+ * the whole conversation shows in the CRM.
+ */
+async function saveSentByChat360(payload: any, phone: string, type: string, mid: string, eventId: string, providerKey: string): Promise<'saved' | 'ignored' | 'duplicate'> {
+  const text = extractText(payload) || (payload.template_name ? `Template: ${payload.template_name}` : '');
+  if (!text && !extractMedia(payload)) return 'ignored';
+  const rec = await record({
+    id: mid || undefined, eventId, dedupeKey: providerKey || undefined, direction: 'Outbound', phone, text,
+    mediaUrl: extractMedia(payload), status: 'sent', agent: /bot|flow|auto/.test(type) ? 'Chat360 Bot' : /broadcast|campaign/.test(type) ? 'Chat360 Campaign' : 'Chat360 Console',
+    type: payload.msg_type || payload.template_name || 'text', raw: payload, ts: payload.created,
+  });
+  if (!rec) return 'duplicate';
+  const lead = await findLeadByPhone(phone).catch(() => null);
+  if (lead) await (await msgs()).updateOne({ _id: rec.id as any }, { $set: { leadId: lead[L.ID] || '', contactName: lead[L.NAME] || '' } });
+  await upsertContact(phone, { lastMessageAt: new Date(), lastMessage: truncate(text, 200), ...(lead ? { leadId: lead[L.ID] || '' } : {}) });
+  return 'saved';
+}
+
 /** Process one inbound webhook payload (already authenticated by the route). */
 export async function handleWebhook(payload: any): Promise<unknown> {
   if (!payload || typeof payload !== 'object') return { ok: true, ignored: 'empty' };
   const cfg = await chatCfg();
   const type = String(payload.event_type || payload.event || payload.type || '').toLowerCase();
+  await noteWebhookEvent(type, payload).catch(() => undefined);
   const providerKey = str(payload.event_response_id || payload.m_id || payload.message_id);
   const eventId = providerKey || shortId('C360');
 
@@ -585,23 +627,19 @@ export async function handleWebhook(payload: any): Promise<unknown> {
       changed = r.modifiedCount > 0;
     }
     if (outgoingEvent && !known) {
-      // sent from Chat360 itself (console, chatbot, campaign), not from the CRM — log it as outbound (once), so the
-      // whole conversation shows in the CRM
-      const text = extractText(payload) || (payload.template_name ? `Template: ${payload.template_name}` : '');
-      if (!text && !extractMedia(payload)) return { ok: true, ignored: 'empty' };
-      const rec = await record({
-        id: mid || undefined, eventId, dedupeKey: providerKey || undefined, direction: 'Outbound', phone, text,
-        mediaUrl: extractMedia(payload), status: 'sent', agent: /bot/.test(type) ? 'Chat360 Bot' : /broadcast|campaign/.test(type) ? 'Chat360 Campaign' : 'Chat360 Console',
-        type: payload.msg_type || payload.template_name || 'text', raw: payload, ts: payload.created,
-      });
-      if (!rec) return { ok: true, duplicate: true };
-      const lead = await findLeadByPhone(phone).catch(() => null);
-      if (lead) await (await msgs()).updateOne({ _id: rec.id as any }, { $set: { leadId: lead[L.ID] || '', contactName: lead[L.NAME] || '' } });
-      await upsertContact(phone, { lastMessageAt: new Date(), lastMessage: truncate(text, 200), ...(lead ? { leadId: lead[L.ID] || '' } : {}) });
+      const r = await saveSentByChat360(payload, phone, type, mid, eventId, providerKey);
+      if (r !== 'saved') return { ok: true, [r]: true };
       changed = true;
     }
     if (changed) await bumpVersion();
     return { ok: true };
+  }
+
+  // an event of a kind not known here, without the customer as sender: a message sent to the customer, not by them
+  if (!inbound && type && !deepFind(payload, ['sender_num', 'from'])) {
+    const r = await saveSentByChat360(payload, phone, type, str(payload.m_id || payload.message_id), eventId, providerKey);
+    if (r === 'saved') await bumpVersion();
+    return { ok: true, ...(r === 'saved' ? {} : { [r]: true }) };
   }
 
   const name = extractName(payload);
@@ -800,6 +838,7 @@ export const actions: ActionMap = {
   chat360GetMessages: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return messages(d.phone); }, perm: 'chat.view' },
   chat360Send: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); await assertLeadAccess(ctx, d.leadId); return send(d, ctx); }, perm: 'chat.send' },
   chat360Test: { fn: () => test(), perm: 'settings.view' },
+  chat360WebhookStats: { fn: () => webhookStats(), perm: 'settings.view' },
   chat360MapContact: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); await assertLeadAccess(ctx, d.leadId); return mapContact(d.phone, d.leadId, ctx); }, perm: 'chat.send' },
   chat360MarkRead: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return markRead(d.phone); }, perm: 'chat.view' },
 };

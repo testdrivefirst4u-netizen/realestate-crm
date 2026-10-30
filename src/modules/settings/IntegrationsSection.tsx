@@ -12,6 +12,7 @@ import {
   telephonyUrlForProvider, validateDialerTemplate,
 } from '../calls/callsUtils';
 import { SecretKey, SectionBaseProps, ServerSettingsExt } from './types';
+import { formatRelative } from '../../core/dates';
 
 export interface IntegrationsSectionProps extends SectionBaseProps {
   rmOptions: string[];
@@ -320,6 +321,12 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
   const [c360Auto, setC360Auto] = useState(!!s.chat360AutoCreateLeads);
   const [c360Busy, setC360Busy] = useState(false);
   const [c360Test, setC360Test] = useState<{ ok: boolean; message: string } | null>(null);
+  /** Which webhook events Chat360 has sent: shows whether the chatbot's and agents' messages reach the CRM. */
+  const [c360Events, setC360Events] = useState<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string }> | null>(null);
+  const loadC360Events = () => api.chat360.webhookStats().then(setC360Events).catch(() => setC360Events([]));
+  useEffect(() => {
+    void loadC360Events();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [whBusy, setWhBusy] = useState(false);
 
   useEffect(() => {
@@ -557,12 +564,51 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
               {!canSecrets && <div className="text-[10px] text-[#7E93A6] mt-1">Full URL with secret is visible to Admins only.</div>}
             </div>
             <InlineNotice>
-              <strong>Connect in Chat360:</strong> dashboard → Settings → Webhooks → Add → paste the URL above → select the events <code className="font-mono">message_received</code>, <code className="font-mono">session_message_sent</code>, <code className="font-mono">template_message_sent</code>, <code className="font-mono">delivered</code> and <code className="font-mono">read</code> → Save.
+              <strong>Connect in Chat360:</strong> dashboard → Settings → Webhooks → Add → paste the URL above → tick <strong>every</strong> message event — received, sent (session, template), <strong>bot / chatbot replies</strong>, agent replies, broadcast / campaign, delivered and read → Save. Only the events ticked there reach the CRM: without the bot and agent ones, WhatsApp here shows the customer&rsquo;s side only.
             </InlineNotice>
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="secondary" onClick={testC360} loading={c360Busy} icon={<Wand2 size={13} />}>Test connection</Button>
             </div>
             {c360Test && <InlineNotice tone={c360Test.ok ? 'success' : 'warning'}><span className="whitespace-pre-line">{c360Test.message}</span></InlineNotice>}
+
+            {/* what Chat360 actually sends */}
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className={`${labelCls} !mb-0`}>Events received from Chat360</span>
+                <Button variant="ghost" size="xs" onClick={() => void loadC360Events()} icon={<RefreshCw size={11} />}>Refresh</Button>
+              </div>
+              {c360Events === null ? (
+                <p className="text-xs text-[#7E93A6]">Loading…</p>
+              ) : !c360Events.length ? (
+                <p className="text-xs text-[#7E93A6]">Nothing received yet (counting starts with this version). Send a WhatsApp message to your number, then Refresh.</p>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-[#D3E3F0] overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-[#F2F7FB] text-[#5E778C]"><tr><th className="text-left font-semibold p-2">Event</th><th className="text-right font-semibold p-2">Times</th><th className="text-right font-semibold p-2">Last</th></tr></thead>
+                      <tbody className="divide-y divide-[#EAF1F7]">
+                        {c360Events.map((e) => (
+                          <tr key={e.event} title={e.shape}>
+                            <td className="p-2 font-mono text-[#0B2A44]">{e.event}</td>
+                            <td className="p-2 text-right tabular-nums">{e.count}</td>
+                            <td className="p-2 text-right text-[#5E778C] whitespace-nowrap">{formatRelative(e.lastAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {(() => {
+                    const sentByChat360 = c360Events.some((e) => /sent|outgoing|outbound|bot|agent|reply|broadcast|campaign/.test(e.event) && !/deliver|read|fail/.test(e.event));
+                    const received = c360Events.some((e) => /receiv|incoming|^message$/.test(e.event));
+                    return received && !sentByChat360 ? (
+                      <InlineNotice tone="warning">
+                        Chat360 is sending the customer&rsquo;s messages only — none of the messages your chatbot or agents send. In Chat360 → Settings → Webhooks, edit this webhook and tick the bot / agent / sent message events too; from then on the whole conversation shows here.
+                      </InlineNotice>
+                    ) : null;
+                  })()}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </Card>

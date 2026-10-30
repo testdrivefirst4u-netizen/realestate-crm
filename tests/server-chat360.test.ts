@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest } from '../server/modules/chat360';
+import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -164,6 +164,19 @@ describe('webhook ingest', () => {
     ]);
     expect(all[1].status).toBe('delivered');
     expect(all[1].leadId).toBe('ENQ-0007'); // linked to the lead
+  });
+
+  it('an unknown event without the customer as sender is a sent message; Settings shows which events arrive', async () => {
+    await handleWebhook(inbound());
+    await handleWebhook({ event_type: 'flow_node_reply', event_response_id: 'evt-u1', receiver_num: '919876543210', wab_response: { text: { body: 'Please share your name' } } });
+    const all = await messages('9876543210');
+    expect(all.map((m) => [m.direction, m.agent, m.text])).toEqual([
+      ['Inbound', '', 'Hello, is a 2 BHK available?'],
+      ['Outbound', 'Chat360 Bot', 'Please share your name'],
+    ]);
+    const stats = await webhookStats();
+    expect(stats.map((s) => [s.event, s.count]).sort()).toEqual([['flow_node_reply', 1], ['message_received', 1]]);
+    expect(stats.find((s) => s.event === 'message_received')!.shape).toContain('sender_num');
   });
 });
 

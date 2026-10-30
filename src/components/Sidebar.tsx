@@ -1,11 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Users, MessageCircle, CheckSquare, FileText, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
+  LayoutDashboard, Users, MessageCircle, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
+  ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
-import { AppLogo, useLogoSrc } from './AppLogo';
+import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
 import { useCompany } from '../core/tenant';
 import { type ViewId, VIEW_TITLES, viewAllowed, viewHref } from '../core/views';
@@ -43,215 +44,164 @@ interface SidebarProps {
   unreadChats?: number;
 }
 
-interface Item { id: ViewId; label: string; count?: number; urgent?: boolean }
-interface Group { id: string; label: string; icon: LucideIcon; items: Item[] }
+interface Item { id: ViewId; label: string; icon: LucideIcon; count?: number; urgent?: boolean }
+interface Group { id: string; label: string; items: Item[] }
 
-/** The screens in groups: one rail icon per group, the panel lists them all. Templates & Documents and Inventory have icons of their own. */
+/** The screens, in sections; every screen has its own icon (the collapsed sidebar shows the icons alone). */
 function buildGroups(counts: SidebarCounts): Group[] {
   return [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard, items: [{ id: 'dashboard', label: 'Dashboard' }, { id: 'mis', label: 'Sales MIS' }, { id: 'performance', label: 'YTD / MTD' }, { id: 'reports', label: 'Reports' }] },
-    { id: 'leads', label: 'Leads', icon: Users, items: [{ id: 'leads', label: 'All Leads', count: counts.leads }, { id: 'kanban', label: 'Enquiry Status' }, { id: 'followups', label: 'Follow-ups', count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments' }] },
-    { id: 'messages', label: 'Messages', icon: MessageCircle, items: [{ id: 'chat360', label: 'WhatsApp (Chat360)', count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History' }] },
-    { id: 'content', label: 'Templates & Documents', icon: FileText, items: [{ id: 'templates', label: 'Templates' }, { id: 'documents', label: 'Documents' }] },
-    { id: 'inventory', label: 'Inventory', icon: Building2, items: [{ id: 'inventory', label: 'Inventory' }] },
-    { id: 'work', label: 'Tasks', icon: CheckSquare, items: [{ id: 'tasks', label: 'Tasks & Notes', count: counts.tasksPending }] },
-    { id: 'admin', label: 'Admin', icon: Settings, items: [{ id: 'settings', label: 'Settings' }, { id: 'audit', label: 'Audit Log' }] },
+    { id: 'overview', label: 'Overview', items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'mis', label: 'Sales MIS', icon: ChartColumn },
+      { id: 'performance', label: 'YTD / MTD', icon: TrendingUp }, { id: 'reports', label: 'Reports', icon: FileChartColumn },
+    ] },
+    { id: 'leads', label: 'Leads', items: [
+      { id: 'leads', label: 'All Leads', icon: Users, count: counts.leads }, { id: 'kanban', label: 'Enquiry Status', icon: SquareKanban },
+      { id: 'followups', label: 'Follow-ups', icon: CalendarClock, count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments', icon: ChartPie },
+    ] },
+    { id: 'messages', label: 'Messages', items: [
+      { id: 'chat360', label: 'WhatsApp (Chat360)', icon: MessageCircle, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },
+    ] },
+    { id: 'work', label: 'Workspace', items: [
+      { id: 'inventory', label: 'Inventory', icon: Building2 }, { id: 'tasks', label: 'Tasks & Notes', icon: CheckSquare, count: counts.tasksPending },
+      { id: 'templates', label: 'Templates', icon: LayoutTemplate }, { id: 'documents', label: 'Documents', icon: FolderOpen },
+    ] },
+    { id: 'admin', label: 'Admin', items: [{ id: 'settings', label: 'Settings', icon: Settings }, { id: 'audit', label: 'Audit Log', icon: ShieldCheck }] },
   ];
 }
 
-const Count: React.FC<{ item: Item; dark?: boolean }> = ({ item, dark }) =>
-  item.count ? (
-    <span className={`text-[11px] font-extrabold rounded-full px-2 py-px ${item.urgent ? 'bg-[#FFE6DD] text-[#A1301A]' : dark ? 'bg-[#1D5585] text-[#E6F1FA]' : 'bg-[#EEF4F9] text-[#5E778C]'}`}>{item.count > 999 ? '999+' : item.count}</span>
-  ) : null;
+const countText = (n: number) => (n > 999 ? '999+' : String(n));
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, counts = {}, unreadChats }) => {
   const company = useCompany();
-  const logo = useLogoSrc();
   const allowed = (v: ViewId) => viewAllowed(v, { features }, can);
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats })
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
-  const activeGroup = groups.find((g) => g.items.some((i) => i.id === currentView))?.id;
-
-  const [flyout, setFlyout] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // Close the popup menu / profile pill on an outside click or Escape.
-  useEffect(() => {
-    if (!flyout && !profileOpen) return;
-    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) { setFlyout(null); setProfileOpen(false); } };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setFlyout(null); setProfileOpen(false); } };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [flyout, profileOpen]);
-  useEffect(() => { setFlyout(null); setProfileOpen(false); }, [currentView, isCollapsed]);
 
   const offline = !isOnline || sync.status === 'offline';
   const syncBad = offline || sync.status === 'error';
-  const syncText = offline ? 'Offline' : sync.status === 'error' ? 'Sync error' : sync.status === 'syncing' || sync.status === 'loading' ? 'Syncing…' : sync.lastSyncAt ? `Synced ${formatRelative(sync.lastSyncAt)}` : 'Connecting…';
-  const go = () => { setFlyout(null); setProfileOpen(false); onNavigate?.(); };
-  const unread = (g: Group) => g.items.some((i) => i.urgent && i.count);
-
   const syncLabel = offline ? 'Offline' : sync.status === 'error' ? 'Sync error' : sync.status === 'syncing' || sync.status === 'loading' ? 'Syncing' : 'Synced';
-  const syncColor = syncBad ? '#A1301A' : '#14653F';
+  const syncText = offline ? 'Offline' : sync.status === 'error' ? 'Sync error' : sync.status === 'syncing' || sync.status === 'loading' ? 'Syncing…' : sync.lastSyncAt ? `Synced ${formatRelative(sync.lastSyncAt)}` : 'Connecting…';
+  const go = () => onNavigate?.();
 
-  /** Rail entry of a group: a link to its first screen (panel open, or a group of one screen such as Inventory), else a flyout menu. */
-  const railGroup = (g: Group, expanded: boolean) => {
-    const Icon = g.icon;
-    const on = g.id === activeGroup;
-    const inner = (
-      <>
-        {on && <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r bg-[#36B3F2]" />}
-        <span className={`w-11 h-11 rounded-[14px] flex items-center justify-center ${on ? 'bg-[#16466E] text-white' : 'text-[#7FA3C2] group-hover:text-white'}`}>
-          <Icon size={22} strokeWidth={1.8} />
-        </span>
-        {unread(g) && <span className="absolute top-2.5 right-4 w-[9px] h-[9px] rounded-full bg-[#FF8A65] ring-2 ring-[#0A1F33]" />}
-      </>
-    );
-    const cls = 'group relative w-full h-[50px] flex items-center justify-center focus-visible:outline-none';
+  /** One screen: icon + label (+ count); icons only when the sidebar is narrow. */
+  const link = (i: Item, narrow: boolean, mobile: boolean) => {
+    const on = currentView === i.id;
+    const Icon = i.icon;
     return (
-      <div key={g.id} className="relative w-full flex justify-center">
-        {expanded || g.items.length === 1 ? (
-          <Link href={viewHref(g.items[0].id)} onClick={go} className={cls} title={g.label} aria-label={g.label}>{inner}</Link>
-        ) : (
-          <button type="button" onClick={() => { setProfileOpen(false); setFlyout(flyout === g.id ? null : g.id); }} aria-haspopup="menu" aria-expanded={flyout === g.id} className={cls} title={g.label} aria-label={g.label}>{inner}</button>
+      <Link
+        key={i.id}
+        href={viewHref(i.id)}
+        onClick={go}
+        aria-current={on ? 'page' : undefined}
+        title={narrow ? i.label : undefined}
+        aria-label={narrow ? i.label : undefined}
+        className={`group relative flex items-center rounded-xl transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2] ${narrow ? 'justify-center h-11 w-11 mx-auto' : `gap-3 px-3 ${mobile ? 'min-h-[44px]' : 'h-10'}`} ${
+          on ? 'bg-gradient-to-r from-[#1E6FB0] to-[#175A92] text-white shadow-[0_6px_18px_rgba(10,60,110,0.45)]' : 'text-[#BFD3E6] hover:bg-white/[0.07] hover:text-white'
+        }`}
+      >
+        {on && !narrow && <span className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-[#5CC8FF]" />}
+        <Icon size={18} strokeWidth={on ? 2.2 : 1.8} className={`shrink-0 ${on ? 'text-white' : 'text-[#8FB2D1] group-hover:text-white'}`} />
+        {!narrow && <span className={`truncate flex-1 text-[13.5px] ${on ? 'font-bold' : 'font-medium'}`}>{i.label || VIEW_TITLES[i.id]}</span>}
+        {!narrow && !!i.count && (
+          <span className={`text-[11px] font-extrabold rounded-full px-2 py-px ${i.urgent ? 'bg-[#FF8A65] text-[#3D1206]' : on ? 'bg-white/20 text-white' : 'bg-white/10 text-[#D7E6F3]'}`}>{countText(i.count)}</span>
         )}
-        {!expanded && flyout === g.id && (
-          <div role="menu" aria-label={g.label} className="absolute left-[78px] top-0 z-50 min-w-[200px] rounded-xl bg-[#16466E] p-1.5 shadow-[0_12px_30px_rgba(4,26,45,0.35)]">
-            <span className="absolute -left-1.5 top-[18px] w-3 h-3 bg-[#16466E] rotate-45" />
-            <div className="relative px-2.5 pt-1 pb-1.5 text-[10.5px] font-extrabold tracking-wider uppercase text-[#7FD0F7]">{g.label}</div>
-            {g.items.map((i) => (
-              <Link key={i.id} href={viewHref(i.id)} onClick={go} role="menuitem" aria-current={currentView === i.id ? 'page' : undefined}
-                className={`relative flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-[13px] ${currentView === i.id ? 'bg-[#1D5585] text-white font-bold' : 'text-[#E6F1FA] hover:bg-[#1D5585]'}`}>
-                <span>{i.label}</span><Count item={i} dark />
-              </Link>
-            ))}
-          </div>
+        {narrow && !!i.count && (
+          <span className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#0B2A44] ${i.urgent ? 'bg-[#FF8A65]' : 'bg-[#5CC8FF]'}`} aria-hidden="true" />
         )}
-      </div>
+      </Link>
     );
   };
 
-  /** The dark icon rail (desktop only). */
-  const rail = (expanded: boolean) => (
-    <div className="relative w-[72px] flex-none bg-[#0A1F33] rounded-[28px] flex flex-col items-center pt-5 pb-3.5 gap-1.5">
-      <Link href={viewHref('dashboard')} onClick={go} className="mb-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
-        <AppLogo size="sm" />
-      </Link>
-      {groups.map((g) => railGroup(g, expanded))}
-      <div className="flex-1" />
-      {!expanded && (
-        <>
-          <button type="button" onClick={onToggleCollapse} className="mb-2 w-9 h-9 rounded-full border-2 border-[#36B3F2] text-[#36B3F2] flex items-center justify-center hover:bg-[#16466E]" aria-label="Expand navigation" title="Expand navigation"><ChevronRight size={16} strokeWidth={2.6} /></button>
-          <span className="mb-2.5 w-2 h-2 rounded-full" style={{ background: syncBad ? '#F3B3A3' : '#7EE2AE' }} title={`CRM server · ${syncText}`} aria-label={`CRM server ${syncLabel}`} role="img" />
-        </>
-      )}
-      <button type="button" onClick={() => { setFlyout(null); setProfileOpen(!profileOpen); }} aria-haspopup="dialog" aria-expanded={profileOpen} aria-label="Your profile"
-        className="rounded-full ring-[3px] ring-[#16466E] hover:ring-[#36B3F2] focus-visible:outline-none focus-visible:ring-[#36B3F2]">
-        <Avatar user={currentUser} size="md" />
-      </button>
-      {profileOpen && (
-        <div role="dialog" aria-label="Your profile" className="absolute bottom-3 left-[64px] z-50 flex items-center gap-2.5 whitespace-nowrap rounded-full bg-white py-1 pl-4 pr-1 shadow-[0_10px_30px_rgba(11,42,68,0.18)]">
-          <span className="text-sm text-[#5E778C]"><strong className="text-[#0A1F33]">{currentUser?.name || 'Guest'}</strong>{currentUser ? ` · ${roleLabel(currentUser.role)}` : ''}</span>
-          <Link href={`${viewHref('settings')}?section=profile`} onClick={go} className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF4F9] px-3.5 py-2 text-xs font-extrabold tracking-wide text-[#0A1F33] hover:bg-[#E0F0FF]"><UserCircle2 size={14} />PROFILE</Link>
-          <button type="button" onClick={() => { setProfileOpen(false); onLogout(); }} className="inline-flex items-center gap-1.5 rounded-full bg-[#0A1F33] px-3.5 py-2 text-xs font-extrabold tracking-wide text-white hover:bg-[#16466E]"><LogOut size={14} />SIGN OUT</button>
-        </div>
-      )}
-    </div>
-  );
+  /** The whole sidebar: navy panel, sections, profile and sync at the bottom. */
+  const panel = (narrow: boolean, mobile: boolean) => (
+    <nav
+      aria-label="Main menu"
+      className={`relative h-full flex flex-col rounded-[24px] bg-gradient-to-b from-[#0E3253] via-[#0B2A44] to-[#081E33] text-white shadow-[0_14px_40px_rgba(8,30,51,0.35)] select-none overflow-hidden ${
+        mobile ? 'w-[min(300px,calc(100vw-24px))]' : narrow ? 'w-[76px]' : 'w-[256px]'
+      }`}
+    >
+      {/* soft light in the corner */}
+      <span aria-hidden="true" className="pointer-events-none absolute -top-24 -right-20 w-56 h-56 rounded-full bg-[#2E8BD8]/20 blur-3xl" />
 
-  /** The white menu panel: every screen, grouped. On mobile it is the whole drawer. */
-  const panel = (mobile: boolean) => (
-    <nav aria-label="Main menu" className={`${mobile ? 'w-[min(300px,calc(100vw-48px))]' : 'w-[232px]'} flex-none flex flex-col pl-5 pr-4 pt-5 pb-3 min-h-0`}>
-      <div className="flex items-start justify-between gap-2">
-        {logo.src ? (
-          <Link href={viewHref('dashboard')} onClick={go} className="min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logo.src} alt={company?.name || 'Company logo'} onError={logo.onError} className="h-11 w-auto max-w-full object-contain object-left" />
-          </Link>
-        ) : (
-          <div className="min-w-0">
-            <div className="text-[19px] font-bold text-[#0A1F33] leading-tight truncate" title={company?.name || 'CRM'}>{company?.name || 'CRM'}</div>
-            <div className="text-xs text-[#7E93A6] truncate">{company?.tagline || 'Sales CRM'}</div>
+      {/* company */}
+      <div className={`relative flex items-center ${narrow ? 'justify-center pt-5 pb-4' : 'gap-3 px-5 pt-5 pb-4'}`}>
+        <Link href={viewHref('dashboard')} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
+          <AppLogo size="sm" />
+        </Link>
+        {!narrow && (
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-bold leading-tight truncate" title={company?.name || 'CRM'}>{company?.name || 'CRM'}</div>
+            <div className="text-[11px] text-[#8FB2D1] truncate">{company?.tagline || 'Sales CRM'}</div>
           </div>
         )}
-        {mobile && <button type="button" onClick={onCloseMobile} className="w-11 h-11 -mr-2 -mt-2 flex items-center justify-center rounded-lg text-[#5E778C] hover:text-[#0A1F33] hover:bg-[#F2F7FB]" aria-label="Close menu"><X size={20} /></button>}
+        {mobile && (
+          <button type="button" onClick={onCloseMobile} className="w-10 h-10 -mr-2 flex items-center justify-center rounded-lg text-[#BFD3E6] hover:text-white hover:bg-white/10" aria-label="Close menu"><X size={20} /></button>
+        )}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2 mt-1 pb-2">
-        {groups.map((g) => g.items.length === 1 ? (
-          // a screen of its own (Inventory, Tasks): one link with its icon, no heading over it
-          <Link key={g.id} href={viewHref(g.items[0].id)} onClick={go} aria-current={currentView === g.items[0].id ? 'page' : undefined}
-            className={`mt-3 flex items-center gap-2.5 rounded-[10px] py-1.5 px-2 -ml-2 text-[13px] font-extrabold tracking-[.02em] ${mobile ? 'min-h-[42px]' : ''} ${currentView === g.items[0].id ? 'bg-[#EEF6FC] text-[#0B6BB0]' : 'text-[#0A1F33] hover:bg-[#EEF6FC]'}`}>
-            <g.icon size={17} strokeWidth={2} className="shrink-0" />
-            <span className="flex-1 truncate">{g.items[0].label}</span><Count item={g.items[0]} />
-          </Link>
-        ) : (
-          <div key={g.id}>
-            <div className={`text-[11px] font-extrabold tracking-[.08em] uppercase mt-3 mb-1 ${g.id === activeGroup ? 'text-[#0B6BB0]' : 'text-[#0A1F33]'}`}>{g.label}</div>
-            <div className="border-l border-[#DCE8F2] ml-1 flex flex-col">
-              {g.items.map((i) => {
-                const on = currentView === i.id;
-                return (
-                  <Link key={i.id} href={viewHref(i.id)} onClick={go} aria-current={on ? 'page' : undefined}
-                    className={`-ml-px flex items-center justify-between gap-2 rounded-r-[10px] border-l-2 py-1.5 pl-4 pr-2.5 text-sm ${mobile ? 'min-h-[42px]' : ''} ${on ? 'border-[#0B6BB0] bg-[#EEF6FC] font-bold text-[#0B6BB0]' : 'border-transparent text-[#5E778C] hover:bg-[#EEF6FC] hover:text-[#0F2233]'}`}>
-                    <span className="truncate">{i.label || VIEW_TITLES[i.id]}</span><Count item={i} />
-                  </Link>
-                );
-              })}
-            </div>
+      {/* screens */}
+      <div className={`relative flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-none ${narrow ? 'px-2' : 'px-3'} pb-3`}>
+        {groups.map((g, gi) => (
+          <div key={g.id} className={gi ? 'mt-4' : 'mt-1'}>
+            {narrow
+              ? gi > 0 && <div className="mx-3 mb-3 border-t border-white/10" aria-hidden="true" />
+              : <div className="px-3 mb-1.5 text-[10.5px] font-bold tracking-[.12em] uppercase text-[#6F94B6]">{g.label}</div>}
+            <div className="flex flex-col gap-0.5">{g.items.map((i) => link(i, narrow, mobile))}</div>
           </div>
         ))}
-        <div className="flex items-center gap-2 mt-5 text-[10.5px] text-[#7E93A6]" title="Developed by Broaddcast">
-          <span className="whitespace-nowrap">Developed by</span>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/BroaddCast-Logo-blue.svg" alt="Broaddcast" className="h-5 w-auto" />
-        </div>
       </div>
 
-      <div className="pt-2.5 border-t border-[#E3EDF5] flex flex-col gap-2">
-        {mobile && (
-          <div className="flex items-center gap-2.5">
-            <Avatar user={currentUser} size="md" />
-            <div className="min-w-0 flex-1 text-sm leading-tight">
-              <div className="font-bold text-[#0A1F33] truncate">{currentUser?.name || 'Guest'}</div>
-              {currentUser && <div className="text-xs text-[#7E93A6] truncate">{roleLabel(currentUser.role)}</div>}
+      {/* you, the server, collapse */}
+      <div className={`relative border-t border-white/10 ${narrow ? 'px-2 py-3' : 'px-3 py-3'} flex flex-col gap-2.5`}>
+        {narrow ? (
+          <>
+            <span className="mx-auto w-2 h-2 rounded-full" style={{ background: syncBad ? '#F3B3A3' : '#7EE2AE' }} title={`CRM server · ${syncText}`} aria-label={`CRM server ${syncLabel}`} role="img" />
+            <Link href={`${viewHref('settings')}?section=profile`} onClick={go} className="mx-auto rounded-full ring-2 ring-white/15 hover:ring-[#5CC8FF]" title={currentUser ? `${currentUser.name} · ${roleLabel(currentUser.role)}` : 'Your profile'} aria-label="Your profile">
+              <Avatar user={currentUser} size="md" />
+            </Link>
+            <button type="button" onClick={onToggleCollapse} className="mx-auto w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20" aria-label="Expand navigation" title="Expand navigation"><ChevronRight size={16} strokeWidth={2.6} /></button>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 rounded-2xl bg-white/[0.06] p-2.5">
+              <Avatar user={currentUser} size="md" />
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="text-[13px] font-bold truncate">{currentUser?.name || 'Guest'}</div>
+                {currentUser && <div className="text-[11px] text-[#8FB2D1] truncate">{roleLabel(currentUser.role)}</div>}
+              </div>
+              <Link href={`${viewHref('settings')}?section=profile`} onClick={go} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-white/10 hover:text-white`} aria-label="Profile" title="Profile"><UserCircle2 size={17} /></Link>
+              <button type="button" onClick={() => { go(); onLogout(); }} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-[#FF8A65]/20 hover:text-[#FFB59E]`} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
             </div>
-            <Link href={`${viewHref('settings')}?section=profile`} onClick={go} className="w-11 h-11 rounded-full bg-[#EEF4F9] text-[#0A1F33] flex items-center justify-center hover:bg-[#E0F0FF]" aria-label="Profile" title="Profile"><UserCircle2 size={18} /></Link>
-            <button type="button" onClick={() => { go(); onLogout(); }} className="w-11 h-11 rounded-full bg-[#0A1F33] text-white flex items-center justify-center hover:bg-[#16466E]" aria-label="Sign out" title="Sign out"><LogOut size={17} /></button>
-          </div>
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="min-w-0 text-[11px] truncate" title={`CRM server · ${syncText}`}>
+                <span className="font-bold" style={{ color: syncBad ? '#F3B3A3' : '#7EE2AE' }}>● {syncLabel}</span>
+                {sync.lastSyncAt && <span className="text-[#6F94B6]"> · {formatRelative(sync.lastSyncAt)}</span>}
+              </span>
+              {!mobile && (
+                <button type="button" onClick={onToggleCollapse} className="w-8 h-8 flex-none rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20" aria-label="Collapse navigation" title="Collapse navigation">
+                  <ChevronLeft size={15} strokeWidth={2.6} />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 px-1 text-[10px] text-[#6F94B6]" title="Developed by Broaddcast">
+              <span className="whitespace-nowrap">Developed by</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/broaddcast_logo-white.svg" alt="Broaddcast" className="h-4 w-auto opacity-80" />
+            </div>
+          </>
         )}
-        <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 text-xs truncate" title={`CRM server · ${syncText}`}>
-            <span className="font-bold" style={{ color: syncColor }}>● {syncLabel}</span>
-            {sync.lastSyncAt && <span className="text-[#7E93A6]"> · {formatRelative(sync.lastSyncAt)}</span>}
-          </span>
-          {!mobile && (
-            <button type="button" onClick={onToggleCollapse} className="w-9 h-9 flex-none rounded-full border-2 border-[#36B3F2] text-[#0B6BB0] flex items-center justify-center hover:bg-[#EEF6FC]" aria-label="Collapse navigation" title="Collapse navigation">
-              <ChevronLeft size={16} strokeWidth={2.6} />
-            </button>
-          )}
-        </div>
       </div>
     </nav>
   );
 
   return (
     <>
-      <div className="hidden lg:flex h-full py-3 pl-3 z-30">
-        <div ref={rootRef} className="relative flex h-full rounded-[28px] bg-white shadow-[0_10px_30px_rgba(11,42,68,0.10)] select-none">
-          {rail(!isCollapsed)}
-          {!isCollapsed && panel(false)}
-        </div>
-      </div>
+      <div className="hidden lg:flex h-full py-3 pl-3 z-30">{panel(isCollapsed, false)}</div>
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="absolute inset-0 bg-black/40" onClick={onCloseMobile} />
-          <div className="relative h-full p-2">
-            <div className="flex h-full rounded-[24px] bg-white shadow-[0_10px_30px_rgba(11,42,68,0.18)] select-none">{panel(true)}</div>
-          </div>
+          <div className="absolute inset-0 bg-[#04121F]/55 backdrop-blur-[2px]" onClick={onCloseMobile} />
+          <div className="relative h-full p-2">{panel(false, true)}</div>
         </div>
       )}
     </>
