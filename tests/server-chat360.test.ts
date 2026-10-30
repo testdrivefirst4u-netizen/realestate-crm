@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
+import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, nameFromReply, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -541,5 +541,27 @@ describe('customer name on message_received', () => {
   it('Chat360 puts the WhatsApp name in receiver_name; an emoji alone is not a name', () => {
     expect(extractName({ event_type: 'message_received', receiver_num: '919381492161', receiver_name: 'Ravi Kumar' })).toBe('Ravi Kumar');
     expect(extractName({ event_type: 'message_received', receiver_num: '919381492161', receiver_name: '😊' })).toBe('');
+  });
+});
+
+describe('name from the answer to the chatbot\'s name question', () => {
+  it('reads names, refuses greetings and sentences', () => {
+    expect(nameFromReply('testing')).toBe('Testing');
+    expect(nameFromReply('ravi kumar')).toBe('Ravi Kumar');
+    expect(nameFromReply('Anita D\'Souza')).toBe('Anita D\'Souza');
+    for (const t of ['Hi', 'hii', 'Hello', 'ok', 'Price', 'I want a 2 BHK', '9876543210', 'what is the price of the flat']) expect(nameFromReply(t)).toBe('');
+  });
+
+  it('the second message, minutes after the first, renames a "WhatsApp +91…" lead; later messages never do', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.updateLead).mockClear();
+    const now = new Date().toISOString();
+    await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'n-1', created: now, wab_response: { type: 'text', text: { body: 'Hi' } } }));
+    expect(leads.updateLead).not.toHaveBeenCalled(); // "Hi" is not a name
+    await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'n-2', created: now, wab_response: { type: 'text', text: { body: 'testing' } } }));
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Testing' }, expect.anything());
+    vi.mocked(leads.updateLead).mockClear();
+    await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'n-3', created: now, wab_response: { type: 'text', text: { body: 'Suresh' } } }));
+    expect(leads.updateLead).not.toHaveBeenCalled(); // only the second message counts
   });
 });

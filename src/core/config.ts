@@ -218,7 +218,7 @@ export const DEFAULT_CONFIG = {
     [F.UNIT_TYPE]: ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],
     [F.PURCHASE_OR_RENT]: ['Purchase', 'Rent', 'Investment'],
     [F.SITE_VISIT_STATUS]: [SITE_VISIT.PROSPECT, SITE_VISIT.SCHEDULED, SITE_VISIT.WALK_IN, SITE_VISIT.COMPLETED],
-    [F.SALUTATION]: ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Col.', 'Capt.'],
+    [F.SALUTATION]: ['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Col.', 'Capt.'],
     [F.ENQUIRED_FOR]: ['Self', 'Parents', 'Grandparents', 'Father', 'Mother', 'Relative', 'Relatives', 'Family'],
     [F.RM]: [] as string[], // filled from the users / config collections at runtime
     [F.BROCHURE]: ['Yes', 'No'],

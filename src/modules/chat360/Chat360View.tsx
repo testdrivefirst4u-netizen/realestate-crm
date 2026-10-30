@@ -30,6 +30,7 @@ import { AMAYA_KNOWLEDGE } from '../ai/amayaKnowledge';
 import { useCompany, useFeature } from '../../core/tenant';
 import type { OpenCopilot } from '../ai/copilotContext';
 import { ListSkeleton, ChatSkeleton } from '../../components/Skeletons';
+import { leadDisplayName } from '../../core/leadName';
 
 export interface Chat360ViewProps {
   leads: Lead[];
@@ -810,7 +811,8 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                   <ul className="divide-y divide-[#E6EFF6]">
                     {filteredContacts.map((c) => {
                       const lead = c.leadId ? leadById.get(c.leadId) : undefined;
-                      const name = c.contactName || (lead ? lead[F.NAME] : '') || formatPhone(c.phone);
+                      // the lead's own name (with its salutation) first: the contact keeps what WhatsApp first gave ("WhatsApp +91…")
+                      const name = leadDisplayName(lead) || c.contactName || formatPhone(c.phone);
                       const active = !!selectedPhone && samePhone(c.phone, selectedPhone);
                       const unread = Number(c.unreadCount) || 0;
                       const awaitingReply = !unread && flagsOf(c).unreplied;
@@ -1185,7 +1187,7 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ panel, onClose, phone, contac
   const [remark, setRemark] = useState('');
   const [remarkNext, setRemarkNext] = useState('');
   const [followup, setFollowup] = useState(lead ? toDatetimeLocalInput(lead[F.NEXT_FOLLOWUP]) : '');
-  const displayName = contact?.contactName || (lead ? lead[F.NAME] : '') || formatPhone(phone);
+  const displayName = leadDisplayName(lead) || contact?.contactName || formatPhone(phone);
   const [taskName, setTaskName] = useState(`Follow up with ${displayName} on WhatsApp`);
   const [taskWhen, setTaskWhen] = useState('');
 

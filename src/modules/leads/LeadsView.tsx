@@ -33,6 +33,7 @@ import { SourceLogo } from './SourceLogo';
 import { LeadSortKey, sortLeads } from './sorting';
 import { PageSkeleton } from '../../components/Skeletons';
 import { DuplicatesModal, findDuplicateGroups } from './DuplicatesModal';
+import { leadDisplayName } from '../../core/leadName';
 
 export interface LeadsViewProps {
   leads: Lead[];
@@ -224,7 +225,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       className: 'min-w-[180px]',
       render: (l: Lead) => (
         <div className="min-w-0">
-          <div className="font-semibold text-[#0B2A44]">{l[F.NAME] || <span className="text-[#7E93A6] font-normal">Unnamed</span>}</div>
+          <div className="font-semibold text-[#0B2A44]">{leadDisplayName(l) || <span className="text-[#7E93A6] font-normal">Unnamed</span>}</div>
           <div className="text-[10px] text-[#7E93A6] mt-0.5 truncate max-w-[220px]">
             {l[F.EMAIL] || '—'}
           </div>
@@ -519,7 +520,7 @@ const LeadCard: React.FC<{ lead: Lead; onOpen: () => void }> = ({ lead, onOpen }
         <span className="w-11 h-11 flex-none rounded-full flex items-center justify-center text-sm font-extrabold" style={{ background: bg, color: ink }}>{initials}</span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 min-w-0">
-            <span className="text-[15px] font-bold text-[#0A1F33] truncate">{name}</span>
+            <span className="text-[15px] font-bold text-[#0A1F33] truncate">{leadDisplayName(lead, name)}</span>
             <span className="flex-none"><StageBadge stage={String(lead[F.STAGE] || '')} /></span>
           </span>
           {meta && <span className="block text-[12.5px] text-[#5E778C] truncate mt-0.5">{meta}</span>}

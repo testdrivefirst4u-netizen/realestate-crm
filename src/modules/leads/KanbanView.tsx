@@ -22,6 +22,7 @@ import { LeadStars, optionsWithCurrent } from './shared';
 import { SORT_OPTIONS, SORT_PREF_KEYS, sortLeads } from './sorting';
 import { SortControl, usePersistentSort } from './SortControl';
 import { CallButton } from '../calls/CallButton';
+import { leadDisplayName } from '../../core/leadName';
 
 export interface KanbanViewProps {
   leads: Lead[];
@@ -258,7 +259,7 @@ const KanbanCard: React.FC<{
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="min-w-0">
-          <div className="font-bold text-xs text-[#0B2A44] group-hover:text-[#0B6BB0] transition truncate">{lead[F.NAME] || 'Unnamed'}</div>
+          <div className="font-bold text-xs text-[#0B2A44] group-hover:text-[#0B6BB0] transition truncate">{leadDisplayName(lead, 'Unnamed')}</div>
           <div className="text-[10px] text-[#7E93A6] mt-0.5 flex items-center gap-1.5 flex-wrap">
             <span className="font-mono text-[#0B6BB0] font-semibold">{lead[F.ID]}</span>
             {lead[F.SOURCE] && (

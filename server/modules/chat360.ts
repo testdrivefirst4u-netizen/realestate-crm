@@ -254,6 +254,11 @@ export async function fixPlaceholderNames(force = false): Promise<number> {
       }
       if (name) break;
     }
+    if (!name) {
+      // the answer to the chatbot's name question: the second message, within 15 minutes of the first
+      const firstTwo = await (await msgs()).find({ phoneLast10: l.phoneLast10, direction: 'Inbound' }).sort({ timestamp: 1 }).limit(2).project({ text: 1, timestamp: 1 }).toArray();
+      if (firstTwo.length === 2 && new Date(firstTwo[1].timestamp).getTime() - new Date(firstTwo[0].timestamp).getTime() <= 15 * 60_000) name = nameFromReply(String(firstTwo[1].text || ''));
+    }
     if (!name || !isPlaceholderName(l.name, l.phone)) continue;
     try {
       await updateLead(String(l._id), { [L.NAME]: name }, chat360Ctx());
@@ -504,6 +509,17 @@ export function extractName(p: any): string {
     if (n && !/^[+\d\s()-]{6,}$/.test(n) && /\p{L}/u.test(n)) return truncate(n, 120);
   }
   return '';
+}
+
+const NOT_A_NAME = /^(hi+|hii+|hello+|hey+|hlo|helo|ok(ay)?|k|yes|yeah|yup|no|nope|thanks?|thank you|thx|ty|good (morning|afternoon|evening|night)|gm|namaste|namaskar|info|details?|price|prices|cost|brochure|location|address|site visit|visit|call( me)?|interested|not interested|sure|done|start|menu|help|stop|test message)$/i;
+
+/** A reply that reads as a person's name ("testing" → "Testing", "ravi kumar" → "Ravi Kumar"); '' when it does not. */
+export function nameFromReply(text: string): string {
+  const t = String(text || '').trim().replace(/\s+/g, ' ').replace(/[.!]+$/, '');
+  if (t.length < 2 || t.length > 40 || NOT_A_NAME.test(t)) return '';
+  const words = t.split(' ');
+  if (words.length > 4 || !words.every((w) => /^[\p{L}][\p{L}.'-]*$/u.test(w))) return '';
+  return words.map((w) => (w === w.toLowerCase() || w === w.toUpperCase() ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(' ');
 }
 
 /** A lead name the CRM made up because WhatsApp gave none ("WhatsApp +91…", the number itself, or empty). */
@@ -772,7 +788,25 @@ export async function handleWebhook(payload: any): Promise<unknown> {
       await logError('chat360.leadName', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { leadId });
     }
   }
-  const displayName = name || (lead ? lead[L.NAME] || '' : '');
+  // still no real name: the chatbot's first question is "May I know your name?", so the customer's second-ever
+  // message, a few minutes after the first, is their name when it looks like one
+  if (lead && isPlaceholderName(lead[L.NAME], phone)) {
+    const typed = nameFromReply(text);
+    if (typed) {
+      const before = await (await msgs()).find({ phoneLast10: last10(phone), direction: 'Inbound', _id: { $ne: rec.id } }, { projection: { timestamp: 1 } }).sort({ timestamp: 1 }).limit(2).toArray();
+      const first = before[0]?.timestamp ? new Date(before[0].timestamp).getTime() : 0;
+      if (before.length === 1 && first && Date.now() - first <= 15 * 60_000) {
+        try {
+          await updateLead(leadId, { [L.NAME]: typed }, chat360Ctx());
+          lead = { ...lead, [L.NAME]: typed };
+          await addTimeline(leadId, 'lead_updated', `Name taken from WhatsApp: ${typed}`, 'The customer\'s answer to the chatbot\'s name question', 'Chat360', 'Chat', rec.id);
+        } catch (e: any) {
+          await logError('chat360.nameFromReply', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { leadId });
+        }
+      }
+    }
+  }
+  const displayName = (lead && !isPlaceholderName(lead[L.NAME], phone) ? lead[L.NAME] : '') || name || (lead ? lead[L.NAME] || '' : '');
   if (lead) await (await msgs()).updateOne({ _id: rec.id as any }, { $set: { leadId, contactName: displayName } });
 
   await upsertContact(

@@ -27,6 +27,7 @@ import { FollowupsTab } from './detail/FollowupsTab';
 import { CallsTab } from './detail/CallsTab';
 import { WhatsAppTab } from './detail/WhatsAppTab';
 import { FilesTab } from './detail/FilesTab';
+import { leadDisplayName } from '../../core/leadName';
 
 export interface LeadDetailModalProps {
   lead: Lead | null;
@@ -202,7 +203,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   const title = (
     <span className="flex items-center gap-2 min-w-0">
       <span className="font-mono text-xs font-semibold text-[#0B6BB0] flex-shrink-0">{id}</span>
-      <span className="truncate">{name || 'Unnamed enquiry'}</span>
+      <span className="truncate">{leadDisplayName(lead, 'Unnamed enquiry')}</span>
       <LeadStars lead={lead} size={13} className="flex-shrink-0" />
       <StageBadge stage={String(lead[F.STAGE] || '')} />
     </span>
