@@ -555,6 +555,14 @@ async function record(m: RecordIn) {
 
 const webhookEventsCol = () => col<any>(CFG.COLL.CHAT_WEBHOOK_EVENTS);
 
+/** The placeholder payload Chat360 sends to test a webhook ("This is a test message!", template "template_name", number 1234567890). */
+export function isChat360Sample(p: any): boolean {
+  const text = extractText(p);
+  const tpl = String(p?.template_name || deepFind(p, ['template_name']) || '');
+  const nums = [p?.sender_num, p?.receiver_num].map((v) => digits(String(v || '')));
+  return /^this is a test message!?$/i.test(text) || tpl === 'template_name' || nums.some((n) => /^(91)?1234567890$/.test(n));
+}
+
 /**
  * Keep a tally of the webhook events Chat360 sends (count, last time, the last payload's shape) so Settings can show
  * which ones arrive — e.g. whether the chatbot's and agents' messages are being sent to the CRM at all.
@@ -564,15 +572,15 @@ async function noteWebhookEvent(type: string, payload: any) {
     !o || typeof o !== 'object' || depth > 2 ? typeof o : Array.isArray(o) ? [o.length ? shape(o[0], depth + 1) : 'empty'] : Object.fromEntries(Object.keys(o).slice(0, 25).map((k) => [k, shape(o[k], depth + 1)]));
   await (await webhookEventsCol()).updateOne(
     { _id: truncate(type || '(no event type)', 80) },
-    { $inc: { count: 1 }, $set: { lastAt: new Date(), lastShape: truncate(JSON.stringify(shape(payload)), 1500) }, $setOnInsert: { firstAt: new Date() } },
+    { $inc: { count: 1 }, $set: { lastAt: new Date(), lastShape: truncate(JSON.stringify(shape(payload)), 1500), lastPayload: truncate(JSON.stringify(payload), 30_000) }, $setOnInsert: { firstAt: new Date() } },
     { upsert: true },
   );
 }
 
-/** The webhook events seen so far, newest first (Settings › Integrations › Chat360). */
-export async function webhookStats(): Promise<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string }>> {
+/** The webhook events seen so far, newest first, each with its last payload (Settings › Integrations › Chat360, for setting up). */
+export async function webhookStats(): Promise<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string; payload: string }>> {
   const rows = await (await webhookEventsCol()).find({}).sort({ lastAt: -1 }).limit(50).toArray();
-  return rows.map((r) => ({ event: String(r._id), count: num(r.count), firstAt: toIso(r.firstAt), lastAt: toIso(r.lastAt), shape: str(r.lastShape) }));
+  return rows.map((r) => ({ event: String(r._id), count: num(r.count), firstAt: toIso(r.firstAt), lastAt: toIso(r.lastAt), shape: str(r.lastShape), payload: str(r.lastPayload) }));
 }
 
 /**
@@ -580,6 +588,19 @@ export async function webhookStats(): Promise<Array<{ event: string; count: numb
  * the whole conversation shows in the CRM.
  */
 async function saveSentByChat360(payload: any, phone: string, type: string, mid: string, eventId: string, providerKey: string): Promise<'saved' | 'ignored' | 'duplicate'> {
+  // a step in the Chat360 chatbot (its Webhook component) may hand over the name the customer typed
+  const told = extractName(payload);
+  if (told) {
+    const l = await findLeadByPhone(phone).catch(() => null);
+    if (l && isPlaceholderName(l[L.NAME], phone)) {
+      try {
+        await updateLead(l[L.ID], { [L.NAME]: told }, chat360Ctx());
+        await (await contactsCol()).updateOne({ phoneLast10: last10(phone) }, { $set: { contactName: told } });
+      } catch (e: any) {
+        await logError('chat360.leadName', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { leadId: l[L.ID] });
+      }
+    }
+  }
   const text = extractText(payload) || (payload.template_name ? `Template: ${payload.template_name}` : '');
   if (!text && !extractMedia(payload)) return 'ignored';
   const rec = await record({
@@ -604,6 +625,8 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   // chatbot session summaries (get_chatroom_response, get_chat_session_data), assignments, template approvals,
   // SMS / RCS / e-mail. Never shown as a message from the customer.
   if (/chatroom|session_data|chat_session|assign|template_update|^sms|^rcs|email/.test(type)) return { ok: true, ignored: type };
+  // Chat360's sample event (sent when a webhook is saved or tested): never a chat in the CRM
+  if (isChat360Sample(payload)) return { ok: true, ignored: 'sample' };
   const providerKey = str(payload.event_response_id || payload.m_id || payload.message_id);
   const eventId = providerKey || shortId('C360');
 

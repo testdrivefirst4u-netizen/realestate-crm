@@ -322,7 +322,8 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
   const [c360Busy, setC360Busy] = useState(false);
   const [c360Test, setC360Test] = useState<{ ok: boolean; message: string } | null>(null);
   /** Which webhook events Chat360 has sent: shows whether the chatbot's and agents' messages reach the CRM. */
-  const [c360Events, setC360Events] = useState<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string }> | null>(null);
+  const [c360Events, setC360Events] = useState<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string; payload: string }> | null>(null);
+  const [c360Open, setC360Open] = useState('');
   const loadC360Events = () => api.chat360.webhookStats().then(setC360Events).catch(() => setC360Events([]));
   useEffect(() => {
     void loadC360Events();
@@ -588,11 +589,30 @@ export const IntegrationsSection: React.FC<IntegrationsSectionProps> = ({ settin
                       <thead className="bg-[#F2F7FB] text-[#5E778C]"><tr><th className="text-left font-semibold p-2">Event</th><th className="text-right font-semibold p-2">Times</th><th className="text-right font-semibold p-2">Last</th></tr></thead>
                       <tbody className="divide-y divide-[#EAF1F7]">
                         {c360Events.map((e) => (
-                          <tr key={e.event} title={e.shape}>
-                            <td className="p-2 font-mono text-[#0B2A44]">{e.event}</td>
-                            <td className="p-2 text-right tabular-nums">{e.count}</td>
-                            <td className="p-2 text-right text-[#5E778C] whitespace-nowrap">{formatRelative(e.lastAt)}</td>
-                          </tr>
+                          <React.Fragment key={e.event}>
+                            <tr className="cursor-pointer hover:bg-[#F7FAFD]" onClick={() => setC360Open(c360Open === e.event ? '' : e.event)} title="Show the last one received">
+                              <td className="p-2 font-mono text-[#0B6BB0] underline decoration-dotted">{e.event}</td>
+                              <td className="p-2 text-right tabular-nums">{e.count}</td>
+                              <td className="p-2 text-right text-[#5E778C] whitespace-nowrap">{formatRelative(e.lastAt)}</td>
+                            </tr>
+                            {c360Open === e.event && (
+                              <tr>
+                                <td colSpan={3} className="p-2 bg-[#F7FAFD]">
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <span className="text-[11px] text-[#5E778C]">The last <code className="font-mono">{e.event}</code> Chat360 sent ({formatRelative(e.lastAt)})</span>
+                                    <CopyButton value={e.payload || e.shape} />
+                                  </div>
+                                  <pre className="text-[10.5px] font-mono whitespace-pre-wrap break-all max-h-64 overflow-auto p-2 rounded-lg bg-white border border-[#D3E3F0] text-[#0B2A44]">{(() => {
+                                    try {
+                                      return JSON.stringify(JSON.parse(e.payload || e.shape), null, 2);
+                                    } catch {
+                                      return e.payload || e.shape || '(nothing kept for this one)';
+                                    }
+                                  })()}</pre>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>

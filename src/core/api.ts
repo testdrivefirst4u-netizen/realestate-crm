@@ -346,7 +346,7 @@ export const api = {
       request<{ message: Chat360Message }>('chat360Send', payload),
     test: () => request<{ ok: boolean; message: string }>('chat360Test'),
     /** Which webhook events Chat360 has sent (count, first / last time, payload shape). */
-    webhookStats: () => request<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string }>>('chat360WebhookStats'),
+    webhookStats: () => request<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string; payload: string }>>('chat360WebhookStats'),
     mapContact: (phone: string, leadId: string) => request<void>('chat360MapContact', { phone, leadId }),
     markRead: (phone: string) => request<void>('chat360MarkRead', { phone }),
   },

@@ -470,3 +470,23 @@ describe('Chat360 events that are not chat messages', () => {
     expect((await webhookStats()).map((s) => s.event)).toContain('get_chat_session_data');
   });
 });
+
+describe('Chat360 sample events', () => {
+  it('the test payloads Chat360 sends when a webhook is saved never become chats', async () => {
+    expect(await handleWebhook({ event_type: 'session_message_sent', event_response_id: 's1', receiver_num: '911234567890', wab_response: { text: { body: 'This is a test message!' } } })).toEqual({ ok: true, ignored: 'sample' });
+    expect(await handleWebhook({ event_type: 'template_message_sent', event_response_id: 's2', receiver_num: '919497678544', template_name: 'template_name' })).toEqual({ ok: true, ignored: 'sample' });
+    expect(await contacts()).toEqual([]);
+  });
+});
+
+describe('chatbot steps sent by the Chat360 bot flow (its Webhook component)', () => {
+  it('a bot message is shown as sent by the bot; the name the customer typed renames a "WhatsApp +91…" lead', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.updateLead).mockClear();
+    await handleWebhook({ event_type: 'bot_message_sent', phone: '919876543210', text: 'Hello! Welcome to Amaya Senior Living. May I know your name, please?' });
+    await handleWebhook({ event_type: 'bot_message_sent', phone: '919876543210', customer_name: 'Test', text: 'Thank you Test, please find our project brochure below.' });
+    const all = await messages('9876543210');
+    expect(all.map((m) => [m.direction, m.agent])).toEqual([['Outbound', 'Chat360 Bot'], ['Outbound', 'Chat360 Bot']]);
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Test' }, expect.anything());
+  });
+});
