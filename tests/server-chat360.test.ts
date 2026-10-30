@@ -460,3 +460,13 @@ describe('webhook route', () => {
     expect(await (await col(CFG.COLL.ERROR_LOG)).countDocuments({ scope: 'webhook:chat360' })).toBe(1);
   });
 });
+
+describe('Chat360 events that are not chat messages', () => {
+  it('chatbot session summaries, assignments, SMS / e-mail are only counted, never shown as messages', async () => {
+    for (const event_type of ['get_chatroom_response', 'get_chat_session_data', 'assignment', 'sms_sent_message_delivered', 'email_read', 'template_update_events']) {
+      expect(await handleWebhook({ event_type, event_response_id: `e-${event_type}`, sender_num: '919876543210', message_text: 'x' })).toEqual({ ok: true, ignored: event_type });
+    }
+    expect(await messages('9876543210')).toEqual([]);
+    expect((await webhookStats()).map((s) => s.event)).toContain('get_chat_session_data');
+  });
+});

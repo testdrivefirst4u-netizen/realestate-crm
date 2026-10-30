@@ -600,6 +600,10 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   const cfg = await chatCfg();
   const type = String(payload.event_type || payload.event || payload.type || '').toLowerCase();
   await noteWebhookEvent(type, payload).catch(() => undefined);
+  // Not chat messages (or not understood yet): only counted, with their shape, in Settings › Events received —
+  // chatbot session summaries (get_chatroom_response, get_chat_session_data), assignments, template approvals,
+  // SMS / RCS / e-mail. Never shown as a message from the customer.
+  if (/chatroom|session_data|chat_session|assign|template_update|^sms|^rcs|email/.test(type)) return { ok: true, ignored: type };
   const providerKey = str(payload.event_response_id || payload.m_id || payload.message_id);
   const eventId = providerKey || shortId('C360');
 
