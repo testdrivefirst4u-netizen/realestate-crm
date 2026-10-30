@@ -82,6 +82,8 @@ export interface BackupInfo {
   verifyNote?: string;
 }
 
+/** A device someone is signed in on (server: auth.listUserSessions). */
+export interface DeviceSession { id: string; device: string; ip: string; signedInAt: string; lastActiveAt: string; current: boolean }
 export interface JcAgent { id: string; name: string; role: string; extension: string; email: string; loginId: string; status: string; canCallOut: boolean }
 export interface JcAgentsRes { agents: JcAgent[]; users: Array<{ id: string; name: string; email: string; role: string; link: string; agent: JcAgent | null; auto: boolean; mobile: string }> }
 /** jcMyCall: the call this user's phone is ringing for / on / just finished (server/modules/jcCalls.ts MyCall). */
@@ -233,6 +235,12 @@ export const api = {
     totpDisable: (password: string) => request<UserAccount>('totpDisable', { password }),
     /** Own display name / profile photo (photo = data URL ≤ 48 000 chars; null clears it). */
     updateProfile: (data: { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' }) => request<UserAccount>('updateProfile', { data }),
+    /** The person is using the CRM here: starts the 1-hour idle clock again. */
+    touch: () => request<{ ok: boolean; idleMinutes: number }>('touchSession', {}),
+    /** Where I am signed in (at most 2 devices), and signing one or all others out. */
+    sessions: () => request<DeviceSession[]>('mySessions', {}),
+    endSession: (id: string) => request<DeviceSession[]>('endMySession', { id }),
+    endOtherSessions: () => request<DeviceSession[]>('endMyOtherSessions', {}),
   },
 
   bootstrap: (since?: string, include?: string[]) =>
@@ -372,6 +380,10 @@ export const api = {
       save: (user: Partial<UserAccount> & { password?: string }) => request<UserAccount & { temporaryPassword?: string }>('saveUser', { data: user }),
       remove: (id: string) => request<void>('deleteUser', { id }),
       resetPassword: (id: string, newPassword: string) => request<void>('resetPassword', { id, newPassword }),
+      /** Devices each person is signed in on; an admin signs one (or all) out. */
+      sessionCounts: () => request<Record<string, number>>('sessionCounts', {}),
+      sessions: (userId: string) => request<DeviceSession[]>('userSessions', { userId }),
+      endSessions: (userId: string, id?: string) => request<DeviceSession[]>('endUserSessions', { userId, id }),
     },
     saveReportSnapshot: (payload: { title: string; range: string; rows: Array<Record<string, any>> }) =>
       request<{ url: string }>('saveReportSnapshot', payload, { timeoutMs: 60000 }),

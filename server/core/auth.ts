@@ -12,12 +12,13 @@
  * - Audit entries record before/after values for changed fields when the caller provides them.
  */
 import bcrypt from 'bcryptjs';
+import { ObjectId } from 'mongodb';
 import { CFG, Role } from './config';
 import { bumpVersion, col, nextSeq } from './db';
 import { fail } from './errors';
 import { currentTenant } from './tenant';
 import { claimEmail, releaseEmail } from '../platform/registry';
-import { e164, randomPassword, randomToken, sha256Base64, sha256Hex, str, truncate, shortId } from './utils';
+import { deviceName, e164, randomPassword, randomToken, sha256Base64, sha256Hex, str, truncate, shortId } from './utils';
 import { generateTotpSecret, groupSecret, openTotpSecret, otpauthUri, sealTotpSecret, totpStepOf, verifyTotp } from './totp';
 
 export interface PublicUser {
@@ -71,9 +72,22 @@ interface SessionDoc {
   createdAt: Date;
   expiresAt: Date;
   lastSeen: Date;
+  /** Last time the person used the CRM on this device (clicks, typing — not background refreshes). */
+  lastActive?: Date;
   userAgent: string;
   ip: string;
+  /** Ended by the CRM but kept a day so that device can be told why (e.g. 'device_limit'). */
+  endedReason?: string;
+  endedAt?: Date;
 }
+
+/** What a device that was signed out by the CRM is told on its next request. */
+export const SESSION_END_MESSAGES: Record<string, string> = {
+  device_limit: `You were signed out because your account was signed in on another device (at most ${CFG.SESSION_MAX_DEVICES} at a time).`,
+  ended_by_user: 'You were signed out from another device.',
+  ended_by_admin: 'An administrator signed you out.',
+  idle: `You were signed out after ${CFG.SESSION_IDLE_MINUTES} minutes without activity.`,
+};
 
 export interface Ctx {
   user: PublicUser | null;
@@ -442,20 +456,51 @@ export async function login(email: string, password: string, ctx: Pick<Ctx, 'use
     createdAt: now,
     expiresAt: expires,
     lastSeen: now,
+    lastActive: now,
     userAgent: truncate(ctx.userAgent || '', 160),
     ip: truncate(ctx.ip || '', 64),
   });
   await (await users()).updateOne({ _id: u._id }, { $set: { lastLoginAt: now } });
   const user = publicUser({ ...u, lastLoginAt: now });
-  await auditLog({ ...SYSTEM_CTX, user }, 'User Logged In', 'Auth', user.id, user.email);
+  const signedOut = await enforceDeviceLimit(u._id);
+  await auditLog({ ...SYSTEM_CTX, user }, 'User Logged In', 'Auth', user.id, `${user.email} · ${deviceName(ctx.userAgent || '')}${signedOut ? ` · signed out ${signedOut} older device${signedOut === 1 ? '' : 's'}` : ''}`);
+  // the person's other devices hear about it (if this was not them, they can change the password)
+  void import('../modules/push')
+    .then((p) => p.sendPush([u._id], { title: 'New sign-in to your CRM account', body: `${deviceName(ctx.userAgent || '')}${ctx.ip ? ` · ${ctx.ip}` : ''}. Not you? Change your password in My profile.`, url: '/settings?section=profile', tag: 'new-sign-in' }))
+    .catch(() => undefined);
   return { token, user, expiresAt: expires.toISOString() };
+}
+
+/** Sessions that are in use (not expired, not ended by the CRM). */
+const activeSessionFilter = (userId: string) => ({ userId: String(userId), endedReason: { $exists: false }, expiresAt: { $gt: new Date() } });
+
+/** Keep the newest CFG.SESSION_MAX_DEVICES sessions of a person; older ones end ('device_limit'). Returns how many ended. */
+async function enforceDeviceLimit(userId: string): Promise<number> {
+  const c = await sessions();
+  const older = await c.find(activeSessionFilter(userId) as any, { projection: { _id: 1 } }).sort({ createdAt: -1 }).skip(CFG.SESSION_MAX_DEVICES).toArray();
+  if (!older.length) return 0;
+  await endSessions({ _id: { $in: older.map((s) => s._id) } }, 'device_limit');
+  return older.length;
+}
+
+/** End sessions but keep them a day, so the device is told why on its next request. */
+async function endSessions(filter: Record<string, unknown>, reason: keyof typeof SESSION_END_MESSAGES) {
+  const now = new Date();
+  await (await sessions()).updateMany({ ...filter, endedReason: { $exists: false } } as any, { $set: { endedReason: reason, endedAt: now, expiresAt: new Date(now.getTime() + 86_400_000) } });
+}
+
+/** Why the session behind `token` was ended by the CRM ('' when it was not, or is unknown). */
+export async function sessionEndReason(token: string): Promise<string> {
+  if (!token) return '';
+  const s = await (await sessions()).findOne({ tokenHash: sha256Hex(token) }, { projection: { endedReason: 1 } });
+  return s?.endedReason ? SESSION_END_MESSAGES[s.endedReason] || '' : '';
 }
 
 /** Resolve a raw token to {user, expiresAt} or null. Sliding expiry once half the window has elapsed. */
 export async function validateSession(token: string): Promise<{ user: PublicUser; expiresAt: string } | null> {
   if (!token) return null;
   const s = await (await sessions()).findOne({ tokenHash: sha256Hex(token) });
-  if (!s) return null;
+  if (!s || s.endedReason) return null;
   if (s.expiresAt.getTime() < Date.now()) {
     await (await sessions()).deleteOne({ _id: s._id });
     return null;
@@ -464,6 +509,16 @@ export async function validateSession(token: string): Promise<{ user: PublicUser
   if (!u || u.status === 'Disabled') {
     await (await sessions()).deleteOne({ _id: s._id });
     return null;
+  }
+  // signed out after an hour without activity (sessions from before this rule start counting now). The Platform
+  // support account has its own short session, used from the console, and is left out.
+  if (!u.support) {
+    if (!s.lastActive) {
+      await (await sessions()).updateOne({ _id: s._id }, { $set: { lastActive: new Date() } });
+    } else if (Date.now() - s.lastActive.getTime() > (CFG.SESSION_IDLE_MINUTES + IDLE_GRACE_MINUTES) * 60_000) {
+      await endSessions({ _id: s._id }, 'idle');
+      return null;
+    }
   }
   let expiresAt = s.expiresAt;
   // sliding expiry — except the Platform support account, whose short session must really end
@@ -510,6 +565,51 @@ export async function openSupportSession(sa: { name: string; email: string }, me
 export async function logout(token: string) {
   if (!token) return;
   await (await sessions()).deleteOne({ tokenHash: sha256Hex(token) });
+}
+
+/* --------------------------- devices (sessions) --------------------------- */
+
+/** The browser reports activity at most every few minutes; the server allows that much slack on top of the hour. */
+const IDLE_GRACE_MINUTES = 3;
+
+/** The person is using the CRM on this device (clicks, typing): the idle clock starts again. */
+export async function touchSession(ctx: Ctx) {
+  if (!ctx.user || !ctx.token) throw fail('AUTH_REQUIRED', 'Please sign in');
+  await (await sessions()).updateOne({ tokenHash: sha256Hex(ctx.token), endedReason: { $exists: false } } as any, { $set: { lastActive: new Date() } });
+  return { ok: true, idleMinutes: CFG.SESSION_IDLE_MINUTES };
+}
+
+export interface DeviceSession { id: string; device: string; ip: string; signedInAt: string; lastActiveAt: string; current: boolean }
+
+/** A person's devices: where they are signed in now, newest first. */
+export async function listUserSessions(userId: string, currentToken = ''): Promise<DeviceSession[]> {
+  const mine = currentToken ? sha256Hex(currentToken) : '';
+  const rows = await (await sessions()).find(activeSessionFilter(userId) as any).sort({ createdAt: -1 }).toArray();
+  return rows.map((s) => ({
+    id: String(s._id), device: deviceName(s.userAgent), ip: s.ip || '', signedInAt: s.createdAt.toISOString(),
+    lastActiveAt: (s.lastActive || s.lastSeen || s.createdAt).toISOString(), current: !!mine && s.tokenHash === mine,
+  }));
+}
+
+const sessionOid = (id: unknown) => {
+  const s = String(id || '');
+  if (!/^[a-f0-9]{24}$/i.test(s)) throw fail('VALIDATION', 'Unknown device');
+  return new ObjectId(s);
+};
+
+/** Sign one device of a person out, or all of them (`id` empty) — optionally keeping the current one. */
+export async function endUserSessions(userId: string, opts: { id?: string; keepToken?: string; by: 'user' | 'admin' }) {
+  const filter: Record<string, unknown> = { userId: String(userId) };
+  if (opts.id) filter._id = sessionOid(opts.id);
+  if (opts.keepToken) filter.tokenHash = { $ne: sha256Hex(opts.keepToken) };
+  await endSessions(filter, opts.by === 'admin' ? 'ended_by_admin' : 'ended_by_user');
+}
+
+/** How many devices each person is signed in on (Team list). */
+export async function sessionCounts(): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const r of await (await sessions()).aggregate<{ _id: string; n: number }>([{ $match: { endedReason: { $exists: false }, expiresAt: { $gt: new Date() } } }, { $group: { _id: '$userId', n: { $sum: 1 } } }]).toArray()) out[r._id] = r.n;
+  return out;
 }
 
 export async function revokeUserSessions(userId: string) {

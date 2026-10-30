@@ -250,7 +250,8 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     saveSession(null);
     clearUserData();
     setAuthStatus('login');
-    const explain = message && /suspend/i.test(message) ? message : undefined;
+    // say why when the server says (company suspended; signed out by another device, after an hour idle, by an admin)
+    const explain = message && /suspend|signed out|signed you out/i.test(message) ? message : undefined;
     setSync((s) => ({ ...s, status: 'auth', lastError: explain }));
   }, [clearUserData]);
 

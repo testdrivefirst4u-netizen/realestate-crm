@@ -8,7 +8,7 @@
  */
 import type { ActionMap } from '../core/actions';
 import {
-  auditList, can, changePassword, createUser, Ctx, deleteUser, findUserById, hasUsers, listUsers, login, logout, normalizeRole, totpDisable, totpEnable, totpSetup, updateProfile, updateUser,
+  auditList, auditLog, can, changePassword, createUser, Ctx, deleteUser, endUserSessions, findUserById, hasUsers, listUserSessions, listUsers, login, logout, normalizeRole, sessionCounts, touchSession, totpDisable, totpEnable, totpSetup, updateProfile, updateUser,
 } from '../core/auth';
 import { CFG } from '../core/config';
 import { currentTenant } from '../core/tenant';
@@ -144,6 +144,45 @@ export const actions: ActionMap = {
   },
   deleteUser: { fn: async (d, ctx) => (assertTeamAccess(ctx, undefined, await findUserById(String(d.id))), deleteUser(d.id, ctx)), perm: 'users.manageAgents' },
   resetPassword: { fn: async (d, ctx) => (assertTeamAccess(ctx, undefined, await findUserById(String(d.id))), updateUser({ id: d.id, password: d.newPassword }, ctx)), perm: 'users.manageAgents' },
+
+  /* ---- devices: where people are signed in (at most CFG.SESSION_MAX_DEVICES each) ---- */
+  // the idle clock: the browser reports that the person is using the CRM
+  touchSession: { fn: (_d, ctx) => touchSession(ctx) },
+  mySessions: { fn: (_d, ctx) => listUserSessions(ctx.user!.id, ctx.token) },
+  endMySession: {
+    fn: async (d, ctx) => {
+      await endUserSessions(ctx.user!.id, { id: String(d?.id || ''), keepToken: ctx.token, by: 'user' });
+      return listUserSessions(ctx.user!.id, ctx.token);
+    },
+  },
+  endMyOtherSessions: {
+    fn: async (_d, ctx) => {
+      await endUserSessions(ctx.user!.id, { keepToken: ctx.token, by: 'user' });
+      await auditLog(ctx, 'Signed Out Other Devices', 'Auth', ctx.user!.id, '');
+      return listUserSessions(ctx.user!.id, ctx.token);
+    },
+  },
+  // admins (and managers, for their Agents)
+  sessionCounts: { fn: () => sessionCounts(), perm: 'users.manageAgents' },
+  userSessions: {
+    fn: async (d, ctx) => {
+      assertTeamAccess(ctx, undefined, await findUserById(String(d?.userId || '')));
+      return listUserSessions(String(d.userId));
+    },
+    perm: 'users.manageAgents',
+  },
+  endUserSessions: {
+    fn: async (d, ctx) => {
+      const u = await findUserById(String(d?.userId || ''));
+      if (!u) throw fail('NOT_FOUND', 'User not found');
+      assertTeamAccess(ctx, undefined, u);
+      // never your own current session from here (use Sign out)
+      await endUserSessions(u._id, { id: d?.id ? String(d.id) : undefined, keepToken: u._id === ctx.user?.id ? ctx.token : undefined, by: 'admin' });
+      await auditLog(ctx, 'Signed Out User Devices', 'Auth', u._id, `${u.email}${d?.id ? '' : ' (all devices)'}`);
+      return listUserSessions(u._id);
+    },
+    perm: 'users.manageAgents',
+  },
   getAuditLog: { fn: (d) => auditList(d.limit), perm: 'audit.view' },
   getErrorLog: { fn: (d) => listErrors(d.limit), perm: 'settings.view' },
 

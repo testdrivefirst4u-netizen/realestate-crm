@@ -12,6 +12,10 @@ export const CFG = {
   TIME_ZONE: 'Asia/Kolkata',
 
   SESSION_HOURS: 12,
+  /** Devices one person may be signed in on at once: signing in on one more signs out the oldest. */
+  SESSION_MAX_DEVICES: 2,
+  /** Signed out after this long with no activity (the browser warns a minute before). */
+  SESSION_IDLE_MINUTES: 60,
   SESSION_COOKIE: 'amaya_session',
   EVENTS_KEEP: 3000,
   ERROR_LOG_KEEP: 2000,

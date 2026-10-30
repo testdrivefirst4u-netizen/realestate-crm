@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react';
+import { Camera, Check, Copy, Eye, EyeOff, KeyRound, Laptop, LogOut, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react';
 import { UserAccount, UserRole } from '../../types/crm';
-import { api } from '../../core/api';
+import { api, type DeviceSession } from '../../core/api';
+import { DeviceRows } from './DevicesCard';
 import { formatDateTime, formatRelative } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -144,6 +145,33 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
   useEffect(() => {
     load();
   }, [load]);
+
+  /* devices: how many each person is signed in on; open one person's devices to sign them out */
+  const [deviceCounts, setDeviceCounts] = useState<Record<string, number>>({});
+  const loadCounts = useCallback(() => api.settings.users.sessionCounts().then(setDeviceCounts).catch(() => undefined), []);
+  useEffect(() => {
+    void loadCounts();
+  }, [loadCounts, rows]);
+  const [devicesOf, setDevicesOf] = useState<UserAccount | null>(null);
+  const [devices, setDevices] = useState<DeviceSession[] | null>(null);
+  const [deviceBusy, setDeviceBusy] = useState('');
+  useEffect(() => {
+    if (!devicesOf) return;
+    setDevices(null);
+    api.settings.users.sessions(devicesOf.id).then(setDevices).catch((e) => { setDevices([]); toast('Could not load the devices', toAppError(e).userMessage, 'alert'); });
+  }, [devicesOf]);
+  const endDevices = async (id?: string) => {
+    if (!devicesOf) return;
+    setDeviceBusy(id || 'all');
+    try {
+      setDevices(await api.settings.users.endSessions(devicesOf.id, id));
+      toast(id ? 'Device signed out' : `${devicesOf.name} is signed out everywhere`, '', 'success');
+      void loadCounts();
+    } catch (e) {
+      toast('Not signed out', toAppError(e).userMessage, 'alert');
+    }
+    setDeviceBusy('');
+  };
 
   const sorted = useMemo(() => [...(rows || [])].sort((a, b) => a.name.localeCompare(b.name)), [rows]);
   const company = useCompany();
@@ -308,6 +336,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
                     <th className="p-3">Role</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Last sign-in</th>
+                    <th className="p-3">Devices</th>
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -329,6 +358,15 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
                         <td className="p-3 whitespace-nowrap"><Badge tone={normalizeRole(u.role) === 'Admin' || normalizeRole(u.role) === 'Developer' ? 'navy' : normalizeRole(u.role) === 'Manager' ? 'gold' : 'muted'}>{roleLabel(u.role)}</Badge></td>
                         <td className="p-3 whitespace-nowrap"><Badge tone={u.status === 'Disabled' ? 'rust' : 'sage'}>{u.status || 'Active'}</Badge></td>
                         <td className="p-3 text-[#5E778C] whitespace-nowrap" title={formatDateTime(u.lastLoginAt, '')}>{u.lastLoginAt ? formatRelative(u.lastLoginAt) : 'Never'}</td>
+                        <td className="p-3 whitespace-nowrap">
+                          {manages(u) ? (
+                            <button onClick={() => setDevicesOf(u)} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold text-[#0B6BB0] hover:bg-[#E3EDF5]" title="See and sign out this person's devices">
+                              <Laptop size={13} /> {deviceCounts[u.id] || 0} of 2
+                            </button>
+                          ) : (
+                            <span className="text-xs text-[#7E93A6]">{deviceCounts[u.id] || 0} of 2</span>
+                          )}
+                        </td>
                         <td className="p-3 text-right whitespace-nowrap">
                           {manages(u) && <>
                           <button onClick={() => openEdit(u)} className="p-1.5 rounded-md text-[#5E778C] hover:text-[#0B2A44] hover:bg-[#E3EDF5]" title="Edit user"><Pencil size={13} /></button>
@@ -407,6 +445,24 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
           {formError && <InlineNotice tone="warning">{formError}</InlineNotice>}
           <button type="submit" className="hidden" aria-hidden="true" />
         </form>
+      </Modal>
+
+      {/* Devices of one person */}
+      <Modal
+        open={!!devicesOf}
+        onClose={() => setDevicesOf(null)}
+        title="Signed in on"
+        subtitle={devicesOf ? `${devicesOf.name} · ${devicesOf.email}` : undefined}
+        width="sm"
+        footer={<>
+          <Button variant="ghost" onClick={() => setDevicesOf(null)}>Close</Button>
+          {!!devices?.length && <Button variant="primary" loading={deviceBusy === 'all'} onClick={() => void endDevices()} icon={<LogOut size={13} />}>Sign out everywhere</Button>}
+        </>}
+      >
+        <div className="space-y-3">
+          <InlineNotice>At most 2 devices per person — signing in on a third signs the oldest out. Lost a phone or someone left? Sign them out here; they can sign in again with their password (reset it too if needed).</InlineNotice>
+          <DeviceRows rows={devices} busyId={deviceBusy} onEnd={(s) => void endDevices(s.id)} />
+        </div>
       </Modal>
 
       {/* Reset password */}

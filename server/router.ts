@@ -7,7 +7,7 @@
  * real HTTP status codes, and the Developer Mode actions are gone.
  */
 import { ActionMap } from './core/actions';
-import { Ctx, normalizeRole, requirePerm, validateSession } from './core/auth';
+import { Ctx, normalizeRole, requirePerm, sessionEndReason, validateSession } from './core/auth';
 import { ApiError, errEnvelope, fail, ok } from './core/errors';
 import { isTestMode } from './core/db';
 import { currentTenant, runWithTenant, type TenantFeatures } from './core/tenant';
@@ -99,7 +99,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
-  'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
+  'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';
 
@@ -116,6 +116,10 @@ async function run(action: string, data: any, ctx: Ctx, started: number): Promis
     if (session) {
       ctx.user = session.user;
       ctx.session = { expiresAt: session.expiresAt };
+    } else if (ctx.token && !def.public) {
+      // a device the CRM signed out (another device signed in, idle for an hour, signed out remotely): say why
+      const why = await sessionEndReason(ctx.token);
+      if (why) throw fail('AUTH_REQUIRED', why);
     }
     if (ctx.user && normalizeRole(ctx.user.role) === 'Viewer' && !VIEWER_ACTIONS.has(action)) throw fail('FORBIDDEN', VIEW_ONLY_MESSAGE);
     if (!def.public) requirePerm(ctx, def.perm);

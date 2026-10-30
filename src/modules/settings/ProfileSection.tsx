@@ -11,6 +11,7 @@ import { Badge, Button, Card, InlineNotice, inputCls } from '../../components/ui
 import { useTenantSettings } from '../../core/tenant';
 import { TwoStepCard } from './TwoStepCard';
 import { PushCard } from './PushCard';
+import { DevicesCard } from './DevicesCard';
 
 export type ProfileUpdate = { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' };
 
@@ -163,6 +164,8 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
       {currentUser && <PushCard />}
 
       {currentUser && <TwoStepCard enabled={!!currentUser.twoFactor} onChanged={onRefreshAll} />}
+
+      {currentUser && <DevicesCard />}
 
       <div className="text-[11px] text-[#7E93A6] inline-flex items-center gap-1.5"><UserCircle2 size={12} />Need a different role or email? Ask an administrator — they can change it under Settings → Users.</div>
     </div>

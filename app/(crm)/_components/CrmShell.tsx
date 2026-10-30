@@ -40,6 +40,7 @@ import { initGlobalFontAutoScaler } from '@/src/utils/fontSizeAdjuster';
 import type { NotificationItem } from '@/src/types/crm';
 import { searchLeads } from '@/src/core/analytics';
 import type { SearchGroup, SearchHit } from '@/src/core/globalSearch';
+import { IdleLogout } from '@/src/components/IdleLogout';
 
 const CopilotDrawer = lazy(() => import('@/src/modules/ai/CopilotDrawer').then((m) => ({ default: m.CopilotDrawer })));
 const LibraryModal = lazy(() => import('@/src/components/LibraryModal').then((m) => ({ default: m.LibraryModal })));
@@ -427,6 +428,9 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 onCreateLead={createLeadForCaller}
                 onRemark={(id, text) => engine.appendRemark(id, text)}
               />
+
+              {/* signed out after an hour without activity (warned a minute before) */}
+              {currentUser && <IdleLogout onLogout={handleLogout} />}
 
               <Suspense fallback={null}>
                 {libraryOn && isLibraryOpen && (

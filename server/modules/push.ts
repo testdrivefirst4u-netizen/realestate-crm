@@ -15,7 +15,9 @@ import { listUsers, type Ctx, type PublicUser } from '../core/auth';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { logError } from '../core/events';
-import { sha256Hex, truncate } from '../core/utils';
+import { deviceName, sha256Hex, truncate } from '../core/utils';
+
+export { deviceName }; // kept here too: callers and tests import it from push
 
 export const COLL_PUSH = 'pushSubscriptions';
 const MAX_DEVICES = 10;
@@ -58,13 +60,6 @@ function ensureVapid() {
   }
 }
 
-/** A short device name from the browser's user agent, so a user can tell their devices apart. */
-export function deviceName(ua: string): string {
-  const u = String(ua || '');
-  const os = /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac OS X/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Device';
-  const browser = /Edg\//.test(u) ? 'Edge' : /CriOS|Chrome\//.test(u) ? 'Chrome' : /FxiOS|Firefox\//.test(u) ? 'Firefox' : /Safari\//.test(u) ? 'Safari' : '';
-  return browser ? `${os} · ${browser}` : os;
-}
 
 const PUSH_HOSTS = /^(fcm\.googleapis\.com|android\.googleapis\.com|([a-z0-9-]+\.)*push\.services\.mozilla\.com|([a-z0-9-]+\.)*push\.apple\.com|([a-z0-9-]+\.)*notify\.windows\.com)$/i;
 

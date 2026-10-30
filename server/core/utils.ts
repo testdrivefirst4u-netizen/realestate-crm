@@ -292,3 +292,11 @@ export function csvSafe(v: unknown) {
 
 /** Escape a user-supplied string for use inside a RegExp. */
 export const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** A short device name from the browser's user agent ("iPhone · Safari"), so a user can tell their devices apart. */
+export function deviceName(ua: string): string {
+  const u = String(ua || '');
+  const os = /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Mac OS X/.test(u) ? 'Mac' : /Windows/.test(u) ? 'Windows' : 'Device';
+  const browser = /Edg\//.test(u) ? 'Edge' : /CriOS|Chrome\//.test(u) ? 'Chrome' : /FxiOS|Firefox\//.test(u) ? 'Firefox' : /Safari\//.test(u) ? 'Safari' : '';
+  return browser ? `${os} · ${browser}` : os;
+}
