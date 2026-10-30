@@ -99,6 +99,12 @@ describe('lead visibility', () => {
     expect(await seen('Asha')).toEqual(['CALL-A', 'CALL-N']);
   });
 
+  it('nobody can change an enquiry\'s phone number (the same number in another format is fine)', async () => {
+    expect(await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '9111111111' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect(await as('Asha', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '9111111111' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect((await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '+91 90000 00001', 'Enquiry Notes': 'ok' } })).status).toBe('success');
+  });
+
   it("the duplicate-phone message does not reveal another RM's customer", async () => {
     const r = await as('Asha', 'addLead', { data: { 'Prospect Name': 'Dup', 'Phone Number': '9000000002' } });
     expect(r).toMatchObject({ status: 'error', code: 'CONFLICT' });

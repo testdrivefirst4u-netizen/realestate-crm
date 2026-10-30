@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, nameFromReply, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
+import { apiKeyShapeProblem, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -564,4 +564,76 @@ describe('name from the answer to the chatbot\'s name question', () => {
     await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'n-3', created: now, wab_response: { type: 'text', text: { body: 'Suresh' } } }));
     expect(leads.updateLead).not.toHaveBeenCalled(); // only the second message counts
   });
+});
+
+describe('the whole conversation from Chat360 (its inbox API)', () => {
+  const ROOM = 'c1fcc0ae-f809-4740-8943-97d30cbe4817';
+  const tokenFor = (userId: number) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ token_type: 'access', exp: Math.floor(Date.now() / 1000) + 3600, user_id: userId })).toString('base64url')}.sig`;
+  const t0 = Date.now() - 60_000;
+  const iso = (ms: number) => new Date(ms).toISOString().replace('Z', ''); // Chat360 sends UTC without a zone
+  const history = [
+    { text: 'Hello! 👋 <strong>Welcome to Amaya Senior Living</strong>. 🌿\r\n\r\nMay I know your name, please?', sender: 'bot', message_id: 'm-1', created_on: iso(t0 + 1000), message_type: 'text', extra: { data: { nodeType: 'input' } } },
+    { text: 'Testing', sender: 'end_user', message_id: 'm-2', created_on: iso(t0 + 12_000), message_type: 'text', extra: { data: {}, msg_type: 'text' } },
+    { text: '<p></p>', sender: 'bot', message_id: 'm-3', created_on: iso(t0 + 13_000), message_type: 'text', extra: { msg_type: 'media', data: { nodeType: 'DOWNLOAD_MEDIA', mediaName: 'Amaya Senior Living Brochure', media_url: 'https://chat360-mediafiles.s3.ap-south-1.amazonaws.com/media/client_media/Brochure.pdf' } } },
+    { text: 'Session ended', sender: null, message_id: 'm-4', created_on: iso(t0 + 14_000), message_type: 'highlights', extra: {} },
+    { text: 'I will call you today', sender: 'it@veravitaliving.com', message_id: 'm-5', created_on: iso(t0 + 20_000), message_type: 'text', extra: {} },
+  ];
+  let calls: string[] = [];
+  let spy: any;
+  beforeEach(async () => {
+    calls = [];
+    await settingSet('chat360LoginEmail', 'crm@amaya.test', 'test');
+    await t.secret('CHAT360_LOGIN_PASSWORD', 'pw-sync-' + Math.random().toString(36).slice(2));
+    spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      calls.push(url);
+      const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 });
+      if (url.endsWith('/api/auth/login')) return json({ access: tokenFor(104984) });
+      if (url.includes('/api/clientwidget_updated/listing/active/104984')) return json({ data: [{ room_id: ROOM, variables: { '@name': 'Testing', '@user_number': '919876543210' } }], has_more: false });
+      if (url.includes(`/api/clientwidget_updated/${ROOM}/messages`)) return json({ history, previous_cursor: null, next_cursor: null, type: 'cursor' });
+      return new Response('{}', { status: 404 });
+    });
+  });
+  afterEach(() => spy.mockRestore());
+
+  it('maps bot, customer, brochure and agent messages; system notes are left out', () => {
+    expect(mapChat360Message(history[0])).toMatchObject({ direction: 'Outbound', agent: 'Chat360 Bot', text: 'Hello! 👋 Welcome to Amaya Senior Living. 🌿\n\nMay I know your name, please?' });
+    expect(mapChat360Message(history[2])).toMatchObject({ text: '📄 Amaya Senior Living Brochure', mediaUrl: expect.stringContaining('Brochure.pdf') });
+    expect(mapChat360Message(history[3])).toBeNull();
+    expect(mapChat360Message(history[4])).toMatchObject({ direction: 'Outbound', agent: 'it@veravitaliving.com' });
+  });
+
+  it('opening a chat brings in the bot messages once; the customer message from the webhook is not doubled; the bot name fills the lead', async () => {
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.getLead).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.updateLead).mockClear();
+    // the customer's "Testing" already came by webhook
+    await handleWebhook(inbound({ profile_name: undefined, event_response_id: 's-1', created: new Date(t0 + 12_000).toISOString(), wab_response: { type: 'text', text: { body: 'Testing' } } }));
+    vi.mocked(leads.updateLead).mockClear();
+    const list = (await dispatchMessages()).map((m: any) => [m.direction, m.agent, m.text.split('\n')[0]]);
+    expect(list).toEqual([
+      ['Outbound', 'Chat360 Bot', 'Hello! 👋 Welcome to Amaya Senior Living. 🌿'],
+      ['Inbound', '', 'Testing'],
+      ['Outbound', 'Chat360 Bot', '📄 Amaya Senior Living Brochure'],
+      ['Outbound', 'it@veravitaliving.com', 'I will call you today'],
+    ]);
+    expect(calls.filter((u) => u.includes('/listing/active/')).length).toBe(1);
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Testing' }, expect.anything()); // the name given to the bot
+    // again right away: nothing new is fetched (20-second pause) and nothing is doubled
+    await syncConversation('919876543210', { force: true });
+    expect((await messages('9876543210')).length).toBe(4);
+    expect(calls.filter((u) => u.includes('/listing/active/')).length).toBe(1); // the room is remembered
+  });
+
+  it('no Chat360 login: the chat shows what the CRM has, without errors', async () => {
+    await settingSet('chat360LoginEmail', '', 'test');
+    await handleWebhook(inbound({ event_response_id: 's-9' }));
+    expect((await dispatchMessages()).length).toBe(1);
+    expect(calls).toEqual([]);
+  });
+
+  async function dispatchMessages() {
+    const { messagesWithSync } = await import('../server/modules/chat360');
+    return messagesWithSync('919876543210');
+  }
 });

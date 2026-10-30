@@ -27,7 +27,7 @@ import { FollowupsTab } from './detail/FollowupsTab';
 import { CallsTab } from './detail/CallsTab';
 import { WhatsAppTab } from './detail/WhatsAppTab';
 import { FilesTab } from './detail/FilesTab';
-import { leadDisplayName } from '../../core/leadName';
+import { personName } from '../../core/leadName';
 
 export interface LeadDetailModalProps {
   lead: Lead | null;
@@ -203,7 +203,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   const title = (
     <span className="flex items-center gap-2 min-w-0">
       <span className="font-mono text-xs font-semibold text-[#0B6BB0] flex-shrink-0">{id}</span>
-      <span className="truncate">{leadDisplayName(lead, 'Unnamed enquiry')}</span>
+      <span className="truncate">{personName(lead) || (phone ? formatPhone(phone) : 'Unnamed enquiry')}</span>
       <LeadStars lead={lead} size={13} className="flex-shrink-0" />
       <StageBadge stage={String(lead[F.STAGE] || '')} />
     </span>
@@ -211,6 +211,8 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
 
   const subtitle = (
     <span className="flex items-center gap-1.5 flex-wrap mt-1.5">
+      {/* the number right under the name (it cannot be changed) */}
+      {phone && <span className="text-xs font-semibold text-[#3E5A70] mr-1 tabular-nums">{formatPhone(phone)}</span>}
       {phone && (
         <CallButton phone={phone} leadId={id} name={String(lead[F.NAME] || '')} className={actionCls} title={formatPhone(phone)}>
           <Phone size={12} className="text-[#1976D2]" /> Call
@@ -303,12 +305,14 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Prospect name">
                   <div className="flex gap-2">
-                    <Select value={value(F.SALUTATION)} onChange={(e) => setField(F.SALUTATION, e.target.value)} options={opts(F.SALUTATION)} placeholder="Title" aria-label="Salutation" disabled={!canEdit} className="w-24 shrink-0" />
-                    <input value={value(F.NAME)} onChange={(e) => setField(F.NAME, e.target.value)} disabled={!canEdit} className={inputCls} />
+                    {/* a narrow Title box and the name taking the rest of the row */}
+                    <div className="w-[92px] shrink-0"><Select value={value(F.SALUTATION)} onChange={(e) => setField(F.SALUTATION, e.target.value)} options={opts(F.SALUTATION)} placeholder="Title" aria-label="Salutation" disabled={!canEdit} /></div>
+                    <input value={value(F.NAME)} onChange={(e) => setField(F.NAME, e.target.value)} disabled={!canEdit} placeholder="Prospect name" aria-label="Prospect name" className={cx(inputCls, 'flex-1 min-w-0')} />
                   </div>
                 </Field>
                 <Field label="Phone number" hint={value(F.PHONE) ? formatPhone(value(F.PHONE)) : undefined}>
-                  <input value={value(F.PHONE)} onChange={(e) => setField(F.PHONE, e.target.value)} disabled={!canEdit} className={inputCls} inputMode="tel" />
+                  {/* fixed once the enquiry has a number: a different number is a new enquiry (the server refuses changes too) */}
+                  <input value={value(F.PHONE)} onChange={(e) => setField(F.PHONE, e.target.value)} disabled={!canEdit || !!String(lead[F.PHONE] || '').trim()} readOnly={!!String(lead[F.PHONE] || '').trim()} title={String(lead[F.PHONE] || '').trim() ? 'The phone number cannot be changed. For a different number, add a new enquiry.' : undefined} className={inputCls} inputMode="tel" />
                 </Field>
                 <Field label="Email">
                   <input type="email" value={value(F.EMAIL)} onChange={(e) => setField(F.EMAIL, e.target.value)} disabled={!canEdit} className={inputCls} />

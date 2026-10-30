@@ -821,6 +821,183 @@ export async function handleWebhook(payload: any): Promise<unknown> {
   return { ok: true, leadId: leadId || null };
 }
 
+/* ------------------------ the whole conversation from Chat360 ------------------------ */
+//
+// Chat360's webhook carries what the customer writes, not what its chatbot sends. Its inbox reads every message
+// (bot, agents, customer) from its own API with a signed-in user's token — the CRM does the same with its Chat360
+// login (Settings › Integrations › Chat360), when a chat is opened, at most every SYNC_EVERY_MS.
+
+const SYNC_EVERY_MS = 20_000;
+const SYNC_PAGE = 50;
+const SYNC_MAX_PAGES = 6;
+
+/** The signed-in Chat360 user's id (the inbox's admin_id) from the access token. */
+function jwtUserId(token: string): string {
+  try {
+    return str(JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64url').toString('utf8'))?.user_id);
+  } catch {
+    return '';
+  }
+}
+
+/** GET a Chat360 inbox API path with the CRM's login (signing in again once on 401). */
+async function chat360Get(cfg: ChatCfg, path: string): Promise<any> {
+  const get = async (token: string) => fetchWithTimeout(joinUrl(cfg.baseUrl, path), { method: 'GET', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` } });
+  let res = await get(await accessToken(cfg));
+  if (res.status === 401) res = await get(await accessToken(cfg, true));
+  if (!res.ok) throw upstream(`Chat360 answered HTTP ${res.status} for the conversation`);
+  return safeJsonParse<any>(await res.text(), null);
+}
+
+/** The Chat360 chat (room) of a phone number: its id and the name the customer gave the bot. */
+async function findRoom(cfg: ChatCfg, phone: string): Promise<{ roomId: string; name: string } | null> {
+  const admin = jwtUserId(await accessToken(cfg));
+  if (!/^\d+$/.test(admin)) return null;
+  const q = `?current_length=0&admin_id=${admin}&assigned=0&room_source=&room_name=${encodeURIComponent(last10(phone))}`;
+  const body = await chat360Get(cfg, `/api/clientwidget_updated/listing/active/${admin}${q}`);
+  const rooms: any[] = Array.isArray(body?.data) ? body.data : [];
+  const hit = rooms.find((r) => last10(str(r?.variables?.['@user_number'])) === last10(phone));
+  return hit && str(hit.room_id) ? { roomId: str(hit.room_id), name: str(hit.variables?.['@name']) } : null;
+}
+
+const decodeEntities = (s: string) => s.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+
+/** Chat360 message HTML ("<strong>…</strong>", "<p></p>") as plain text. */
+export function chat360Text(html: string): string {
+  return decodeEntities(String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>\s*<p[^>]*>/gi, '\n\n').replace(/<[^>]+>/g, ''))
+    .replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+export interface Chat360HistoryMessage { messageId: string; direction: 'Inbound' | 'Outbound'; text: string; mediaUrl: string; agent: string; at: Date | null }
+
+/** One message of Chat360's history → what the CRM stores (null for system notes and empty messages). */
+export function mapChat360Message(m: any): Chat360HistoryMessage | null {
+  const sender = m?.sender;
+  if (!sender || m?.message_type === 'highlights' || !str(m.message_id)) return null;
+  const data = m.extra?.data || {};
+  const isMedia = m.extra?.msg_type === 'media' || /media/i.test(str(data.nodeType));
+  let text = chat360Text(str(m.text));
+  let mediaUrl = '';
+  if (isMedia) {
+    mediaUrl = /^https:\/\//i.test(str(data.media_url)) ? str(data.media_url) : '';
+    const file = mediaUrl ? decodeURIComponent(mediaUrl.split('?')[0].split('/').pop() || '') : '';
+    text = [`📄 ${str(data.mediaName) || str(data.custom_name) || file || 'File'}`, text].filter(Boolean).join('\n');
+  }
+  if (!text && !mediaUrl) return null;
+  const inbound = sender === 'end_user';
+  const created = str(m.created_on);
+  const at = created ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(created) ? created : created + 'Z') : null;
+  return {
+    messageId: str(m.message_id), direction: inbound ? 'Inbound' : 'Outbound', text: truncate(text, 4000), mediaUrl,
+    agent: inbound ? '' : sender === 'bot' ? 'Chat360 Bot' : truncate(String(sender), 120), at: at && !isNaN(at.getTime()) ? at : null,
+  };
+}
+
+const sameText = (a: string, b: string) => {
+  const n = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '').slice(0, 80);
+  return n(a) === n(b);
+};
+
+/**
+ * Bring a chat's whole conversation in from Chat360 (bot and agent messages the webhook never carries). Messages
+ * already in the CRM (from the webhook or sent from the CRM) are recognised and not added twice. Returns how many
+ * were added; 0 when Chat360 has no login set, or the chat was synced moments ago.
+ */
+export async function syncConversation(phone: string, opts: { force?: boolean } = {}): Promise<number> {
+  const key = last10(phone);
+  if (key.length < 10) return 0;
+  const contactsC = await contactsCol();
+  const now = new Date();
+  const claim = await contactsC.updateOne(
+    { phoneLast10: key, ...(opts.force ? {} : { $or: [{ c360SyncedAt: { $exists: false } }, { c360SyncedAt: { $lt: new Date(now.getTime() - SYNC_EVERY_MS) } }] }) },
+    { $set: { c360SyncedAt: now } },
+  );
+  if (!claim.matchedCount) return 0;
+  const cfg = await chatCfg();
+  if (!cfg.loginEmail || !cfg.loginPassword) return 0;
+  const contact = await contactsC.findOne({ phoneLast10: key });
+  let roomId = str(contact?.c360RoomId);
+  let botName = '';
+  if (!roomId) {
+    const room = await findRoom(cfg, phone);
+    if (!room) return 0;
+    roomId = room.roomId;
+    botName = room.name;
+    await contactsC.updateOne({ phoneLast10: key }, { $set: { c360RoomId: roomId } });
+  }
+
+  // newest page first, then older pages until the CRM already has them
+  const coll = await msgs();
+  const history: Chat360HistoryMessage[] = [];
+  let path = `/api/clientwidget_updated/${encodeURIComponent(roomId)}/messages?from_db=true&limit=${SYNC_PAGE}`;
+  for (let page = 0; page < SYNC_MAX_PAGES; page++) {
+    const body = await chat360Get(cfg, path);
+    const items: Chat360HistoryMessage[] = (Array.isArray(body?.history) ? body.history : []).map(mapChat360Message).filter(Boolean) as Chat360HistoryMessage[];
+    history.push(...items);
+    const known = items.length ? await coll.countDocuments({ dedupeKey: { $in: items.map((m) => `c360:${m.messageId}`) } }) : 0;
+    const cursor = str(body?.previous_cursor);
+    if (!items.length || known > 0 || !cursor) break;
+    path = `/api/clientwidget_updated/${encodeURIComponent(roomId)}/messages?task_type=PREVIOUS&task_value=${encodeURIComponent(cursor)}&from_db=true&limit=${SYNC_PAGE}`;
+  }
+
+  const leadId = str(contact?.leadId);
+  let added = 0;
+  let newest: Chat360HistoryMessage | null = null;
+  for (const m of history.sort((a, b) => (a.at?.getTime() || 0) - (b.at?.getTime() || 0))) {
+    if (await coll.findOne({ dedupeKey: `c360:${m.messageId}` }, { projection: { _id: 1 } })) continue;
+    // the same message already came by webhook (customer) or was sent from the CRM: just mark it as known
+    if (m.at) {
+      const near = await coll.find({ phoneLast10: key, direction: m.direction, timestamp: { $gte: new Date(m.at.getTime() - 180_000), $lte: new Date(m.at.getTime() + 180_000) }, dedupeKey: { $not: /^c360:/ } }, { projection: { text: 1 } }).limit(20).toArray();
+      const twin = near.find((x) => sameText(str(x.text), m.text));
+      if (twin) {
+        await coll.updateOne({ _id: twin._id }, { $set: { c360MessageId: m.messageId } });
+        continue;
+      }
+    }
+    const rec = await record({
+      id: `C360-${m.messageId}`, eventId: m.messageId, dedupeKey: `c360:${m.messageId}`, direction: m.direction, phone, leadId,
+      contactName: str(contact?.contactName), text: m.text, mediaUrl: m.mediaUrl, status: m.direction === 'Inbound' ? 'received' : 'sent',
+      agent: m.agent, type: 'chat360', ts: m.at?.toISOString(),
+    });
+    if (rec) {
+      added++;
+      if (!newest || (m.at && newest.at && m.at > newest.at)) newest = m;
+    }
+  }
+
+  // the name the customer gave the chatbot
+  if (leadId && botName && !isMadeUpBotName(botName)) {
+    const lead = await getLead(leadId).catch(() => null);
+    if (lead && isPlaceholderName(lead[L.NAME], phone)) {
+      try {
+        await updateLead(leadId, { [L.NAME]: botName }, chat360Ctx());
+        await contactsC.updateOne({ phoneLast10: key }, { $set: { contactName: botName } });
+      } catch (e: any) {
+        await logError('chat360.syncName', e?.code || 'INTERNAL', e?.message, e?.stack, '', { leadId });
+      }
+    }
+  }
+  if (newest && (!contact?.lastMessageAt || (newest.at && newest.at > new Date(contact.lastMessageAt)))) {
+    await contactsC.updateOne({ phoneLast10: key }, { $set: { lastMessage: truncate(newest.text, 200), lastMessageAt: newest.at || now } });
+  }
+  if (added) await bumpVersion();
+  return added;
+}
+
+/** Not a usable name from the bot's @name variable (empty, a number, "@name" itself, no letters). */
+const isMadeUpBotName = (n: string) => !n.trim() || n.trim().startsWith('@') || isPlaceholderName(n) || !/\p{L}/u.test(n);
+
+/** The chat's messages for the CRM: first brings in from Chat360 whatever the webhook did not carry. */
+export async function messagesWithSync(phone: string): Promise<any[]> {
+  try {
+    await syncConversation(phone);
+  } catch (e: any) {
+    // the conversation still shows what the CRM has (a chat is retried at most every SYNC_EVERY_MS)
+    if (!(e instanceof ApiError && e.code === 'NOT_CONFIGURED')) await logError('chat360.sync', e?.code || 'UPSTREAM', e?.message, e?.stack, '', { phone: last10(phone) });
+  }
+  return messages(phone);
+}
+
 /* --------------------------------- outbound -------------------------------- */
 
 export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
@@ -966,7 +1143,8 @@ export async function test(): Promise<{ ok: boolean; message: string }> {
 
 export const actions: ActionMap = {
   chat360GetContacts: { fn: async (_d, ctx) => filterContacts(ctx.user, await contacts()), perm: 'chat.view' },
-  chat360GetMessages: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return messages(d.phone); }, perm: 'chat.view' },
+  // the chat's messages, with the whole conversation (chatbot and agents) brought in from Chat360 first
+  chat360GetMessages: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return messagesWithSync(d.phone); }, perm: 'chat.view' },
   chat360Send: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); await assertLeadAccess(ctx, d.leadId); return send(d, ctx); }, perm: 'chat.send' },
   chat360Test: { fn: () => test(), perm: 'settings.view' },
   chat360WebhookStats: { fn: () => webhookStats(), perm: 'settings.view' },

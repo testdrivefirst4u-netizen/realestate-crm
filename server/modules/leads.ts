@@ -717,10 +717,21 @@ const onLead = <T>(fn: (d: any, ctx: Ctx) => Promise<T>) => async (d: any, ctx: 
   return fn(d, ctx);
 };
 
+/**
+ * An enquiry's phone number is fixed once it has one (it is how calls, WhatsApp and duplicates find the customer):
+ * nobody can change it from the app — a new number is a new enquiry. A lead saved without a number may get one.
+ */
+async function assertPhoneUnchanged(id: string, data: any) {
+  if (!data || typeof data !== 'object' || !(L.PHONE in data)) return;
+  const current = await getLead(String(id));
+  const before = last10(String(current?.[L.PHONE] || ''));
+  if (before && last10(String(data[L.PHONE] || '')) !== before) throw fail('VALIDATION', 'The phone number of an enquiry cannot be changed. For a different number, add a new enquiry.');
+}
+
 export const actions: ActionMap = {
   getAllLeads: { fn: (_d, ctx) => getAllLeads(ctx), perm: 'leads.view' },
   addLead: { fn: (d, ctx) => addLead(d.data, ctx), perm: 'leads.create' },
-  updateLead: { fn: onLead((d, ctx) => updateLead(d.id, d.data, ctx, d.expectedUpdatedAt)), perm: 'leads.edit' },
+  updateLead: { fn: onLead(async (d, ctx) => { await assertPhoneUnchanged(d.id, d.data); return updateLead(d.id, d.data, ctx, d.expectedUpdatedAt); }), perm: 'leads.edit' },
   appendRemark: { fn: onLead((d, ctx) => appendRemark(d.id, d.remark, ctx, d.nextFollowup)), perm: 'leads.edit' },
   setLeadStage: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: d.stage }, ctx)), perm: 'leads.edit' },
   trashLead: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: S.TRASH }, ctx)), perm: 'leads.trash' },

@@ -228,8 +228,8 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Prospect name *">
               <div className="flex gap-2">
-                <Select value={form.salutation} onChange={(e) => set('salutation', e.target.value)} options={opts(F.SALUTATION, form.salutation)} placeholder="Title" aria-label="Salutation" className="w-24 shrink-0" />
-                <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ramesh Verma" className={inputCls} autoFocus required />
+                <div className="w-[92px] shrink-0"><Select value={form.salutation} onChange={(e) => set('salutation', e.target.value)} options={opts(F.SALUTATION, form.salutation)} placeholder="Title" aria-label="Salutation" /></div>
+                <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ramesh Verma" aria-label="Prospect name" className={cx(inputCls, 'flex-1 min-w-0')} autoFocus required />
               </div>
             </Field>
             <Field label="Phone number *" hint={form.phone && phoneOk ? formatPhone(form.phone) : 'Indian mobile (10 digits) or with +91'}>

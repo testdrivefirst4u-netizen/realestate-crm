@@ -30,7 +30,7 @@ import { AMAYA_KNOWLEDGE } from '../ai/amayaKnowledge';
 import { useCompany, useFeature } from '../../core/tenant';
 import type { OpenCopilot } from '../ai/copilotContext';
 import { ListSkeleton, ChatSkeleton } from '../../components/Skeletons';
-import { leadDisplayName } from '../../core/leadName';
+import { personName } from '../../core/leadName';
 
 export interface Chat360ViewProps {
   leads: Lead[];
@@ -812,17 +812,20 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                     {filteredContacts.map((c) => {
                       const lead = c.leadId ? leadById.get(c.leadId) : undefined;
                       // the lead's own name (with its salutation) first: the contact keeps what WhatsApp first gave ("WhatsApp +91…")
-                      const name = leadDisplayName(lead) || c.contactName || formatPhone(c.phone);
+                      const name = personName(lead, c.contactName);
                       const active = !!selectedPhone && samePhone(c.phone, selectedPhone);
                       const unread = Number(c.unreadCount) || 0;
                       const awaitingReply = !unread && flagsOf(c).unreplied;
                       return (
                         <li key={c.phone}>
                           <button type="button" onClick={() => selectContact(c.phone)} className={cx('w-full text-left px-3 py-2.5 flex items-start gap-3 hover:bg-[#F2F7FB] transition', active && 'bg-[#E6EFF6]')}>
-                            <div className={cx('w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', unread ? 'bg-[#0B6BB0] text-white' : 'bg-[#0B2A44]/10 text-[#0B2A44]')}>{initials(name)}</div>
+                            <div className={cx('w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', unread ? 'bg-[#0B6BB0] text-white' : 'bg-[#0B2A44]/10 text-[#0B2A44]')}>{initials(name || formatPhone(c.phone))}</div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-2">
-                                <span className={cx('text-sm truncate', unread ? 'font-bold text-[#0B2A44]' : 'font-semibold text-[#0B2A44]')}>{name}</span>
+                                <span className="min-w-0 flex items-baseline gap-1.5">
+                                  <span className={cx('text-sm truncate', unread ? 'font-bold text-[#0B2A44]' : 'font-semibold text-[#0B2A44]')}>{name || formatPhone(c.phone)}</span>
+                                  {name && <span className="text-[10.5px] text-[#7E93A6] whitespace-nowrap">{formatPhone(c.phone)}</span>}
+                                </span>
                                 <span className="text-[10px] text-[#7E93A6] flex-shrink-0 whitespace-nowrap">{formatRelative(c.lastMessageAt, '')}</span>
                               </div>
                               <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -857,8 +860,15 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                       <button type="button" onClick={() => setSelectedPhone(null)} className="md:hidden p-1.5 -ml-1 rounded-md text-[#5E778C] hover:bg-[#F2F7FB]" aria-label="Back to conversations"><ArrowLeft size={16} /></button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-sm font-bold text-[#0B2A44] truncate">{selectedContact?.contactName || (linkedLead ? linkedLead[F.NAME] : '') || formatPhone(selectedPhone)}</h3>
-                          <span className="text-xs text-[#5E778C]">{formatPhone(selectedPhone)}</span>
+                          {(() => {
+                            // the real name beside the number; no made-up "WhatsApp +91…" (just the number until the name is known)
+                            const who = personName(linkedLead, selectedContact?.contactName || '');
+                            return who ? (
+                              <><h3 className="text-sm font-bold text-[#0B2A44] truncate">{who}</h3><span className="text-xs text-[#5E778C]">{formatPhone(selectedPhone)}</span></>
+                            ) : (
+                              <><h3 className="text-sm font-bold text-[#0B2A44] truncate">{formatPhone(selectedPhone)}</h3><span className="text-[11px] italic text-[#7E93A6]">name not known yet</span></>
+                            );
+                          })()}
                           {linkedLead ? (
                             <button type="button" onClick={() => onOpenLead(linkedLead[F.ID])} className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#0B6BB0] hover:underline">
                               <ExternalLink size={10} /><span className="font-mono">{linkedLead[F.ID]}</span>
@@ -1187,7 +1197,7 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ panel, onClose, phone, contac
   const [remark, setRemark] = useState('');
   const [remarkNext, setRemarkNext] = useState('');
   const [followup, setFollowup] = useState(lead ? toDatetimeLocalInput(lead[F.NEXT_FOLLOWUP]) : '');
-  const displayName = leadDisplayName(lead) || contact?.contactName || formatPhone(phone);
+  const displayName = personName(lead, contact?.contactName || '') || formatPhone(phone);
   const [taskName, setTaskName] = useState(`Follow up with ${displayName} on WhatsApp`);
   const [taskWhen, setTaskWhen] = useState('');
 
