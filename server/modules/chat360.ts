@@ -567,7 +567,7 @@ export function isChat360Sample(p: any): boolean {
  * Keep a tally of the webhook events Chat360 sends (count, last time, the last payload's shape) so Settings can show
  * which ones arrive — e.g. whether the chatbot's and agents' messages are being sent to the CRM at all.
  */
-async function noteWebhookEvent(type: string, payload: any) {
+export async function noteWebhookEvent(type: string, payload: any) {
   const shape = (o: any, depth = 0): any =>
     !o || typeof o !== 'object' || depth > 2 ? typeof o : Array.isArray(o) ? [o.length ? shape(o[0], depth + 1) : 'empty'] : Object.fromEntries(Object.keys(o).slice(0, 25).map((k) => [k, shape(o[k], depth + 1)]));
   await (await webhookEventsCol()).updateOne(

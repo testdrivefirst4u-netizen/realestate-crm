@@ -112,8 +112,10 @@ export async function validateSalesOps(raw: unknown): Promise<string> {
   if (c.missedAlertMin && c.missedAlertMin < 5) throw fail('VALIDATION', 'Give the team at least 5 minutes to call a missed caller back');
   const missedTo = EMAILS(c.missedAlertTo);
   for (const e of missedTo) if (!active.has(e)) throw fail('VALIDATION', `Missed-call alert recipients must be active CRM users (${e} is not)`);
-  for (const [k, v] of [['welcomeValues', c.welcomeValues], ['visitValues', c.visitValues]] as const) {
-    const unknown = (v.match(/\{[^}]*\}/g) || []).filter((t) => !TEMPLATE_FIELDS.includes(t.slice(1, -1).trim().toLowerCase()));
+  const valueSpecs: Array<[string, string]> = [['welcomeValues', String(c.welcomeValues || '')], ['visitValues', String(c.visitValues || '')]];
+  for (const [k, v] of valueSpecs) {
+    const tokens: string[] = v.match(/\{[^}]*\}/g) || [];
+    const unknown = tokens.filter((t) => !TEMPLATE_FIELDS.includes(t.slice(1, -1).trim().toLowerCase()));
     if (unknown.length) throw fail('VALIDATION', `Unknown value ${unknown[0]} in the ${k === 'welcomeValues' ? 'welcome' : 'site-visit'} message. Use ${TEMPLATE_FIELDS.map((f) => `{${f}}`).join(', ')}.`);
   }
   return JSON.stringify({ ...c, summaryTo: to.join(', '), missedAlertTo: missedTo.join(', ') });

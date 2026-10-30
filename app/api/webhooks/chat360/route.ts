@@ -14,7 +14,7 @@ import { getTenantBySlug } from '@/server/platform/registry';
 import { getSecret } from '@/server/core/settings';
 import { safeEqual, truncate } from '@/server/core/utils';
 import { logError } from '@/server/core/events';
-import { handleWebhook } from '@/server/modules/chat360';
+import { handleWebhook, noteWebhookEvent } from '@/server/modules/chat360';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,6 +60,8 @@ async function handleInCompany(req: Request) {
   const expected = await getSecret('CHAT360_WEBHOOK_SECRET');
   const given = req.headers.get('x-webhook-secret') || url.searchParams.get('secret') || '';
   if (!expected || !given || !safeEqual(given, expected)) {
+    // shown in Settings › Events received, so a webhook with a wrong or cut-off URL is easy to spot
+    await noteWebhookEvent(given ? '(refused: wrong secret in the URL)' : '(refused: no secret in the URL)', { path: url.pathname, query: [...url.searchParams.keys()] }).catch(() => undefined);
     return NextResponse.json({ status: 'error', code: 'FORBIDDEN', message: 'Invalid webhook secret' }, { status: 403 });
   }
   let raw = '';
