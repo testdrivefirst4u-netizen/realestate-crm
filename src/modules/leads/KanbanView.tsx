@@ -18,7 +18,7 @@ import { formatRelative } from '../../core/dates';
 import { formatPhone, whatsappLink } from '../../core/phone';
 import { sound } from '../../services/sound';
 import { Button, EmptyState, Select, cx } from '../../components/ui';
-import { LeadStars, optionsWithCurrent } from './shared';
+import { LeadStars, ReEnquiryBadge, optionsWithCurrent } from './shared';
 import { SORT_OPTIONS, SORT_PREF_KEYS, sortLeads } from './sorting';
 import { SortControl, usePersistentSort } from './SortControl';
 import { CallButton } from '../calls/CallButton';
@@ -262,6 +262,7 @@ const KanbanCard: React.FC<{
           <div className="font-bold text-xs text-[#0B2A44] group-hover:text-[#0B6BB0] transition truncate">{leadDisplayName(lead, 'Unnamed')}</div>
           <div className="text-[10px] text-[#7E93A6] mt-0.5 flex items-center gap-1.5 flex-wrap">
             <span className="font-mono text-[#0B6BB0] font-semibold">{lead[F.ID]}</span>
+            <ReEnquiryBadge lead={lead} />
             {lead[F.SOURCE] && (
               <>
                 <span>·</span>

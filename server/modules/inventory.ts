@@ -31,6 +31,9 @@ export interface UnitDoc {
   facing: string;
   status: string;
   price: number;
+  /** What the customer was quoted (agreed value) and what they have paid so far; due = quoted − paid. */
+  quotedAmount: number;
+  paidAmount: number;
   availability: string;
   bookingStatus: string;
   customerName: string;
@@ -84,6 +87,8 @@ export function serializeUnit(r: any) {
     facing: str(r.facing),
     status: str(r.status) || 'Available',
     price: num(r.price),
+    quotedAmount: num(r.quotedAmount),
+    paidAmount: num(r.paidAmount),
     availability: str(r.availability),
     bookingStatus: str(r.bookingStatus),
     customerName: str(r.customerName),
@@ -117,6 +122,8 @@ function toFields(u: any): Partial<UnitDoc> {
   if (u.facing !== undefined) c.facing = str(u.facing);
   if (u.status !== undefined) c.status = str(u.status);
   if (u.price !== undefined) c.price = num(u.price);
+  if (u.quotedAmount !== undefined) c.quotedAmount = Math.max(0, num(u.quotedAmount));
+  if (u.paidAmount !== undefined) c.paidAmount = Math.max(0, num(u.paidAmount));
   if (u.availability !== undefined) c.availability = str(u.availability);
   if (u.bookingStatus !== undefined) c.bookingStatus = str(u.bookingStatus);
   if (u.customerName !== undefined) c.customerName = str(u.customerName);
@@ -142,6 +149,8 @@ function newUnitDoc(id: string, fields: Partial<UnitDoc>, modifiedBy: string): U
     uds: 0,
     facing: '',
     price: 0,
+    quotedAmount: 0,
+    paidAmount: 0,
     availability: '',
     bookingStatus: '',
     customerName: '',

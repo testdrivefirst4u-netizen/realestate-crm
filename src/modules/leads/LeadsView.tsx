@@ -28,7 +28,7 @@ import {
   cx,
   resolveDateFilter,
 } from '../../components/ui';
-import { LeadStars } from './shared';
+import { LeadStars, ReEnquiryBadge } from './shared';
 import { SourceLogo } from './SourceLogo';
 import { LeadSortKey, sortLeads } from './sorting';
 import { PageSkeleton } from '../../components/Skeletons';
@@ -225,7 +225,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       className: 'min-w-[180px]',
       render: (l: Lead) => (
         <div className="min-w-0">
-          <div className="font-semibold text-[#0B2A44]">{leadDisplayName(l) || <span className="text-[#7E93A6] font-normal">Unnamed</span>}</div>
+          <div className="font-semibold text-[#0B2A44] flex items-center gap-1.5 min-w-0"><span className="truncate">{leadDisplayName(l) || <span className="text-[#7E93A6] font-normal">Unnamed</span>}</span><ReEnquiryBadge lead={l} /></div>
           <div className="text-[10px] text-[#7E93A6] mt-0.5 truncate max-w-[220px]">
             {l[F.EMAIL] || '—'}
           </div>
@@ -522,6 +522,7 @@ const LeadCard: React.FC<{ lead: Lead; onOpen: () => void }> = ({ lead, onOpen }
           <span className="flex items-center gap-2 min-w-0">
             <span className="text-[15px] font-bold text-[#0A1F33] truncate">{leadDisplayName(lead, name)}</span>
             <span className="flex-none"><StageBadge stage={String(lead[F.STAGE] || '')} /></span>
+            <ReEnquiryBadge lead={lead} />
           </span>
           {meta && <span className="block text-[12.5px] text-[#5E778C] truncate mt-0.5">{meta}</span>}
           <span className={cx('block text-[12px] mt-0.5 truncate font-medium', overdue ? 'text-[#B42318]' : next ? 'text-[#0B6BB0]' : 'text-[#7E93A6]')}>

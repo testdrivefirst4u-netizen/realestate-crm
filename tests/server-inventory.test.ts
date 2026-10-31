@@ -37,6 +37,15 @@ describe('inventory', () => {
     expect(all[0].inventoryId).toBe('INV-0001');
   });
 
+  it('keeps what was quoted and what was paid (never below zero)', async () => {
+    const ctx = await t.ctx('Admin');
+    const { unit } = await addUnit({ unitId: 'D404' }, ctx);
+    expect(unit).toMatchObject({ quotedAmount: 0, paidAmount: 0 });
+    const { unit: u } = await updateUnit(unit.inventoryId, { quotedAmount: '₹ 1,20,00,000', paidAmount: 3000000 }, ctx);
+    expect(u).toMatchObject({ quotedAmount: 12000000, paidAmount: 3000000 });
+    expect((await updateUnit('D404', { paidAmount: -5 }, ctx)).unit.paidAmount).toBe(0);
+  });
+
   it('rejects a missing or duplicate unit number (case-insensitive)', async () => {
     const ctx = await t.ctx('Admin');
     await expect(addUnit({ tower: 'A' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });

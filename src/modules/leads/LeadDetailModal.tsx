@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Save, Sparkles, User } from 'lucide-react';
 import { CRMConfig, CRMSettings, InventoryUnit, Lead, TaskItem, UserAccount } from '../../types/crm';
-import { F, FORM_ANSWER_PREFIX, LEAD_DATE_FIELDS, REENQUIRY_OF, STAGES, STAGE_CLASS } from '../../core/config';
+import { F, FORM_ANSWER_PREFIX, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS } from '../../core/config';
 import { api, type EnquiryHistoryRow } from '../../core/api';
 import { followupCount } from '../../core/analytics';
 import { formatDateTime, fromDatetimeLocalInput, nowIso, parseDate, toDatetimeLocalInput } from '../../core/dates';
@@ -20,7 +20,7 @@ import { toast } from '../../core/notifications';
 import { sound } from '../../services/sound';
 import { Badge, Button, ConfirmDialog, Field, InlineNotice, Modal, Select, StageBadge, Tabs, cx, inputCls } from '../../components/ui';
 import type { OpenCopilot } from '../ai/copilotContext';
-import { LeadStars, optionsWithCurrent } from './shared';
+import { LeadStars, ReEnquiryBadge, optionsWithCurrent } from './shared';
 import { GeoFields } from './GeoFields';
 import { TimelineTab } from './detail/TimelineTab';
 import { FollowupsTab } from './detail/FollowupsTab';
@@ -212,7 +212,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
       <span className="truncate">{personName(lead) || (phone ? formatPhone(phone) : 'Unnamed enquiry')}</span>
       <LeadStars lead={lead} size={13} className="flex-shrink-0" />
       <StageBadge stage={String(lead[F.STAGE] || '')} />
-      {String(lead[REENQUIRY_OF] || '').trim() && <span className="shrink-0 rounded-full bg-[#FFF4E0] text-[#9A5B00] border border-[#F2D19A] px-2 py-0.5 text-[11px] font-bold" title={`Enquired again. Earlier enquiry: ${lead[REENQUIRY_OF]}`}>Re-enquiry</span>}
+      <ReEnquiryBadge lead={lead} className="px-2 py-0.5 text-[11px]" />
     </span>
   );
 

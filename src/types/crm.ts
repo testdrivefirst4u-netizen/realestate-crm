@@ -65,6 +65,9 @@ export interface InventoryUnit {
   facing?: string;
   status: InventoryStatus;
   price?: number;
+  /** What the customer was quoted (agreed value) and has paid so far; due = quoted − paid. */
+  quotedAmount?: number;
+  paidAmount?: number;
   availability?: string;
   bookingStatus?: string;
   bookedDate?: string;

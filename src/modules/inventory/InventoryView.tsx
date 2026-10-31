@@ -19,6 +19,8 @@ import { reportError, toAppError } from '../../core/errors';
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, Field, InlineNotice, KpiTile, LoadingState, Modal, Select, StageBadge, cx, inputCls } from '../../components/ui';
 import {
   EXPORT_HEADERS, IMPORT_HEADERS, INVENTORY_STATUSES, CsvImportAnalysis, analyzeInventoryCsv, distinctValues, isKnownStatus, naturalCompare, statusTone, summarizeInventory, syncTone, unitKey, unitToExportRow,
+  isLoOwned,
+  unitDue,
 } from './inventoryUtils';
 import { useFeature } from '../../core/tenant';
 import { UnitLocator } from './UnitLocator'; // explicit extension: unitLocator.ts sits next to it (case-only difference)
@@ -38,7 +40,7 @@ export interface InventoryViewProps {
   initialQuery?: string;
 }
 
-type SortKey = 'unit' | 'tower' | 'floor' | 'type' | 'carpet' | 'price' | 'status' | 'customer' | 'booked' | 'modified';
+type SortKey = 'unit' | 'tower' | 'floor' | 'type' | 'carpet' | 'price' | 'quoted' | 'paid' | 'due' | 'status' | 'customer' | 'booked' | 'modified';
 const PAGE_SIZE = 100;
 
 const modifiedByLabel = (v?: string) => {
@@ -75,6 +77,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
   const [unitType, setUnitType] = useState('');
   const [floor, setFloor] = useState('');
   const [status, setStatus] = useState('');
+  /** '' | 'lo' (land-owner share) | 'developer' */
+  const [owner, setOwner] = useState('');
+  /** '' | 'due' | 'paid' (fully paid) | 'none' (nothing quoted yet) */
+  const [payment, setPayment] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'unit', dir: 'asc' });
   const [visible, setVisible] = useState(PAGE_SIZE);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -105,6 +111,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       if (unitType && String(u.unitType || '').trim() !== unitType) return false;
       if (floor && String(u.floor ?? '').trim() !== floor) return false;
       if (status && String(u.status || '').trim() !== status) return false;
+      if (owner === 'lo' && !isLoOwned(u)) return false;
+      if (owner === 'developer' && isLoOwned(u)) return false;
+      if (payment) {
+        const quoted = Number(u.quotedAmount || 0), due = unitDue(u);
+        if (payment === 'due' && !(due > 0)) return false;
+        if (payment === 'paid' && !(quoted > 0 && due === 0)) return false;
+        if (payment === 'none' && quoted > 0) return false;
+      }
       if (!q) return true;
       const lead = u.leadId ? leadById.get(u.leadId) : undefined;
       const hay = [u.unitId, u.inventoryId, u.customerName, u.leadId, u.tower, u.notes, lead ? lead[F.NAME] : ''].map((v) => String(v || '').toLowerCase());
@@ -121,6 +135,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       type: (a, b) => naturalCompare(String(a.unitType || ''), String(b.unitType || '')) || byUnit(a, b),
       carpet: (a, b) => Number(a.carpetArea || 0) - Number(b.carpetArea || 0) || byUnit(a, b),
       price: (a, b) => Number(a.price || 0) - Number(b.price || 0) || byUnit(a, b),
+      quoted: (a, b) => Number(a.quotedAmount || 0) - Number(b.quotedAmount || 0) || byUnit(a, b),
+      paid: (a, b) => Number(a.paidAmount || 0) - Number(b.paidAmount || 0) || byUnit(a, b),
+      due: (a, b) => unitDue(a) - unitDue(b) || byUnit(a, b),
       status: (a, b) => naturalCompare(String(a.status || ''), String(b.status || '')) || byUnit(a, b),
       customer: (a, b) => naturalCompare(String(a.customerName || ''), String(b.customerName || '')) || byUnit(a, b),
       booked: (a, b) => compareDates(a.bookedDate, b.bookedDate) || byUnit(a, b),
@@ -128,17 +145,32 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
     };
     rows = [...rows].sort((a, b) => cmp[sort.key](a, b) * dir);
     return rows;
-  }, [inventory, search, tower, unitType, floor, status, sort, leadById]);
+  }, [inventory, search, tower, unitType, floor, status, owner, payment, sort, leadById]);
 
-  useEffect(() => setVisible(PAGE_SIZE), [search, tower, unitType, floor, status, sort]);
+  useEffect(() => setVisible(PAGE_SIZE), [search, tower, unitType, floor, status, owner, payment, sort]);
 
-  const anyFilter = !!(search || tower || unitType || floor || status);
+  const anyFilter = !!(search || tower || unitType || floor || status || owner || payment);
+  // money for the units in view: what was quoted, what came in, what is still due
+  const money = useMemo(() => {
+    let quoted = 0, paid = 0, due = 0, dueUnits = 0;
+    for (const u of filtered) {
+      quoted += Number(u.quotedAmount || 0);
+      paid += Number(u.paidAmount || 0);
+      const d = unitDue(u);
+      due += d;
+      if (d > 0) dueUnits++;
+    }
+    return { quoted, paid, due, dueUnits };
+  }, [filtered]);
+  const loCount = useMemo(() => inventory.filter(isLoOwned).length, [inventory]);
   const clearFilters = () => {
     setSearch('');
     setTower('');
     setUnitType('');
     setFloor('');
     setStatus('');
+    setOwner('');
+    setPayment('');
   };
 
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
@@ -190,6 +222,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
     { key: 'uds', label: 'UDS', align: 'right' as const, render: (u: InventoryUnit) => <span className="tabular-nums">{u.uds ? formatNumber(u.uds) : '—'}</span> },
     { key: 'facing', label: 'Facing', render: (u: InventoryUnit) => u.facing || '—' },
     { key: 'price', label: 'Price', onSort: () => toggleSort('price'), sortIndicator: indicator('price'), align: 'right' as const, render: (u: InventoryUnit) => <span className="font-semibold tabular-nums">{Number(u.price) > 0 ? formatINR(u.price) : '—'}</span> },
+    { key: 'quoted', label: 'Quoted', onSort: () => toggleSort('quoted'), sortIndicator: indicator('quoted'), align: 'right' as const, render: (u: InventoryUnit) => <span className="tabular-nums">{Number(u.quotedAmount) > 0 ? formatINR(u.quotedAmount) : '—'}</span> },
+    { key: 'paid', label: 'Paid', onSort: () => toggleSort('paid'), sortIndicator: indicator('paid'), align: 'right' as const, render: (u: InventoryUnit) => <span className="tabular-nums text-[#1F7A4D]">{Number(u.paidAmount) > 0 ? formatINR(u.paidAmount) : '—'}</span> },
+    { key: 'due', label: 'Due', onSort: () => toggleSort('due'), sortIndicator: indicator('due'), align: 'right' as const, render: (u: InventoryUnit) => { const d = unitDue(u); return Number(u.quotedAmount) > 0 ? <span className={cx('font-semibold tabular-nums', d > 0 ? 'text-[#B42318]' : 'text-[#1F7A4D]')}>{d > 0 ? formatINR(d) : 'Paid'}</span> : <span className="text-[#7E93A6]">—</span>; } },
     { key: 'status', label: 'Status', onSort: () => toggleSort('status'), sortIndicator: indicator('status'), render: (u: InventoryUnit) => <Badge tone={statusTone(u.status)}>{u.status || 'Unknown'}</Badge> },
     {
       key: 'customer', label: 'Customer', onSort: () => toggleSort('customer'), sortIndicator: indicator('customer'), className: 'min-w-[160px]',
@@ -313,6 +348,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
             <KpiTile label="Blocked" value={summary.byStatus.Blocked} tone="rust" onClick={() => setStatus('Blocked')} hint={summary.other ? `${summary.other} other` : undefined} />
           </div>
 
+          {/* Money for the units in view */}
+          <div className="grid grid-cols-3 gap-3">
+            <button type="button" onClick={() => setPayment('')} className="text-left rounded-xl border border-[#D3E3F0] bg-white px-4 py-3 hover:bg-[#F7FAFD]" title="Total of the quoted (agreed) value of the units in view">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-[#5E778C]">Quoted</span>
+              <span className="block text-xl sm:text-2xl font-extrabold tabular-nums text-[#0B2A44]">{formatINR(money.quoted)}</span>
+            </button>
+            <button type="button" onClick={() => setPayment('paid')} className="text-left rounded-xl border border-[#D3E3F0] bg-white px-4 py-3 hover:bg-[#F7FAFD]" title="Received so far. Select to see fully paid units">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-[#5E778C]">Paid</span>
+              <span className="block text-xl sm:text-2xl font-extrabold tabular-nums text-[#1F7A4D]">{formatINR(money.paid)}</span>
+            </button>
+            <button type="button" onClick={() => setPayment('due')} className="text-left rounded-xl border border-[#F3C6C2] bg-[#FFF8F7] px-4 py-3 hover:bg-[#FFF1EF]" title="Quoted minus paid. Select to see the units with money due">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-[#B42318]">Due</span>
+              <span className="block text-xl sm:text-2xl font-extrabold tabular-nums text-[#B42318]">{formatINR(money.due)}</span>
+              <span className="block text-[11px] text-[#7E93A6]">{pluralize(money.dueUnits, 'unit')} with money due</span>
+            </button>
+          </div>
+
           {/* Filters */}
           <div className="bg-[#E6EFF6] p-3 rounded-xl border border-[#D3E3F0] flex flex-wrap items-center gap-2.5">
             <div className="relative flex-1 min-w-[200px]">
@@ -323,6 +375,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
             <Select value={floor} onChange={(e) => setFloor(e.target.value)} options={floors} placeholder="All floors" className="!w-auto" />
             <Select value={unitType} onChange={(e) => setUnitType(e.target.value)} options={types} placeholder="All types" className="!w-auto" />
             <Select value={status} onChange={(e) => setStatus(e.target.value)} options={statuses} placeholder="All statuses" className="!w-auto" />
+            <Select value={owner} onChange={(e) => setOwner(e.target.value)} options={[{ value: 'lo', label: `LO - Owned flats (${loCount})` }, { value: 'developer', label: 'Developer flats' }]} placeholder="All ownership" className="!w-auto" aria-label="Ownership" />
+            <Select value={payment} onChange={(e) => setPayment(e.target.value)} options={[{ value: 'due', label: 'Money due' }, { value: 'paid', label: 'Fully paid' }, { value: 'none', label: 'Not quoted yet' }]} placeholder="All payments" className="!w-auto" aria-label="Payment" />
             <span className="text-xs text-[#5E778C] font-medium ml-auto">
               {filtered.length === inventory.length ? pluralize(inventory.length, 'unit') : `${filtered.length} of ${inventory.length} units`}
             </span>
@@ -385,6 +439,8 @@ interface UnitForm {
   availability: string;
   bookingStatus: string;
   price: string;
+  quotedAmount: string;
+  paidAmount: string;
   facing: string;
   notes: string;
   customerName: string;
@@ -398,6 +454,8 @@ const formFromUnit = (u: InventoryUnit): UnitForm => ({
   availability: u.availability || '',
   bookingStatus: u.bookingStatus || '',
   price: Number(u.price) > 0 ? String(u.price) : '',
+  quotedAmount: Number(u.quotedAmount) > 0 ? String(u.quotedAmount) : '',
+  paidAmount: Number(u.paidAmount) > 0 ? String(u.paidAmount) : '',
   facing: u.facing || '',
   notes: u.notes || '',
   customerName: u.customerName || '',
@@ -420,6 +478,10 @@ function buildPatch(u: InventoryUnit, f: UnitForm): Partial<InventoryUnit> {
   if (str(f.leadId) !== str(u.leadId)) p.leadId = str(f.leadId);
   const price = f.price.trim() === '' ? 0 : Number(f.price);
   if (isFinite(price) && price !== Number(u.price || 0)) p.price = price;
+  const quoted = f.quotedAmount.trim() === '' ? 0 : Number(f.quotedAmount);
+  if (isFinite(quoted) && quoted !== Number(u.quotedAmount || 0)) p.quotedAmount = Math.max(0, quoted);
+  const paid = f.paidAmount.trim() === '' ? 0 : Number(f.paidAmount);
+  if (isFinite(paid) && paid !== Number(u.paidAmount || 0)) p.paidAmount = Math.max(0, paid);
   if (f.bookedDate !== toDateInput(u.bookedDate)) p.bookedDate = fromDateInput(f.bookedDate);
   return p;
 }
@@ -582,6 +644,12 @@ const UnitDrawer: React.FC<{
             </Field>
             <Field label="Price (₹)" hint={form.price && Number(form.price) > 0 ? formatINR(Number(form.price)) : 'Leave blank if not finalised'}>
               <input type="number" min={0} step={1000} value={form.price} onChange={(e) => set('price', e.target.value)} className={inputCls} disabled={disabled} placeholder="0" />
+            </Field>
+            <Field label="Quoted (₹)" hint={Number(form.quotedAmount) > 0 ? formatINR(Number(form.quotedAmount)) : 'The value agreed with the customer'}>
+              <input type="number" min={0} step={1000} value={form.quotedAmount} onChange={(e) => set('quotedAmount', e.target.value)} className={inputCls} disabled={disabled} placeholder="0" />
+            </Field>
+            <Field label="Paid so far (₹)" hint={Number(form.quotedAmount) > 0 ? `Due: ${formatINR(Math.max(0, Number(form.quotedAmount || 0) - Number(form.paidAmount || 0)))}` : Number(form.paidAmount) > 0 ? formatINR(Number(form.paidAmount)) : undefined}>
+              <input type="number" min={0} step={1000} value={form.paidAmount} onChange={(e) => set('paidAmount', e.target.value)} className={inputCls} disabled={disabled} placeholder="0" />
             </Field>
             <Field label="Facing">
               <input value={form.facing} onChange={(e) => set('facing', e.target.value)} className={inputCls} disabled={disabled} placeholder="e.g. East" />

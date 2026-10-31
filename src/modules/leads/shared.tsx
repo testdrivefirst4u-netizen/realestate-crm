@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Mic, Sparkles, Star, X } from 'lucide-react';
 import { Lead } from '../../types/crm';
+import { REENQUIRY_OF } from '../../core/config';
 import { api } from '../../core/api';
 import { leadScore } from '../../core/analytics';
 import { reportError } from '../../core/errors';
@@ -418,5 +419,16 @@ export const SmartTextarea: React.FC<{
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
     </div>
+  );
+};
+
+/** "Re-enquiry" on a lead that repeats an earlier enquiry (the earlier lead is kept); nothing otherwise. */
+export const ReEnquiryBadge: React.FC<{ lead: Lead; className?: string }> = ({ lead, className }) => {
+  const prev = String(lead[REENQUIRY_OF] || '').trim();
+  if (!prev) return null;
+  return (
+    <span className={cx('inline-flex shrink-0 items-center rounded-full bg-[#FFF4E0] text-[#9A5B00] border border-[#F2D19A] px-1.5 py-px text-[10px] font-bold align-middle', className)} title={`Enquired again. Earlier enquiry: ${prev}`}>
+      Re-enquiry
+    </span>
   );
 };

@@ -96,7 +96,7 @@ export function unitKey(u: InventoryUnit): string {
 export const IMPORT_HEADERS = ['Unit Number', 'Tower', 'Floor', 'Unit Type', 'Carpet Area', 'Built-up Area', 'UDS', 'Facing', 'Status', 'Price'] as const;
 
 export const EXPORT_HEADERS = [
-  'Inventory ID', 'Unit Number', 'Tower', 'Floor', 'Unit Type', 'Carpet Area', 'Built-up Area', 'UDS', 'Facing', 'Status', 'Price',
+  'Inventory ID', 'Unit Number', 'Tower', 'Floor', 'Unit Type', 'Carpet Area', 'Built-up Area', 'UDS', 'Facing', 'Status', 'Price', 'Quoted', 'Paid', 'Due',
   'Availability', 'Booking Status', 'Customer Name', 'Contact', 'Lead ID', 'Booked Date', 'Notes', 'Last Modified', 'Modified By', 'Sync Status',
   'Ownership', 'Mortgaged',
 ] as const;
@@ -253,6 +253,12 @@ export function analyzeInventoryCsv(text: string, existing: InventoryUnit[]): Cs
 }
 
 /** Row objects for `toCsv(EXPORT_HEADERS, rows)` — dates are exported as ISO so they round-trip. */
+/** Still to be paid on a unit: quoted − paid (never below 0; 0 when nothing was quoted). */
+export const unitDue = (u: InventoryUnit) => Math.max(0, Number(u.quotedAmount || 0) - Number(u.paidAmount || 0));
+
+/** A land-owner (LO) share unit: master inventory ownership "Land Owner", or status Owner. */
+export const isLoOwned = (u: InventoryUnit) => /land\s*owner|^lo\b/i.test(String(u.ownership || '').trim()) || String(u.status || '').trim() === 'Owner';
+
 export function unitToExportRow(u: InventoryUnit): Record<string, unknown> {
   const iso = (v?: string) => {
     const d = parseDate(v);
@@ -270,6 +276,9 @@ export function unitToExportRow(u: InventoryUnit): Record<string, unknown> {
     Facing: u.facing || '',
     Status: u.status,
     Price: u.price || '',
+    Quoted: u.quotedAmount || '',
+    Paid: u.paidAmount || '',
+    Due: unitDue(u) || '',
     Availability: u.availability || '',
     'Booking Status': u.bookingStatus || '',
     'Customer Name': u.customerName || '',
