@@ -6,13 +6,15 @@ import { toAppError } from '../../core/errors';
 import { AuthStatus } from '../../core/engine';
 import { APP } from '../../core/config';
 import { platformProductName } from '../../core/tenant';
+import { ConstructionScene } from './ConstructionScene';
+import { Check } from 'lucide-react';
 
 interface Props {
   status: AuthStatus;
   lastError?: string;
   /** `code`: the authenticator code, once the server asked for it (two-step sign-in). */
   onLogin: (email: string, password: string, code?: string) => Promise<void>;
-  /** Photo for the left panel (e.g. `/login-photo.jpg` from public/); without one a building illustration is shown. */
+  /** Photo for the left panel (e.g. `/login-photo.jpg` from public/); without one an animated construction scene is shown. */
   photoUrl?: string | null;
 }
 
@@ -22,26 +24,20 @@ export const isCompanyAccountMessage = (msg: string | null | undefined) => /susp
 const fieldCls =
   'w-full h-12 px-3.5 rounded-[10px] border border-[#C9BEB2] bg-white text-[15px] text-[#3D3530] placeholder:text-[#A39990] focus:outline-none focus:ring-2 focus:ring-[#A9825A] focus:border-[#A9825A]';
 
-/** Stylised project skyline in the brand colours — shown until a real photo is added. */
-function BuildingIllustration() {
-  const win = (xs: number[], ys: number[], w: number, h: number) =>
-    ys.flatMap((y) => xs.map((x) => <rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} />));
-  return (
-    <svg viewBox="0 0 800 800" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 h-full w-full" aria-hidden="true">
-      <rect width="800" height="800" fill="#E7D8C6" />
-      <circle cx="610" cy="210" r="90" fill="#F1E6D8" />
-      <rect x="90" y="300" width="230" height="500" fill="#3E5468" />
-      <rect x="300" y="190" width="260" height="610" fill="#1D2F3F" />
-      <rect x="540" y="360" width="200" height="440" fill="#A9825A" />
-      <g fill="#E7D8C6" opacity="0.55">
-        {win([330, 388, 446, 504], [230, 306, 382, 458], 36, 46)}
-        {win([120, 185, 250], [340, 410], 40, 40)}
-        {win([570, 625, 680], [400, 460], 34, 34)}
-      </g>
-      <rect x="0" y="690" width="800" height="110" fill="#7C8B78" />
-    </svg>
-  );
-}
+/** Sign-in form motion: pieces rise in on arrival; the button stacks floors while checking. */
+const LOGIN_CSS = `
+.lg-rise{animation:lg-rise .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes lg-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.lg-floors{display:inline-flex;flex-direction:column-reverse;gap:2px;width:16px}
+.lg-floors i{display:block;height:3px;border-radius:1px;background:#fff;opacity:0;animation:lg-floor 1.2s ease-in-out infinite}
+.lg-floors i:nth-child(2){animation-delay:.15s;width:88%}.lg-floors i:nth-child(3){animation-delay:.3s;width:76%}.lg-floors i:nth-child(4){animation-delay:.45s;width:64%}
+@keyframes lg-floor{0%{opacity:0;transform:translateY(-4px)}25%,70%{opacity:1;transform:none}100%{opacity:0}}
+.lg-busy::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.18) 50%,transparent 70%);transform:translateX(-100%);animation:lg-sheen 1.3s ease-in-out infinite}
+@keyframes lg-sheen{to{transform:translateX(100%)}}
+.lg-pop{animation:lg-pop .45s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes lg-pop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.lg-rise,.lg-floors i,.lg-busy::after,.lg-pop{animation:none!important;opacity:1!important}}
+`;
 
 /**
  * One sign-in page for everybody: company users (the server finds the company from the e-mail address)
@@ -56,6 +52,8 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
   /** The password was right and this account uses two-step sign-in: ask for the code. */
   const [needCode, setNeedCode] = useState(false);
   const [code, setCode] = useState('');
+  /** Signed in: the tower glows while the CRM opens. */
+  const [done, setDone] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +61,7 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
     setBusy(true);
     try {
       await onLogin(email, password, needCode ? code : undefined);
+      setDone(true);
     } catch (err) {
       const e = toAppError(err);
       if (e.details?.totpRequired) {
@@ -75,6 +74,7 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
       setBusy(false);
     }
   };
+  const working = busy || done;
 
   const shown = error || lastError || '';
   const suspended = isCompanyAccountMessage(shown);
@@ -87,18 +87,19 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photoUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
-          <BuildingIllustration />
+          <ConstructionScene mode={done ? 'success' : busy ? 'signing' : 'idle'} />
         )}
-        <div className="relative m-4 sm:m-8 max-w-[420px] rounded-[14px] bg-[#1D2F3F]/90 px-5 py-4 text-white">
+        <div className="lg-rise relative m-4 sm:m-8 max-w-[420px] rounded-[14px] bg-[#1D2F3F]/90 px-5 py-4 text-white shadow-xl backdrop-blur-sm" style={{ animationDelay: '300ms' }}>
           <div className="text-[12px] font-medium uppercase tracking-[0.16em] text-[#D4B28C]">{APP.subtitle}</div>
-          <div className="mt-1.5 text-lg sm:text-xl font-semibold leading-snug">Every enquiry, site visit and booking in one place.</div>
+          <div className="mt-1.5 text-lg sm:text-xl font-semibold leading-snug">{done ? 'Welcome back. Opening your CRM…' : busy ? 'Checking your details…' : 'Every enquiry, site visit and booking in one place.'}</div>
         </div>
       </section>
 
       {/* Form */}
       <main className="flex-1 flex items-center justify-center px-6 py-10 sm:py-12">
+        <style>{LOGIN_CSS}</style>
         <div className="w-full max-w-[380px] flex flex-col gap-[22px]">
-          <div className="flex items-center gap-2.5">
+          <div className="lg-rise flex items-center gap-2.5">
             <AppLogo size="sm" />
             <span className="text-[17px] font-semibold text-[#1D2F3F]">{platformProductName()}</span>
           </div>
@@ -110,16 +111,16 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
             </div>
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-[22px]">
-              <div className="flex flex-col gap-1.5">
+              <div className="lg-rise flex flex-col gap-1.5" style={{ animationDelay: '80ms' }}>
                 <h1 className="m-0 text-[30px] font-semibold leading-tight text-[#1D2F3F]">Sign in</h1>
                 <p className="m-0 text-[15px] text-[#5E534B]">Use the email and password your administrator gave you.</p>
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="lg-rise flex flex-col gap-2" style={{ animationDelay: '160ms' }}>
                 <label htmlFor="login-email" className="text-sm font-medium">Email</label>
                 <input id="login-email" className={fieldCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" autoFocus placeholder="you@company.com" />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="lg-rise flex flex-col gap-2" style={{ animationDelay: '240ms' }}>
                 <label htmlFor="login-password" className="text-sm font-medium">Password</label>
                 <div className="relative">
                   <input id="login-password" className={fieldCls + ' pr-12'} type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete="current-password" />
@@ -157,11 +158,15 @@ export const LoginScreen: React.FC<Props> = ({ status, lastError, onLogin, photo
 
               <button
                 type="submit"
-                disabled={busy}
-                className="h-[50px] rounded-[10px] bg-[#7A5B37] hover:bg-[#6A4E2F] disabled:opacity-70 text-white text-base font-semibold flex items-center justify-center gap-2 transition-colors"
+                disabled={working}
+                style={{ animationDelay: '320ms' }}
+                className={'lg-rise lg-btn relative overflow-hidden h-[50px] rounded-[10px] text-white text-base font-semibold flex items-center justify-center gap-2.5 transition-[background-color,transform,box-shadow] duration-300 ' + (done ? 'bg-[#2F7D57]' : 'bg-[#7A5B37] hover:bg-[#6A4E2F] hover:-translate-y-px hover:shadow-lg active:translate-y-0') + (busy ? ' lg-busy' : '')}
               >
-                {busy && <Loader2 size={18} className="animate-spin" />}
-                {busy ? 'Signing in…' : needCode ? 'Verify and sign in' : 'Sign in'}
+                {done ? (
+                  <><span className="lg-pop inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20"><Check size={16} strokeWidth={3} /></span>Signed in</>
+                ) : busy ? (
+                  <><span className="lg-floors" aria-hidden><i /><i /><i /><i /></span>Signing in…</>
+                ) : needCode ? 'Verify and sign in' : 'Sign in'}
               </button>
               <p className="m-0 text-sm text-[#5E534B]">Accounts are created by your company administrator. Forgot your password? Ask them to reset it.</p>
             </form>
