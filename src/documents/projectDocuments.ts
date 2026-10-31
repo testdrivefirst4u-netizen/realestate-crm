@@ -3,7 +3,7 @@ export interface DocVerse {
   docId: string;
   docTitle: string;
   docShortName: string;
-  category: 'Brochure' | 'Floor Plans' | 'Monthly Packages' | 'Pricing & Payment' | 'Legal & RERA';
+  category: 'Brochure' | 'Floor Plans' | 'Monthly Packages' | 'Pricing & Payment' | 'Legal & RERA' | 'Locations';
   chapterNumber: number;
   chapterTitle: string;
   verseNumber: number;
@@ -23,7 +23,7 @@ export interface ProjectDocument {
   id: string;
   title: string;
   shortName: string;
-  category: 'Brochure' | 'Floor Plans' | 'Monthly Packages' | 'Pricing & Payment' | 'Legal & RERA';
+  category: 'Brochure' | 'Floor Plans' | 'Monthly Packages' | 'Pricing & Payment' | 'Legal & RERA' | 'Locations';
   badgeColor: string;
   summary: string;
   fileName: string;

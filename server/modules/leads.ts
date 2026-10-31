@@ -730,6 +730,57 @@ async function enquiryHistory(id: string, ctx: Ctx) {
   }));
 }
 
+export type BulkOp = 'assign' | 'stage' | 'followup' | 'remark' | 'trash';
+const BULK_MAX = 500;
+
+/**
+ * One change applied to many leads (the Leads table's bulk bar). Each lead goes through the normal update, so
+ * timelines, alerts and the audit trail are the same as one by one; leads the user cannot see are skipped.
+ * Reassigning needs access to all leads (managers); moving to the bin needs leads.trash.
+ */
+export async function bulkLeads(d: { ids?: unknown; op?: unknown; value?: unknown }, ctx: Ctx) {
+  const ids = [...new Set((Array.isArray(d?.ids) ? d.ids : []).map((x) => str(x).trim()).filter(Boolean))];
+  if (!ids.length) throw fail('VALIDATION', 'Select at least one lead');
+  if (ids.length > BULK_MAX) throw fail('VALIDATION', `Select at most ${BULK_MAX} leads at a time`);
+  const op = str(d?.op) as BulkOp;
+  const value = str(d?.value).trim();
+  let apply: (id: string) => Promise<unknown>;
+  if (op === 'assign') {
+    if (!can(ctx.user, 'leads.viewAll')) throw fail('FORBIDDEN', 'Only managers can reassign leads');
+    if (value && !(await listUsers()).some((u) => u.status === 'Active' && u.name === value)) throw fail('VALIDATION', `"${value}" is not an active user`);
+    apply = (id) => updateLead(id, { [L.RM]: value }, ctx);
+  } else if (op === 'stage') {
+    const stage = canonicalStage(value);
+    if (!stage || stage === S.DELETED || stage === S.TRASH) throw fail('VALIDATION', 'Choose a stage');
+    apply = (id) => updateLead(id, { [L.STAGE]: stage }, ctx);
+  } else if (op === 'followup') {
+    const at = value ? parseDate(value) : null;
+    if (value && !at) throw fail('VALIDATION', 'Choose a valid date and time');
+    apply = (id) => updateLead(id, { [L.NEXT_FOLLOWUP]: at ? at.toISOString() : '' }, ctx);
+  } else if (op === 'remark') {
+    if (!value) throw fail('VALIDATION', 'Write the remark');
+    apply = (id) => appendRemark(id, truncate(value, 2000), ctx);
+  } else if (op === 'trash') {
+    if (!can(ctx.user, 'leads.trash')) throw fail('FORBIDDEN', 'You cannot move leads to the bin');
+    apply = (id) => updateLead(id, { [L.STAGE]: S.TRASH }, ctx);
+  } else {
+    throw fail('VALIDATION', 'Unknown bulk action');
+  }
+  let done = 0, skipped = 0;
+  const failed: Array<{ id: string; message: string }> = [];
+  for (const id of ids) {
+    if (!(await canSeeLead(ctx.user, id))) { skipped++; continue; }
+    try {
+      await apply(id);
+      done++;
+    } catch (e: any) {
+      failed.push({ id, message: truncate(String(e?.message || 'Could not update'), 200) });
+    }
+  }
+  await auditLog(ctx, `Bulk ${op}`, 'Lead', truncate(ids.join(','), 500), `${done} updated${skipped ? `, ${skipped} skipped` : ''}${failed.length ? `, ${failed.length} failed` : ''}${value && op !== 'remark' ? ` · ${value}` : ''}`);
+  return { done, skipped, failed: failed.slice(0, 50), version: await getVersion() };
+}
+
 const onLead = <T>(fn: (d: any, ctx: Ctx) => Promise<T>) => async (d: any, ctx: Ctx) => {
   await assertLeadAccess(ctx, d.id);
   return fn(d, ctx);
@@ -770,5 +821,6 @@ export const actions: ActionMap = {
   deleteLead: { fn: onLead((d, ctx) => archiveLead(d.id, ctx)), perm: 'leads.delete' },
   getLeadTimeline: { fn: onLead((d) => timelineForLead(d.id)), perm: 'leads.view' },
   getEnquiryHistory: { fn: onLead((d, ctx) => enquiryHistory(String(d.id), ctx)), perm: 'leads.view' },
+  bulkLeads: { fn: (d, ctx) => bulkLeads(d, ctx), perm: 'leads.edit' },
   importLeads: { fn: (d, ctx) => importLeads(d.leads, d.strategy, ctx), perm: 'leads.import' },
 };

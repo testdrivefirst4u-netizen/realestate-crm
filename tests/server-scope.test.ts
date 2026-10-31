@@ -114,6 +114,31 @@ describe('lead visibility', () => {
     }
   });
 
+  it('bulk actions: managers reassign; agents change only their own leads; others are skipped', async () => {
+    const ids = ['ENQ-0001', 'ENQ-0002', 'ENQ-0003'];
+    expect(await as('Asha', 'bulkLeads', { ids, op: 'assign', value: 'Asha' })).toMatchObject({ status: 'error', code: 'FORBIDDEN' });
+    expect(await as('Meera', 'bulkLeads', { ids, op: 'assign', value: 'Nobody Real' })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    const re = (await as('Meera', 'bulkLeads', { ids: ['ENQ-0003'], op: 'assign', value: 'Ravi' })).data;
+    expect(re).toMatchObject({ done: 1, skipped: 0 });
+    // Asha sees only ENQ-0001: the other two are skipped, not changed
+    const st = (await as('Asha', 'bulkLeads', { ids, op: 'stage', value: 'Hot' })).data;
+    expect(st).toMatchObject({ done: 1, skipped: 2 });
+    const all = (await as('Meera', 'getAllLeads')).data.leads;
+    const by = (id: string) => all.find((l: any) => l['Enquiry ID'] === id);
+    expect(by('ENQ-0001')['Lead Stage']).toBe('Hot');
+    expect(by('ENQ-0002')['Lead Stage']).not.toBe('Hot');
+    expect(by('ENQ-0003')['Assigned RM']).toBe('Ravi');
+    // a remark on several leads, a follow-up date, and the bin only with leads.trash
+    expect((await as('Meera', 'bulkLeads', { ids: ['ENQ-0001', 'ENQ-0002'], op: 'remark', value: 'Sent the new price sheet' })).data.done).toBe(2);
+    const at = new Date(Date.now() + 86_400_000).toISOString();
+    expect((await as('Meera', 'bulkLeads', { ids: ['ENQ-0002'], op: 'followup', value: at })).data.done).toBe(1);
+    const after = (await as('Meera', 'getAllLeads')).data.leads;
+    expect(after.find((l: any) => l['Enquiry ID'] === 'ENQ-0002')['Follow-up 1']).toContain('Sent the new price sheet');
+    expect(Math.abs(Date.parse(after.find((l: any) => l['Enquiry ID'] === 'ENQ-0002')['Next Follow-up Date']) - Date.parse(at))).toBeLessThan(60_000);
+    expect(await as('Asha', 'bulkLeads', { ids: ['ENQ-0001'], op: 'trash' })).toMatchObject({ status: 'error', code: 'FORBIDDEN' });
+    expect(await as('Meera', 'bulkLeads', { ids: [], op: 'stage', value: 'Hot' })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+  });
+
   it('enquiry history lists every enquiry from the same number, oldest first', async () => {
     const r = await as('Meera', 'addLead', { data: { 'Prospect Name': 'Asha again', 'Phone Number': '9000000001', _forceCreate: true } });
     expect(r.status).toBe('success');

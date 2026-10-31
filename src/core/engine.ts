@@ -26,7 +26,7 @@ import {
   ServerSettings,
   ClientSegment,
 } from '../types/crm';
-import { api, configureApi, BootstrapPayload } from './api';
+import { api, configureApi, BootstrapPayload, type BulkOp } from './api';
 import { F, LEAD_DATE_FIELDS, STAGES, SYNC } from './config';
 import { dedupeUnitTypes, normalizeUnitType } from './units';
 import { normalizeDateValue, nowIso, parseDate, setTimeZone, formatRelative, toSheetDateTime } from './dates';
@@ -137,6 +137,8 @@ export interface CrmEngine {
   importLeads: (leads: Lead[], strategy: string) => Promise<{ created: number; updated: number } | null>;
   /** Merge duplicate leads into `keepId` (the others are archived). */
   mergeLeads: (keepId: string, mergeIds: string[]) => Promise<boolean>;
+  /** One change to many leads (the Leads table's bulk bar); true when at least one lead changed. */
+  bulkLeads: (ids: string[], op: BulkOp, value?: string) => Promise<boolean>;
 
   addTask: (task: Omit<TaskItem, 'id'>) => Promise<TaskItem | null>;
   updateTask: (id: string, patch: Partial<TaskItem>) => Promise<boolean>;
@@ -787,6 +789,22 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     [refresh]
   );
 
+  const bulkLeads = useCallback(
+    async (ids: string[], op: BulkOp, value = '') => {
+      try {
+        const res = await write(() => api.leads.bulk(ids, op, value));
+        const extra = [res.skipped ? `${res.skipped} not yours, skipped` : '', res.failed.length ? `${res.failed.length} could not be changed (${res.failed[0].id}: ${res.failed[0].message})` : ''].filter(Boolean).join(' · ');
+        toast(res.done ? `${res.done} lead${res.done === 1 ? '' : 's'} updated` : 'No leads changed', extra || undefined, res.failed.length ? 'warning' : 'success');
+        await refresh({ silent: true, force: true });
+        return res.done > 0;
+      } catch (e) {
+        failToast('leads.bulk', e);
+        return false;
+      }
+    },
+    [refresh]
+  );
+
   /* -------------------------------- tasks ------------------------------- */
 
   const addTask = useCallback(
@@ -1044,13 +1062,13 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     () => ({
       data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, can: canDo,
       login, logout, updateProfile, refresh, updateLocalSettings,
-      addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads,
+      addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, bulkLeads,
       addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm,
       updateUnit, addUnit, importInventory,
       saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist,
       createSegment, updateSegment, deleteSegment, applyServerSettings,
     }),
-    [data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, canDo, login, logout, updateProfile, refresh, updateLocalSettings, addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm, updateUnit, addUnit, importInventory, saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist, createSegment, updateSegment, deleteSegment, applyServerSettings]
+    [data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, canDo, login, logout, updateProfile, refresh, updateLocalSettings, addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, bulkLeads, addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm, updateUnit, addUnit, importInventory, saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist, createSegment, updateSegment, deleteSegment, applyServerSettings]
   );
 }
 

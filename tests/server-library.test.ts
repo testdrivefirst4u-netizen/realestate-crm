@@ -34,7 +34,28 @@ beforeEach(async () => {
 describe('project library', () => {
   it('the built-in library, turned into the editable shape and back, is unchanged', () => {
     const rebuilt = buildDocuments(defaultLibrary());
-    expect(rebuilt).toEqual(PROJECT_DOCUMENTS.map((d) => ({ ...d })));
+    expect(rebuilt.slice(0, PROJECT_DOCUMENTS.length)).toEqual(PROJECT_DOCUMENTS.map((d) => ({ ...d })));
+  });
+
+  it('the built-in library has the Hyderabad locations: 144 places, by side of the city, nearest first', () => {
+    const loc = buildDocuments(defaultLibrary()).find((d) => d.id === 'amaya-locations')!;
+    expect(loc).toMatchObject({ category: 'Locations', shortName: 'Locations' });
+    expect(loc.chapters.map((c) => c.title)).toEqual(['North Hyderabad', 'East Hyderabad', 'South Hyderabad', 'West Hyderabad']);
+    expect(loc.verses).toHaveLength(144);
+    expect(loc.chapters[0].verses[0].text).toBe('Kandlakoya (Locality) — north side · about 0–5 km from Amaya · 5–15 min by car');
+    expect(loc.verses.find((v) => v.text.startsWith('Kukatpally'))!.reference).toMatch(/^Locations 4:\d+$/);
+  });
+
+  it('a library the company saved before gets the locations once; deleting them afterwards sticks', async () => {
+    const content = defaultLibrary();
+    content.documents = content.documents.filter((d) => d.id !== 'amaya-locations');
+    expect((await as('Asha', 'librarySave', { content })).status).toBe('success');
+    const first = (await as('Ravi', 'libraryGet')).data.content;
+    expect(first.documents.some((d: any) => d.id === 'amaya-locations')).toBe(true);
+    const lib = await as('Asha', 'libraryGet');
+    lib.data.content.documents = lib.data.content.documents.filter((d: any) => d.id !== 'amaya-locations');
+    expect((await as('Asha', 'librarySave', { content: lib.data.content, baseUpdatedAt: lib.data.updatedAt })).status).toBe('success');
+    expect((await as('Ravi', 'libraryGet')).data.content.documents.some((d: any) => d.id === 'amaya-locations')).toBe(false);
   });
 
   it('nothing saved = built-in; an admin saves, everyone reads it; others cannot save; restore goes back', async () => {

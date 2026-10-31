@@ -122,6 +122,7 @@ export interface JcReport {
   byDay: Array<{ date: string; calls: number; answered: number; missed: number; notAnswered: number; talkSeconds: number }>;
   byAgent: Array<{ name: string; calls: number; answered: number; missed: number; notAnswered: number; talkSeconds: number; avgTalkSeconds: number | null }>;
 }
+export type BulkOp = 'assign' | 'stage' | 'followup' | 'remark' | 'trash';
 export interface EnquiryHistoryRow { id: string; enquiryDate: string; source: string; stage: string; rm: string; canOpen: boolean; current: boolean }
 export interface LeaderRow { rm: string; followups: number; calls: number; visits: number; bookings: number }
 export interface SpendRow { campaign: string; month: string; amount: number }
@@ -264,6 +265,8 @@ export const api = {
     timeline: (id: string) => request<TimelineEntry[]>('getLeadTimeline', { id }),
     /** Every enquiry from this lead's phone number, oldest first (empty when it is the only one). */
     enquiryHistory: (id: string) => request<EnquiryHistoryRow[]>('getEnquiryHistory', { id }),
+    /** One change to many leads: assign (RM name, '' = unassigned) · stage · followup (ISO, '' = clear) · remark · trash. */
+    bulk: (ids: string[], op: BulkOp, value = '') => request<{ done: number; skipped: number; failed: Array<{ id: string; message: string }>; version: string }>('bulkLeads', { ids, op, value }),
     merge: (keepId: string, mergeIds: string[]) => request<{ id: string; merged: string[]; version: string }>('mergeLeads', { keepId, mergeIds }),
     importBulk: (leads: Lead[], strategy: string) => request<{ created: number; updated: number; skipped?: number; version: string }>('importLeads', { leads, strategy }),
   },

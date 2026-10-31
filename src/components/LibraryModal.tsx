@@ -35,6 +35,16 @@ const POPULAR = ['MediCiti', '1,533', '2.5 BHK', 'Vaastu', 'Vegetarian', 'TG RER
 /** Escaped HTML of `text` with `q` (user input) highlighted — see highlightTerms. */
 const highlightText = (text: string, q: string): string => highlightTerms(text, q ? [q] : []);
 
+/** Prices, sizes, distances, times and counts in bold, so a fact card can be read at a glance. */
+const KEY_NUMBER = /(₹\s?[\d,.]+(?:\s?(?:L|Lakh|Lakhs|Cr|Crore|crore|lakh))?(?:\s?[–-]\s?₹?\s?[\d,.]+(?:\s?(?:L|Lakh|Lakhs|Cr|Crore|crore|lakh))?)?|\d[\d,.]*(?:\s?[–-]\s?\d[\d,.]*)?\s?(?:sq\.?\s?ft\.?|sft|km|mins?|%|BHK|acres?|floors?|units?|years?|months?|days?|lifts?)(?![A-Za-z]))/g;
+function emphasise(text: string): React.ReactNode {
+  const parts = text.split(KEY_NUMBER);
+  return parts.map((p, i) => (i % 2 ? <b key={i} className="font-semibold text-[#0B2A44]">{p}</b> : p));
+}
+
+/** "Kukatpally (Locality) — west side · about 25–30 km from Amaya · 35–50 min by car" → its parts. */
+const LOCATION_LINE = /^(.+?) \((.+?)\) — (?:.*?)about (.+?) km from Amaya · (.+?) min by car$/;
+
 /** ".pdf" — from the document's file name, else from its download link. */
 function extensionOf(fileName: string, url: string): string {
   const m = /\.([A-Za-z0-9]{1,5})$/.exec(fileName || '') || /\.([A-Za-z0-9]+)(?:[?#].*)?$/.exec(url || '');
@@ -58,6 +68,7 @@ const CATEGORY_TONE: Record<string, string> = {
   'Monthly Packages': 'bg-emerald-50 text-emerald-800 border-emerald-200',
   'Pricing & Payment': 'bg-amber-50 text-amber-800 border-amber-200',
   'Legal & RERA': 'bg-rose-50 text-rose-800 border-rose-200',
+  'Locations': 'bg-teal-50 text-teal-800 border-teal-200',
 };
 const CategoryPill: React.FC<{ category: string }> = ({ category }) => (
   <span className={cx('inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap', CATEGORY_TONE[category] || 'bg-[#F2F7FB] text-[#5E778C] border-[#D3E3F0]')}>{category}</span>
@@ -95,6 +106,21 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
   const highlightedRef = useRef<HTMLDivElement | null>(null);
   const readerTop = useRef<HTMLDivElement | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  /** Documents open as fact cards (every section on one page) or section by section. */
+  const [readMode, setReadMode] = useState<'cards' | 'sections'>(() => {
+    try { return localStorage.getItem('libraryReadMode') === 'sections' ? 'sections' : 'cards'; } catch { return 'cards'; }
+  });
+  const chooseReadMode = (m: 'cards' | 'sections') => {
+    setReadMode(m);
+    try { localStorage.setItem('libraryReadMode', m); } catch { /* private window */ }
+  };
+  const [activeSection, setActiveSection] = useState(1);
+  const goToSection = (n: number) => {
+    setHighlightId(null);
+    if (readMode === 'sections') return setReaderChapter(n);
+    setActiveSection(n);
+    try { document.getElementById(`libsec-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { /* old browsers */ }
+  };
 
   // the company's latest library each time it opens
   useEffect(() => {
@@ -154,6 +180,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
   const openDoc = (docId: string, chapterNumber = 1, verseId: string | null = null) => {
     setReaderDocId(docId);
     setReaderChapter(chapterNumber);
+    setActiveSection(chapterNumber);
     setHighlightId(verseId);
     setTab('reader');
   };
@@ -449,23 +476,83 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                       <Download size={13} /> Download {extensionOf(readerDoc.fileName, readerDoc.downloadUrl)}
                     </a>
                   )}
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7E93A6] mb-1 px-1">Sections</div>
+                  <div role="group" aria-label="How to show the document" className="flex rounded-lg border border-[#D3E3F0] bg-[#F7FAFD] p-0.5 mb-3 text-[11px] font-semibold">
+                    {([['cards', 'Fact cards'], ['sections', 'Section by section']] as const).map(([m, label]) => (
+                      <button key={m} type="button" onClick={() => chooseReadMode(m)} aria-pressed={readMode === m} className={cx('flex-1 px-2 py-1 rounded-md transition', readMode === m ? 'bg-white text-[#0B2A44] shadow-sm' : 'text-[#5E778C] hover:text-[#0B2A44]')}>{label}</button>
+                    ))}
+                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7E93A6] mb-1 px-1">{readMode === 'cards' ? 'Jump to' : 'Sections'}</div>
                   <div className="space-y-0.5">
                     {readerDoc.chapters.map((c) => (
                       <button
                         key={c.chapterNumber}
                         type="button"
-                        onClick={() => { setReaderChapter(c.chapterNumber); setHighlightId(null); }}
-                        className={cx('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition', chapter.chapterNumber === c.chapterNumber ? 'bg-[#0B2A44] text-white' : 'text-[#3E5A70] hover:bg-[#F2F7FB]')}
+                        onClick={() => goToSection(c.chapterNumber)}
+                        className={cx('w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition', (readMode === 'sections' ? chapter.chapterNumber : activeSection) === c.chapterNumber ? 'bg-[#0B2A44] text-white' : 'text-[#3E5A70] hover:bg-[#F2F7FB]')}
                       >
-                        <span className={cx('w-5 text-right tabular-nums text-[10px]', chapter.chapterNumber === c.chapterNumber ? 'text-white/70' : 'text-[#7E93A6]')}>{c.chapterNumber}</span>
+                        <span className={cx('w-5 text-right tabular-nums text-[10px]', (readMode === 'sections' ? chapter.chapterNumber : activeSection) === c.chapterNumber ? 'text-white/70' : 'text-[#7E93A6]')}>{c.chapterNumber}</span>
                         <span className="truncate flex-1">{c.title}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
+                {/* fact cards: every section on one page, bullets, key numbers in bold */}
+                {readMode === 'cards' && (
+                  <div ref={readerTop} className="flex-1 overflow-y-auto bg-[#F7FAFD]">
+                    <div className="px-3 sm:px-5 py-4 sm:py-5">
+                      <div className="mb-4">
+                        <h3 className="text-lg sm:text-xl font-bold text-[#0B2A44] leading-snug">{readerDoc.title}</h3>
+                        {readerDoc.summary && <p className="text-xs text-[#5E778C] mt-1 max-w-3xl">{readerDoc.summary}</p>}
+                      </div>
+                      <div className="columns-1 xl:columns-2 gap-4">
+                        {readerDoc.chapters.map((c) => (
+                          <section key={c.chapterNumber} id={`libsec-${c.chapterNumber}`} className="break-inside-avoid mb-4 bg-white rounded-xl border border-[#D3E3F0] p-4 scroll-mt-3">
+                            <div className="flex items-center gap-2 pb-2 mb-2 border-b border-[#EEF4F9]">
+                              <span className="w-6 h-6 rounded-lg bg-[#0B6BB0]/10 text-[#0B6BB0] grid place-items-center text-[11px] font-bold tabular-nums">{c.chapterNumber}</span>
+                              <h4 className="text-sm font-bold text-[#0B2A44] flex-1">{c.title}</h4>
+                              <span className="text-[10px] text-[#7E93A6]">{c.verses.length}</span>
+                            </div>
+                            <ul className="space-y-0.5">
+                              {c.verses.map((v) => {
+                                const lit = highlightId === v.id;
+                                const loc = LOCATION_LINE.exec(v.text);
+                                return (
+                                  <li key={v.id} id={v.id} ref={lit ? (highlightedRef as unknown as React.Ref<HTMLLIElement>) : undefined} className={cx('group flex gap-2 rounded-md px-1.5 py-1 -mx-1.5 text-[13px] leading-relaxed text-[#0F2233] transition', lit ? 'bg-[#EEF6FC] ring-2 ring-[#0B6BB0]/40' : 'hover:bg-[#F7FAFD]')}>
+                                    {loc ? (
+                                      <span className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2">
+                                        <b className="font-semibold text-[#0B2A44]">{loc[1]}</b>
+                                        <span className="text-[11px] text-[#7E93A6]">{loc[2]}</span>
+                                        <span className="ml-auto tabular-nums whitespace-nowrap text-[#0B2A44]"><b className="font-semibold">{loc[3]} km</b> <span className="text-[#5E778C]">· {loc[4]} min</span></span>
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span className="text-[#0B6BB0] select-none">•</span>
+                                        <span className="flex-1 min-w-0">
+                                          {q ? <span dangerouslySetInnerHTML={{ __html: highlightText(v.text, q) }} /> : emphasise(v.text)}
+                                          {v.pageNumber && <span className="ml-1.5 text-[10px] text-[#9AB0C2] whitespace-nowrap">p. {v.pageNumber}</span>}
+                                        </span>
+                                      </>
+                                    )}
+                                    <span className="flex items-start gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
+                                      <IconBtn title={copiedId === v.id ? 'Copied' : 'Copy with source'} onClick={() => copyPassage(v)}>
+                                        {copiedId === v.id ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                      </IconBtn>
+                                      <IconBtn title="Send on WhatsApp" tone="green" onClick={() => shareWhatsApp(v)}><Share2 size={12} /></IconBtn>
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </section>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* the section's text */}
+                {readMode === 'sections' && (
                 <div ref={readerTop} className="flex-1 overflow-y-auto bg-white">
                   <div className="max-w-3xl mx-auto px-4 sm:px-8 py-5 sm:py-7">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0B6BB0]">{readerDoc.shortName} · Section {chapter.chapterNumber} of {readerDoc.chapters.length}</div>
@@ -515,6 +602,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                     </div>
                   </div>
                 </div>
+                )}
               </div>
             )}
 

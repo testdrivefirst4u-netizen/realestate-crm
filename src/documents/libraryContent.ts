@@ -4,9 +4,10 @@
  * (server/modules/library.ts); the browser store is in projectLibrary.ts.
  */
 import { PROJECT_DOCUMENTS, type DocVerse, type ProjectDocument } from './projectDocuments';
+import { locationsDoc } from './amayaLocations';
 
 export type LibraryCategory = ProjectDocument['category'];
-export const LIBRARY_CATEGORIES: LibraryCategory[] = ['Brochure', 'Floor Plans', 'Monthly Packages', 'Pricing & Payment', 'Legal & RERA'];
+export const LIBRARY_CATEGORIES: LibraryCategory[] = ['Brochure', 'Floor Plans', 'Monthly Packages', 'Pricing & Payment', 'Legal & RERA', 'Locations'];
 export const SECTION_ICONS = ['building', 'shield', 'money', 'heart', 'sparkles', 'map', 'book', 'file'] as const;
 export type SectionIcon = (typeof SECTION_ICONS)[number];
 
@@ -131,7 +132,7 @@ const DEFAULT_SECTIONS: LibrarySection[] = [
 /** The built-in library in the editable shape. */
 export function defaultLibrary(): LibraryContent {
   return {
-    documents: PROJECT_DOCUMENTS.map((d) => {
+    documents: PROJECT_DOCUMENTS.map((d): LibraryDoc => {
       const first = d.chapters[0]?.verses[0];
       return {
         id: d.id, title: d.title, shortName: d.shortName,
@@ -139,7 +140,7 @@ export function defaultLibrary(): LibraryContent {
         category: d.category, badgeColor: d.badgeColor, summary: d.summary, fileName: d.fileName, downloadUrl: d.downloadUrl,
         chapters: d.chapters.map((c) => ({ title: c.title, passages: c.verses.map((v) => ({ text: v.text, tags: [...v.tags], ...(v.pageNumber ? { pageNumber: v.pageNumber } : {}) })) })),
       };
-    }),
+    }).concat(locationsDoc()),
     sections: DEFAULT_SECTIONS.map((s) => ({ ...s, items: [...s.items] })),
   };
 }

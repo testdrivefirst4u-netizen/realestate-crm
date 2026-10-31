@@ -20,6 +20,9 @@ export function LeadsClient() {
       onOpenAddLead={engine.can('leads.create') ? openAddLead : undefined}
       onOpenImport={engine.can('leads.import') ? openImport : undefined}
       onMergeLeads={engine.can('leads.delete') ? engine.mergeLeads : undefined}
+      onBulk={engine.can('leads.edit') ? engine.bulkLeads : undefined}
+      canBulkAssign={engine.can('leads.viewAll')}
+      canBulkTrash={engine.can('leads.trash')}
       sync={sync}
     />
   );

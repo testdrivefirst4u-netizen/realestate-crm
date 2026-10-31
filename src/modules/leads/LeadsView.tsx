@@ -29,6 +29,8 @@ import {
   resolveDateFilter,
 } from '../../components/ui';
 import { LeadStars, ReEnquiryBadge } from './shared';
+import { BulkBar } from './BulkBar';
+import type { BulkOp } from '../../core/api';
 import { SourceLogo } from './SourceLogo';
 import { LeadSortKey, sortLeads } from './sorting';
 import { PageSkeleton } from '../../components/Skeletons';
@@ -48,6 +50,11 @@ export interface LeadsViewProps {
   onOpenImport?: () => void;
   /** Merges duplicate leads; undefined when the role cannot delete leads. */
   onMergeLeads?: (keepId: string, mergeIds: string[]) => Promise<boolean>;
+  /** Applies one change to the ticked leads; undefined hides the tick boxes (no edit rights). */
+  onBulk?: (ids: string[], op: BulkOp, value?: string) => Promise<boolean>;
+  /** Bulk reassign (managers) and move to the bin. */
+  canBulkAssign?: boolean;
+  canBulkTrash?: boolean;
   sync: SyncState;
 }
 
@@ -56,7 +63,7 @@ type SortKey = Extract<LeadSortKey, 'id' | 'name' | 'enquiryDate' | 'stage' | 'u
 const DATE_SORT_KEYS: SortKey[] = ['enquiryDate', 'nextDue'];
 const PAGE_SIZE = 50;
 
-export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, onMergeLeads, sync }) => {
+export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, onMergeLeads, onBulk, canBulkAssign = false, canBulkTrash = false, sync }) => {
   const [dupOpen, setDupOpen] = useState(false);
   const dupCount = useMemo(() => (onMergeLeads ? findDuplicateGroups(leads).length : 0), [leads, onMergeLeads]);
   const [query, setQuery] = useState('');
@@ -70,6 +77,8 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   const [sortAsc, setSortAsc] = useState(false);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /** Ticked leads (kept while filters change, so a selection can be built from several searches). */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
 
   const range = useMemo(() => resolveDateFilter(dateFilter), [dateFilter]);
   const base = useMemo(() => countedLeads(leads), [leads]);
@@ -209,7 +218,27 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   /* -------------------------------- table -------------------------------- */
 
   const now = Date.now();
+  const visibleIds = visible.map((l) => String(l[F.ID]));
+  const allVisiblePicked = visibleIds.length > 0 && visibleIds.every((id) => picked.has(id));
+  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const pickColumn = onBulk ? [{
+    key: 'pick',
+    label: (
+      <input type="checkbox" aria-label={allVisiblePicked ? 'Untick the leads on screen' : 'Tick the leads on screen'} checked={allVisiblePicked}
+        ref={(el) => { if (el) el.indeterminate = !allVisiblePicked && visibleIds.some((id) => picked.has(id)); }}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => setPicked((p) => { const n = new Set(p); visibleIds.forEach((id) => (allVisiblePicked ? n.delete(id) : n.add(id))); return n; })}
+        className="w-4 h-4 accent-[#0B6BB0] cursor-pointer align-middle" />
+    ),
+    className: 'w-9',
+    render: (l: Lead) => (
+      <input type="checkbox" aria-label={`Tick ${leadDisplayName(l) || l[F.ID]}`} checked={picked.has(String(l[F.ID]))}
+        onClick={(e) => e.stopPropagation()} onChange={() => toggle(String(l[F.ID]))}
+        className="w-4 h-4 accent-[#0B6BB0] cursor-pointer align-middle" />
+    ),
+  }] : [];
   const columns = [
+    ...pickColumn,
     {
       key: 'id',
       label: 'ID',
@@ -466,6 +495,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         )}
       </div>
 
+      {onBulk && picked.size > 0 && sorted.length > visible.length && allVisiblePicked && !sorted.every((l) => picked.has(String(l[F.ID]))) && (
+        <div className="hidden md:flex items-center justify-center gap-2 text-xs text-[#0B2A44] bg-[#E6F1FA] border border-[#BFD9EE] rounded-xl px-3 py-2">
+          All {visible.length} leads on screen are ticked.
+          <button type="button" className="font-bold text-[#0B6BB0] hover:underline" onClick={() => setPicked((p) => { const n = new Set(p); sorted.slice(0, 500).forEach((l) => n.add(String(l[F.ID]))); return n; })}>
+            Tick all {Math.min(sorted.length, 500)} matching leads
+          </button>
+        </div>
+      )}
+
       {/* Table (tablets and up) */}
       <div className="hidden md:block bg-white rounded-2xl border border-[#D3E3F0] shadow-xs overflow-hidden">
         <DataTable<Lead>
@@ -495,6 +533,24 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
           </div>
         )}
       </div>
+
+      {onBulk && (
+        <BulkBar
+          count={picked.size}
+          rms={config.options[F.RM] || []}
+          stages={(config.options[F.STAGE] || []).filter((s) => s !== 'Trash')}
+          canAssign={canBulkAssign}
+          canTrash={canBulkTrash}
+          canExport={canExport}
+          onExport={() => exportLeadsToXlsx(leads.filter((l) => picked.has(String(l[F.ID]))))}
+          onClear={() => setPicked(new Set())}
+          onApply={async (op, value) => {
+            const ok = await onBulk([...picked], op, value);
+            if (ok) setPicked(new Set());
+            return ok;
+          }}
+        />
+      )}
     </div>
   );
 };
