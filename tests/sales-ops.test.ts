@@ -112,6 +112,30 @@ describe('auto-reassign', () => {
   });
 });
 
+describe('payment reminders (inventory dues)', () => {
+  it('tells the RM 3 days before, on the day and weekly once overdue, each once; nothing when fully paid', async () => {
+    await pushSubscribe(device(3), priya);
+    const { lead } = await addLead({ [L.NAME]: 'Mr Rao', [L.PHONE]: '9876500011', [L.RM]: 'Priya Sharma' }, admin);
+    const { addUnit, updateUnit } = await import('../server/modules/inventory');
+    const { unit } = await addUnit({ unitId: 'A101' }, admin);
+    await updateUnit(unit.inventoryId, { status: 'Booked', leadId: lead[L.ID], customerName: 'Mr Rao', quotedAmount: 10000000, paidAmount: 2500000, dueDate: makeZoned(2026, 11, 10, 0, 0).toISOString() }, admin);
+
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 7, 9, 0))).toEqual({ sent: 0 }); // before 10 AM
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 7, 11, 0))).toEqual({ sent: 1 }); // 3 days before
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 7, 15, 0))).toEqual({ sent: 0 }); // once
+    expect(pushSent.at(-1)!.body.title).toBe('Payment due in 3 days: unit A101');
+    expect(pushSent.at(-1)!.body.body).toContain('₹75,00,000 from Mr Rao');
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 9, 11, 0))).toEqual({ sent: 0 }); // the day before: no reminder
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 10, 11, 0))).toEqual({ sent: 1 }); // on the day
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 11, 11, 0))).toEqual({ sent: 1 }); // 1 day overdue
+    expect(pushSent.at(-1)!.body.title).toBe('Payment overdue 1 day: unit A101');
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 14, 11, 0))).toEqual({ sent: 0 });
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 18, 11, 0))).toEqual({ sent: 1 }); // a week later
+    await updateUnit(unit.inventoryId, { paidAmount: 10000000 }, admin);
+    expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 25, 11, 0))).toEqual({ sent: 0 }); // paid up
+  });
+});
+
 describe('site-visit reminders (to the RM, free)', () => {
   it('notifies the RM the day before from 10 AM and 2 hours before, each once — the customer gets no WhatsApp', async () => {
     await pushSubscribe(device(1), priya);

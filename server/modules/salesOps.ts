@@ -451,6 +451,45 @@ export async function sendEveningSummary(cfg: SalesOps, now = new Date()): Promi
   return { sent: r.sent };
 }
 
+/* --------------------------- payment reminders --------------------------- */
+
+const DAY = 24 * HOUR;
+
+/**
+ * Units with money due and a due date: the RM of the customer's lead and the managers are told 3 days before,
+ * on the day, and once a week while it is overdue (between 10 AM and 9 PM; each reminder once).
+ */
+export async function sendPaymentReminders(now = new Date()): Promise<{ sent: number }> {
+  const out = { sent: 0 };
+  if (localHour(now) < 10 || localHour(now) >= 21) return out;
+  const units = await (await col<any>(CFG.COLL.INVENTORY))
+    .find({ dueDate: { $ne: null, $lte: new Date(now.getTime() + 4 * DAY) }, quotedAmount: { $gt: 0 } })
+    .limit(500)
+    .toArray();
+  if (!units.length) return out;
+  const users = await listUsers();
+  const today = dateKey(now);
+  for (const u of units) {
+    const due = Math.max(0, Number(u.quotedAmount || 0) - Number(u.paidAmount || 0));
+    const at = new Date(u.dueDate);
+    if (!(due > 0) || isNaN(at.getTime())) continue;
+    const day = dateKey(at);
+    const daysLeft = Math.round((Date.parse(day) - Date.parse(today)) / DAY);
+    // 3 days before, on the day, and every 7 days once overdue
+    const kind = daysLeft === 3 ? 'd3' : daysLeft === 0 ? 'd0' : daysLeft < 0 && -daysLeft % 7 === 1 ? `late${-daysLeft}` : '';
+    if (!kind || !(await claimOnce(`paydue:${u._id}:${day}:${kind}`))) continue;
+    const lead = u.leadId ? await (await leadsCol()).findOne({ _id: String(u.leadId) }, { projection: { assignedRm: 1, name: 1 } }) : null;
+    const ids = [...new Set([...idsByName([lead?.assignedRm || ''], users), ...managersOr('', users)])];
+    const who = u.customerName || lead?.name || 'the customer';
+    const amount = '₹' + Math.round(due).toLocaleString('en-IN');
+    const title = kind === 'd3' ? `Payment due in 3 days: unit ${u.unitNumber}` : kind === 'd0' ? `Payment due today: unit ${u.unitNumber}` : `Payment overdue ${-daysLeft} day${daysLeft === -1 ? '' : 's'}: unit ${u.unitNumber}`;
+    const body = [`${amount} from ${who}`, `due ${fmtDate(at)}`, u.contact ? `Call ${u.contact}` : ''].filter(Boolean).join(' · ');
+    await addEvent('payment_due', u.leadId ? 'Lead' : 'Inventory', u.leadId || u._id, title, body, 'Payment reminder');
+    if (ids.length && (await sendPush(ids, { title, body, url: `/inventory?q=${encodeURIComponent(u.unitNumber)}`, tag: `paydue-${u._id}` })).sent) out.sent++;
+  }
+  return out;
+}
+
 /** One watch run (inside a company). */
 export async function runLeadWatch(now = new Date()) {
   const cfg = parseSalesOps((await settingsAll()).salesOps);
@@ -458,7 +497,8 @@ export async function runLeadWatch(now = new Date()) {
   const visits = await sendVisitReminders(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0, failed: 0 }; });
   const summary = await sendEveningSummary(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
   const missed = await alertUnreturnedMissed(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
-  return { reassigned, visits, summary, missed };
+  const payments = await sendPaymentReminders(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
+  return { reassigned, visits, summary, missed, payments };
 }
 
 /* ------------------------------- leaderboard ----------------------------- */

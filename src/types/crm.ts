@@ -68,6 +68,8 @@ export interface InventoryUnit {
   /** What the customer was quoted (agreed value) and has paid so far; due = quoted − paid. */
   quotedAmount?: number;
   paidAmount?: number;
+  /** When the next payment is due (ISO; reminders before, on the day, then weekly while overdue). */
+  dueDate?: string;
   availability?: string;
   bookingStatus?: string;
   bookedDate?: string;

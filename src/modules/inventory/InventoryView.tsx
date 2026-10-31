@@ -19,6 +19,7 @@ import { reportError, toAppError } from '../../core/errors';
 import { Badge, Button, Card, DataTable, EmptyState, ErrorState, Field, InlineNotice, KpiTile, LoadingState, Modal, Select, StageBadge, cx, inputCls } from '../../components/ui';
 import {
   EXPORT_HEADERS, IMPORT_HEADERS, INVENTORY_STATUSES, CsvImportAnalysis, analyzeInventoryCsv, distinctValues, isKnownStatus, naturalCompare, statusTone, summarizeInventory, syncTone, unitKey, unitToExportRow,
+  dueInDays,
   isLoOwned,
   unitDue,
 } from './inventoryUtils';
@@ -116,6 +117,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       if (payment) {
         const quoted = Number(u.quotedAmount || 0), due = unitDue(u);
         if (payment === 'due' && !(due > 0)) return false;
+        if (payment === 'overdue' && !((dueInDays(u) ?? 1) < 0)) return false;
         if (payment === 'paid' && !(quoted > 0 && due === 0)) return false;
         if (payment === 'none' && quoted > 0) return false;
       }
@@ -152,15 +154,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
   const anyFilter = !!(search || tower || unitType || floor || status || owner || payment);
   // money for the units in view: what was quoted, what came in, what is still due
   const money = useMemo(() => {
-    let quoted = 0, paid = 0, due = 0, dueUnits = 0;
+    let quoted = 0, paid = 0, due = 0, dueUnits = 0, overdue = 0;
     for (const u of filtered) {
       quoted += Number(u.quotedAmount || 0);
       paid += Number(u.paidAmount || 0);
       const d = unitDue(u);
       due += d;
       if (d > 0) dueUnits++;
+      if ((dueInDays(u) ?? 1) < 0) overdue++;
     }
-    return { quoted, paid, due, dueUnits };
+    return { quoted, paid, due, dueUnits, overdue };
   }, [filtered]);
   const loCount = useMemo(() => inventory.filter(isLoOwned).length, [inventory]);
   const clearFilters = () => {
@@ -215,7 +218,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
     { key: 'type', label: 'Type', onSort: () => toggleSort('type'), sortIndicator: indicator('type'), render: (u: InventoryUnit) => <span className="font-semibold text-[#0B6BB0]">{u.unitType || '—'}</span> },
     { key: 'quoted', label: 'Quoted', onSort: () => toggleSort('quoted'), sortIndicator: indicator('quoted'), align: 'right' as const, render: (u: InventoryUnit) => <span className="tabular-nums">{Number(u.quotedAmount) > 0 ? formatINR(u.quotedAmount) : '—'}</span> },
     { key: 'paid', label: 'Paid', onSort: () => toggleSort('paid'), sortIndicator: indicator('paid'), align: 'right' as const, render: (u: InventoryUnit) => <span className="tabular-nums text-[#1F7A4D]">{Number(u.paidAmount) > 0 ? formatINR(u.paidAmount) : '—'}</span> },
-    { key: 'due', label: 'Due', onSort: () => toggleSort('due'), sortIndicator: indicator('due'), align: 'right' as const, render: (u: InventoryUnit) => { const d = unitDue(u); return Number(u.quotedAmount) > 0 ? <span className={cx('font-semibold tabular-nums', d > 0 ? 'text-[#B42318]' : 'text-[#1F7A4D]')}>{d > 0 ? formatINR(d) : 'Paid'}</span> : <span className="text-[#7E93A6]">—</span>; } },
+    { key: 'due', label: 'Due', onSort: () => toggleSort('due'), sortIndicator: indicator('due'), align: 'right' as const, render: (u: InventoryUnit) => { const d = unitDue(u); const left = dueInDays(u); if (!(Number(u.quotedAmount) > 0)) return <span className="text-[#7E93A6]">—</span>; return (<div className="leading-tight"><span className={cx('font-semibold tabular-nums', d > 0 ? 'text-[#B42318]' : 'text-[#1F7A4D]')}>{d > 0 ? formatINR(d) : 'Paid'}</span>{left !== null && <span className={cx('block text-[10.5px] whitespace-nowrap', left < 0 ? 'text-[#B42318] font-bold' : left <= 3 ? 'text-[#B54708] font-semibold' : 'text-[#5E778C]')}>{left < 0 ? `${-left}d overdue` : left === 0 ? 'due today' : `by ${formatDate(u.dueDate)}`}</span>}</div>); } },
     {
       key: 'area', label: <span>Carpet / Built-up <span className="normal-case font-medium">(sq.ft)</span></span>, onSort: () => toggleSort('carpet'), sortIndicator: indicator('carpet'), align: 'right' as const,
       render: (u: InventoryUnit) => (
@@ -361,7 +364,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
             <button type="button" onClick={() => setPayment('due')} className="text-left rounded-xl border border-[#F3C6C2] bg-[#FFF8F7] px-4 py-3 hover:bg-[#FFF1EF]" title="Quoted minus paid. Select to see the units with money due">
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-[#B42318]">Due</span>
               <span className="block text-xl sm:text-2xl font-extrabold tabular-nums text-[#B42318]">{formatINR(money.due)}</span>
-              <span className="block text-[11px] text-[#7E93A6]">{pluralize(money.dueUnits, 'unit')} with money due</span>
+              <span className="block text-[11px] text-[#7E93A6]">{pluralize(money.dueUnits, 'unit')} with money due{money.overdue ? <> · <b className="text-[#B42318]">{money.overdue} overdue</b></> : null}</span>
             </button>
           </div>
 
@@ -376,7 +379,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
             <Select value={unitType} onChange={(e) => setUnitType(e.target.value)} options={types} placeholder="All types" className="!w-auto" />
             <Select value={status} onChange={(e) => setStatus(e.target.value)} options={statuses} placeholder="All statuses" className="!w-auto" />
             <Select value={owner} onChange={(e) => setOwner(e.target.value)} options={[{ value: 'lo', label: `LO - Owned flats (${loCount})` }, { value: 'developer', label: 'Developer flats' }]} placeholder="All ownership" className="!w-auto" aria-label="Ownership" />
-            <Select value={payment} onChange={(e) => setPayment(e.target.value)} options={[{ value: 'due', label: 'Money due' }, { value: 'paid', label: 'Fully paid' }, { value: 'none', label: 'Not quoted yet' }]} placeholder="All payments" className="!w-auto" aria-label="Payment" />
+            <Select value={payment} onChange={(e) => setPayment(e.target.value)} options={[{ value: 'due', label: 'Money due' }, { value: 'overdue', label: 'Overdue (past due date)' }, { value: 'paid', label: 'Fully paid' }, { value: 'none', label: 'Not quoted yet' }]} placeholder="All payments" className="!w-auto" aria-label="Payment" />
             <span className="text-xs text-[#5E778C] font-medium ml-auto">
               {filtered.length === inventory.length ? pluralize(inventory.length, 'unit') : `${filtered.length} of ${inventory.length} units`}
             </span>
@@ -441,6 +444,7 @@ interface UnitForm {
   price: string;
   quotedAmount: string;
   paidAmount: string;
+  dueDate: string; // yyyy-MM-dd
   facing: string;
   notes: string;
   customerName: string;
@@ -456,6 +460,7 @@ const formFromUnit = (u: InventoryUnit): UnitForm => ({
   price: Number(u.price) > 0 ? String(u.price) : '',
   quotedAmount: Number(u.quotedAmount) > 0 ? String(u.quotedAmount) : '',
   paidAmount: Number(u.paidAmount) > 0 ? String(u.paidAmount) : '',
+  dueDate: toDateInput(u.dueDate),
   facing: u.facing || '',
   notes: u.notes || '',
   customerName: u.customerName || '',
@@ -482,6 +487,7 @@ function buildPatch(u: InventoryUnit, f: UnitForm): Partial<InventoryUnit> {
   if (isFinite(quoted) && quoted !== Number(u.quotedAmount || 0)) p.quotedAmount = Math.max(0, quoted);
   const paid = f.paidAmount.trim() === '' ? 0 : Number(f.paidAmount);
   if (isFinite(paid) && paid !== Number(u.paidAmount || 0)) p.paidAmount = Math.max(0, paid);
+  if (f.dueDate !== toDateInput(u.dueDate)) p.dueDate = fromDateInput(f.dueDate);
   if (f.bookedDate !== toDateInput(u.bookedDate)) p.bookedDate = fromDateInput(f.bookedDate);
   return p;
 }
@@ -650,6 +656,9 @@ const UnitDrawer: React.FC<{
             </Field>
             <Field label="Paid so far (₹)" hint={Number(form.quotedAmount) > 0 ? `Due: ${formatINR(Math.max(0, Number(form.quotedAmount || 0) - Number(form.paidAmount || 0)))}` : Number(form.paidAmount) > 0 ? formatINR(Number(form.paidAmount)) : undefined}>
               <input type="number" min={0} step={1000} value={form.paidAmount} onChange={(e) => set('paidAmount', e.target.value)} className={inputCls} disabled={disabled} placeholder="0" />
+            </Field>
+            <Field label="Next payment due on" hint="The RM and managers are reminded 3 days before, on the day, and weekly while it is overdue">
+              <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} className={inputCls} disabled={disabled} />
             </Field>
             <Field label="Facing">
               <input value={form.facing} onChange={(e) => set('facing', e.target.value)} className={inputCls} disabled={disabled} placeholder="e.g. East" />
