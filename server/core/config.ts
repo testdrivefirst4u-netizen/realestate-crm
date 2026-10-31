@@ -88,6 +88,9 @@ export const CFG = {
   /** Which ad a Meta lead came from — extra columns like LEAD_GEO, filled by intake aliases (meta_*). */
   LEAD_AD: { CAMPAIGN: 'Campaign', AD_SET: 'Ad Set', AD: 'Ad Name', FORM: 'Lead Form' },
 
+  /** Lead-form answers that match no CRM field: one extra column each, named this prefix + the question. */
+  FORM_ANSWER_PREFIX: 'Form: ',
+
   LEAD_BASE_HEADERS: [
     'Enquiry ID', 'Enquiry Date', 'Prospect Name', 'Phone Number', 'Email', 'Lead Stage', 'Enquiry Source',
     'Unit Type Interested In', 'Purchase or Rent', 'Site Visit Status', 'Site Visit Date', 'Booking Date',

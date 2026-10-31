@@ -311,9 +311,74 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
       {jcOn && <JcCallReport today={today} />}
 
       <Geo list={list} hasGeo={hasGeo} open={geoOpen} setOpen={setGeoOpen} country={country} show={show} />
+
+      <MisNotes />
     </div>
   );
 };
+
+/* ------------------------------- Notes ----------------------------------- */
+
+/** Plain-language rules behind every number, written for the sales team (keep in step with misData.ts). */
+const NOTES: Array<[string, React.ReactNode[]]> = [
+  ['Which leads are counted', [
+    <>Leads are counted by the <b>date the enquiry came in</b>, not the date they were last updated.</>,
+    <>The filters at the top (representative, source, place) and the period you pick change every section.</>,
+    <>Tap any number to see the leads behind it.</>,
+  ]],
+  ['Stages: every lead is in one stage only', [
+    <><b>New</b>: just came in, not worked yet. <b>Open</b>: stage Open or Not Responding.</>,
+    <><b>Qualified</b>, <b>HOT</b> (closing within a week), <b>Warm</b> (closing in 15 to 20 days), <b>Booked</b>.</>,
+    <><b>Not interested post site visit</b>: lost after the site visit was done. <b>Disqualified</b>: lost or disqualified without a visit; the reason comes from the stage (Budget, Location…).</>,
+    <>All the stages added together = <b>New leads</b> for that period.</>,
+  ]],
+  ['Qualified leads (total)', [
+    <>= Qualified + HOT + Warm + Booked + Not interested post site visit + New or Open leads that have a site visit scheduled or done.</>,
+    <>That is why this row is bigger than the single "Qualified" row.</>,
+  ]],
+  ['Site visits planned', [
+    <>Leads with site visit status <b>Site Visit - Scheduled</b> that are still open (not booked, not lost).</>,
+    <>These leads are already counted in their own stage, so do not add this row to the total.</>,
+  ]],
+  ['Percentages and arrows', [
+    <>A percentage is that number divided by the New leads in the same period. Example: 20 HOT out of 200 new leads = 10%.</>,
+    <>Arrows compare with the same stretch of the previous day, week or month. Green is better, red is worse (for Open, Disqualified and Not interested, going up is shown in red).</>,
+  ]],
+  ['Conversion funnel', [
+    <>Steps: Leads → Contacted (has a call or follow-up) → Qualified → Site visit planned → Site visit done → Booked.</>,
+    <>A lead counts in every step up to the furthest one it reached, so a booked lead also counts as contacted and qualified.</>,
+    <>"% of previous step" = this step ÷ the step above it. The biggest drop is shown in red: that is where leads are being lost.</>,
+    <><b>Lost</b> (below the line) is not a step: it counts the leads that dropped out, stage Lost or any Disqualified stage, also after a site visit. Its % is a share of all leads.</>,
+  ]],
+  ['Reasons for disqualification', [
+    <>Counts the Disqualified leads by their reason. Each percentage is a share of that source's (or campaign's) leads.</>,
+  ]],
+  ['Cost per lead, site visit and booking', [
+    <>Cost per lead = ad spend ÷ leads from that campaign in that month.</>,
+    <>Cost per site visit = ad spend ÷ site visits done (Completed or Walk-in). Cost per booking = ad spend ÷ bookings.</>,
+  ]],
+  ['Sales team', [
+    <><b>First response time</b> = time from when the enquiry came in to the first call or follow-up. Leads with neither are left out of the average.</>,
+    <><b>Speed to lead</b> sorts new leads into: within 5 minutes, 5 to 60 minutes, over 1 hour, and not contacted yet.</>,
+    <><b>Awaiting first response</b> = leads that have had no call or follow-up yet; red means someone needs to call them.</>,
+    <><b>Call duration</b> = talk time from Call History, with the number of calls and the average call length.</>,
+  ]],
+];
+
+const MisNotes: React.FC = () => (
+  <Panel title="How these numbers are worked out" hint="A short guide for the team. Every section above follows these rules.">
+    <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 mt-2">
+      {NOTES.map(([title, items]) => (
+        <div key={title} className="min-w-0">
+          <h4 className="text-sm font-bold text-[#0B2A44] mb-1">{title}</h4>
+          <ul className="list-disc pl-4 space-y-1 text-[12.5px] leading-relaxed text-[#2B4A63]">
+            {items.map((it, i) => <li key={i}>{it}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  </Panel>
+);
 
 /* ------------------------------ At a glance ------------------------------ */
 
@@ -521,6 +586,26 @@ const Funnel: React.FC<{ list: MisLead[]; order: string[]; period: PeriodId; ran
                 </button>
               );
             })}
+            {(() => {
+              // Not a funnel step: the leads that dropped out (closed without a booking), out of all the leads above.
+              const lost = list.filter((l) => l.stage === 'disqualified' || l.stage === 'ni');
+              const n = lost.length;
+              return (
+                <button type="button" onClick={() => show('Funnel: Lost', lost)} title="Closed without a booking: stage Lost or any Disqualified stage, also after a site visit" className="group w-full grid grid-cols-[120px_1fr_auto] sm:grid-cols-[150px_1fr_150px] items-center gap-3 text-left pt-2 border-t border-dashed border-[#D3E3F0]">
+                  <span className="text-xs font-semibold text-[#A33A44] group-hover:underline truncate">Lost</span>
+                  <span className="h-7 rounded-lg bg-[#F9EEEF] overflow-hidden">
+                    <span className="h-full rounded-lg flex items-center px-2 text-[11px] font-bold text-white transition-[width] duration-500" style={{ width: `${Math.max((n * 100) / steps[0], n ? 4 : 0)}%`, background: '#A33A44' }}>
+                      {(n * 100) / steps[0] >= 12 ? n : ''}
+                    </span>
+                  </span>
+                  <span className="text-xs tabular-nums text-right whitespace-nowrap">
+                    <b className="text-[#A33A44]">{n}</b>
+                    <span className="text-[#7E93A6]"> · {pct(n, steps[0])}</span>
+                    <span className="block text-[10px] text-[#7E93A6]">of all leads, closed without booking</span>
+                  </span>
+                </button>
+              );
+            })()}
           </div>
           {weakest > 0 && (
             <p className="text-xs text-[#5E778C] mb-4">

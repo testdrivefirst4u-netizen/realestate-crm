@@ -265,15 +265,11 @@ describe('queue processing', () => {
 
     const [l] = await leadsIn();
     expect(l).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+919876543210', Email: 'asha@example.com', 'Enquiry Source': 'Meta Lead Ads', 'Lead Stage': 'New' });
-    const notes = l['Enquiry Notes'];
-    expect(notes).toContain('City: Bengaluru');
-    expect(notes).toContain('When do you plan to move?: Within 6 months');
-    expect(notes).toContain('Ad: Diwali offer');
-    expect(notes).toContain('Ad set: Seniors 60+');
-    expect(notes).toContain('Campaign: Amaya Q4');
-    expect(notes).toContain(`Form: Brochure form (${FORM_A})`);
-    expect(notes).toContain('Platform: Instagram');
-    expect(notes).not.toContain('leadgen_id');
+    // answers fill fields or get their own Form column; the ad has its own columns; Enquiry Notes stay empty
+    expect(l).toMatchObject({ City: 'Bengaluru', 'Form: When do you plan to move?': 'Within 6 months', 'Ad Name': 'Diwali offer', 'Ad Set': 'Seniors 60+', Campaign: 'Amaya Q4', 'Lead Form': 'Brochure form', 'Form: Platform': 'Instagram', 'Enquiry Notes': '' });
+    expect(JSON.stringify(l)).not.toContain('leadgen_id');
+    // Enquiry Date is when Meta received the lead
+    expect(Math.abs(Date.parse(l['Enquiry Date']) - Date.parse(leads['5001'].created_time))).toBeLessThan(1000);
 
     // processing again (even when forced back to pending) never creates a second lead
     expect((await Q.processQueueItem('5001'))!.status).toBe('done');

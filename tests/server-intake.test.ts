@@ -92,8 +92,10 @@ describe('lead source management', () => {
     await expect(newSource('website', { assignment: { mode: 'fixed', rm: 'Nobody', rms: [] } })).rejects.toThrow(/not a user/);
     await expect(newSource('website', { fieldMap: { foo: 'Not A Field' } })).rejects.toThrow(/not a lead field/);
     await expect(newSource('website', {}, '')).rejects.toThrow(/1–80/);
-    const ok = await newSource('webhook', { allowedOrigins: ['https://www.Example.com/'], fieldMap: { city: 'Enquiry Notes' } });
+    const ok = await newSource('webhook', { allowedOrigins: ['https://www.Example.com/'], fieldMap: { city: 'Enquiry Notes', when: 'Enquiry Date', unit: 'Unit Type Interested In' } });
     expect(ok.source.config.allowedOrigins).toEqual(['https://www.example.com']);
+    // Enquiry Notes / Enquiry Date are never filled from a form: such mappings are dropped, the rest kept
+    expect(ok.source.config.fieldMap).toEqual({ unit: 'Unit Type Interested In' });
     expect(ok.source.config.sourceLabel).toBe('Webhook');
   });
 
@@ -117,7 +119,7 @@ describe('POST /api/inbound/leads', () => {
     const leads = await leadsIn();
     expect(leads).toHaveLength(2);
     const a = leads.find((l) => l['Enquiry ID'] === 'ENQ-0001')!;
-    expect(a).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+91 98765 43210', Email: 'asha@example.com', 'Lead Stage': 'New', 'Enquiry Source': 'Website', 'Enquiry Notes': 'Call me' });
+    expect(a).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+91 98765 43210', Email: 'asha@example.com', 'Lead Stage': 'New', 'Enquiry Source': 'Website', 'Enquiry Notes': '', 'Form: Message': 'Call me' });
     expect(leads.find((l) => l['Prospect Name'] === 'Vikram')!['Phone Number']).toBe('9123456780');
     const log = await logIn();
     expect(log.map((e) => e.status)).toEqual(['created', 'created']);
@@ -149,7 +151,7 @@ describe('POST /api/inbound/leads', () => {
     expect(await leadsIn()).toHaveLength(1);
   });
 
-  it('recognises common field names and appends unknown / tracking fields to the notes', async () => {
+  it('recognises common field names; every other answer is its own Form column, nothing in the notes', async () => {
     const { apiKey } = await newSource('website', { fieldMap: { project_choice: 'Purchase or Rent', secret_field: '_ignore' }, sourceLabel: 'Landing page', defaultStage: 'Open' });
     const r = await post({
       First_Name: 'Meera', 'Last Name': 'Iyer', Mobile: '98450 12345', 'E-mail': 'meera@x.in', Comments: 'Need a 2 BHK', BHK: '2 bhk',
@@ -159,14 +161,29 @@ describe('POST /api/inbound/leads', () => {
     expect(r.status).toBe(201);
     const [lead] = await leadsIn();
     expect(lead).toMatchObject({ 'Prospect Name': 'Meera Iyer', 'Phone Number': '98450 12345', Email: 'meera@x.in', 'Unit Type Interested In': '2 BHK', 'Purchase or Rent': 'Purchase', 'Lead Stage': 'Open', 'Enquiry Source': 'Landing page', 'Assigned RM': '' });
-    const notes = lead['Enquiry Notes'];
-    expect(notes.split('\n')[0]).toBe('Need a 2 BHK');
-    expect(notes).toContain('budget: 1.2 Cr');
-    expect(notes).toContain('utm_source: google');
-    expect(notes).toContain('gclid: abc');
-    expect(notes).toContain('page_url: https://site/x');
-    expect(notes).not.toContain('hide me');
-    expect(notes).not.toContain('_internal');
+    expect(lead['Enquiry Notes']).toBe('');
+    expect(lead).toMatchObject({ 'Form: Comments': 'Need a 2 BHK', 'Form: Budget': '1.2 Cr', 'Form: Utm source': 'google', 'Form: Gclid': 'abc', 'Form: Page url': 'https://site/x' });
+    expect(JSON.stringify(lead)).not.toContain('hide me');
+    expect(JSON.stringify(lead)).not.toContain('_internal');
+  });
+
+  it('questions fill matching fields; a date or notes field in the form never fills Enquiry Date / Notes', async () => {
+    const { apiKey } = await newSource('website');
+    const r = await post({ name: 'Ravi', phone: '9845011111', 'Are you looking to buy or rent?': 'Buy for self', 'Which city do you live in?': 'Chennai', 'Enquiry Date': '2020-01-01', notes: 'from the form', 'What is your budget?': '2 Cr' }, { key: apiKey });
+    expect(r.status).toBe(201);
+    const [lead] = await leadsIn();
+    expect(lead).toMatchObject({ 'Purchase or Rent': 'Purchase', City: 'Chennai', 'Enquiry Notes': '', 'Form: What is your budget?': '2 Cr', 'Form: Notes': 'from the form', 'Form: Enquiry Date': '2020-01-01' });
+    expect(Math.abs(Date.parse(lead['Enquiry Date']) - Date.now())).toBeLessThan(60_000);
+  });
+
+  it('the senior-living "for yourself or a parent" question fills Enquired For; a bare name stays a form answer', async () => {
+    const { apiKey } = await newSource('website');
+    await post({ name: 'A', phone: '9845022221', 'Are you exploring senior living for yourself, or helping a parent find the right community?': 'Helping my parents', notes: '[Book a Visit] Preferred visit date: 2026-10-31' }, { key: apiKey });
+    await post({ name: 'B', phone: '9845022222', 'Are you exploring senior living for yourself, or helping a parent find the right community?': 'Ramesh' }, { key: apiKey });
+    const [a, b] = (await leadsIn()).sort((x: any, y: any) => x['Prospect Name'].localeCompare(y['Prospect Name']));
+    expect(a).toMatchObject({ 'Enquired For': 'Parents', 'Enquiry Notes': '', 'Form: Notes': '[Book a Visit] Preferred visit date: 2026-10-31' });
+    expect(b['Enquired For']).toBe('');
+    expect(b['Form: Are you exploring senior living for yourself, or helping a parent find the right community?']).toBe('Ramesh');
   });
 
   it('names a nameless enquiry, rejects one without valid contact details', async () => {
@@ -346,7 +363,8 @@ describe('retry & preview', () => {
     const { source } = await newSource();
     const p = await inCo(() => LS.previewLeadSource({ id: source.id, payload: { name: 'P', phone: '98765', email: 'p@x.io', utm_campaign: 'diwali' } }));
     expect(p.lead).toMatchObject({ 'Prospect Name': 'P', Email: 'p@x.io', 'Lead Stage': 'New' });
-    expect(p.lead['Enquiry Notes']).toContain('utm_campaign: diwali');
+    expect(p.lead['Enquiry Notes']).toBeUndefined();
+    expect(p.lead['Form: Utm campaign']).toBe('diwali');
     expect(p.warnings.join(' ')).toMatch(/Phone number/);
     expect(await leadsIn()).toHaveLength(0);
     expect(await logIn()).toHaveLength(0);

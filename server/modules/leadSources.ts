@@ -156,6 +156,8 @@ export async function mergeConfig(base: LeadSourceConfig, patch: unknown): Promi
       const key = String(k).trim();
       const target = String(v ?? '').trim();
       if (!key || key.length > 80 || /^\$|\./.test(key)) throw fail('VALIDATION', `Invalid incoming field name "${truncate(key, 80)}" (no dots, not starting with $)`);
+      // older sources may still map a question to Enquiry Notes / Date: dropped, the answer gets its own column instead
+      if (target === CFG.LEAD.NOTES || target === CFG.LEAD.ENQUIRY_DATE) continue;
       if (target !== IGNORE_TARGET && !MAPPABLE_HEADERS.includes(target)) {
         throw fail('VALIDATION', `"${truncate(target, 60)}" is not a lead field that can be mapped (field "${truncate(key, 40)}")`);
       }

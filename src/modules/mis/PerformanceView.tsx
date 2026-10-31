@@ -59,7 +59,7 @@ export const PerformanceView: React.FC<PerformanceViewProps> = ({ leads, sync, o
 /* -------------------------------------------------------------------------- */
 
 /** The CRM's ocean theme, with the Sales MIS stage colours for the stages (so both screens read the same). */
-const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', nonResponding: '#C46A12', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', booked: '#1F7A4D', planned: '#1D5585' };
+const PERF_COLOURS = { received: '#0B2A44', qualified: '#0E8A7D', unqualified: '#A33A44', fresh: '#5E8FB8', open: '#0B6BB0', nonResponding: '#C46A12', visits: '#3B5BDB', warm: '#E39A12', hot: '#D92D3A', booked: '#1F7A4D', planned: '#1D5585', lost: '#7A2E36' };
 const two = (n: number) => String(n).padStart(2, '0');
 
 const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, string, MisLead[], string?]>; show: (label: string, ls: MisLead[]) => void }> = ({ title, sub, tiles, show }) => (
@@ -68,7 +68,7 @@ const PerfBlock: React.FC<{ title: string; sub: string; tiles: Array<[string, st
       <span className="text-[13px] sm:text-sm font-bold tracking-wide text-[#0B2A44] uppercase">{title}</span>
       <span className="block text-[10.5px] font-medium text-[#5E778C]">{sub}</span>
     </div>
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 bg-white">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 bg-white">
       {tiles.map(([label, colour, ls, hint]) => (
         <button
           key={label}
@@ -99,8 +99,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
     ['Leads Received', C.received, p.received, 'Enquiries that came in, by enquiry date'],
     ['Qualified Leads', C.qualified, p.qualified, 'Of those: Qualified, Warm, HOT, booked, or a site visit scheduled / done'],
     ['Unqualified Leads', C.unqualified, p.unqualified, 'Of those: disqualified (budget, location, not interested…)'],
-    ['New Enquiries', C.fresh, p.fresh, 'Of those: still at stage New'],
-    ['Open Enquiries', C.open, p.open, 'Of those: stage Open or Not Responding'],
+    ['Open Enquiries', C.open, [...p.fresh, ...p.open], 'Of those: stage New, Open or Not Responding'],
     ['Non-Responding', C.nonResponding, p.nonResponding, 'Of the open enquiries: stage Not Responding (also counted in Open Enquiries)'],
     ['Site Visits', C.visits, p.visits, 'Site visits done in this period, by visit date'],
   ];
@@ -118,6 +117,7 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
         ['Booked', C.booked, pipe.booked, 'Leads at stage Booked'],
         ['Site Visits - Pipeline', C.planned, pipe.svPipeline, 'Site visit status “Prospect for Site Visit”, still open'],
         ['Site Visits - Scheduled', C.visits, pipe.svScheduled, 'Site visit status “Site Visit - Scheduled”, still open'],
+        ['Total Lost Leads', C.lost, pipe.lost, 'Closed without a booking: stage Lost or any Disqualified stage, including after a site visit'],
       ],
     },
   ];
@@ -151,7 +151,18 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
         </div>
       </div>
       {blocks.map((b) => <PerfBlock key={b.title} title={b.title} sub={b.sub} tiles={b.tiles} show={show} />)}
-      <p className="text-[11px] text-[#7E93A6] px-1">Received leads split into qualified, unqualified, new and open, so those four add up to Leads Received; Non-Responding is the part of Open at stage Not Responding. Site visits count visits done on those dates. The representative and source filters apply to every block; select any number to see the leads.</p>
+      <div className="rounded-xl border border-[#D3E3F0] bg-[#F7FAFD] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#2B4A63]">
+        <p className="font-bold text-[#0B2A44] mb-1">How to read these numbers</p>
+        <ul className="space-y-1 list-disc pl-4">
+          <li><b>Leads Received</b>: every enquiry that came in on these dates.</li>
+          <li>Each of those leads is in exactly one of three boxes: <b>Qualified</b> (good lead: Qualified, Warm, Hot, Booked, or a site visit fixed or done), <b>Unqualified</b> (disqualified or lost), or <b>Open</b> (still being worked on: New, Open or Not Responding).</li>
+          <li><b>Qualified + Unqualified + Open = Leads Received.</b> This month: {rows.mtd.qualified.length} + {rows.mtd.unqualified.length} + {rows.mtd.fresh.length + rows.mtd.open.length} = {rows.mtd.received.length}.</li>
+          <li><b>Non-Responding</b> is not extra leads. It is the part of Open Enquiries that is not picking up. Do not add it to the total.</li>
+          <li><b>Site Visits</b> counts visits done on these dates, even if the lead came in earlier. Do not add it to the total either. A lead with a visit is already counted in Qualified, in the month it came in.</li>
+          <li>The overall pipeline at the bottom is not limited to these dates: it shows all leads as they stand today.</li>
+          <li>Tap any number to see the leads behind it. The representative and source filters at the top change every box.</li>
+        </ul>
+      </div>
       {pipe.svDoneUndated.length > 0 && (
         <p className="text-[11px] text-[#B54708] px-1">
           {pipe.svDoneUndated.length} completed site visit{pipe.svDoneUndated.length === 1 ? ' has' : 's have'} no visit date, so {pipe.svDoneUndated.length === 1 ? 'it is' : 'they are'} counted in the overall total but not in the day, month or year.{' '}

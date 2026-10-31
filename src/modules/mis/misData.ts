@@ -429,6 +429,8 @@ export function pipelineNow(list: MisLead[]) {
     /** still open, with a visit to come: "Prospect for Site Visit" or "Scheduled" (teams use both for a planned visit) */
     svPlanned: list.filter((l) => PLANNED_SV.includes(l.sv) && stillOpen(l)),
     booked: list.filter((l) => l.stage === 'booked'),
+    /** closed without a booking: Lost and every Disqualified stage (also after a site visit) */
+    lost: list.filter((l) => l.stage === 'disqualified' || l.stage === 'ni'),
     /** "Site Visits - Pipeline": still open, marked Prospect for Site Visit (a visit to be fixed) */
     svPipeline: list.filter((l) => l.sv === SITE_VISIT.PROSPECT && stillOpen(l)),
     /** "Site Visits - Scheduled": still open, with the visit booked */

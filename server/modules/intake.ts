@@ -105,16 +105,53 @@ const FIRST = new Set(['first_name', 'firstname', 'fname', 'given_name']);
 const LAST = new Set(['last_name', 'lastname', 'lname', 'surname', 'family_name']);
 const TRACKING = /^(utm_[a-z0-9_]+|gclid|fbclid|msclkid|page_url|page|referrer|referer|landing_page|form_name|form_id)$/;
 
-/** Headers a fieldMap may target ('_ignore' drops the field). System-managed headers are excluded. */
+/**
+ * Headers a fieldMap may target ('_ignore' drops the field). System-managed headers are excluded, and so are
+ * Enquiry Notes (kept for the team's own notes) and Enquiry Date (always the moment the lead came in).
+ */
 export const MAPPABLE_HEADERS: string[] = CFG.LEAD_BASE_HEADERS.filter(
-  (h) => ![L.ID, L.CREATED_AT, L.UPDATED_AT, L.UPDATED_BY, L.LAST_FOLLOWUP, L.RM].includes(h)
+  (h) => ![L.ID, L.CREATED_AT, L.UPDATED_AT, L.UPDATED_BY, L.LAST_FOLLOWUP, L.RM, L.NOTES, L.ENQUIRY_DATE].includes(h)
 ).concat(Object.values(CFG.LEAD_GEO));
+/** Never filled from a submission, even when a fieldMap or a header names them. */
+const NEVER_FROM_FORM = new Set<string>([L.NOTES, L.ENQUIRY_DATE]);
 export const IGNORE_TARGET = '_ignore';
 /** Headers the pipeline never takes from a payload unless the fieldMap targets them explicitly. */
 const AUTO_BLOCKED = new Set<string>([L.ID, L.CREATED_AT, L.UPDATED_AT, L.UPDATED_BY, L.LAST_FOLLOWUP, L.RM, L.STAGE, L.SOURCE, L.SITE_VISIT_STATUS, L.SITE_VISIT_DATE, L.BOOKING_DATE, L.NEXT_FOLLOWUP]);
 
-const MAX_NOTES = 2000;
+const MAX_ANSWERS = 30;
 const MAX_NOTE_VALUE = 300;
+
+/** 'what_is_your_budget?' → 'What is your budget?' (a storable column name). */
+export function answerLabel(key: string): string {
+  const s = String(key || '').replace(/_+/g, ' ').replace(/[.$]/g, ' ').replace(/\s+/g, ' ').trim();
+  return truncate(s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Answer', 160);
+}
+
+/** An answer to "who is this for?" → an Enquired For option ('' when it names nobody, e.g. just a name). */
+function forWhom(answer: string): string {
+  const a = answer.toLowerCase();
+  if (/grand ?parent/.test(a)) return 'Grandparents';
+  if (/parent/.test(a)) return 'Parents';
+  if (/father|dad/.test(a)) return 'Father';
+  if (/mother|mom|mum/.test(a)) return 'Mother';
+  if (/relative/.test(a)) return 'Relatives';
+  if (/family/.test(a)) return 'Family';
+  if (/\b(self|myself|me|for me)\b/.test(a)) return 'Self';
+  return '';
+}
+
+/** Questions that fill a CRM field when no fieldMap or known name does. */
+const QUESTION_FIELDS: Array<{ field: string; q: RegExp; skip?: RegExp; value?: (v: string) => string }> = [
+  { field: L.PURCHASE_OR_RENT, q: /buy(ing)?\s*(or|\/)\s*rent|rent\s*(or|\/)\s*buy|purchase\s*(or|\/)\s*rent|purpose/i, value: (v) => (/rent|lease/i.test(v) ? 'Rent' : /invest/i.test(v) ? 'Investment' : /buy|purchas|own|self|end\s*use/i.test(v) ? 'Purchase' : '') },
+  { field: L.UNIT_TYPE, q: /bhk|configuration|unit\s*type|flat\s*type|apartment\s*type|which\s*unit/i, value: (v) => (v.length <= 40 ? v : '') },
+  // "Are you exploring senior living for yourself, or helping a parent…?" → Self / Parents / Father …
+  { field: L.ENQUIRED_FOR, q: /for\s*(yourself|whom|who)|helping\s*a\s*parent|for\s*a\s*(parent|loved\s*one)|enquir(ing|ed|y)\s*for|looking\s*for\s*(yourself|someone)/i, value: forWhom },
+  { field: 'Referred By', q: /referr?ed|referral|reference/i },
+  { field: 'Considering Other Project', q: /other\s*project|competitor|considering/i },
+  { field: CFG.LEAD_GEO.CITY, q: /\bcity\b/i, skip: /state|country/i },
+  { field: CFG.LEAD_GEO.STATE, q: /\bstate\b/i, skip: /city|country/i },
+  { field: CFG.LEAD_GEO.COUNTRY, q: /\bcountry\b/i, skip: /city|state/i },
+];
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const digitCount = (s: string) => s.replace(/\D/g, '').length;
 
@@ -146,8 +183,9 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
   const warnings: string[] = [];
   const lead: Record<string, string> = {};
   const messages: string[] = [];
-  const extras: string[] = [];
-  const tracking: string[] = [];
+  /** answers that match no CRM field → one column each (FORM_ANSWER_PREFIX + question) */
+  const answers: Array<[string, string]> = [];
+  const answer = (key: string, value: string) => answers.push([answerLabel(key), truncate(value, MAX_NOTE_VALUE)]);
   let first = '', last = '';
 
   const map = new Map<string, string>();
@@ -165,14 +203,20 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
     if (mapped === IGNORE_TARGET) continue;
     let target = mapped || ALIASES[nk] || '';
     if (!mapped && target && AUTO_BLOCKED.has(target)) target = '';
+    if (NEVER_FROM_FORM.has(target)) {
+      // a message or comment box (or an old map to Notes / Date): kept as an answer, never in Enquiry Notes
+      if (target === L.NOTES) messages.push(value);
+      answer(key, value);
+      continue;
+    }
     if (!target) {
       if (!mapped && FIRST.has(nk)) { first = value; continue; }
       if (!mapped && LAST.has(nk)) { last = value; continue; }
-      (TRACKING.test(nk) ? tracking : extras).push(`${truncate(key, 60)}: ${truncate(value, MAX_NOTE_VALUE)}`);
-      continue;
-    }
-    if (target === L.NOTES) {
-      messages.push(value);
+      const label = answerLabel(key);
+      const qf = TRACKING.test(nk) ? undefined : QUESTION_FIELDS.find((x) => !lead[x.field] && x.q.test(label) && !x.skip?.test(label));
+      const qv = qf ? (qf.value ? qf.value(value) : truncate(value, 200)) : '';
+      if (qf && qv) { lead[qf.field] = qv; continue; }
+      answer(key, value);
       continue;
     }
     if (!lead[target]) lead[target] = truncate(value, target === L.NAME ? 120 : 500);
@@ -190,7 +234,7 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
     } else {
       delete lead[L.PHONE];
       warnings.push(`Phone number "${truncate(phone, 40)}" is not valid (needs 7–15 digits)`);
-      extras.unshift(`Phone (invalid): ${truncate(phone, 60)}`);
+      answer('Phone (invalid)', phone);
     }
   }
   if (email) {
@@ -200,7 +244,7 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
     } else {
       delete lead[L.EMAIL];
       warnings.push(`E-mail address "${truncate(email, 60)}" is not valid`);
-      extras.unshift(`Email (invalid): ${truncate(email, 100)}`);
+      answer('Email (invalid)', email);
     }
   }
   let reject = '';
@@ -210,9 +254,12 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
   if (!lead[L.NAME]) lead[L.NAME] = `${typeLabel} enquiry ${phoneOk ? lead[L.PHONE] : emailOk ? lead[L.EMAIL] : ''}`.trim();
 
   const message = messages.join('\n');
-  const notes = [message, ...extras, ...tracking].filter(Boolean).join('\n');
-  if (notes) lead[L.NOTES] = truncate(notes, MAX_NOTES);
-  if (notes.length > MAX_NOTES) warnings.push('Enquiry notes were shortened to 2 KB');
+  // Enquiry Notes stay empty for the team; each other answer is its own column
+  for (const [label, value] of answers.slice(0, MAX_ANSWERS)) {
+    const k = CFG.FORM_ANSWER_PREFIX + label;
+    lead[k] = lead[k] ? `${lead[k]}, ${value}` : value;
+  }
+  if (answers.length > MAX_ANSWERS) warnings.push(`Only the first ${MAX_ANSWERS} form answers were kept`);
 
   if (!lead[L.STAGE]) lead[L.STAGE] = cfg.defaultStage || CFG.STAGES.NEW;
   if (!lead[L.SOURCE]) lead[L.SOURCE] = cfg.sourceLabel || typeLabel;
@@ -315,6 +362,9 @@ async function processFields(source: SourceDoc, raw: Record<string, unknown>): P
     const { rm, warning } = await pickAssignee(source, true);
     const lead: UiLead = { ...m.lead };
     if (rm) lead[L.RM] = rm;
+    // Enquiry Date = when the lead came in: Meta's own time for an ad lead (backfills keep their date), else now
+    const at = source.type === 'meta' ? new Date(String(raw._created_time || '')) : null;
+    if (at && !isNaN(at.getTime()) && at.getTime() <= Date.now() + 60_000) lead[L.ENQUIRY_DATE] = at.toISOString();
     const res = await addLead(lead, null, { actor: source.name, eventSource: 'website', allowDuplicate: true });
     const notes = [...m.warnings, warning].filter(Boolean).join('; ');
     return { status: 'created', leadId: res.id, duplicate: false, message: truncate(notes, 500) };

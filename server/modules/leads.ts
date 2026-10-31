@@ -721,17 +721,30 @@ const onLead = <T>(fn: (d: any, ctx: Ctx) => Promise<T>) => async (d: any, ctx: 
  * An enquiry's phone number is fixed once it has one (it is how calls, WhatsApp and duplicates find the customer):
  * nobody can change it from the app — a new number is a new enquiry. A lead saved without a number may get one.
  */
-async function assertPhoneUnchanged(id: string, data: any) {
-  if (!data || typeof data !== 'object' || !(L.PHONE in data)) return;
+/** Once set, an enquiry's phone number, enquiry source and enquiry date stay as they are (the same number in another format is fine). */
+async function assertLockedUnchanged(id: string, data: any) {
+  if (!data || typeof data !== 'object' || !(L.PHONE in data || L.SOURCE in data || L.ENQUIRY_DATE in data)) return;
   const current = await getLead(String(id));
-  const before = last10(String(current?.[L.PHONE] || ''));
-  if (before && last10(String(data[L.PHONE] || '')) !== before) throw fail('VALIDATION', 'The phone number of an enquiry cannot be changed. For a different number, add a new enquiry.');
+  if (L.PHONE in data) {
+    const before = last10(String(current?.[L.PHONE] || ''));
+    if (before && last10(String(data[L.PHONE] || '')) !== before) throw fail('VALIDATION', 'The phone number of an enquiry cannot be changed. For a different number, add a new enquiry.');
+  }
+  if (L.SOURCE in data) {
+    const before = String(current?.[L.SOURCE] || '').trim();
+    if (before && String(data[L.SOURCE] || '').trim().toLowerCase() !== before.toLowerCase()) throw fail('VALIDATION', 'The enquiry source cannot be changed once it is set.');
+  }
+  if (L.ENQUIRY_DATE in data) {
+    // the moment the lead came in: the same time re-sent (to the minute) is fine, any other value is refused
+    const before = Date.parse(String(current?.[L.ENQUIRY_DATE] || ''));
+    const after = Date.parse(String(data[L.ENQUIRY_DATE] || ''));
+    if (!isNaN(before) && (isNaN(after) || Math.abs(after - before) >= 60_000)) throw fail('VALIDATION', 'The enquiry date is when the lead came in and cannot be changed.');
+  }
 }
 
 export const actions: ActionMap = {
   getAllLeads: { fn: (_d, ctx) => getAllLeads(ctx), perm: 'leads.view' },
   addLead: { fn: (d, ctx) => addLead(d.data, ctx), perm: 'leads.create' },
-  updateLead: { fn: onLead(async (d, ctx) => { await assertPhoneUnchanged(d.id, d.data); return updateLead(d.id, d.data, ctx, d.expectedUpdatedAt); }), perm: 'leads.edit' },
+  updateLead: { fn: onLead(async (d, ctx) => { await assertLockedUnchanged(d.id, d.data); return updateLead(d.id, d.data, ctx, d.expectedUpdatedAt); }), perm: 'leads.edit' },
   appendRemark: { fn: onLead((d, ctx) => appendRemark(d.id, d.remark, ctx, d.nextFollowup)), perm: 'leads.edit' },
   setLeadStage: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: d.stage }, ctx)), perm: 'leads.edit' },
   trashLead: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: S.TRASH }, ctx)), perm: 'leads.trash' },

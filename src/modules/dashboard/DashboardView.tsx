@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Trophy, Users } from 'lucide-reac
 import { api, type LeaderRow } from '../../core/api';
 import { Lead, TaskItem, SyncState } from '../../types/crm';
 import { F } from '../../core/config';
-import { computeKpis, monthlySeries, siteVisitDate } from '../../core/analytics';
+import { classifyStage, computeKpis, monthlySeries, siteVisitDate } from '../../core/analytics';
 import { formatRelative, formatTime, getPresetRange, listMonths, currentMonthKey, previousMonthKey } from '../../core/dates';
 import { formatHours, formatPercent, pctChange } from '../../core/format';
 import { Button, Card, DateFilterValue, DateRangeFilter, EmptyState, ErrorState, Select, resolveDateFilter, StageBadge } from '../../components/ui';
@@ -134,6 +134,15 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
     { label: 'Site visits', value: kpi.siteVisitsTotal, color: C.sea, fg: '#04263D', note: `${kpi.siteVisitsCompleted} completed`, ids: [...kpi.ids.svScheduled, ...kpi.ids.svCompleted] },
     { label: 'Qualified', value: kpi.qualifiedLeads, color: C.sky, fg: '#04263D', note: `Qualification ${formatPercent(kpi.qualificationRate, 1)}`, ids: kpi.ids.qualified },
     { label: 'Booked', value: kpi.bookings, color: C.teal, fg: '#fff', note: `Conversion ${formatPercent(kpi.conversionRate, 1)}`, ids: kpi.ids.booked },
+    // closed without a booking: stage Lost or any Disqualified stage (also after a site visit)
+    { label: 'Lost', value: kpi.lostLeads, color: '#A33A44', fg: '#fff', note: `${formatPercent(kpi.totalEnquiries ? (kpi.lostLeads / kpi.totalEnquiries) * 100 : 0, 0)} of enquiries`, ids: kpi.ids.lost },
+  ];
+
+  // Lost and every Disqualified stage are one row: closed without a booking (the reasons show on hover)
+  const lostRows = kpi.byStage.filter((r) => classifyStage(r.key) === 'lost');
+  const stageRows = [
+    ...kpi.byStage.filter((r) => classifyStage(r.key) !== 'lost'),
+    ...(lostRows.length ? [{ key: LOST_ROW, label: 'Lost', count: lostRows.reduce((n, r) => n + r.count, 0), hint: lostRows.map((r) => `${r.label}: ${r.count}`).join(' · ') }] : []),
   ];
 
   const tiles: Array<{ label: string; value: number; color: string; delta?: number | null; lower?: boolean; onClick: () => void }> = [
@@ -216,7 +225,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
           <SourceDonut rows={kpi.bySource} total={kpi.totalEnquiries} onClick={(key) => onFilterClick(`${rangeLabel} · Source ${key}`, idsWhere(F.SOURCE, key, 'Unspecified'))} />
         </Panel>
         <Panel title="Lead-stage distribution" subtitle={`${kpi.totalEnquiries} enquiries`}>
-          <StageBars rows={kpi.byStage} onClick={(stage) => onFilterClick(`${rangeLabel} · ${stage}`, idsWhere(F.STAGE, stage, 'New'))} />
+          <StageBars rows={stageRows} onClick={(stage) => (stage === LOST_ROW ? onFilterClick(`${rangeLabel} · Lost (incl. disqualified)`, kpi.ids.lost) : onFilterClick(`${rangeLabel} · ${stage}`, idsWhere(F.STAGE, stage, 'New')))} />
         </Panel>
         <Panel title="Follow-ups & tasks" subtitle={`Due in ${rangeLabel.toLowerCase()} · overdue is as of now`}>
           <div className="grid grid-cols-2 gap-2.5">
@@ -492,15 +501,16 @@ const SourceDonut: React.FC<{ rows: Array<{ key: string; label: string; count: n
   );
 };
 
-const StageBars: React.FC<{ rows: Array<{ key: string; label: string; count: number }>; onClick: (stage: string) => void }> = ({ rows, onClick }) => {
+const LOST_ROW = '__lost';
+const StageBars: React.FC<{ rows: Array<{ key: string; label: string; count: number; hint?: string }>; onClick: (stage: string) => void }> = ({ rows, onClick }) => {
   if (!rows.length) return <EmptyState title="No data" className="py-6" />;
   const max = Math.max(1, ...rows.map((r) => r.count));
   return (
     <div className="space-y-1.5">
       {rows.map((r) => (
-        <button key={r.key} type="button" onClick={() => onClick(r.key)} className="w-full grid grid-cols-[110px_minmax(0,1fr)_32px] items-center gap-2.5 text-[13px] rounded-md px-1 py-0.5 hover:bg-[#F2F7FB] text-left">
+        <button key={r.key} type="button" onClick={() => onClick(r.key)} title={r.hint} className="w-full grid grid-cols-[110px_minmax(0,1fr)_32px] items-center gap-2.5 text-[13px] rounded-md px-1 py-0.5 hover:bg-[#F2F7FB] text-left">
           <span className="truncate text-[#0F2233]">{r.label}</span>
-          <span className="h-2.5 rounded-full bg-[#EEF4F9] block"><span className="h-full rounded-full block" style={{ width: `${(r.count / max) * 100}%`, background: STAGE_COLORS[r.key] || C.slate }} /></span>
+          <span className="h-2.5 rounded-full bg-[#EEF4F9] block"><span className="h-full rounded-full block" style={{ width: `${(r.count / max) * 100}%`, background: r.key === LOST_ROW ? '#A33A44' : STAGE_COLORS[r.key] || C.slate }} /></span>
           <strong className="text-right text-[#0F2233]">{r.count}</strong>
         </button>
       ))}

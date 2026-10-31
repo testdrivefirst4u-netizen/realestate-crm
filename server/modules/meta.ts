@@ -507,12 +507,11 @@ export function questionLabel(key: string): string {
 
 const PLATFORM: Record<string, string> = { fb: 'Facebook', facebook: 'Facebook', ig: 'Instagram', instagram: 'Instagram', an: 'Audience Network', msgr: 'Messenger', messenger: 'Messenger', wa: 'WhatsApp' };
 
-/** Graph lead → intake fields (standard contact fields + a `message` with answers and ad details). */
+/** Graph lead → intake fields: standard contact fields, answers that fill CRM fields, every other question under its own label. */
 export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>): Record<string, string> {
   const fieldMap = source.config?.fieldMap || {};
   const mapped = (k: string) => fieldMap[k] !== undefined || fieldMap[normKey(k)] !== undefined;
   const out: Record<string, string> = {};
-  const notes: string[] = [];
   let workEmail = '', workPhone = '', customEmail = '', customPhone = '';
   for (const f of Array.isArray(lead.field_data) ? lead.field_data : []) {
     const name = String(f?.name ?? '').trim();
@@ -528,7 +527,7 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
       continue;
     }
     // Where the prospect lives: intake aliases map these onto the lead's City / State / Country.
-    if (GEO.has(k)) out[k === 'province' ? 'state' : k] = value;
+    if (GEO.has(k)) { out[k === 'province' ? 'state' : k] = value; continue; }
     if (k === 'work_email') workEmail = value;
     if (k === 'work_phone_number') workPhone = value;
     const label = name.replace(/_/g, ' ');
@@ -541,22 +540,17 @@ export function mapMetaLead(lead: GraphLead, source: Pick<SourceDoc, 'config'>):
       out[fq.key] = fv;
       continue;
     }
-    notes.push(`${LABELS[k] || questionLabel(name)}: ${truncate(value, 300)}`);
+    // any other question: its own answer column on the lead (intake: "Form: <question>"), never Enquiry Notes
+    const q = LABELS[k] || questionLabel(name);
+    out[q] = out[q] ? `${out[q]}, ${truncate(value, 300)}` : truncate(value, 300);
   }
   if (!out.email && (workEmail || customEmail)) out.email = workEmail || customEmail;
   if (!out.phone_number && (workPhone || customPhone)) out.phone_number = workPhone || customPhone;
 
   const formName = metaOf(source as SourceDoc).forms.find((x) => x.id === lead.form_id)?.name || '';
-  const ad: string[] = [];
-  if (lead.ad_name || lead.ad_id) ad.push(`Ad: ${lead.ad_name || lead.ad_id}`);
-  if (lead.adset_name) ad.push(`Ad set: ${lead.adset_name}`);
-  if (lead.campaign_name) ad.push(`Campaign: ${lead.campaign_name}`);
-  if (lead.form_id) ad.push(`Form: ${formName ? `${formName} (${lead.form_id})` : lead.form_id}`);
   const plat = String(lead.platform || '').toLowerCase();
-  if (plat) ad.push(`Platform: ${PLATFORM[plat] || lead.platform}`);
-  if (lead.is_organic) ad.push('Organic lead (not from a paid ad)');
-  const message = [...notes, ...ad].join('\n');
-  if (message) out.message = message;
+  if (plat) out.Platform = PLATFORM[plat] || String(lead.platform);
+  if (lead.is_organic) out['Organic lead'] = 'Yes (not from a paid ad)';
   // the ad behind the lead, as its own columns (intake aliases → Campaign / Ad Set / Ad Name / Lead Form)
   if (lead.campaign_name) out.meta_campaign = String(lead.campaign_name);
   if (lead.adset_name) out.meta_ad_set = String(lead.adset_name);

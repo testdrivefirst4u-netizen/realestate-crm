@@ -105,6 +105,19 @@ describe('lead visibility', () => {
     expect((await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '+91 90000 00001', 'Enquiry Notes': 'ok' } })).status).toBe('success');
   });
 
+  it('nobody can change the enquiry date (re-sending the same time is fine)', async () => {
+    const lead = (await as('Meera', 'getAllLeads')).data.leads.find((l: any) => l['Enquiry ID'] === 'ENQ-0001');
+    expect(await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Enquiry Date': '2020-01-01T10:00:00.000Z' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect((await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Enquiry Date': lead['Enquiry Date'], 'Enquiry Notes': 'ok' } })).status).toBe('success');
+  });
+
+  it('nobody can change an enquiry source once it is set; an empty one can be filled once', async () => {
+    expect((await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Enquiry Source': 'Website' } })).status).toBe('success'); // was empty
+    expect(await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Enquiry Source': 'Facebook' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect(await as('Asha', 'updateLead', { id: 'ENQ-0001', data: { 'Enquiry Source': '' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect((await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Enquiry Source': 'Website', 'Enquiry Notes': 'ok' } })).status).toBe('success'); // unchanged is fine
+  });
+
   it("the duplicate-phone message does not reveal another RM's customer", async () => {
     const r = await as('Asha', 'addLead', { data: { 'Prospect Name': 'Dup', 'Phone Number': '9000000002' } });
     expect(r).toMatchObject({ status: 'error', code: 'CONFLICT' });

@@ -40,12 +40,11 @@ export const DUPLICATE_OPTIONS: Array<{ value: DuplicateMode; label: string }> =
   { value: 'create', label: 'Create a new lead anyway' },
 ];
 
-/** CRM fields an incoming field can be mapped to. */
+/** CRM fields an incoming field can be mapped to (not Enquiry Notes / Date: unmapped answers get their own Form column). */
 export const MAPPABLE_FIELDS = [
   'Prospect Name',
   'Phone Number',
   'Email',
-  'Enquiry Notes',
   'Unit Type Interested In',
   'Purchase or Rent',
   'Enquired For',

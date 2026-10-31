@@ -122,7 +122,7 @@ describe('Meta lead forms', () => {
     expect(out).toMatchObject({ city: 'Pune', state: 'Maharashtra', country: 'IN' });
   });
 
-  it('purpose, BHK and area questions fill their fields instead of the notes; unclear answers stay in the notes', () => {
+  it('purpose, BHK and area questions fill their fields; every other question keeps its own label (never a notes message)', () => {
     const out = mapMetaLead(
       { id: '1', form_id: 'F', created_time: '', field_data: [
         { name: 'phone_number', values: ['9876543210'] },
@@ -135,9 +135,9 @@ describe('Meta lead forms', () => {
       { config: {} } as any,
     );
     expect(out).toMatchObject({ purchase_or_rent: 'Investment', unit_type: '2.5 BHK', area: 'Kondapur' });
-    expect(out.message).toContain('When are you planning to buy?: In 3 months');
-    expect(out.message).toContain('Preferred carpet area: 1200 sq ft');
-    expect(out.message).not.toMatch(/configuration|buy or rent|current location/i);
+    expect(out).toMatchObject({ 'When are you planning to buy?': 'In 3 months', 'Preferred carpet area': '1200 sq ft' });
+    expect(out.message).toBeUndefined();
+    expect(Object.keys(out).join(' ')).not.toMatch(/configuration|buy or rent|current location/i);
   });
 
   it('passes the campaign, ad set, ad and form through to intake', () => {
@@ -212,6 +212,9 @@ describe('enquiry performance (FTD / MTD / YTD)', () => {
     expect(ids(p.booked)).toEqual(['g']);
     expect(ids(p.svPipeline)).toEqual(['k']); // l is not interested: left out
     expect(ids(p.svScheduled)).toEqual(['j']);
+    // closed without a booking: every Disqualified / Lost lead, also after a visit
+    expect(ids(p.lost)).toEqual(ids(all.filter((l) => l.stage === 'disqualified' || l.stage === 'ni')));
+    expect(p.lost.length).toBeGreaterThan(0);
   });
 });
 
@@ -224,8 +227,8 @@ describe('YTD / MTD screen (server render)', () => {
     const leads = [lead('1', STAGES.QUALIFIED, { [F.ENQUIRY_DATE]: `${today}T11:00:00+05:30` }), lead('2', STAGES.NOT_RESPONDING, { [F.ENQUIRY_DATE]: `${today}T12:00:00+05:30` })];
     const html = renderToStaticMarkup(createElement(PerformanceView, { leads, onRefresh: () => {}, onShowLeads: () => {}, sync: { status: 'idle', hasLoadedOnce: true } as any }));
     if (process.env.MIS_HTML) (await import('node:fs')).writeFileSync(process.env.MIS_HTML, html);
-    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'New Enquiries', 'Open Enquiries', 'Non-Responding', 'Site Visits - Pipeline', 'Site Visits - Scheduled', 'Booked']) expect(html).toContain(t);
-    for (const t of ['Total Enquiries', 'Site Visits Completed', 'Site Visits Planned']) expect(html).not.toContain(t);
+    for (const t of ['YTD / MTD performance', 'Enquiry Performance Dashboard', 'For the day (FTD) overview', 'Month to date (MTD) overview', 'Year to date (YTD) overview', 'Pipeline stages &amp; conversions (overall)', 'Open Enquiries', 'Non-Responding', 'Site Visits - Pipeline', 'Site Visits - Scheduled', 'Booked', 'Total Lost Leads']) expect(html).toContain(t);
+    for (const t of ['New Enquiries', 'Total Enquiries', 'Site Visits Completed', 'Site Visits Planned']) expect(html).not.toContain(t);
   });
 });
 

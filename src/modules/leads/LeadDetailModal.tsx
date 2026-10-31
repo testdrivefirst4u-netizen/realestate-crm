@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Save, Sparkles, User } from 'lucide-react';
 import { CRMConfig, CRMSettings, InventoryUnit, Lead, TaskItem, UserAccount } from '../../types/crm';
-import { F, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS } from '../../core/config';
+import { F, FORM_ANSWER_PREFIX, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS } from '../../core/config';
 import { api } from '../../core/api';
 import { followupCount } from '../../core/analytics';
 import { formatDateTime, fromDatetimeLocalInput, nowIso, parseDate, toDatetimeLocalInput } from '../../core/dates';
@@ -109,6 +109,10 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   const becomesBooked = stageNow === STAGES.BOOKED && String(lead[F.STAGE] || '') !== STAGES.BOOKED;
 
   const name = String(lead[F.NAME] || '');
+  // answers from the lead form that match no CRM field (read-only)
+  const formAnswers = Object.entries(lead)
+    .filter(([k, v]) => k.startsWith(FORM_ANSWER_PREFIX) && String(v ?? '').trim())
+    .map(([k, v]) => [k.slice(FORM_ANSWER_PREFIX.length), String(v)] as const);
   const phone = String(lead[F.PHONE] || '');
   const email = String(lead[F.EMAIL] || '');
   const tplVars = { name, rm: currentUser?.name || String(lead[F.RM] || ''), id };
@@ -318,9 +322,11 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
                   <input type="email" value={value(F.EMAIL)} onChange={(e) => setField(F.EMAIL, e.target.value)} disabled={!canEdit} className={inputCls} />
                 </Field>
                 <Field label="Enquiry source">
-                  <Select value={value(F.SOURCE)} onChange={(e) => setField(F.SOURCE, e.target.value)} options={opts(F.SOURCE)} placeholder="Select…" disabled={!canEdit} />
+                  <Select value={value(F.SOURCE)} onChange={(e) => setField(F.SOURCE, e.target.value)} options={opts(F.SOURCE)} placeholder="Select…" disabled={!canEdit || !!String(lead[F.SOURCE] || '').trim()} title={String(lead[F.SOURCE] || '').trim() ? 'The enquiry source cannot be changed once it is set.' : undefined} />
                 </Field>
-                <Field label="Enquiry date">{dateInput(F.ENQUIRY_DATE)}</Field>
+                <Field label="Enquiry date">
+                  <input type="datetime-local" value={toDatetimeLocalInput(value(F.ENQUIRY_DATE) || String(lead[F.CREATED_AT] || ''))} disabled readOnly title="The enquiry date is when the lead came in and cannot be changed." className={inputCls} />
+                </Field>
                 <Field label="Enquired for">
                   <Select value={value(F.ENQUIRED_FOR)} onChange={(e) => setField(F.ENQUIRED_FOR, e.target.value)} options={opts(F.ENQUIRED_FOR)} placeholder="Select…" disabled={!canEdit} />
                 </Field>
@@ -359,6 +365,19 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
               <Field label="Enquiry notes" hint="Budget, preferred floor/tower, family members, food preferences, decision timeline…">
                 <textarea value={value(F.NOTES)} onChange={(e) => setField(F.NOTES, e.target.value)} rows={3} disabled={!canEdit} className={cx(inputCls, 'resize-y leading-relaxed')} />
               </Field>
+              {formAnswers.length > 0 && (
+                <div className="rounded-xl border border-[#D3E3F0] bg-[#F7FAFD] px-3 py-2.5">
+                  <p className="text-xs font-bold text-[#0B2A44] mb-1.5">Form answers <span className="font-medium text-[#7E93A6]">· what the customer filled in when enquiring</span></p>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[13px]">
+                    {formAnswers.map(([q, a]) => (
+                      <div key={q} className="min-w-0">
+                        <dt className="text-[11.5px] text-[#5E778C] break-words">{q}</dt>
+                        <dd className="text-[#0F2233] font-medium break-words">{a}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
             </section>
 
             {linkedUnits.length > 0 && (
