@@ -5,6 +5,7 @@ import { runWithTenant } from '@/server/core/tenant';
 import { listActiveTenants } from '@/server/platform/registry';
 import { runDaily } from '@/server/modules/jobs';
 import { safeEqual } from '@/server/core/utils';
+import { snapshotStorage } from '@/server/platform/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,7 +30,9 @@ export async function GET(req: Request) {
       console.error(`[cron] ${tenant.slug}`, e);
     }
   }
-  const data = { companies: Object.keys(results).length, failed, results };
+  // database sizes for the console's Storage page (growth needs one snapshot a day)
+  const storage = await snapshotStorage().catch((e) => { console.error('[cron] storage snapshot', e); return { error: 'failed' }; });
+  const data = { companies: Object.keys(results).length, failed, results, storage };
   await recordJobRun('daily', started, !failed, summarize(data));
   return NextResponse.json({ status: failed ? 'error' : 'success', data }, { status: failed ? 500 : 200 });
 }

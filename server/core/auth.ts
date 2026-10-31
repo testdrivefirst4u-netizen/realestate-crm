@@ -37,6 +37,8 @@ export interface PublicUser {
   phone: string;
   /** How Call works for this user: through JustConnect (business number, recorded) or the phone's own dialer. */
   callVia: 'justconnect' | 'direct';
+  /** Devices this account may be signed in on at once (default CFG.SESSION_MAX_DEVICES; an admin can allow up to 10). */
+  maxDevices: number;
 }
 
 export interface UserDoc {
@@ -56,6 +58,8 @@ export interface UserDoc {
   phone?: string;
   /** 'direct' = Call opens the phone's dialer; unset = JustConnect when the company has connected it. */
   callVia?: 'direct';
+  /** More devices at once than the default (a shared login); unset = CFG.SESSION_MAX_DEVICES. */
+  maxDevices?: number;
   /** The hidden Platform support account (opened by a super admin); never listed or counted. */
   support?: boolean;
   /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
@@ -83,7 +87,7 @@ interface SessionDoc {
 
 /** What a device that was signed out by the CRM is told on its next request. */
 export const SESSION_END_MESSAGES: Record<string, string> = {
-  device_limit: `You were signed out because your account was signed in on another device (at most ${CFG.SESSION_MAX_DEVICES} at a time).`,
+  device_limit: 'You were signed out because your account was signed in on another device (more devices than this account is allowed at a time).',
   ended_by_user: 'You were signed out from another device.',
   ended_by_admin: 'An administrator signed you out.',
   idle: `You were signed out after ${CFG.SESSION_IDLE_MINUTES} minutes without activity.`,
@@ -100,7 +104,7 @@ export interface Ctx {
 }
 
 export const SYSTEM_CTX: Ctx = {
-  user: { id: 'SYSTEM', name: 'System', email: '', role: 'Developer', status: 'Active', createdAt: '', lastLoginAt: '', mustChangePassword: false, avatar: '', twoFactor: false, phone: '', callVia: 'justconnect' },
+  user: { id: 'SYSTEM', name: 'System', email: '', role: 'Developer', status: 'Active', createdAt: '', lastLoginAt: '', mustChangePassword: false, avatar: '', twoFactor: false, phone: '', callVia: 'justconnect', maxDevices: 2 },
   session: null,
   token: '',
   userAgent: '',
@@ -147,7 +151,14 @@ export function publicUser(u: UserDoc): PublicUser {
     twoFactor: !!u.totpSecret,
     phone: u.phone || '',
     callVia: u.callVia === 'direct' ? 'direct' : 'justconnect',
+    maxDevices: deviceLimit(u),
   };
+}
+
+/** How many devices this account may be signed in on at once. */
+export function deviceLimit(u: Pick<UserDoc, 'maxDevices'> | null | undefined): number {
+  const n = Math.round(Number(u?.maxDevices) || 0);
+  return n >= 1 ? Math.min(n, CFG.SESSION_MAX_DEVICES_LIMIT) : CFG.SESSION_MAX_DEVICES;
 }
 
 const users = () => col<UserDoc>(CFG.COLL.USERS);
@@ -302,6 +313,13 @@ export async function updateUser(data: any, ctx: Ctx) {
   if (data.callVia !== undefined) {
     if (data.callVia === 'direct') set.callVia = 'direct';
     else unset.callVia = '';
+  }
+  if (data.maxDevices !== undefined && Number(data.maxDevices) !== deviceLimit(u)) {
+    if (!can(ctx.user, 'users.manage')) throw fail('FORBIDDEN', 'Only administrators can change how many devices an account may use');
+    const n = Math.round(Number(data.maxDevices));
+    if (!(n >= 1 && n <= CFG.SESSION_MAX_DEVICES_LIMIT)) throw fail('VALIDATION', `Devices at once must be between 1 and ${CFG.SESSION_MAX_DEVICES_LIMIT}`);
+    if (n === CFG.SESSION_MAX_DEVICES) unset.maxDevices = '';
+    else set.maxDevices = n;
   }
 
   // never demote/disable the last active administrator
@@ -462,7 +480,7 @@ export async function login(email: string, password: string, ctx: Pick<Ctx, 'use
   });
   await (await users()).updateOne({ _id: u._id }, { $set: { lastLoginAt: now } });
   const user = publicUser({ ...u, lastLoginAt: now });
-  const signedOut = await enforceDeviceLimit(u._id);
+  const signedOut = await enforceDeviceLimit(u._id, deviceLimit(u));
   await auditLog({ ...SYSTEM_CTX, user }, 'User Logged In', 'Auth', user.id, `${user.email} · ${deviceName(ctx.userAgent || '')}${signedOut ? ` · signed out ${signedOut} older device${signedOut === 1 ? '' : 's'}` : ''}`);
   // the person's other devices hear about it (if this was not them, they can change the password)
   void import('../modules/push')
@@ -474,10 +492,10 @@ export async function login(email: string, password: string, ctx: Pick<Ctx, 'use
 /** Sessions that are in use (not expired, not ended by the CRM). */
 const activeSessionFilter = (userId: string) => ({ userId: String(userId), endedReason: { $exists: false }, expiresAt: { $gt: new Date() } });
 
-/** Keep the newest CFG.SESSION_MAX_DEVICES sessions of a person; older ones end ('device_limit'). Returns how many ended. */
-async function enforceDeviceLimit(userId: string): Promise<number> {
+/** Keep the newest `max` sessions of a person (their device limit); older ones end ('device_limit'). Returns how many ended. */
+async function enforceDeviceLimit(userId: string, max: number): Promise<number> {
   const c = await sessions();
-  const older = await c.find(activeSessionFilter(userId) as any, { projection: { _id: 1 } }).sort({ createdAt: -1 }).skip(CFG.SESSION_MAX_DEVICES).toArray();
+  const older = await c.find(activeSessionFilter(userId) as any, { projection: { _id: 1 } }).sort({ createdAt: -1 }).skip(max).toArray();
   if (!older.length) return 0;
   await endSessions({ _id: { $in: older.map((s) => s._id) } }, 'device_limit');
   return older.length;

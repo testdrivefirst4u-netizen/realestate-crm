@@ -44,6 +44,24 @@ describe('device limit', () => {
     expect(sendPush).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ title: 'New sign-in to your CRM account' }));
   });
 
+  it('an admin can allow a shared login more devices (up to 10); only admins may change it', async () => {
+    const admin = await signIn('asha@sess.test', LAPTOP);
+    const users = (await as(admin, 'listUsers')).data;
+    const ravi = users.find((u: any) => u.email === 'ravi@sess.test');
+    expect(ravi.maxDevices).toBe(2);
+    expect(await as(admin, 'saveUser', { data: { id: ravi.id, maxDevices: 11 } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect((await as(admin, 'saveUser', { data: { id: ravi.id, maxDevices: 10 } })).status).toBe('success');
+    const tokens: string[] = [];
+    for (let i = 0; i < 10; i++) tokens.push(await signIn('ravi@sess.test', i % 2 ? PHONE : LAPTOP));
+    for (const tk of tokens) expect((await as(tk, 'me')).status).toBe('success'); // all 10 stay signed in
+    await signIn('ravi@sess.test', TABLET); // the 11th signs the oldest out
+    expect(await as(tokens[0], 'me')).toMatchObject({ status: 'error', code: 'AUTH_REQUIRED' });
+    expect((await as(tokens[1], 'me')).status).toBe('success');
+    // back to 2 (the default)
+    expect((await as(admin, 'saveUser', { data: { id: ravi.id, maxDevices: 2 } })).status).toBe('success');
+    expect((await as(admin, 'listUsers')).data.find((u: any) => u.id === ravi.id).maxDevices).toBe(2);
+  });
+
   it('signing out one device or all others from My profile; the device is told who signed it out', async () => {
     const laptop = await signIn('ravi@sess.test', LAPTOP);
     const phone = await signIn('ravi@sess.test', PHONE);

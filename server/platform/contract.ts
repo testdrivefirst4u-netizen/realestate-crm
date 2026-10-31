@@ -171,6 +171,47 @@ export interface PlatformHealth {
   errors: Array<{ at: string; company: string; companyId: string; scope: string; code: string; message: string }>;
 }
 
+/** Database storage of one company (bytes; growth is null until there is an older snapshot to compare). */
+export interface StorageCompany {
+  companyId: string;
+  name: string;
+  dbName: string;
+  at: string;
+  /** Data + indexes. */
+  size: number;
+  dataSize: number;
+  indexSize: number;
+  /** Compressed space MongoDB has allocated on disk. */
+  storageSize: number;
+  count: number;
+  collections: number;
+  growth1d: number | null;
+  growth7d: number | null;
+  records1d: number | null;
+  topCollection: { name: string; size: number } | null;
+  series: Array<{ day: string; size: number }>;
+}
+export interface StorageOverview {
+  checkedAt: string;
+  total: { size: number; storageSize: number; count: number; growth1d: number | null };
+  companies: StorageCompany[];
+}
+export interface StorageCollection {
+  name: string;
+  count: number;
+  size: number;
+  dataSize: number;
+  indexSize: number;
+  storageSize: number;
+  avgRecord: number;
+  /** Part of the company's database (0–1). */
+  share: number;
+  growth1d: number | null;
+  growth7d: number | null;
+  records1d: number | null;
+}
+export interface StorageLargestItem { id: string; size: number; label: string; at: string }
+
 /** Action → request data → response data. */
 /** Action → request data → response data (includes the per-company lead-source actions). */
 export interface PlatformActions extends PlatformLeadSourceActions, PlatformSheetActions, PlatformMetaActions {
@@ -233,6 +274,9 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   deleteSuperAdmin: { req: { id: string }; res: { ok: true } };
   auditLog: { req: { limit?: number; companyId?: string }; res: PlatformAuditEntry[] };
   platformHealth: { req: {}; res: PlatformHealth };
+  storageOverview: { req: { refresh?: boolean }; res: StorageOverview };
+  storageCompany: { req: { companyId: string }; res: { companyId: string; name: string; at: string; collections: StorageCollection[] } };
+  storageLargest: { req: { companyId: string; collection: string }; res: StorageLargestItem[] };
   billingOverview: { req: {}; res: BillingOverview };
   saveSubscription: { req: { companyId: string; amount: number; currency: string; cycle: 'monthly' | 'yearly'; status: BillingSubscription['status']; startedOn?: string; renewsOn?: string; notes?: string }; res: BillingSubscription };
   createInvoice: { req: { companyId: string; amount: number; currency: string; description?: string; periodFrom?: string; periodTo?: string; issuedOn?: string; dueOn?: string }; res: BillingInvoice };

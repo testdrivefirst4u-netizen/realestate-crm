@@ -165,7 +165,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({ currentUser, onR
 
       {currentUser && <TwoStepCard enabled={!!currentUser.twoFactor} onChanged={onRefreshAll} />}
 
-      {currentUser && <DevicesCard />}
+      {currentUser && <DevicesCard limit={currentUser.maxDevices || 2} />}
 
       <div className="text-[11px] text-[#7E93A6] inline-flex items-center gap-1.5"><UserCircle2 size={12} />Need a different role or email? Ask an administrator — they can change it under Settings → Users.</div>
     </div>

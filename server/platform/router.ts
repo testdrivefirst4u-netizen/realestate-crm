@@ -18,6 +18,7 @@ import * as GS from './sheets';
 import * as MA from './meta';
 import * as BR from './branding';
 import { platformHealth } from './health';
+import * as ST from './storage';
 import * as BI from './billing';
 
 type Handler = { public?: boolean; fn: (data: any, ctx: SaCtx) => Promise<unknown> | unknown };
@@ -78,6 +79,10 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   /* audit */
   auditLog: { fn: (d) => listPlatformAudit({ limit: d?.limit, companyId: d?.companyId }) },
   platformHealth: { fn: () => platformHealth() },
+  /* database storage */
+  storageOverview: { fn: (d) => ST.storageOverview(d || {}) },
+  storageCompany: { fn: (d) => ST.storageCompany(d) },
+  storageLargest: { fn: (d) => ST.storageLargest(d) },
   /* billing */
   billingOverview: { fn: () => BI.billingOverview() },
   saveSubscription: { fn: (d, ctx) => BI.saveSubscription(d, ctx) },

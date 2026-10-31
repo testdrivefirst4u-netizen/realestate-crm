@@ -259,6 +259,8 @@ export interface UserAccount {
   phone?: string;
   /** How Call works: through JustConnect (business number, recorded) or the phone's own dialer. */
   callVia?: 'justconnect' | 'direct';
+  /** Devices this account may be signed in on at once (2 unless an admin allowed more, up to 10). */
+  maxDevices?: number;
 }
 
 export interface AuthSession {
