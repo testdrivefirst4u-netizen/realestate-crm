@@ -22,6 +22,7 @@ import { findLeadByPhone, getLead } from './leads';
 import { idsByName, sendPush } from './push';
 import { saveFile } from './storage';
 import { agentFor } from './justconnect';
+import { compactRecording } from './audioCompress';
 
 const L = CFG.LEAD;
 export const PROVIDER = 'JustConnect';
@@ -236,8 +237,9 @@ export async function finishCall(callId: string, opts: { transcript?: JcTranscri
     // claimed atomically: the webhook and the catch-up sync can reach a call at the same moment
     if (kind && !doc.recordingFileId && !doc.jcAudioTried && (await c.updateOne({ _id: callId, jcAudioTried: { $ne: true } }, { $set: { jcAudioTried: true } })).modifiedCount === 1) {
       try {
-        const data = await fetchAudio(String(doc.providerCallId), kind);
-        const file = await saveFile({ leadId: doc.leadId || '', category: 'Call Recordings', name: `${callId}_${kind}.wav`, mime: 'audio/wav', data, uploadedBy: doc.loggedBy || PROVIDER, description: `${kind === 'voicemail' ? 'Voicemail' : 'Recording'} of ${callId} (JustConnect)` });
+        // stored as MP3 (about a tenth of the WAV JustConnect sends); kept as it came when it cannot be converted
+        const audio = compactRecording(await fetchAudio(String(doc.providerCallId), kind), 'audio/wav', `${callId}_${kind}.wav`);
+        const file = await saveFile({ leadId: doc.leadId || '', category: 'Call Recordings', name: audio.name, mime: audio.mime, data: audio.data, uploadedBy: doc.loggedBy || PROVIDER, description: `${kind === 'voicemail' ? 'Voicemail' : 'Recording'} of ${callId} (JustConnect)` });
         await updateCall(callId, { recordingUrl: file.url, recordingFileId: file.fileId }, ctx);
         if (doc.leadId) await addTimeline(doc.leadId, 'call_recording', kind === 'voicemail' ? 'Voicemail saved' : 'Call recording saved', 'From JustConnect', doc.loggedBy || PROVIDER, 'Call', callId);
         out.recording = true;

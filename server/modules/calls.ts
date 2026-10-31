@@ -24,6 +24,7 @@ import { readFile, saveFile, setFileLead } from './storage';
 import { saveRecord } from './records';
 import { generateText, transcribeAudio } from './ai';
 import { deepFind } from './chat360';
+import { compactRecording } from './audioCompress';
 
 const L = CFG.LEAD;
 const RECORDING_FETCH_MAX = 25 * 1024 * 1024;
@@ -240,7 +241,8 @@ export async function uploadRecording(d: { callId: string; name: string; mime: s
   const mime = String(d.mime || 'audio/webm');
   if (!/^(audio|video)\//i.test(mime)) throw fail('VALIDATION', 'Recordings must be an audio or video file');
   const name = truncate(String(d.name || call.id + '.webm').replace(/[\\/]/g, '_'), 200);
-  const file = await saveFile({ leadId: call.leadId, category: 'Call Recordings', name, mime, data, uploadedBy: actorOf(ctx), description: 'Recording of ' + call.id });
+  const audio = compactRecording(data, mime, name); // a WAV is stored as MP3
+  const file = await saveFile({ leadId: call.leadId, category: 'Call Recordings', name: audio.name, mime: audio.mime, data: audio.data, uploadedBy: actorOf(ctx), description: 'Recording of ' + call.id });
   const updated = await updateCall(call.id, { recordingUrl: file.url, recordingFileId: file.fileId }, ctx);
   await addTimeline(call.leadId, 'call_recording', 'Call recording added', file.name, actorOf(ctx), 'Call', call.id);
   try {
@@ -335,7 +337,8 @@ export async function transcribe(callId: string, ctx: Ctx): Promise<any> {
     if (audio.data.length > TRANSCRIBE_MAX) throw fail('VALIDATION', 'Recording is larger than 19 MB; compress it (e.g. to MP3/OGG) before transcription.');
     // keep a copy so the history is permanent
     if (call.leadId) {
-      const saved = await saveFile({ leadId: call.leadId, category: 'Call Recordings', name: truncate(call.id + '_' + audio.name, 200), mime: audio.mime, data: audio.data, uploadedBy: actor, description: 'Recording of ' + call.id });
+      const kept = compactRecording(audio.data, audio.mime, truncate(call.id + '_' + audio.name, 200));
+      const saved = await saveFile({ leadId: call.leadId, category: 'Call Recordings', name: kept.name, mime: kept.mime, data: kept.data, uploadedBy: actor, description: 'Recording of ' + call.id });
       await updateCall(call.id, { recordingFileId: saved.fileId, recordingUrl: saved.url }, ctx);
     }
   } else {
