@@ -64,7 +64,7 @@ describe('tasks', () => {
   });
 
   it('links to a lead by id or unambiguous name and writes the lead timeline', async () => {
-    const { id } = await addLead({ 'Prospect Name': 'Meera Nair', 'Phone Number': '9111111111' }, admin);
+    const { id } = await addLead({ 'Prospect Name': 'Meera Nair', 'Phone Number': '9111122233' }, admin);
     const byId = await addTask({ name: 'Visit', leadId: id }, admin);
     expect(byId.task.lead).toBe('Meera Nair');
     const byName = await addTask({ name: 'Docs', lead: 'meera nair' }, admin);
@@ -74,7 +74,7 @@ describe('tasks', () => {
   });
 
   it('snoozes (persisted) through the snoozeTask action', async () => {
-    const { id: leadId } = await addLead({ 'Prospect Name': 'Snoozy', 'Phone Number': '9222222222' }, admin);
+    const { id: leadId } = await addLead({ 'Prospect Name': 'Snoozy', 'Phone Number': '9222233344' }, admin);
     const { id } = await addTask({ name: 'Ping', leadId }, admin);
     const until = new Date(Date.now() + 2 * 3600e3).toISOString();
     const r: any = await actions.snoozeTask.fn({ id, until }, admin);

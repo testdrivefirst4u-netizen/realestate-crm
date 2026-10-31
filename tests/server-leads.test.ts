@@ -27,7 +27,7 @@ beforeEach(async () => {
 });
 
 const sample = (over: Record<string, string> = {}) => ({
-  [L.NAME]: 'Ravi Kumar', [L.PHONE]: '+91 98765 43210', [L.SOURCE]: 'Website', [L.UNIT_TYPE]: '2bhk', ...over,
+  [L.NAME]: 'Ravi Kumar', [L.PHONE]: '+91 98765 01234', [L.SOURCE]: 'Website', [L.UNIT_TYPE]: '2bhk', ...over,
 });
 
 describe('leadShape', () => {
@@ -42,9 +42,9 @@ describe('leadShape', () => {
   });
 
   it('maps header keys to fields and keeps unknown keys in extra', () => {
-    const p = fromUiPatch({ [L.NAME]: ' A ', [L.PHONE]: '098765-43210', [L.NEXT_FOLLOWUP]: '2026-02-01 09:00', 'Budget': '1.2 Cr', 'Follow-up 3': 'x' });
+    const p = fromUiPatch({ [L.NAME]: ' A ', [L.PHONE]: '098765-01234', [L.NEXT_FOLLOWUP]: '2026-02-01 09:00', 'Budget': '1.2 Cr', 'Follow-up 3': 'x' });
     expect(p.set.name).toBe('A');
-    expect(p.set.phoneLast10).toBe('9876543210');
+    expect(p.set.phoneLast10).toBe('9876501234');
     expect(p.set.nextFollowupAt).toBeInstanceOf(Date);
     expect(p.extra).toEqual({ Budget: '1.2 Cr' });
     expect(p.followups).toEqual({ 3: 'x' });
@@ -72,20 +72,20 @@ describe('leads', () => {
     expect(l.Budget).toBe('1 Cr');
 
     const doc = await (await col(CFG.COLL.LEADS)).findOne({ _id: 'ENQ-0001' as any });
-    expect(doc!.phoneLast10).toBe('9876543210');
+    expect(doc!.phoneLast10).toBe('9876501234');
     expect(doc!.createdAt).toBeInstanceOf(Date);
 
     const ev = await (await col(CFG.COLL.EVENTS)).findOne({ type: 'lead_created' });
     expect(ev!.title).toBe('New enquiry: Ravi Kumar');
     const tl = await timelineForLead('ENQ-0001');
     expect(tl[0].type).toBe('lead_created');
-    expect(await findLeadByPhone('9876543210')).toMatchObject({ [L.ID]: 'ENQ-0001' });
+    expect(await findLeadByPhone('9876501234')).toMatchObject({ [L.ID]: 'ENQ-0001' });
   });
 
   it('requires a name and rejects a duplicate phone', async () => {
     await expect(addLead({ [L.PHONE]: '1' }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
     await addLead(sample(), admin);
-    await expect(addLead(sample({ [L.NAME]: 'Other', [L.PHONE]: '9876543210' }), admin)).rejects.toMatchObject({
+    await expect(addLead(sample({ [L.NAME]: 'Other', [L.PHONE]: '9876501234' }), admin)).rejects.toMatchObject({
       code: 'CONFLICT', details: { existingId: 'ENQ-0001' },
     });
     // returnExisting (Chat360 path)
@@ -179,11 +179,11 @@ describe('leads', () => {
   });
 
   it('imports with SKIP / OVERWRITE / CREATE_COPY', async () => {
-    await addLead(sample(), admin); // ENQ-0001, phone 9876543210
+    await addLead(sample(), admin); // ENQ-0001, phone 9876501234
     const rows = [
-      { [L.NAME]: 'Ravi K', [L.PHONE]: '9876543210', [L.NOTES]: 'from csv' },
-      { [L.NAME]: 'Meera', [L.PHONE]: '9111111111', [L.STAGE]: 'Hot', 'Follow-up 1': '2025-05-01 09:00 — met at expo' },
-      { [L.NAME]: 'Meera dup', [L.PHONE]: '9111111111' },
+      { [L.NAME]: 'Ravi K', [L.PHONE]: '9876501234', [L.NOTES]: 'from csv' },
+      { [L.NAME]: 'Meera', [L.PHONE]: '9111122233', [L.STAGE]: 'Hot', 'Follow-up 1': '2025-05-01 09:00 — met at expo' },
+      { [L.NAME]: 'Meera dup', [L.PHONE]: '9111122233' },
     ];
     const skip = await importLeads(rows, 'SKIP', admin);
     expect(skip).toMatchObject({ created: 1, updated: 0, skipped: 2 });
@@ -198,12 +198,12 @@ describe('leads', () => {
     expect(l1[L.NAME]).toBe('Ravi Kumar'); // empty cells never overwrite
     expect(l1[L.BOOKING_DATE]).toBeTruthy();
 
-    const copy = await importLeads([{ [L.ID]: 'ENQ-0001', [L.NAME]: 'Ravi copy', [L.PHONE]: '9876543210' }], 'CREATE_COPY', admin);
+    const copy = await importLeads([{ [L.ID]: 'ENQ-0001', [L.NAME]: 'Ravi copy', [L.PHONE]: '9876501234' }], 'CREATE_COPY', admin);
     expect(copy).toMatchObject({ created: 1 });
-    expect((await getAllLeads()).leads.filter((l) => l[L.PHONE].endsWith('43210'))).toHaveLength(2);
+    expect((await getAllLeads()).leads.filter((l) => l[L.PHONE].endsWith('01234'))).toHaveLength(2);
     expect(await getLead('ENQ-0003')).toMatchObject({ [L.NAME]: 'Ravi copy' });
 
-    await expect(importLeads([{ [L.PHONE]: '9222222222' }], 'SKIP', admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(importLeads([{ [L.PHONE]: '9222233344' }], 'SKIP', admin)).rejects.toMatchObject({ code: 'VALIDATION' });
     await expect(importLeads(new Array(20001).fill({ [L.NAME]: 'x' }), 'SKIP', admin)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 

@@ -89,7 +89,7 @@ describe('matchForCall', () => {
 
   it('returns null for linked calls, unknown numbers, short numbers and trashed enquiries', () => {
     expect(matchForCall(mkCall({ leadId: 'ENQ-0003', phone: '9000011111', matchedLeadId: 'ENQ-0003' }), byId, byPhone)).toBeNull();
-    expect(matchForCall(mkCall({ phone: '9999999999' }), byId, byPhone)).toBeNull();
+    expect(matchForCall(mkCall({ phone: '9999988877' }), byId, byPhone)).toBeNull();
     expect(matchForCall(mkCall({ phone: '12345' }), byId, byPhone)).toBeNull();
     expect(matchForCall(mkCall({ phone: '' }), byId, byPhone)).toBeNull();
     expect(matchForCall(mkCall({ phone: '9876500000' }), byId, byPhone)).toBeNull();

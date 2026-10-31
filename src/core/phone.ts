@@ -58,7 +58,23 @@ export function mailtoLink(email: string | undefined | null, subject?: string, b
   return `mailto:${email}${params.length ? '?' + params.join('&') : ''}`;
 }
 
+/**
+ * Why a phone number cannot be a real customer's ('' when it looks real). Refuses made-up numbers:
+ * one digit repeated (1111111111), only two different digits (1212121212), 1234567890 / 9876543210, and an
+ * Indian mobile (10 digits, or 91 + 10) that does not start with 6, 7, 8 or 9. A landline with a leading 0 is fine.
+ */
+export function phoneProblem(value: unknown): string {
+  let d = String(value ?? '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.length < 10 || d.length > 15) return 'Enter a valid phone number (10 digits, or with the country code).';
+  const ten = d.slice(-10);
+  if (/^(\d)\1+$/.test(ten) || new Set(ten).size <= 2) return 'This phone number looks made up (the same digits repeated). Enter the customer’s real number.';
+  if (['0123456789', '1234567890', '9876543210', '0987654321'].includes(ten)) return 'This phone number looks made up (digits in a row). Enter the customer’s real number.';
+  const indianMobile = d.length === 10 || (d.length === 12 && d.startsWith('91'));
+  if (indianMobile && !/^[6-9]/.test(ten)) return 'An Indian mobile number starts with 6, 7, 8 or 9.';
+  return '';
+}
+
 export function isLikelyPhone(value: string): boolean {
-  const d = digitsOnly(value);
-  return d.length >= 10 && d.length <= 13;
+  return !phoneProblem(value);
 }

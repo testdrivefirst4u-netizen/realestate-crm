@@ -65,17 +65,17 @@ const contactsSent = () => sent.filter((x) => x.path === '/contacts' && x.method
 
 describe('contacts (caller names)', () => {
   it('sends a lead as name, phone, stage, unit, source and RM', () => {
-    expect(contactFor({ _id: 'ENQ-0007', name: 'Meera Kapoor', phone: '9876543210', email: 'm@x.in', stage: 'Hot', source: 'Facebook', unitType: '2.5 BHK', assignedRm: 'Priya Sharma' })).toMatchObject({
-      name: 'Meera Kapoor', phone: '9876543210', email: 'm@x.in', company: 'Hot · 2.5 BHK',
+    expect(contactFor({ _id: 'ENQ-0007', name: 'Meera Kapoor', phone: '9876501234', email: 'm@x.in', stage: 'Hot', source: 'Facebook', unitType: '2.5 BHK', assignedRm: 'Priya Sharma' })).toMatchObject({
+      name: 'Meera Kapoor', phone: '9876501234', email: 'm@x.in', company: 'Hot · 2.5 BHK',
       fields: { 'CRM ID': 'ENQ-0007', Stage: 'Hot', 'Interested in': '2.5 BHK', Source: 'Facebook', RM: 'Priya Sharma' },
     });
   });
 
   it('sends every live lead once, again after a change, never a refused number every run, and nothing when off', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876543210' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876501234' }, admin);
     await addLead({ [L.NAME]: 'Ravi', [L.PHONE]: '9876500002' }, admin);
-    await addLead({ [L.NAME]: 'Bad number', [L.PHONE]: '1234567890' }, admin);
-    refuse.add('1234567890');
+    await addLead({ [L.NAME]: 'Bad number', [L.PHONE]: '9876500003' }, admin);
+    refuse.add('9876500003');
     let r = await syncContacts({ gapMs: 0 });
     expect(r).toMatchObject({ sent: 2, failed: 1, left: 0 });
     expect(contactsSent().map((x) => x.body.name).sort()).toEqual(['Bad number', 'Meera', 'Ravi']);
@@ -95,13 +95,13 @@ describe('contacts (caller names)', () => {
 });
 
 const jcCall = (o: Partial<JcCall> = {}): JcCall => ({
-  id: 'jc1', direction: 'outbound', status: 'answered', customer: '9876543210', agent: { id: 'ag1', name: 'Priya S' }, rang: [],
+  id: 'jc1', direction: 'outbound', status: 'answered', customer: '9876501234', agent: { id: 'ag1', name: 'Priya S' }, rang: [],
   startedAt: '2026-10-27T09:00:00.000Z', endedAt: '2026-10-27T09:03:00.000Z', talkSeconds: 180, recording: null, voicemail: null, outcome: null, notes: null, ref: null, updatedAt: '2026-10-27T09:04:00.000Z', ...o,
 });
 
 describe('outcomes both ways', () => {
   it('the outcome an agent filed in JustConnect becomes one remark on the lead', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     const { callId } = await ingestJcCall(jcCall({ outcome: 'INTERESTED', notes: 'Visiting Saturday', ref: lead[L.ID] }));
     expect(await remarkFromJcOutcome(callId)).toBe(true);
     expect(await remarkFromJcOutcome(callId)).toBe(false);
@@ -141,7 +141,7 @@ describe('call report', () => {
 
 describe('leads collection stays clean', () => {
   it('marking a lead as sent does not change its "updated" time', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876543210' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera', [L.PHONE]: '9876501234' }, admin);
     const before = (await (await col<any>(CFG.COLL.LEADS)).findOne({ _id: lead[L.ID] })).updatedAt;
     await syncContacts({ gapMs: 0 });
     const doc = await (await col<any>(CFG.COLL.LEADS)).findOne({ _id: lead[L.ID] });

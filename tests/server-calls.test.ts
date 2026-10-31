@@ -28,7 +28,7 @@ import { POST as telephonyPOST } from '../app/api/webhooks/telephony/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let ctx: Ctx;
-const LEAD = { 'Enquiry ID': 'ENQ-0007', 'Prospect Name': 'Meera Rao', 'Phone Number': '+919876543210', 'Assigned RM': 'Asha', 'Lead Stage': 'Warm', 'Unit Type Interested In': '2 BHK' };
+const LEAD = { 'Enquiry ID': 'ENQ-0007', 'Prospect Name': 'Meera Rao', 'Phone Number': '+919876501234', 'Assigned RM': 'Asha', 'Lead Stage': 'Warm', 'Unit Type Interested In': '2 BHK' };
 const gemini = (text: string) => new Response(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text }] }, finishReason: 'STOP' }] }), { status: 200 });
 const SUMMARY = JSON.stringify({ summary: 'Meera wants a 2 BHK.', keyPoints: ['2 BHK', 'Budget 1 Cr'], followupActions: ['Send brochure'], outcome: 'Interested', nextFollowup: '2026-10-10T11:00:00+05:30' });
 
@@ -41,7 +41,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await t.reset();
   vi.mocked(leads.getLead).mockReset().mockImplementation(async (id: string) => (id === 'ENQ-0007' ? LEAD : null));
-  vi.mocked(leads.findLeadByPhone).mockReset().mockImplementation(async (p: string) => (String(p).replace(/\D/g, '').endsWith('9876543210') ? LEAD : null));
+  vi.mocked(leads.findLeadByPhone).mockReset().mockImplementation(async (p: string) => (String(p).replace(/\D/g, '').endsWith('9876501234') ? LEAD : null));
   vi.mocked(leads.updateLead).mockClear();
   vi.mocked(storage.saveFile).mockClear();
   vi.mocked(storage.readFile).mockReset().mockResolvedValue(null);
@@ -59,8 +59,8 @@ afterEach(() => {
 describe('logging & updates', () => {
   it('logs a call against a lead with a CALL-00001 id, timeline, event and audit', async () => {
     const call = await logCall({ leadId: 'ENQ-0007', startTime: '2026-10-01T10:00:00Z', endTime: '2026-10-01T10:05:00Z', outcome: 'Interested' }, ctx);
-    expect(call).toMatchObject({ id: 'CALL-00001', leadId: 'ENQ-0007', customerName: 'Meera Rao', phone: '+919876543210', durationSec: 300, status: 'Completed', direction: 'Outbound', provider: 'Manual', loggedBy: 'Ravi', callDate: '2026-10-01T10:00:00.000Z' });
-    expect((await logCall({ phone: '9000000000' }, ctx)).id).toBe('CALL-00002');
+    expect(call).toMatchObject({ id: 'CALL-00001', leadId: 'ENQ-0007', customerName: 'Meera Rao', phone: '+919876501234', durationSec: 300, status: 'Completed', direction: 'Outbound', provider: 'Manual', loggedBy: 'Ravi', callDate: '2026-10-01T10:00:00.000Z' });
+    expect((await logCall({ phone: '9000012345' }, ctx)).id).toBe('CALL-00002');
     const doc: any = await (await col(CFG.COLL.CALLS)).findOne({ _id: 'CALL-00001' as any });
     expect(doc.startTime).toBeInstanceOf(Date);
     expect(await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: 'ENQ-0007', type: 'call' })).toBe(1);
@@ -88,7 +88,7 @@ describe('logging & updates', () => {
 
   it('lists calls newest first and suggests a lead for unlinked calls by phone', async () => {
     vi.mocked(leads.findLeadByPhone).mockResolvedValueOnce(null); // logCall lookup → stays unlinked
-    await logCall({ phone: '+91 98765 43210', startTime: '2026-10-02T10:00:00Z' }, ctx);
+    await logCall({ phone: '+91 98765 01234', startTime: '2026-10-02T10:00:00Z' }, ctx);
     await logCall({ leadId: 'ENQ-0007', startTime: '2026-10-01T10:00:00Z' }, ctx);
     const all = await listCalls();
     expect(all.map((c) => c.id)).toEqual(['CALL-00001', 'CALL-00002']);
@@ -100,7 +100,7 @@ describe('logging & updates', () => {
 describe('telephony webhook', () => {
   it('creates, then updates the same provider call (dedupe on provider + id) without transcribing', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
-    const r1: any = await handleWebhook({ call_id: 'abc', from: '+919876543210', to: '04012345678', direction: 'incoming', start_time: '2026-10-01T10:00:00Z', status: 'ringing' }, 'zoho');
+    const r1: any = await handleWebhook({ call_id: 'abc', from: '+919876501234', to: '04012345678', direction: 'incoming', start_time: '2026-10-01T10:00:00Z', status: 'ringing' }, 'zoho');
     expect(r1.callId).toBe('CALL-00001');
     const c1: any = (await listCalls())[0];
     expect(c1).toMatchObject({ direction: 'Inbound', leadId: 'ENQ-0007', provider: 'zoho', providerCallId: 'abc', loggedBy: 'zoho' });
@@ -112,20 +112,20 @@ describe('telephony webhook', () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     // same id from another provider is a different call
-    const r3: any = await handleWebhook({ call_id: 'abc', from: '9123456789', direction: 'Outgoing', to: '9876543210' }, 'exotel');
+    const r3: any = await handleWebhook({ call_id: 'abc', from: '9123456789', direction: 'Outgoing', to: '9876501234' }, 'exotel');
     expect(r3.callId).toBe('CALL-00002');
-    expect((await listCalls()).find((c) => c.id === 'CALL-00002')).toMatchObject({ direction: 'Outbound', phone: '9876543210' });
+    expect((await listCalls()).find((c) => c.id === 'CALL-00002')).toMatchObject({ direction: 'Outbound', phone: '9876501234' });
     expect(await handleWebhook({ call_id: 'zzz' }, 'zoho')).toEqual({ ok: true, ignored: 'no-phone' });
   });
 
   it('uses the telephonyFieldMap setting', async () => {
     await settingSet('telephonyFieldMap', JSON.stringify({ callId: 'CallSid', from: 'From', to: 'To', direction: 'Direction', status: 'CallStatus' }), 'test');
-    await handleWebhook({ CallSid: 'CA1', From: '9876543210', To: '4000', Direction: 'inbound', CallStatus: 'no-answer' }, 'twilio');
+    await handleWebhook({ CallSid: 'CA1', From: '9876501234', To: '4000', Direction: 'inbound', CallStatus: 'no-answer' }, 'twilio');
     expect((await listCalls())[0]).toMatchObject({ providerCallId: 'CA1', status: 'No Answer', direction: 'Inbound' });
   });
 
   it('route authenticates with header or query secret and passes ?provider=', async () => {
-    const body = JSON.stringify({ call_id: 'r1', from: '9876543210', direction: 'inbound' });
+    const body = JSON.stringify({ call_id: 'r1', from: '9876501234', direction: 'inbound' });
     const mk = (url: string, h: Record<string, string> = {}) => new Request(url, { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body });
     expect((await telephonyPOST(mk('http://x/api/webhooks/telephony?company=test&provider=zoho'))).status).toBe(403);
     expect((await telephonyPOST(mk('http://x/api/webhooks/telephony?company=test&provider=zoho&secret=bad'))).status).toBe(403);
@@ -147,7 +147,7 @@ describe('recordings, transcription & summary', () => {
     expect(opts.data.toString()).toBe('ID3audio');
     expect(updated).toMatchObject({ recordingFileId: 'F7', recordingUrl: '/api/files/F7' });
     expect(vi.mocked(records.saveRecord).mock.calls[0][0]).toBe('documents');
-    const unlinked = await logCall({ phone: '9000000000' }, ctx);
+    const unlinked = await logCall({ phone: '9000012345' }, ctx);
     await expect(uploadRecording({ callId: unlinked.id, name: 'a', mime: 'audio/mpeg', base64: 'AA==' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 

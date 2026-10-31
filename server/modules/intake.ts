@@ -16,10 +16,10 @@ import { CFG } from '../core/config';
 import { listUsers } from '../core/auth';
 import { col, nextCounter } from '../core/db';
 import { ApiError } from '../core/errors';
-import { addEvent, logError } from '../core/events';
-import { escapeRegex, last10, shortId, truncate } from '../core/utils';
+import { addEvent, addTimeline, logError } from '../core/events';
+import { escapeRegex, last10, phoneProblem, shortId, truncate } from '../core/utils';
 import type { InboundLogEntry, InboundStatus, LeadSource, LeadSourceConfig, LeadSourceStats } from '../core/leadSourceTypes';
-import { addLead, appendRemark, findLeadByPhone, type UiLead } from './leads';
+import { addLead, appendRemark, findLeadByPhone, getLead, type UiLead } from './leads';
 
 const L = CFG.LEAD;
 
@@ -228,12 +228,12 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
   const email = (lead[L.EMAIL] || '').trim().toLowerCase();
   let phoneOk = false, emailOk = false;
   if (phone) {
-    if (digitCount(phone) >= 7 && digitCount(phone) <= 15) {
+    if (!phoneProblem(phone)) {
       phoneOk = true;
       lead[L.PHONE] = truncate(phone, 40);
     } else {
       delete lead[L.PHONE];
-      warnings.push(`Phone number "${truncate(phone, 40)}" is not valid (needs 7–15 digits)`);
+      warnings.push(`Phone number "${truncate(phone, 40)}" is not valid: ${phoneProblem(phone)}`);
       answer('Phone (invalid)', phone);
     }
   }
@@ -337,6 +337,32 @@ export async function pickAssignee(source: Pick<SourceDoc, '_id' | 'config'>, ad
 
 interface Outcome { status: InboundStatus; leadId: string; duplicate: boolean; message: string }
 
+/** The same person enquiring again within this time is the same enquiry (a double submit): a follow-up, not a new lead. */
+const SAME_ENQUIRY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A new enquiry from someone who enquired before: a new lead (stage New, today's date) linked to the earlier one,
+ * which stays exactly as it was. The same RM keeps the customer when still active; WhatsApp now opens the new lead.
+ */
+async function reEnquiry(source: SourceDoc, m: MappedLead, prev: UiLead): Promise<Outcome> {
+  const prevId = prev[L.ID];
+  const lead: UiLead = { ...m.lead, [CFG.REENQUIRY_OF]: prevId };
+  const prevRm = String(prev[L.RM] || '').trim();
+  const active = prevRm ? (await listUsers()).some((u) => u.status === 'Active' && u.name === prevRm) : false;
+  const { rm, warning } = active ? { rm: prevRm, warning: '' } : await pickAssignee(source, true);
+  if (rm) lead[L.RM] = rm;
+  const first = String(prev[L.ENQUIRY_DATE] || prev[L.CREATED_AT] || '').slice(0, 10);
+  const res = await addLead(lead, null, { actor: source.name, eventSource: 'website', allowDuplicate: true });
+  await addTimeline(res.id, 'lead_created', 'Re-enquiry', `Enquired before as ${prevId}${first ? ` on ${first}` : ''} (stage ${prev[L.STAGE] || 'New'}). That enquiry is kept in the history.`, source.name, 'Lead', res.id);
+  await addTimeline(prevId, 'lead_reenquiry', 'Enquired again', `New enquiry ${res.id} via ${source.name}. This enquiry is kept as it was.`, source.name, 'Lead', prevId);
+  await addEvent('lead_reenquiry', 'Lead', res.id, `Re-enquiry: ${m.lead[L.NAME] || res.id}`, truncate(`via ${source.name} · earlier enquiry ${prevId}`, 300), source.name, { source: 'website', sourceId: source._id });
+  // the WhatsApp conversation follows the customer to the new enquiry (earlier messages stay on the old one)
+  const key = last10(lead[L.PHONE] || prev[L.PHONE] || '');
+  if (key.length === 10) await (await col(CFG.COLL.CHAT_CONTACTS)).updateOne({ phoneLast10: key }, { $set: { leadId: res.id } });
+  const notes = [`Re-enquiry of ${prevId}`, ...m.warnings, warning].filter(Boolean).join('; ');
+  return { status: 'created', leadId: res.id, duplicate: true, message: truncate(notes, 500) };
+}
+
 /** Turn fields into a lead (or a duplicate remark). Never throws: failures come back as status 'failed'. */
 async function processFields(source: SourceDoc, raw: Record<string, unknown>): Promise<Outcome> {
   try {
@@ -348,6 +374,10 @@ async function processFields(source: SourceDoc, raw: Record<string, unknown>): P
       if (dup) {
         const id = dup[L.ID];
         if (mode === 'skip') return { status: 'duplicate', leadId: id, duplicate: true, message: `Already exists as ${id} (skipped)` };
+        // enquiring again after a day: a new enquiry of its own, the earlier one kept in the history
+        const prev = await getLead(id);
+        const prevAt = Date.parse(String(prev?.[L.ENQUIRY_DATE] || prev?.[L.CREATED_AT] || ''));
+        if (prev && (isNaN(prevAt) || Date.now() - prevAt >= SAME_ENQUIRY_MS)) return await reEnquiry(source, m, prev);
         const note = truncate(`New enquiry via ${source.name}: ${m.message || 'form submitted'}`, 1000);
         let message = `Follow-up added to ${id}`;
         try {

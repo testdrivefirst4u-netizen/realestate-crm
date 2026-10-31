@@ -110,7 +110,7 @@ describe('lead source management', () => {
 describe('POST /api/inbound/leads', () => {
   it('creates a lead from JSON (Bearer key) and from a urlencoded form (_key field)', async () => {
     const { apiKey } = await newSource();
-    const r1 = await post({ name: 'Asha Rao', phone: '+91 98765 43210', email: 'Asha@Example.com', message: 'Call me' }, { headers: { Authorization: 'Bearer ' + apiKey } });
+    const r1 = await post({ name: 'Asha Rao', phone: '+91 98765 01234', email: 'Asha@Example.com', message: 'Call me' }, { headers: { Authorization: 'Bearer ' + apiKey } });
     expect(r1.status).toBe(201);
     const b1 = await r1.json();
     expect(b1).toEqual({ status: 'success', data: { leadId: 'ENQ-0001', duplicate: false } });
@@ -119,7 +119,7 @@ describe('POST /api/inbound/leads', () => {
     const leads = await leadsIn();
     expect(leads).toHaveLength(2);
     const a = leads.find((l) => l['Enquiry ID'] === 'ENQ-0001')!;
-    expect(a).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+91 98765 43210', Email: 'asha@example.com', 'Lead Stage': 'New', 'Enquiry Source': 'Website', 'Enquiry Notes': '', 'Form: Message': 'Call me' });
+    expect(a).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+91 98765 01234', Email: 'asha@example.com', 'Lead Stage': 'New', 'Enquiry Source': 'Website', 'Enquiry Notes': '', 'Form: Message': 'Call me' });
     expect(leads.find((l) => l['Prospect Name'] === 'Vikram')!['Phone Number']).toBe('9123456780');
     const log = await logIn();
     expect(log.map((e) => e.status)).toEqual(['created', 'created']);
@@ -131,9 +131,9 @@ describe('POST /api/inbound/leads', () => {
 
   it('answers 401 for a missing or unknown key', async () => {
     await newSource();
-    expect((await post({ name: 'x', phone: '9876543210' })).status).toBe(401);
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: 'crm_live_' + 'a'.repeat(48) })).status).toBe(401);
-    const r = await post({ name: 'x', phone: '9876543210' }, { key: 'garbage' });
+    expect((await post({ name: 'x', phone: '9876501234' })).status).toBe(401);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: 'crm_live_' + 'a'.repeat(48) })).status).toBe(401);
+    const r = await post({ name: 'x', phone: '9876501234' }, { key: 'garbage' });
     expect(r.status).toBe(401);
     expect(await r.json()).toMatchObject({ status: 'error', code: 'AUTH_REQUIRED' });
   });
@@ -141,9 +141,9 @@ describe('POST /api/inbound/leads', () => {
   it('answers 403 for a paused source and for a plan without websiteApi', async () => {
     const { source, apiKey } = await newSource();
     await inCo(() => LS.updateLeadSource({ id: source.id, patch: { status: 'Paused' } }, null));
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: apiKey })).status).toBe(403);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: apiKey })).status).toBe(403);
     await inCo(() => LS.updateLeadSource({ id: source.id, patch: { status: 'Active' } }, null));
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: apiKey })).status).toBe(201);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: apiKey })).status).toBe(201);
     await t.company('test', { websiteApi: false });
     const r = await post({ name: 'y', phone: '9876543211' }, { key: apiKey });
     expect(r.status).toBe(403);
@@ -199,10 +199,32 @@ describe('POST /api/inbound/leads', () => {
     expect(log[0]).toMatchObject({ status: 'rejected', leadId: '' });
   });
 
+  it('enquiring again after a day is a new enquiry linked to the old one, which stays as it was', async () => {
+    const { apiKey } = await newSource();
+    await post({ name: 'Ravi', phone: '9876501234', budget: '1 Cr' }, { key: apiKey });
+    // the first enquiry was on 3 Sep 2026 and has been worked since
+    await inCo(async () => (await (await import('../server/core/db')).col(CFG.COLL.LEADS)).updateOne({ _id: 'ENQ-0001' } as any, { $set: { enquiryDate: new Date('2026-09-03T10:00:00Z'), createdAt: new Date('2026-09-03T10:00:00Z'), stage: 'Warm', assignedRm: '' } }));
+    const r = await post({ name: 'Ravi K', phone: '+91 98765 01234', budget: '2 Cr' }, { key: apiKey });
+    expect(r.status).toBe(201);
+    expect((await r.json()).data).toEqual({ leadId: 'ENQ-0002', duplicate: true });
+    const leads = await leadsIn();
+    expect(leads).toHaveLength(2);
+    const old = leads.find((l) => l['Enquiry ID'] === 'ENQ-0001')!;
+    const fresh = leads.find((l) => l['Enquiry ID'] === 'ENQ-0002')!;
+    expect(old).toMatchObject({ 'Lead Stage': 'Warm', 'Form: Budget': '1 Cr' }); // untouched
+    expect(old['Enquiry Date'].slice(0, 10)).toBe('2026-09-03');
+    expect(fresh).toMatchObject({ 'Lead Stage': 'New', 'Re-enquiry Of': 'ENQ-0001', 'Form: Budget': '2 Cr', 'Phone Number': '+91 98765 01234' });
+    expect(Math.abs(Date.parse(fresh['Enquiry Date']) - Date.now())).toBeLessThan(60_000);
+    // calls and WhatsApp find the latest enquiry; both leads list the history
+    expect((await inCo(() => leadsModule.findLeadByPhone('9876501234')))![CFG.LEAD.ID]).toBe('ENQ-0002');
+    const tl = await inCo(() => leadsModule.timelineForLead('ENQ-0001'));
+    expect(tl.some((t: any) => t.title === 'Enquired again' && /ENQ-0002/.test(t.details))).toBe(true);
+  });
+
   it("duplicate 'remark' adds a follow-up to the existing lead and creates nothing", async () => {
     const { apiKey } = await newSource();
-    await post({ name: 'Ravi', phone: '9876543210' }, { key: apiKey });
-    const r = await post({ name: 'Ravi K', phone: '+91-98765-43210', message: 'Still interested' }, { key: apiKey });
+    await post({ name: 'Ravi', phone: '9876501234' }, { key: apiKey });
+    const r = await post({ name: 'Ravi K', phone: '+91-98765-01234', message: 'Still interested' }, { key: apiKey });
     expect(r.status).toBe(201);
     expect((await r.json()).data).toEqual({ leadId: 'ENQ-0001', duplicate: true });
     // by e-mail too
@@ -243,14 +265,14 @@ describe('POST /api/inbound/leads', () => {
     const leads = (await leadsIn()).sort((a, b) => a['Enquiry ID'].localeCompare(b['Enquiry ID']));
     expect(leads.map((l) => l['Assigned RM'])).toEqual(['Rina', 'Sam', 'Rina', 'Sam']);
     const fixed = await newSource('website', { assignment: { mode: 'fixed', rm: 'Sam', rms: [] } }, 'Fixed');
-    const r = await post({ name: 'F', phone: '9111111111' }, { key: fixed.apiKey });
+    const r = await post({ name: 'F', phone: '9111122233' }, { key: fixed.apiKey });
     const id = (await r.json()).data.leadId;
     expect((await leadsIn()).find((l) => l['Enquiry ID'] === id)!['Assigned RM']).toBe('Sam');
   });
 
   it('honeypot: success-looking answer, no lead, logged as spam', async () => {
     const { apiKey } = await newSource();
-    const r = await post({ name: 'Bot', phone: '9876543210', _gotcha: 'http://spam' }, { key: apiKey });
+    const r = await post({ name: 'Bot', phone: '9876501234', _gotcha: 'http://spam' }, { key: apiKey });
     expect(r.status).toBe(201);
     expect(await r.json()).toEqual({ status: 'success', data: { leadId: '', duplicate: false } });
     expect(await leadsIn()).toHaveLength(0);
@@ -273,10 +295,10 @@ describe('POST /api/inbound/leads', () => {
 
   it('CORS: foreign origin 403, allowed origin gets the CORS headers; OPTIONS answers the preflight', async () => {
     const { apiKey } = await newSource('website', { allowedOrigins: ['https://www.amaya.in'] });
-    const bad = await post({ name: 'x', phone: '9876543210' }, { key: apiKey, headers: { Origin: 'https://evil.com' } });
+    const bad = await post({ name: 'x', phone: '9876501234' }, { key: apiKey, headers: { Origin: 'https://evil.com' } });
     expect(bad.status).toBe(403);
     expect(bad.headers.get('access-control-allow-origin')).toBeNull();
-    const good = await post({ name: 'x', phone: '9876543210' }, { key: apiKey, headers: { Origin: 'https://www.amaya.in' } });
+    const good = await post({ name: 'x', phone: '9876501234' }, { key: apiKey, headers: { Origin: 'https://www.amaya.in' } });
     expect(good.status).toBe(201);
     expect(good.headers.get('access-control-allow-origin')).toBe('https://www.amaya.in');
     expect(good.headers.get('vary')).toBe('Origin');
@@ -290,7 +312,7 @@ describe('POST /api/inbound/leads', () => {
 
   it('_redirect answers 303 to an allowed https URL', async () => {
     const { apiKey } = await newSource('website', { allowedOrigins: ['https://www.amaya.in'] });
-    const r = await post({ _key: apiKey, name: 'R', phone: '9876543210', _redirect: 'https://www.amaya.in/thanks' }, { form: true });
+    const r = await post({ _key: apiKey, name: 'R', phone: '9876501234', _redirect: 'https://www.amaya.in/thanks' }, { form: true });
     expect(r.status).toBe(303);
     expect(r.headers.get('location')).toBe('https://www.amaya.in/thanks?lead=ok');
     const e = await post({ _key: apiKey, name: 'R', phone: '1', _redirect: 'https://www.amaya.in/thanks' }, { form: true });
@@ -302,11 +324,11 @@ describe('POST /api/inbound/leads', () => {
   it('rate limit: 21st request per minute from one IP → 429', async () => {
     const { apiKey } = await newSource('website', { duplicates: 'skip' });
     const hdr = { 'X-Forwarded-For': '203.0.113.7' };
-    for (let i = 0; i < 20; i++) expect((await post({ name: 'R', phone: '9876543210' }, { key: apiKey, headers: hdr })).status).toBe(201);
-    const r = await post({ name: 'R', phone: '9876543210' }, { key: apiKey, headers: hdr });
+    for (let i = 0; i < 20; i++) expect((await post({ name: 'R', phone: '9876501234' }, { key: apiKey, headers: hdr })).status).toBe(201);
+    const r = await post({ name: 'R', phone: '9876501234' }, { key: apiKey, headers: hdr });
     expect(r.status).toBe(429);
     expect(await r.json()).toMatchObject({ code: 'RATE_LIMIT' });
-    expect((await post({ name: 'R', phone: '9876543210' }, { key: apiKey, headers: { 'X-Forwarded-For': '203.0.113.8' } })).status).toBe(201);
+    expect((await post({ name: 'R', phone: '9876501234' }, { key: apiKey, headers: { 'X-Forwarded-For': '203.0.113.8' } })).status).toBe(201);
   });
 
   it('rotating the key invalidates the old one; deleting the source removes its key', async () => {
@@ -314,8 +336,8 @@ describe('POST /api/inbound/leads', () => {
     const rot = await inCo(() => LS.rotateLeadSourceKey({ id: source.id }, null));
     expect(rot.apiKey).not.toBe(apiKey);
     expect(rot.source.keyPrefix).toBe(rot.apiKey.slice(0, 12));
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: apiKey })).status).toBe(401);
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: rot.apiKey })).status).toBe(201);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: apiKey })).status).toBe(401);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: rot.apiKey })).status).toBe(201);
     await inCo(() => LS.deleteLeadSource({ id: source.id }, null));
     expect((await post({ name: 'y', phone: '9876543211' }, { key: rot.apiKey })).status).toBe(401);
     expect(await (await getClient())!.db(PLATFORM_DB()).collection('apiKeys').countDocuments({})).toBe(0);
@@ -326,10 +348,10 @@ describe('POST /api/inbound/leads', () => {
     const a = await newSource('website', {}, 'A site', 'CMP-test');
     const b = await newSource('website', {}, 'B site', 'CMP-other');
     expect(b.source.id).toBe('SRC-0001'); // own counters
-    expect((await post({ name: 'In B', phone: '9876543210' }, { key: b.apiKey })).status).toBe(201);
+    expect((await post({ name: 'In B', phone: '9876501234' }, { key: b.apiKey })).status).toBe(201);
     expect(await leadsIn('CMP-test')).toHaveLength(0);
     expect((await leadsIn('CMP-other')).map((l) => l['Prospect Name'])).toEqual(['In B']);
-    expect((await post({ name: 'In A', phone: '9876543210' }, { key: a.apiKey })).status).toBe(201);
+    expect((await post({ name: 'In A', phone: '9876501234' }, { key: a.apiKey })).status).toBe(201);
     expect((await leadsIn('CMP-test')).map((l) => l['Prospect Name'])).toEqual(['In A']);
     expect(await leadsIn('CMP-other')).toHaveLength(1);
   });
@@ -342,7 +364,7 @@ describe('retry & preview', () => {
     await inCo(async () => {
       await (await inboundCol()).insertOne({
         _id: 'INB_failed1', sourceId: source.id, receivedAt: new Date(), status: 'failed', leadId: '', message: 'Internal error: db hiccup',
-        payload: { name: 'Retry Me', phone: '9876543210', city: 'Pune' }, ip: '', origin: '',
+        payload: { name: 'Retry Me', phone: '9876501234', city: 'Pune' }, ip: '', origin: '',
       });
       await (await sourcesCol()).updateOne({ _id: source.id }, { $inc: { 'stats.received': 1, 'stats.failed': 1 } });
     });
@@ -371,11 +393,11 @@ describe('retry & preview', () => {
   });
 
   it('mapFields is pure and ingestLead logs payloads without the key', async () => {
-    const m = mapFields({ type: 'webhook', config: LS.defaultConfig('webhook') }, { phone: '9876543210' });
-    expect(m.lead['Prospect Name']).toBe('Webhook enquiry 9876543210');
+    const m = mapFields({ type: 'webhook', config: LS.defaultConfig('webhook') }, { phone: '9876501234' });
+    expect(m.lead['Prospect Name']).toBe('Webhook enquiry 9876501234');
     const { source } = await newSource();
     const doc = await inCo(async () => (await sourcesCol()).findOne({ _id: source.id }));
-    const res = await inCo(() => ingestLead(doc!, { _key: 'crm_live_x', phone: '9876543210', long: 'x'.repeat(900) }, { ip: '1.2.3.4' }));
+    const res = await inCo(() => ingestLead(doc!, { _key: 'crm_live_x', phone: '9876501234', long: 'x'.repeat(900) }, { ip: '1.2.3.4' }));
     expect(res.status).toBe('created');
     const [entry] = await logIn();
     expect(entry.payload._key).toBeUndefined();
@@ -399,9 +421,9 @@ describe('super admin', () => {
     expect((list.body as any).data.map((s: any) => s.id)).toEqual(['SRC-0001']);
     expect((await pd('listCompanyLeadSources', { companyId: 'CMP-nope' })).status).toBe(404);
     // the endpoint still refuses until the plan has the feature
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: data.apiKey })).status).toBe(403);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: data.apiKey })).status).toBe(403);
     await t.company('test', { websiteApi: true });
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: data.apiKey })).status).toBe(201);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: data.apiKey })).status).toBe(201);
     const upd = await pd('updateCompanyLeadSource', { companyId: 'CMP-test', id: 'SRC-0001', patch: { status: 'Paused' } });
     expect((upd.body as any).data.status).toBe('Paused');
     const log = await pd('companyInboundLog', { companyId: 'CMP-test' });
@@ -409,6 +431,6 @@ describe('super admin', () => {
     const audit = await pd('auditLog', { companyId: 'CMP-test' });
     expect((audit.body as any).data.map((a: any) => a.action)).toEqual(expect.arrayContaining(['Lead Source Created', 'Lead Source Updated']));
     expect((await pd('deleteCompanyLeadSource', { companyId: 'CMP-test', id: 'SRC-0001' })).status).toBe(200);
-    expect((await post({ name: 'x', phone: '9876543210' }, { key: data.apiKey })).status).toBe(401);
+    expect((await post({ name: 'x', phone: '9876501234' }, { key: data.apiKey })).status).toBe(401);
   });
 });

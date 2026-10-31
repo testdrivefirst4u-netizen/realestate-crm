@@ -90,10 +90,10 @@ describe('describeContext', () => {
     const matched = describeContext(withContext({ view: 'chat', chatPhone: '919848022222' }));
     expect(matched).toContain('ENQ-0009 · Lakshmi Rao');
     expect(matched).toContain("matched by the chat's phone number");
-    const unknown = describeContext(withContext({ view: 'chat', chatPhone: '919876543210' }));
-    expect(unknown).toContain('number ending 3210');
+    const unknown = describeContext(withContext({ view: 'chat', chatPhone: '919876501234' }));
+    expect(unknown).toContain('number ending 1234');
     expect(unknown).toContain('no matching enquiry');
-    expect(unknown).not.toContain('9876543210');
+    expect(unknown).not.toContain('9876501234');
   });
 
   it('mentions a call record and an enquiry that is not loaded', () => {
@@ -123,7 +123,7 @@ describe('maskPhone / contextLabel', () => {
   it('labels the drawer chip', () => {
     expect(contextLabel({ view: 'lead', leadId: 'ENQ-0003' }, leads)).toBe('ENQ-0003 · Rahul Verma');
     expect(contextLabel({ view: 'chat', leadId: 'ENQ-0003', chatPhone: '919000011111' }, leads)).toBe('WhatsApp · Rahul Verma');
-    expect(contextLabel({ view: 'chat', chatPhone: '919876543210' }, leads)).toBe('WhatsApp · number ending 3210');
+    expect(contextLabel({ view: 'chat', chatPhone: '919876501234' }, leads)).toBe('WhatsApp · number ending 1234');
     expect(contextLabel({ view: 'call', callId: 'CALL-0042' }, leads)).toBe('Call CALL-0042');
     expect(contextLabel({}, leads)).toBeNull();
     expect(contextLabel(undefined, leads)).toBeNull();

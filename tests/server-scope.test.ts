@@ -89,7 +89,7 @@ describe('lead visibility', () => {
     await calls.insertMany([
       { _id: 'CALL-R', leadId: '', phone: '9000000002', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
       { _id: 'CALL-A', leadId: '', phone: '9000000001', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
-      { _id: 'CALL-N', leadId: '', phone: '9111111111', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
+      { _id: 'CALL-N', leadId: '', phone: '9111122233', loggedBy: 'JustConnect', direction: 'Inbound', status: 'Missed', startTime: at, createdAt: at },
     ] as any[]);
     const seen = async (who: string) => ((await as(who, 'getCalls')).data as any[]).map((c) => c.id).sort();
     expect(await seen('Asha')).toEqual(['CALL-A']); // not Ravi's caller, not an unknown number
@@ -100,9 +100,27 @@ describe('lead visibility', () => {
   });
 
   it('nobody can change an enquiry\'s phone number (the same number in another format is fine)', async () => {
-    expect(await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '9111111111' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
-    expect(await as('Asha', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '9111111111' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect(await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '9111122233' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    expect(await as('Asha', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '9111122233' } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
     expect((await as('Meera', 'updateLead', { id: 'ENQ-0001', data: { 'Phone Number': '+91 90000 00001', 'Enquiry Notes': 'ok' } })).status).toBe('success');
+  });
+
+  it('made-up phone numbers are refused: repeated digits, 1234567890, an Indian mobile not starting 6-9', async () => {
+    for (const phone of ['1111111111', '9999999999', '+91 22222 22222', '1212121212', '1234567890', '9876543210', '5123456789']) {
+      expect(await as('Meera', 'addLead', { data: { 'Prospect Name': 'Fake', 'Phone Number': phone } }), phone).toMatchObject({ status: 'error', code: 'VALIDATION' });
+    }
+    for (const phone of ['9845012345', '+91 70123 45678', '+44 20 7946 0958', '04023456789']) {
+      expect((await as('Meera', 'addLead', { data: { 'Prospect Name': 'Real ' + phone, 'Phone Number': phone } })).status, phone).toBe('success');
+    }
+  });
+
+  it('enquiry history lists every enquiry from the same number, oldest first', async () => {
+    const r = await as('Meera', 'addLead', { data: { 'Prospect Name': 'Asha again', 'Phone Number': '9000000001', _forceCreate: true } });
+    expect(r.status).toBe('success');
+    const h = (await as('Meera', 'getEnquiryHistory', { id: r.data.id })).data;
+    expect(h.map((x: any) => x.id)).toEqual(['ENQ-0001', r.data.id]);
+    expect(h[1].current).toBe(true);
+    expect((await as('Meera', 'getEnquiryHistory', { id: 'ENQ-0003' })).data).toEqual([]); // only one enquiry
   });
 
   it('nobody can change the enquiry date (re-sending the same time is fine)', async () => {
@@ -142,7 +160,7 @@ describe('lead visibility', () => {
     const contacts = await col(CFG.COLL.CHAT_CONTACTS);
     await contacts.insertMany([
       { phone: '919000000002', phoneLast10: '9000000002', contactName: 'Ravi Lead', leadId: 'ENQ-0002', lastMessageAt: new Date(), unreadCount: 1 },
-      { phone: '919000000009', phoneLast10: '9000000009', contactName: 'New enquiry', leadId: '', lastMessageAt: new Date(), unreadCount: 1 },
+      { phone: '919000012349', phoneLast10: '9000012349', contactName: 'New enquiry', leadId: '', lastMessageAt: new Date(), unreadCount: 1 },
     ] as any[]);
     const seen = (await as('Asha', 'chat360GetContacts')).data.map((c: any) => c.contactName);
     expect(seen).toEqual(['New enquiry']);

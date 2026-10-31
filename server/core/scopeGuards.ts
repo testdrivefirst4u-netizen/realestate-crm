@@ -39,11 +39,11 @@ export async function filterCalls<T extends { leadId?: string; loggedBy?: string
   const r = await restrictionFor(user);
   if (!r) return calls;
   const ids = (await visibleLeadIds(user))!;
-  // the lead each unlinked call's number belongs to (one query for all of them)
+  // the lead each unlinked call's number belongs to (its latest enquiry; one query for all of them)
   const keys = [...new Set(calls.filter((c) => !str(c.leadId) && !sameName(c.loggedBy, r.name)).map((c) => last10(c.phone)).filter((k) => k.length === 10))];
   const owner = new Map<string, string>();
   if (keys.length) {
-    for (const l of await (await col(CFG.COLL.LEADS)).find({ phoneLast10: { $in: keys }, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1, phoneLast10: 1 } }).sort({ createdAt: 1 }).toArray()) {
+    for (const l of await (await col(CFG.COLL.LEADS)).find({ phoneLast10: { $in: keys }, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1, phoneLast10: 1 } }).sort({ createdAt: -1 }).toArray()) {
       if (!owner.has(l.phoneLast10)) owner.set(l.phoneLast10, String(l._id));
     }
   }
@@ -86,7 +86,7 @@ export async function assertPhoneAccess(ctx: Ctx, phone: unknown) {
   if (!c || !str(c.leadId)) {
     const ids = await visibleLeadIds(ctx.user);
     if (!ids) return;
-    const lead: any = await (await col(CFG.COLL.LEADS)).find({ phoneLast10: key, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1 } }).sort({ createdAt: 1 }).limit(1).next();
+    const lead: any = await (await col(CFG.COLL.LEADS)).find({ phoneLast10: key, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1 } }).sort({ createdAt: -1 }).limit(1).next();
     if (lead && !ids.has(String(lead._id))) throw fail('NOT_FOUND', 'Conversation not found');
   }
 }

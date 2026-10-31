@@ -97,7 +97,7 @@ const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', '
  */
 const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
-  'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
+  'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);

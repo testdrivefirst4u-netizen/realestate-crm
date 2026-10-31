@@ -44,7 +44,7 @@ let tokenRequests: URLSearchParams[] = [];
 let nextSheetId = 100;
 
 const SID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-ab';
-const SID2 = '1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210_-zz';
+const SID2 = '1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876501234_-zz';
 const URL1 = `https://docs.google.com/spreadsheets/d/${SID}/edit#gid=0`;
 const URL2 = `https://docs.google.com/spreadsheets/d/${SID2}/edit`;
 
@@ -312,8 +312,8 @@ describe('import (lead source type google_sheet)', () => {
       title: 'Leads',
       rows: [
         ['Name', 'Phone', 'Email', 'City', 'CRM Status'],
-        ['Asha Rao', '+91 98765 43210', 'asha@example.com', 'Pune', ''],
-        ['Old Row', '9000000009', '', '', 'Imported ENQ-0999 · earlier'],
+        ['Asha Rao', '+91 98765 01234', 'asha@example.com', 'Pune', ''],
+        ['Old Row', '9000012349', '', '', 'Imported ENQ-0999 · earlier'],
         [],
         ['No Contact', '', '', 'Delhi', ''],
         ['Vikram', '9123456780', '', '', ''],
@@ -358,7 +358,7 @@ describe('import (lead source type google_sheet)', () => {
   });
 
   it('keeps the import when statuses cannot be written (Viewer access) and says Editor is needed', async () => {
-    addFakeSheet(SID, 'reader', [{ title: 'Sheet1', rows: [['Name', 'Phone', 'Status'], ['Asha', '9876543210', '']] }]);
+    addFakeSheet(SID, 'reader', [{ title: 'Sheet1', rows: [['Name', 'Phone', 'Status'], ['Asha', '9876501234', '']] }]);
     const { source } = await sheetSource({ spreadsheetUrl: URL1, statusColumn: 'Status' });
     const r = await inCo(() => SH.syncSheetImport(source.id, null));
     expect(r.created).toBe(1);
@@ -371,7 +371,7 @@ describe('import (lead source type google_sheet)', () => {
   });
 
   it('without a status column: imports the rows after lastRow', async () => {
-    addFakeSheet(SID, 'reader', [{ title: 'Sheet1', rows: [['Title row'], ['Full Name', 'Mobile'], ['Asha', '9876543210'], ['Ravi', '9876543211']] }]);
+    addFakeSheet(SID, 'reader', [{ title: 'Sheet1', rows: [['Title row'], ['Full Name', 'Mobile'], ['Asha', '9876501234'], ['Ravi', '9876543211']] }]);
     const { source } = await sheetSource({ spreadsheetUrl: URL1, headerRow: 2, intervalMinutes: 0 });
     calls = [];
     const r = await inCo(() => SH.syncSheetImport(source.id, null));
@@ -394,8 +394,8 @@ describe('import (lead source type google_sheet)', () => {
   it('duplicates and assignment flow through the intake pipeline; fieldMap overrides headers', async () => {
     const rm = await t.ctx('RM', 'Priya');
     expect(rm.user!.name).toBe('Priya');
-    await addLead({ 'Prospect Name': 'Existing', 'Phone Number': '9876543210' });
-    addFakeSheet(SID, 'writer', [{ title: 'Sheet1', rows: [['Name', 'Phone', 'BHK wanted', 'Status'], ['Again', '+91 98765 43210', '', ''], ['Newbie', '9123456789', '3 BHK', '']] }]);
+    await addLead({ 'Prospect Name': 'Existing', 'Phone Number': '9876501234' });
+    addFakeSheet(SID, 'writer', [{ title: 'Sheet1', rows: [['Name', 'Phone', 'BHK wanted', 'Status'], ['Again', '+91 98765 01234', '', ''], ['Newbie', '9123456789', '3 BHK', '']] }]);
     const { source } = await sheetSource(
       { spreadsheetUrl: URL1, statusColumn: 'Status' },
       { assignment: { mode: 'fixed', rm: 'Priya', rms: [] }, fieldMap: { 'BHK wanted': 'Unit Type Interested In' } }
@@ -421,7 +421,7 @@ describe('import (lead source type google_sheet)', () => {
 describe('export', () => {
   it('creates the tab, writes RAW values with a header row and skips Trash', async () => {
     addFakeSheet(SID, 'writer', [{ title: 'Sheet1', rows: [] }]);
-    await addLead({ 'Prospect Name': 'Asha', 'Phone Number': '9876543210', 'Enquiry Notes': '=HYPERLINK("http://evil","x")', 'Enquiry Date': '2026-10-05T10:00:00.000Z' });
+    await addLead({ 'Prospect Name': 'Asha', 'Phone Number': '9876501234', 'Enquiry Notes': '=HYPERLINK("http://evil","x")', 'Enquiry Date': '2026-10-05T10:00:00.000Z' });
     await addLead({ 'Prospect Name': 'Binned', 'Phone Number': '9876543211', 'Lead Stage': 'Trash' });
     await inCo(() => leadsModule.appendRemark('ENQ-0001', 'Called, interested', null, undefined, 'Tester'));
     const x = await inCo(() => SH.createSheetExport({ name: 'Backup', spreadsheetUrl: URL1, columns: { includeFollowups: true } }, null));
@@ -473,7 +473,7 @@ describe('cron /api/cron/sheets', () => {
   });
 
   it('runs due imports and exports, and skips an export when the data version is unchanged', async () => {
-    addFakeSheet(SID, 'writer', [{ title: 'Sheet1', rows: [['Name', 'Phone'], ['Asha', '9876543210']] }]);
+    addFakeSheet(SID, 'writer', [{ title: 'Sheet1', rows: [['Name', 'Phone'], ['Asha', '9876501234']] }]);
     addFakeSheet(SID2, 'writer', [{ title: 'Sheet1', rows: [] }]);
     const { source } = await sheetSource({ spreadsheetUrl: URL1, intervalMinutes: 5 });
     const x = await inCo(() => SH.createSheetExport({ name: 'Backup', spreadsheetUrl: URL2, intervalMinutes: 5 }, null));
@@ -649,7 +649,7 @@ describe('inbound endpoint', () => {
     const { source } = await sheetSource({ spreadsheetUrl: URL1 });
     const key = 'crm_live_' + 'a'.repeat(48);
     await (await getClient())!.db(PLATFORM_DB()).collection('apiKeys').insertOne({ _id: sha256Hex(key) as any, companyId: 'CMP-test', sourceId: source.id, createdAt: new Date() });
-    const r = await inboundPOST(new Request('https://crm.example.com/api/inbound/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': key }, body: JSON.stringify({ name: 'X', phone: '9876543210' }) }));
+    const r = await inboundPOST(new Request('https://crm.example.com/api/inbound/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': key }, body: JSON.stringify({ name: 'X', phone: '9876501234' }) }));
     expect(r.status).toBe(403);
     expect((await r.json()).message).toMatch(/Google Sheets/);
     expect(await leadsIn()).toHaveLength(0);

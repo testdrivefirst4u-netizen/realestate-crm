@@ -5,15 +5,15 @@
  * piece of local state (form edits, loaded tabs, microphone) resets when the
  * lead changes and is discarded when the modal closes.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Save, Sparkles, User } from 'lucide-react';
 import { CRMConfig, CRMSettings, InventoryUnit, Lead, TaskItem, UserAccount } from '../../types/crm';
-import { F, FORM_ANSWER_PREFIX, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS } from '../../core/config';
-import { api } from '../../core/api';
+import { F, FORM_ANSWER_PREFIX, LEAD_DATE_FIELDS, REENQUIRY_OF, STAGES, STAGE_CLASS } from '../../core/config';
+import { api, type EnquiryHistoryRow } from '../../core/api';
 import { followupCount } from '../../core/analytics';
 import { formatDateTime, fromDatetimeLocalInput, nowIso, parseDate, toDatetimeLocalInput } from '../../core/dates';
-import { fillTemplate, formatPhone, isLikelyPhone, mailtoLink, telLink, whatsappLink } from '../../core/phone';
+import { fillTemplate, formatPhone, isLikelyPhone, mailtoLink, phoneProblem, telLink, whatsappLink } from '../../core/phone';
 import { CallButton } from '../calls/CallButton';
 import { reportError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -55,6 +55,8 @@ export interface LeadDetailModalProps {
    * Optional — the buttons are hidden until App wires it (and while AI is not configured).
    */
   onOpenCopilot?: OpenCopilot;
+  /** Opens another enquiry (the customer's earlier or later enquiries in Enquiry history). */
+  onOpenLead?: (id: string) => void;
 }
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = (props) => {
@@ -69,7 +71,7 @@ type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead }
 
 const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY, F.AREA, F.REFERRED_BY, F.OTHER_PROJECT];
 
-const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot }) => {
+const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot, onOpenLead }) => {
   const id = String(lead[F.ID]);
   const [tab, setTab] = useState<TabId>('details');
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -133,7 +135,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   const save = async () => {
     if (!dirty || !canEdit) return;
     if (F.NAME in patch && !String(patch[F.NAME] || '').trim()) return setSaveError('Prospect name cannot be empty.');
-    if (F.PHONE in patch && patch[F.PHONE] && !isLikelyPhone(String(patch[F.PHONE]))) return setSaveError('Enter a valid phone number (10 digits, or with country code).');
+    if (F.PHONE in patch && patch[F.PHONE] && !isLikelyPhone(String(patch[F.PHONE]))) return setSaveError(phoneProblem(String(patch[F.PHONE])));
     setSaveError(null);
     setSaving(true);
     const booked = becomesBooked;
@@ -210,6 +212,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
       <span className="truncate">{personName(lead) || (phone ? formatPhone(phone) : 'Unnamed enquiry')}</span>
       <LeadStars lead={lead} size={13} className="flex-shrink-0" />
       <StageBadge stage={String(lead[F.STAGE] || '')} />
+      {String(lead[REENQUIRY_OF] || '').trim() && <span className="shrink-0 rounded-full bg-[#FFF4E0] text-[#9A5B00] border border-[#F2D19A] px-2 py-0.5 text-[11px] font-bold" title={`Enquired again. Earlier enquiry: ${lead[REENQUIRY_OF]}`}>Re-enquiry</span>}
     </span>
   );
 
@@ -365,6 +368,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
               <Field label="Enquiry notes" hint="Budget, preferred floor/tower, family members, food preferences, decision timeline…">
                 <textarea value={value(F.NOTES)} onChange={(e) => setField(F.NOTES, e.target.value)} rows={3} disabled={!canEdit} className={cx(inputCls, 'resize-y leading-relaxed')} />
               </Field>
+              <EnquiryHistory leadId={id} version={String(lead[F.UPDATED_AT] || '')} onOpenLead={onOpenLead} />
               {formAnswers.length > 0 && (
                 <div className="rounded-xl border border-[#D3E3F0] bg-[#F7FAFD] px-3 py-2.5">
                   <p className="text-xs font-bold text-[#0B2A44] mb-1.5">Form answers <span className="font-medium text-[#7E93A6]">· what the customer filled in when enquiring</span></p>
@@ -471,5 +475,37 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
         }
       />
     </>
+  );
+};
+
+/** The customer's enquiries from the same phone number, oldest first: each re-enquiry is its own lead, the earlier ones kept. */
+const EnquiryHistory: React.FC<{ leadId: string; version: string; onOpenLead?: (id: string) => void }> = ({ leadId, version, onOpenLead }) => {
+  const [rows, setRows] = useState<EnquiryHistoryRow[]>([]);
+  useEffect(() => {
+    let live = true;
+    api.leads.enquiryHistory(leadId).then((r) => live && setRows(r || [])).catch(() => live && setRows([]));
+    return () => { live = false; };
+  }, [leadId, version]);
+  if (rows.length < 2) return null;
+  return (
+    <div className="rounded-xl border border-[#D3E3F0] bg-[#F7FAFD] px-3 py-2.5">
+      <p className="text-xs font-bold text-[#0B2A44] mb-1.5">Enquiry history <span className="font-medium text-[#7E93A6]">· this customer has enquired {rows.length} times; earlier enquiries are kept as they were</span></p>
+      <ol className="space-y-1">
+        {rows.map((r, i) => (
+          <li key={r.id} className="flex flex-wrap items-baseline gap-x-2 text-[13px]">
+            <span className="text-[11px] font-semibold text-[#5E778C] w-16 shrink-0">{i === 0 ? 'First' : `Again #${i}`}</span>
+            {r.canOpen && !r.current && onOpenLead ? (
+              <button type="button" onClick={() => onOpenLead(r.id)} className="font-mono text-xs font-bold text-[#0B6BB0] hover:underline">{r.id}</button>
+            ) : (
+              <span className="font-mono text-xs font-bold text-[#0B2A44]">{r.id}</span>
+            )}
+            <span className="text-[#0F2233]">{formatDateTime(r.enquiryDate, '—')}</span>
+            <span className="text-[#5E778C]">{r.source || 'Unknown source'}</span>
+            {r.stage && <span className="text-[#5E778C]">· {r.stage}{r.rm ? ` · ${r.rm}` : ''}</span>}
+            {r.current && <span className="text-[11px] font-semibold text-[#0E8A7D]">(this enquiry)</span>}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 };

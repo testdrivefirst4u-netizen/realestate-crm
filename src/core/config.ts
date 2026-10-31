@@ -62,6 +62,8 @@ export const F = {
 
 /** Lead-form answers that match no CRM field are extra columns named this prefix + the question (server: CFG.FORM_ANSWER_PREFIX). */
 export const FORM_ANSWER_PREFIX = 'Form: ';
+/** Extra column on a re-enquiry: the enquiry ID it repeats (server: CFG.REENQUIRY_OF). */
+export const REENQUIRY_OF = 'Re-enquiry Of';
 
 export const MAX_FOLLOWUPS = 50;
 export const followupField = (i: number) => `Follow-up ${i}`;

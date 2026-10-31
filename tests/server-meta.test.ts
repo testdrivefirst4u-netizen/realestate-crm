@@ -63,7 +63,7 @@ function lead(id: string, extra: Partial<FakeLead> = {}): FakeLead {
     created_time: new Date().toISOString(),
     field_data: [
       { name: 'full_name', values: ['Asha Rao'] },
-      { name: 'phone_number', values: ['+919876543210'] },
+      { name: 'phone_number', values: ['+919876501234'] },
       { name: 'email', values: ['asha@example.com'] },
       { name: 'city', values: ['Bengaluru'] },
       { name: 'when_do_you_plan_to_move?', values: ['Within 6 months'] },
@@ -264,7 +264,7 @@ describe('queue processing', () => {
     expect(fetchCall.params.get('appsecret_proof')).toBe(appSecretProof(pageToken(PAGE), APP_SECRET));
 
     const [l] = await leadsIn();
-    expect(l).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+919876543210', Email: 'asha@example.com', 'Enquiry Source': 'Meta Lead Ads', 'Lead Stage': 'New' });
+    expect(l).toMatchObject({ 'Prospect Name': 'Asha Rao', 'Phone Number': '+919876501234', Email: 'asha@example.com', 'Enquiry Source': 'Meta Lead Ads', 'Lead Stage': 'New' });
     // answers fill fields or get their own Form column; the ad has its own columns; Enquiry Notes stay empty
     expect(l).toMatchObject({ City: 'Bengaluru', 'Form: When do you plan to move?': 'Within 6 months', 'Ad Name': 'Diwali offer', 'Ad Set': 'Seniors 60+', Campaign: 'Amaya Q4', 'Lead Form': 'Brochure form', 'Form: Platform': 'Instagram', 'Enquiry Notes': '' });
     expect(JSON.stringify(l)).not.toContain('leadgen_id');
@@ -680,7 +680,7 @@ describe('plan gating and the inbound endpoint', () => {
     const { sourceId } = await connectDirect();
     const key = 'crm_live_' + 'b'.repeat(48);
     await (await plat()).collection('apiKeys').insertOne({ _id: sha256Hex(key) as any, companyId: 'CMP-test', sourceId, createdAt: new Date() });
-    const r = await inboundPOST(new Request('https://crm.example.com/api/inbound/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': key }, body: JSON.stringify({ name: 'X', phone: '9876543210' }) }));
+    const r = await inboundPOST(new Request('https://crm.example.com/api/inbound/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': key }, body: JSON.stringify({ name: 'X', phone: '9876501234' }) }));
     expect(r.status).toBe(403);
     expect((await r.json()).message).toMatch(/Meta/);
     expect(await leadsIn()).toHaveLength(0);

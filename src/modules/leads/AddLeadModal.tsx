@@ -15,7 +15,7 @@ import { CRMConfig, Lead, UserAccount } from '../../types/crm';
 import { F, SITE_VISIT, SITE_VISIT_DONE, STAGES, followupField } from '../../core/config';
 import { isCounted } from '../../core/analytics';
 import { fromDatetimeLocalInput, nowIso, toDatetimeLocalInput, toSheetDateTime } from '../../core/dates';
-import { formatPhone, isLikelyPhone, samePhone } from '../../core/phone';
+import { formatPhone, isLikelyPhone, phoneProblem, samePhone } from '../../core/phone';
 import { Button, Field, InlineNotice, Modal, Select, StageBadge, cx, inputCls } from '../../components/ui';
 import { SmartTextarea, optionsWithCurrent } from './shared';
 import { GeoFields } from './GeoFields';
@@ -150,7 +150,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!nameOk) return setError('Prospect name is required.');
-    if (!phoneOk) return setError('Enter a valid phone number (10 digits, or with country code).');
+    if (!phoneOk) return setError(phoneProblem(form.phone));
     if (duplicate && !form.forceCreate) return setError(`This number already belongs to ${duplicate[F.ID]}. Tick “Create anyway” to add a second enquiry.`);
     setError(null);
     setSubmitting(true);
@@ -232,7 +232,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
                 <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Ramesh Verma" aria-label="Prospect name" className={cx(inputCls, 'flex-1 min-w-0')} autoFocus required />
               </div>
             </Field>
-            <Field label="Phone number *" hint={form.phone && phoneOk ? formatPhone(form.phone) : 'Indian mobile (10 digits) or with +91'}>
+            <Field label="Phone number *" hint={form.phone && phoneOk ? formatPhone(form.phone) : form.phone.replace(/\D/g, '').length >= 10 ? phoneProblem(form.phone) : 'Indian mobile (10 digits) or with +91'}>
               <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="98490 12345" inputMode="tel" className={cx(inputCls, duplicate && !form.forceCreate && 'border-amber-400')} required />
             </Field>
             <Field label="Email">

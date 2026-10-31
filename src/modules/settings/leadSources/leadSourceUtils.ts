@@ -35,9 +35,9 @@ export const ASSIGNMENT_OPTIONS: Array<{ value: AssignmentMode; label: string }>
 ];
 
 export const DUPLICATE_OPTIONS: Array<{ value: DuplicateMode; label: string }> = [
-  { value: 'remark', label: 'Add a follow-up to the existing lead (recommended)' },
+  { value: 'remark', label: 'New enquiry linked to the earlier one, which stays in its history (a repeat within 24 hours adds a follow-up instead) — recommended' },
   { value: 'skip', label: 'Ignore' },
-  { value: 'create', label: 'Create a new lead anyway' },
+  { value: 'create', label: 'Create a new, unlinked lead every time' },
 ];
 
 /** CRM fields an incoming field can be mapped to (not Enquiry Notes / Date: unmapped answers get their own Form column). */

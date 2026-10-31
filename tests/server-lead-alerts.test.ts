@@ -75,12 +75,12 @@ describe('lead alert rules', () => {
   });
 
   it('writes a useful notification and e-mail with a link to the lead', () => {
-    const lead = { [L.ID]: 'ENQ-0007', [L.NAME]: 'Meera', [L.PHONE]: '9876543210', [L.SOURCE]: 'Website', [L.UNIT_TYPE]: '2 BHK', [L.RM]: 'Priya', [L.NOTES]: 'Wants a site visit' };
-    expect(alertPush(lead, 'created')).toEqual({ title: 'New lead: Meera', body: 'Website · 2 BHK · RM Priya\nCall 9876543210', url: '/leads?lead=ENQ-0007', tag: 'lead-ENQ-0007' });
+    const lead = { [L.ID]: 'ENQ-0007', [L.NAME]: 'Meera', [L.PHONE]: '9876501234', [L.SOURCE]: 'Website', [L.UNIT_TYPE]: '2 BHK', [L.RM]: 'Priya', [L.NOTES]: 'Wants a site visit' };
+    expect(alertPush(lead, 'created')).toEqual({ title: 'New lead: Meera', body: 'Website · 2 BHK · RM Priya\nCall 9876501234', url: '/leads?lead=ENQ-0007', tag: 'lead-ENQ-0007' });
     expect(alertPush(lead, 'assigned').title).toBe('Lead assigned to you: Meera');
     const m = alertEmail(lead, 'created', 'https://crm.test/leads?lead=ENQ-0007', 'Amaya');
     expect(m.subject).toBe('New lead: Meera · Website');
-    expect(m.text).toContain('Phone: 9876543210');
+    expect(m.text).toContain('Phone: 9876501234');
     expect(m.text).toContain('Wants a site visit');
     expect(m.text).toContain('https://crm.test/leads?lead=ENQ-0007');
   });
@@ -111,7 +111,7 @@ describe('sending', () => {
     await pushSubscribe(device(1), rm);
     await pushSubscribe(device(2), rm);
     await pushSubscribe(device(3), admin); // not the RM, not on the list
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '+91 98765 43210', [L.RM]: 'Priya Sharma', [L.SOURCE]: 'Website' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '+91 98765 01234', [L.RM]: 'Priya Sharma', [L.SOURCE]: 'Website' }, admin);
     expect(await sendLeadAlerts(lead, 'created')).toEqual({ emailed: 1, pushed: 2 });
     expect(pushSent.map((p) => p.endpoint).sort()).toEqual(['https://fcm.googleapis.com/fcm/send/dev1', 'https://fcm.googleapis.com/fcm/send/dev2']);
     expect(pushSent[0].body).toMatchObject({ title: 'New lead: Meera Kapoor', url: `/leads?lead=${lead[L.ID]}` });

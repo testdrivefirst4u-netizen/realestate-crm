@@ -73,12 +73,12 @@ describe('agents', () => {
 describe('click-to-call', () => {
   it('rings the RM through their agent with the lead as ref, then reports progress', async () => {
     await setSecret('JUSTCONNECT_API_KEY', 'k', admin);
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     respond = (url) => (url.endsWith('/agents') ? { status: 200, json: { items: AGENTS } } : url.endsWith('/click-to-call')
       ? { status: 202, json: { request: { id: 'req1', status: 'ringing-agent' } } }
       : { status: 200, json: { request: { id: 'req1', status: 'agent-answered', call: { status: 'in-progress' } } } });
     expect(await jcClickToCall({ leadId: lead[L.ID] }, priya)).toEqual({ mode: 'app', requestId: 'req1', status: 'ringing-agent' });
-    expect(calls.find((c) => c.url.endsWith('/click-to-call'))).toMatchObject({ method: 'POST', body: { agent: priya.user!.email, to: '9876543210', label: 'Meera Kapoor', ref: lead[L.ID], ringSeconds: 30 } });
+    expect(calls.find((c) => c.url.endsWith('/click-to-call'))).toMatchObject({ method: 'POST', body: { agent: priya.user!.email, to: '9876501234', label: 'Meera Kapoor', ref: lead[L.ID], ringSeconds: 30 } });
     expect(await jcCallStatus({ id: 'req1', mode: 'app' })).toMatchObject({ status: 'agent-answered', callStatus: 'in-progress' });
 
     // a saved link is used instead of the e-mail
@@ -102,13 +102,13 @@ describe('click-to-call', () => {
   it('app signed out (or no agent): rings the RM\'s own mobile first with a masked call, recorded, lead as ref', async () => {
     await setSecret('JUSTCONNECT_API_KEY', 'k', admin);
     await updateProfile(priya, { phone: '98765 11111' });
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     respond = (url) => url.endsWith('/click-to-call') ? { status: 409, json: { error: 'Agent offline', code: 'agent-offline' } }
       : url.endsWith('/calls/bridge') ? { status: 202, json: { call: { id: 'br1', status: 'calling' } } }
       : { status: 200, json: { call: { status: 'calling', legs: [{ n: 0, status: 'answered' }, { n: 1, status: 'ringing' }] } } };
     expect(await jcClickToCall({ leadId: lead[L.ID] }, priya)).toEqual({ mode: 'mobile', requestId: 'br1', status: 'calling' });
     const bridge = calls.find((c) => c.url.endsWith('/calls/bridge'))!;
-    expect(bridge.body).toMatchObject({ from: '919876511111', to: '9876543210', record: true, ref: lead[L.ID], toLabel: 'Meera Kapoor', fromLabel: 'Priya Sharma' });
+    expect(bridge.body).toMatchObject({ from: '919876511111', to: '9876501234', record: true, ref: lead[L.ID], toLabel: 'Meera Kapoor', fromLabel: 'Priya Sharma' });
     expect(bridge.body.whisper).toContain('Meera Kapoor');
     expect(await jcCallStatus({ id: 'br1', mode: 'mobile' })).toMatchObject({ status: 'agent-answered' });
     respond = () => ({ status: 200, json: { call: { status: 'unanswered', legs: [{ n: 0, status: 'no_answer' }] } } });

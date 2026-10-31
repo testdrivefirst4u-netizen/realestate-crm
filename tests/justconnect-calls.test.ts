@@ -82,7 +82,7 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 const jcCall = (o: Partial<JcCall> = {}): JcCall => ({
-  id: 'jc1', direction: 'outbound', status: 'answered', customer: '9876543210', businessNumber: '4012345678',
+  id: 'jc1', direction: 'outbound', status: 'answered', customer: '9876501234', businessNumber: '4012345678',
   agent: { id: 'ag1', name: 'Priya S', extension: '1002' }, rang: [], startedAt: '2026-10-26T09:00:00.000Z', answeredAt: '2026-10-26T09:00:08.000Z',
   endedAt: '2026-10-26T09:03:20.000Z', talkSeconds: 192, durationSeconds: 200, recording: { url: 'x' }, voicemail: null, outcome: 'INTERESTED', notes: 'Wants a visit', ref: null,
   updatedAt: '2026-10-26T09:04:00.000Z', ...o,
@@ -112,7 +112,7 @@ describe('webhook signature', () => {
 
 describe('saving calls', () => {
   it('saves a call once, linked to the lead (our ref) and the RM behind the agent; later changes update it', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     const started = await ingestJcCall(jcCall({ status: 'in-progress', endedAt: null, talkSeconds: 0, ref: lead[L.ID], outcome: null }));
     expect(started).toMatchObject({ created: true, ended: false });
     let [c] = await crmCalls();
@@ -138,7 +138,7 @@ describe('saving calls', () => {
 
 describe('after the call', () => {
   it('copies the recording into the CRM, then the AI writes the summary and Hot / Warm / Cold', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     const { callId } = await ingestJcCall(jcCall({ ref: lead[L.ID] }));
     const r = await finishCall(callId);
     expect(r).toMatchObject({ recording: true, ai: true });
@@ -176,7 +176,7 @@ describe("JustConnect's transcripts", () => {
   });
 
   it('call_log.transcribed: its transcript is saved on the call and the lead, then the AI summarises it (no audio sent to the AI)', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     const { callId } = await ingestJcCall(jcCall({ ref: lead[L.ID], transcript: { url: 'x', status: 'ready', lines: 2 } }));
     expect(await finishCall(callId, { transcript: JC_TRANSCRIPT })).toMatchObject({ recording: true, ai: true });
     const c = (await crmCalls())[0];
@@ -223,7 +223,7 @@ describe("JustConnect's transcripts", () => {
 describe('catch-up sync', () => {
   it('pulls changed calls, finishes them, and remembers where it got to', async () => {
     await updateProfile(priya, { name: 'Priya Sharma' });
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     // inside the first sync's window (the last 3 days), whatever today's date is
     const lastChange = new Date(Date.now() - 60_000).toISOString();
     jcLog = [jcCall({ ref: lead[L.ID] }), jcCall({ id: 'jc9', direction: 'internal', customer: null, updatedAt: lastChange })];
@@ -246,7 +246,7 @@ describe('call window (jcMyCall)', () => {
   const inbound = (o: Partial<JcCall> = {}) => jcCall({ id: 'in1', direction: 'inbound', status: 'in-progress', agent: null, rang: [], answeredAt: null, endedAt: null, talkSeconds: 0, recording: null, outcome: null, notes: null, ...o });
 
   it('an incoming call rings → is answered → ends, for the person whose phone rang, and nobody else', async () => {
-    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876543210', [L.RM]: 'Priya Sharma' }, admin);
+    const { lead } = await addLead({ [L.NAME]: 'Meera Kapoor', [L.PHONE]: '9876501234', [L.RM]: 'Priya Sharma' }, admin);
     await ingestJcCall(inbound(), undefined, { id: 'ag1', name: 'Priya S' });
     expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ringing', direction: 'Inbound', leadId: lead[L.ID], customerName: 'Meera Kapoor' });
     expect(await jcMyCall({}, admin)).toBeNull();

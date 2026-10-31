@@ -44,7 +44,7 @@ let oauthN = 0;
 let saN = 0;
 
 const SID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-ab';
-const SID2 = '1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210_-zz';
+const SID2 = '1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876501234_-zz';
 const URL1 = `https://docs.google.com/spreadsheets/d/${SID}/edit`;
 const URL2 = `https://docs.google.com/spreadsheets/d/${SID2}/edit`;
 
@@ -364,7 +364,7 @@ describe('connect flow', () => {
 describe('sheets through an OAuth connection', () => {
   it('checkSheet, import and export use the OAuth token; access tokens are cached per connection', async () => {
     const { id } = await connect('owner@example.com');
-    addFakeSheet(SID, [{ title: 'Sheet1', rows: [['Name', 'Phone'], ['Asha', '9876543210']] }]);
+    addFakeSheet(SID, [{ title: 'Sheet1', rows: [['Name', 'Phone'], ['Asha', '9876501234']] }]);
     addFakeSheet(SID2, [{ title: 'Sheet1', rows: [] }]);
     const auth = { mode: 'oauth' as const, connectionId: id };
 
@@ -457,7 +457,7 @@ describe('sheets through an OAuth connection', () => {
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON = SA_JSON;
     const { id } = await connect('gone@example.com', 'rt-gone');
     const auth = { mode: 'oauth' as const, connectionId: id };
-    addFakeSheet(SID, [{ title: 'Sheet1', rows: [['Name', 'Phone'], ['Asha', '9876543210']] }]);
+    addFakeSheet(SID, [{ title: 'Sheet1', rows: [['Name', 'Phone'], ['Asha', '9876501234']] }]);
     addFakeSheet(SID2, [{ title: 'Sheet1', rows: [] }]);
     const { source } = await sheetSource({ spreadsheetUrl: URL1, auth, intervalMinutes: 5 });
     const xo = await inCo(() => SH.createSheetExport({ name: 'OAuth backup', spreadsheetUrl: URL2, tab: 'A', auth, intervalMinutes: 5 }, null));

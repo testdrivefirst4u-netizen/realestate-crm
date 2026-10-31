@@ -18,7 +18,7 @@ describe('daily lead backups', () => {
   it('saves every lead compressed and gives them back exactly (dates, remarks, extra columns)', async () => {
     await t.db.collection('leads').insertMany([
       { ...blankLeadDoc('ENQ-0001'), name: 'Asha', phone: '919676847969', enquiryDate: new Date('2026-08-06T00:00:00Z'), followups: [{ n: 1, at: new Date('2026-10-01T04:30:00Z'), text: 'Called', by: 'R' }], extra: { City: 'Hyderabad' } },
-      { ...blankLeadDoc('ENQ-0002'), name: 'Ravi', phone: '9000000000' },
+      { ...blankLeadDoc('ENQ-0002'), name: 'Ravi', phone: '9000012345' },
     ] as any[]);
     const b = await createLeadBackup({ by: 'Tester', now: new Date('2026-10-17T10:00:00Z') });
     expect(b).toMatchObject({ id: '2026-10-17', count: 2, createdBy: 'Tester' });

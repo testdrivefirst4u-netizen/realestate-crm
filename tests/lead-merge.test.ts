@@ -38,9 +38,9 @@ describe('merging duplicate leads', () => {
   it('merges on the server: archives the others and moves their calls and chats', async () => {
     const leads = t.db.collection('leads');
     await leads.insertMany([
-      doc('ENQ-0001', { name: 'Asha', phone: '9876543210', phoneLast10: '9876543210', stage: 'Qualified' }),
-      doc('ENQ-0002', { name: 'Asha R', phone: '+91 98765 43210', phoneLast10: '9876543210', email: 'asha@example.com' }),
-      doc('ENQ-0003', { name: 'Ravi', phone: '9000000000', phoneLast10: '9000000000' }),
+      doc('ENQ-0001', { name: 'Asha', phone: '9876501234', phoneLast10: '9876501234', stage: 'Qualified' }),
+      doc('ENQ-0002', { name: 'Asha R', phone: '+91 98765 01234', phoneLast10: '9876501234', email: 'asha@example.com' }),
+      doc('ENQ-0003', { name: 'Ravi', phone: '9000012345', phoneLast10: '9000012345' }),
     ] as any[]);
     await t.db.collection('calls').insertOne({ _id: 'CALL-1' as any, leadId: 'ENQ-0002' });
     await t.db.collection('waMessages').insertOne({ _id: 'WA-1' as any, leadId: 'ENQ-0002' });
@@ -61,8 +61,8 @@ describe('merging duplicate leads', () => {
   it('finds groups by phone (last 10 digits), or by e-mail when there is no phone, ignoring trashed leads', () => {
     const L = (id: string, phone: string, extra: Record<string, string> = {}) => ({ 'Enquiry ID': id, 'Prospect Name': id, 'Phone Number': phone, 'Lead Stage': 'New', ...extra }) as any;
     const groups = findDuplicateGroups([
-      L('A', '9876543210'), L('B', '+91 98765-43210', { 'Lead Stage': 'Qualified' }), L('C', '9000000000'),
-      L('D', '', { Email: 'x@y.com' }), L('E', 'N/A', { Email: 'X@y.com' }), L('F', '9000000000', { 'Lead Stage': 'Trash' }),
+      L('A', '9876501234'), L('B', '+91 98765-01234', { 'Lead Stage': 'Qualified' }), L('C', '9000012345'),
+      L('D', '', { Email: 'x@y.com' }), L('E', 'N/A', { Email: 'X@y.com' }), L('F', '9000012345', { 'Lead Stage': 'Trash' }),
     ]);
     expect(groups.map((g) => [g.by, g.leads.map((l) => l['Enquiry ID'])])).toEqual([['phone', ['B', 'A']], ['email', ['D', 'E']]]);
   });

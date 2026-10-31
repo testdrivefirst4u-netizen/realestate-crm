@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { callBackIds, callStats, clockTime, dayHeading, recordingDownloadUrl, recordingSrc, transcriptTurns } from '../src/modules/calls/callsUtils';
 import type { CallRecord } from '../src/types/crm';
 
-const call = (o: Partial<CallRecord> = {}): CallRecord => ({ id: 'CALL-00100', leadId: 'ENQ-0001', phone: '+919876543210', direction: 'Inbound', status: 'Completed', startTime: '2026-10-27T10:05:00', ...o } as CallRecord);
+const call = (o: Partial<CallRecord> = {}): CallRecord => ({ id: 'CALL-00100', leadId: 'ENQ-0001', phone: '+919876501234', direction: 'Inbound', status: 'Completed', startTime: '2026-10-27T10:05:00', ...o } as CallRecord);
 
 describe('recordings', () => {
   it('plays the CRM\'s stored copy first, else the provider\'s link', () => {
@@ -16,7 +16,7 @@ describe('recordings', () => {
     const url = recordingDownloadUrl(call({ recordingFileId: 'abc123' }), 'Payal Kanodia / Agarwal');
     expect(url.startsWith('/api/files/abc123?download=1&name=')).toBe(true);
     expect(decodeURIComponent(url.split('name=')[1])).toBe('Payal Kanodia Agarwal 2026-10-27 10-05');
-    expect(decodeURIComponent(recordingDownloadUrl(call({ recordingFileId: 'abc123' }), '').split('name=')[1])).toBe('+919876543210 2026-10-27 10-05');
+    expect(decodeURIComponent(recordingDownloadUrl(call({ recordingFileId: 'abc123' }), '').split('name=')[1])).toBe('+919876501234 2026-10-27 10-05');
     expect(recordingDownloadUrl(call({ recordingUrl: 'https://provider.example/r.mp3' }), 'X')).toBe('https://provider.example/r.mp3');
   });
 });

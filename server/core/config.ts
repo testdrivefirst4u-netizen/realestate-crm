@@ -90,6 +90,8 @@ export const CFG = {
 
   /** Lead-form answers that match no CRM field: one extra column each, named this prefix + the question. */
   FORM_ANSWER_PREFIX: 'Form: ',
+  /** Extra column on a re-enquiry: the enquiry ID it repeats (the earlier lead stays as it was, in its history). */
+  REENQUIRY_OF: 'Re-enquiry Of',
 
   LEAD_BASE_HEADERS: [
     'Enquiry ID', 'Enquiry Date', 'Prospect Name', 'Phone Number', 'Email', 'Lead Stage', 'Enquiry Source',

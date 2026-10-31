@@ -57,7 +57,7 @@ describe('booking', () => {
   it('creates a lead with the visit scheduled and fills the slot', async () => {
     await enable();
     const slot = (await listSlots(await visitConfig(), NOW))[1].slots[0];
-    const r = await bookVisit({ name: 'Meera Kapoor', phone: '+91 98765 43210', email: 'meera@example.com', at: slot.at, notes: 'Coming with parents' }, NOW);
+    const r = await bookVisit({ name: 'Meera Kapoor', phone: '+91 98765 01234', email: 'meera@example.com', at: slot.at, notes: 'Coming with parents' }, NOW);
     expect(r).toEqual({ at: slot.at, existing: false });
     const lead = (await getLeadDoc('ENQ-0001'))!;
     expect(lead).toMatchObject({ name: 'Meera Kapoor', siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, source: 'Visit booking' });

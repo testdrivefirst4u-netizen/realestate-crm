@@ -27,14 +27,14 @@ describe('xlsx writer / reader', () => {
       'xl/worksheets/sheet1.xml': strToU8(
         '<worksheet><sheetData>' +
           '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="inlineStr"><is><t>Phone</t></is></c></row>' +
-          '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2" s="1"><v>46304</v></c><c r="C2"><v>9876543210</v></c></row>' +
+          '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2" s="1"><v>46304</v></c><c r="C2"><v>9876501234</v></c></row>' +
           '<row r="4"><c r="C4"><v>1</v></c></row>' +
           '</sheetData></worksheet>'
       ),
     };
     const rows = readXlsxRows(zipSync(files));
     expect(rows[0]).toEqual(['Name', 'Enquiry Date', 'Phone']);
-    expect(rows[1]).toEqual(['Asha Rao', '2026-10-09', '9876543210']);
+    expect(rows[1]).toEqual(['Asha Rao', '2026-10-09', '9876501234']);
     expect(rows[2]).toEqual([]); // the gap row stays so row numbers line up
     expect(rows[3]).toEqual(['', '', '1']);
   });

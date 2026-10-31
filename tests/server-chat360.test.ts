@@ -23,9 +23,9 @@ import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let ctx: Ctx;
 
-const LEAD = { 'Enquiry ID': 'ENQ-0007', 'Prospect Name': 'Meera Rao', 'Phone Number': '+919876543210', 'Assigned RM': 'Asha', 'Lead Stage': 'Warm' };
+const LEAD = { 'Enquiry ID': 'ENQ-0007', 'Prospect Name': 'Meera Rao', 'Phone Number': '+919876501234', 'Assigned RM': 'Asha', 'Lead Stage': 'Warm' };
 const inbound = (over: Record<string, any> = {}) => ({
-  event_type: 'message_received', event_response_id: 'evt-1', m_id: 'wamid.in1', sender_num: '919876543210', profile_name: 'Meera',
+  event_type: 'message_received', event_response_id: 'evt-1', m_id: 'wamid.in1', sender_num: '919876501234', profile_name: 'Meera',
   wab_response: { type: 'text', text: { body: 'Hello, is a 2 BHK available?' } }, created: '2026-10-01T10:00:00Z', ...over,
 });
 
@@ -67,10 +67,10 @@ describe('message text', () => {
 
   it('a message stored as "[Message]" is read again from its saved payload', async () => {
     await (await col(CFG.COLL.CHAT_MESSAGES)).insertOne({
-      _id: 'M1' as any, direction: 'Inbound', phone: '+919876543210', phoneLast10: '9876543210', text: '[Message]', timestamp: new Date(),
+      _id: 'M1' as any, direction: 'Inbound', phone: '+919876501234', phoneLast10: '9876501234', text: '[Message]', timestamp: new Date(),
       raw: JSON.stringify({ wab_response: { type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'b', title: 'Purchase' } } } }),
     });
-    expect((await messages('9876543210'))[0].text).toBe('Purchase');
+    expect((await messages('9876501234'))[0].text).toBe('Purchase');
   });
 });
 
@@ -80,26 +80,26 @@ describe('webhook ingest', () => {
     expect(r).toEqual({ ok: true, leadId: 'ENQ-0100' });
     expect(leads.addLead).toHaveBeenCalledTimes(1);
     const [data, actor] = vi.mocked(leads.addLead).mock.calls[0] as any[];
-    expect(data).toMatchObject({ 'Prospect Name': 'Meera', 'Phone Number': '+919876543210', 'Enquiry Source': 'Chat360', 'Assigned RM': 'Asha', 'Lead Stage': 'New', 'Brochure Shared': 'No' });
+    expect(data).toMatchObject({ 'Prospect Name': 'Meera', 'Phone Number': '+919876501234', 'Enquiry Source': 'Chat360', 'Assigned RM': 'Asha', 'Lead Stage': 'New', 'Brochure Shared': 'No' });
     expect(actor.user.name).toBe('Chat360');
 
     // Chat360 retry with the same event id → duplicate, nothing changes
     expect(await handleWebhook(inbound())).toEqual({ ok: true, duplicate: true });
     expect(leads.addLead).toHaveBeenCalledTimes(1);
 
-    const msgs = await messages('9876543210');
+    const msgs = await messages('9876501234');
     expect(msgs).toHaveLength(1);
     expect(msgs[0]).toMatchObject({ direction: 'Inbound', text: 'Hello, is a 2 BHK available?', leadId: 'ENQ-0100', contactName: 'Meera', status: 'received', timestamp: '2026-10-01T10:00:00.000Z' });
     const cs = await contacts();
     expect(cs).toHaveLength(1);
-    expect(cs[0]).toMatchObject({ phone: '919876543210', leadId: 'ENQ-0100', unreadCount: 1, status: 'Open' });
+    expect(cs[0]).toMatchObject({ phone: '919876501234', leadId: 'ENQ-0100', unreadCount: 1, status: 'Open' });
 
     await handleWebhook(inbound({ event_response_id: 'evt-2', m_id: 'wamid.in2' }));
     expect((await contacts())[0].unreadCount).toBe(2);
     expect(await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: 'ENQ-0100', type: 'chat_received' })).toBe(2);
     expect(await (await col(CFG.COLL.EVENTS)).countDocuments({ type: 'chat_received' })).toBe(2);
 
-    await markRead('+91 98765 43210');
+    await markRead('+91 98765 01234');
     expect((await contacts())[0].unreadCount).toBe(0);
   });
 
@@ -136,27 +136,27 @@ describe('webhook ingest', () => {
     await settingSet('chat360LoginEmail', 'crm@amaya.test', 'test');
     await t.secret('CHAT360_LOGIN_PASSWORD', 'pw-status');
     fakeChat360({ session: () => new Response(JSON.stringify({ message_id: 'wamid.out1' }), { status: 200 }) });
-    await send({ phone: '9876543210', text: 'Hi Meera' }, ctx);
-    await handleWebhook({ event_type: 'sent_message_read', event_response_id: 'evt-r', m_id: 'wamid.out1', receiver_num: '919876543210' });
-    expect((await messages('9876543210'))[0].status).toBe('read');
+    await send({ phone: '9876501234', text: 'Hi Meera' }, ctx);
+    await handleWebhook({ event_type: 'sent_message_read', event_response_id: 'evt-r', m_id: 'wamid.out1', receiver_num: '919876501234' });
+    expect((await messages('9876501234'))[0].status).toBe('read');
     // console message (not sent from the CRM) is recorded once
-    const console1 = { event_type: 'session_message_sent', event_response_id: 'evt-c', m_id: 'wamid.c1', receiver_num: '919876543210', wab_response: { text: { body: 'From console' } } };
+    const console1 = { event_type: 'session_message_sent', event_response_id: 'evt-c', m_id: 'wamid.c1', receiver_num: '919876501234', wab_response: { text: { body: 'From console' } } };
     await handleWebhook(console1);
     await handleWebhook(console1);
-    const all = await messages('9876543210');
+    const all = await messages('9876501234');
     expect(all.filter((m) => m.agent === 'Chat360 Console')).toHaveLength(1);
     // our own CRM-sent message echoed back as session_message_sent is not duplicated
-    await handleWebhook({ event_type: 'session_message_sent', event_response_id: 'evt-o', m_id: 'wamid.out1', receiver_num: '919876543210' });
-    expect((await messages('9876543210')).filter((m) => m.direction === 'Outbound')).toHaveLength(2);
+    await handleWebhook({ event_type: 'session_message_sent', event_response_id: 'evt-o', m_id: 'wamid.out1', receiver_num: '919876501234' });
+    expect((await messages('9876501234')).filter((m) => m.direction === 'Outbound')).toHaveLength(2);
   });
 
   it('the whole conversation: the Chat360 chatbot and campaigns show as sent messages, never as the customer', async () => {
     vi.mocked(leads.findLeadByPhone).mockResolvedValue(LEAD as any);
     await handleWebhook(inbound());
-    await handleWebhook({ event_type: 'bot_message_sent', event_response_id: 'evt-b1', m_id: 'wamid.b1', receiver_num: '919876543210', wab_response: { text: { body: 'Thanks! Pick a unit type.' } } });
-    await handleWebhook({ event_type: 'broadcast_message_sent', event_response_id: 'evt-b2', m_id: 'wamid.b2', receiver_num: '919876543210', template_name: 'diwali_offer' });
-    await handleWebhook({ event_type: 'sent_message_delivered', event_response_id: 'evt-b3', m_id: 'wamid.b1', receiver_num: '919876543210' });
-    const all = await messages('9876543210');
+    await handleWebhook({ event_type: 'bot_message_sent', event_response_id: 'evt-b1', m_id: 'wamid.b1', receiver_num: '919876501234', wab_response: { text: { body: 'Thanks! Pick a unit type.' } } });
+    await handleWebhook({ event_type: 'broadcast_message_sent', event_response_id: 'evt-b2', m_id: 'wamid.b2', receiver_num: '919876501234', template_name: 'diwali_offer' });
+    await handleWebhook({ event_type: 'sent_message_delivered', event_response_id: 'evt-b3', m_id: 'wamid.b1', receiver_num: '919876501234' });
+    const all = await messages('9876501234');
     expect(all.map((m) => [m.direction, m.agent, m.text])).toEqual([
       ['Inbound', '', 'Hello, is a 2 BHK available?'],
       ['Outbound', 'Chat360 Bot', 'Thanks! Pick a unit type.'],
@@ -168,8 +168,8 @@ describe('webhook ingest', () => {
 
   it('an unknown event without the customer as sender is a sent message; Settings shows which events arrive', async () => {
     await handleWebhook(inbound());
-    await handleWebhook({ event_type: 'flow_node_reply', event_response_id: 'evt-u1', receiver_num: '919876543210', wab_response: { text: { body: 'Please share your name' } } });
-    const all = await messages('9876543210');
+    await handleWebhook({ event_type: 'flow_node_reply', event_response_id: 'evt-u1', receiver_num: '919876501234', wab_response: { text: { body: 'Please share your name' } } });
+    const all = await messages('9876501234');
     expect(all.map((m) => [m.direction, m.agent, m.text])).toEqual([
       ['Inbound', '', 'Hello, is a 2 BHK available?'],
       ['Outbound', 'Chat360 Bot', 'Please share your name'],
@@ -185,11 +185,11 @@ describe('customer names', () => {
     expect(extractName({ wab_response: { contacts: [{ profile: { name: 'Anita Rao' }, wa_id: '91987' }] } })).toBe('Anita Rao');
     expect(extractName({ profile_name: 'Meera' })).toBe('Meera');
     expect(extractName({ wab_response: { location: { name: 'Medchal', latitude: 1 } } })).toBe('');
-    expect(extractName({ customer_name: '+91 98765 43210' })).toBe('');
+    expect(extractName({ customer_name: '+91 98765 01234' })).toBe('');
   });
 
   it('a lead made as "WhatsApp +91…" gets the real name from a later message; a real name is never overwritten', async () => {
-    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234' } as any);
     await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'evt-n2', wab_response: { contacts: [{ profile: { name: 'Anita Rao' } }], type: 'text', text: { body: 'hi' } } }));
     expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita Rao' }, expect.anything());
     vi.mocked(leads.updateLead).mockClear();
@@ -243,20 +243,20 @@ describe('outbound', () => {
   it('sends typed replies as session messages with a login token, reusing the token', async () => {
     vi.mocked(leads.findLeadByPhone).mockResolvedValue(LEAD);
     const c = fakeChat360();
-    const { message } = await send({ phone: '98765 43210', text: 'Hello' }, ctx);
+    const { message } = await send({ phone: '98765 01234', text: 'Hello' }, ctx);
     expect(c.to('/api/auth/login')).toHaveLength(1);
     expect(JSON.parse(String(c.to('/api/auth/login')[0].init.body))).toMatchObject({ email: 'crm@amaya.test' });
     const [sent] = c.to('/api/whatsapp/whatsapp-session-messages');
     expect(sent.url).toBe('https://app.chat360.io/api/whatsapp/whatsapp-session-messages');
     expect((sent.init.headers as any).Authorization).toMatch(/^Bearer eyJ/);
-    expect(JSON.parse(String(sent.init.body))).toEqual({ api_key: 'c360-key', from: '919000000001', recipient_type: 'individual', to: '919876543210', type: 'text', text: { body: 'Hello' } });
+    expect(JSON.parse(String(sent.init.body))).toEqual({ api_key: 'c360-key', from: '919000000001', recipient_type: 'individual', to: '919876501234', type: 'text', text: { body: 'Hello' } });
     expect(sent.init.signal).toBeInstanceOf(AbortSignal);
     expect(message).toMatchObject({ id: 'wamid.S1', direction: 'Outbound', leadId: 'ENQ-0007', contactName: 'Meera Rao', agent: 'Ravi', status: 'sent' });
     expect(await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: 'ENQ-0007', type: 'chat_sent' })).toBe(1);
     expect(await (await col(CFG.COLL.AUDIT_LOG)).countDocuments({ action: 'WhatsApp Sent' })).toBe(1);
     expect((await contacts())[0].lastMessage).toBe('Hello');
 
-    await send({ phone: '9876543210', text: 'Second' }, ctx);
+    await send({ phone: '9876501234', text: 'Second' }, ctx);
     expect(c.to('/api/auth/login')).toHaveLength(1); // token reused
   });
 
@@ -268,58 +268,58 @@ describe('outbound', () => {
         return new Response(JSON.stringify({ message_id: 'wamid.S2' }), { status: 200 });
       },
     });
-    const { message } = await send({ phone: '9876543210', text: 'Hi' }, ctx);
+    const { message } = await send({ phone: '9876501234', text: 'Hi' }, ctx);
     expect(message.id).toBe('wamid.S2');
     expect(c.to('/api/auth/login')).toHaveLength(2);
   });
 
   it('sends templates as tasks with the API key, looking the id up by name', async () => {
     const c = fakeChat360();
-    const { message } = await send({ phone: '9876543210', templateName: 'welcome', params: ['customer_name=Meera', 'Sat'] }, ctx);
+    const { message } = await send({ phone: '9876501234', templateName: 'welcome', params: ['customer_name=Meera', 'Sat'] }, ctx);
     expect((c.to('/service/template/data')[0].init.headers as any).Authorization).toBe('Api-Key c360-key');
     const [task] = c.to('/service/v1/task');
     expect(task.url).toBe('https://app.chat360.io/service/v1/task');
     expect((task.init.headers as any).Authorization).toBe('Api-Key c360-key');
     expect(JSON.parse(String(task.init.body))).toEqual({
       task_name: 'whatsapp_push_notification', extra: '',
-      task_body: [{ client_number: '919000000001', receiver_number: '919876543210', template_data: { template_id: TEMPLATE_ID, param_data: { customer_name: 'Meera', '2': 'Sat' }, button_param_data: {} } }],
+      task_body: [{ client_number: '919000000001', receiver_number: '919876501234', template_data: { template_id: TEMPLATE_ID, param_data: { customer_name: 'Meera', '2': 'Sat' }, button_param_data: {} } }],
     });
     expect(c.to('/api/auth/login')).toHaveLength(0); // templates need no login
     expect(message).toMatchObject({ id: 'wamid.T1', text: '[Template: welcome] customer_name=Meera | Sat', messageType: 'template' });
 
     // a template id is used as is; an unknown name is explained
-    await send({ phone: '9876543210', templateName: TEMPLATE_ID }, ctx);
+    await send({ phone: '9876501234', templateName: TEMPLATE_ID }, ctx);
     expect(c.to('/service/template/data')).toHaveLength(1);
-    await expect(send({ phone: '9876543210', templateName: 'nope' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringContaining('no approved template called “nope”') });
+    await expect(send({ phone: '9876501234', templateName: 'nope' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringContaining('no approved template called “nope”') });
   });
 
   it('explains what is missing or rejected', async () => {
     const c = fakeChat360({ session: () => new Response(JSON.stringify({ detail: 'Session expired for this user' }), { status: 400 }) });
     await expect(send({ phone: '123', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
-    await expect(send({ phone: '9876543210' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
-    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringMatching(/HTTP 400\): Session expired for this user\..*24 hours/) });
+    await expect(send({ phone: '9876501234' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(send({ phone: '9876501234', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringMatching(/HTTP 400\): Session expired for this user\..*24 hours/) });
     expect(await (await col(CFG.COLL.CHAT_MESSAGES)).countDocuments({})).toBe(0);
 
     // 200 with an error in the body is still a rejection
     c.fetchMock.mockRestore();
     fakeChat360({ task: () => new Response(JSON.stringify({ success: false, message: 'Template paused' }), { status: 200 }) });
-    await expect(send({ phone: '9876543210', templateName: TEMPLATE_ID }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringContaining('Template paused') });
+    await expect(send({ phone: '9876501234', templateName: TEMPLATE_ID }, ctx)).rejects.toMatchObject({ code: 'SERVER', message: expect.stringContaining('Template paused') });
 
     // a wrong login is reported as a settings problem
     vi.restoreAllMocks();
     await t.secret('CHAT360_LOGIN_PASSWORD', 'wrong-' + Math.random());
     fakeChat360({ login: () => new Response(JSON.stringify({ detail: 'No active account found with the given credentials' }), { status: 401 }) });
-    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('login e-mail and password') });
+    await expect(send({ phone: '9876501234', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('login e-mail and password') });
 
     // missing pieces: no call to Chat360 at all
     vi.restoreAllMocks();
     const none = fakeChat360();
     await t.secret('CHAT360_LOGIN_PASSWORD', '');
-    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('Chat360 login') });
+    await expect(send({ phone: '9876501234', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('Chat360 login') });
     await settingSet('chat360BusinessNumber', '', 'test');
-    await expect(send({ phone: '9876543210', templateName: TEMPLATE_ID }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('business WhatsApp number') });
+    await expect(send({ phone: '9876501234', templateName: TEMPLATE_ID }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED', message: expect.stringContaining('business WhatsApp number') });
     await t.secret('CHAT360_API_KEY', '');
-    await expect(send({ phone: '9876543210', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
+    await expect(send({ phone: '9876501234', text: 'x' }, ctx)).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
     expect(none.calls).toHaveLength(0);
   });
 
@@ -327,7 +327,7 @@ describe('outbound', () => {
     await settingSet('chat360BaseUrl', 'https://api.chat360.io', 'test');
     await settingSet('chat360SendPath', '/api/v1/messages/send', 'test');
     const c = fakeChat360();
-    await send({ phone: '9876543210', text: 'Hi' }, ctx);
+    await send({ phone: '9876501234', text: 'Hi' }, ctx);
     expect(c.to('/api/whatsapp/whatsapp-session-messages')[0].url).toBe('https://app.chat360.io/api/whatsapp/whatsapp-session-messages');
   });
 
@@ -344,7 +344,7 @@ describe('outbound', () => {
     await settingSet('chat360BusinessNumber', '', 'test');
     // an older message already stored, before this feature
     await handleWebhook(inbound({ event_response_id: 'evt-old', sender_num: '918888777766', receiver_num: '919000000777' }));
-    expect(businessNumberFrom({ sender_num: '919876543210', receiver_num: '919876543210' }, '919876543210')).toBe(''); // never the customer
+    expect(businessNumberFrom({ sender_num: '919876501234', receiver_num: '919876501234' }, '919876501234')).toBe(''); // never the customer
     fakeChat360();
     await chatTest();
     const s: any = await getSettings(await t.ctx('Developer', 'Support'));
@@ -361,7 +361,7 @@ describe('outbound', () => {
     await handleWebhook(inbound({ event_response_id: 'evt-l', sender_num: '918888777766', receiver_num: '919000000555' }));
     await settingSet('chat360BusinessNumber', '', 'test'); // pretend it was not learned at the time
     const c = fakeChat360();
-    await send({ phone: '9876543210', text: 'Hi' }, ctx);
+    await send({ phone: '9876501234', text: 'Hi' }, ctx);
     expect(JSON.parse(String(c.to('/api/whatsapp/whatsapp-session-messages')[0].init.body)).from).toBe('919000000555');
   });
 
@@ -407,7 +407,7 @@ describe('outbound', () => {
         ? new Response(JSON.stringify([{ template_name: 'welcome_v2', id: TEMPLATE_ID }]), { status: 200 })
         : new Response('{"detail":"Authentication credentials were not provided."}', { status: 401 })),
     });
-    await send({ phone: '9876543210', templateName: 'welcome_v2' }, ctx);
+    await send({ phone: '9876501234', templateName: 'welcome_v2' }, ctx);
     expect(c.to('/service/template/data')).toHaveLength(2);
     expect(JSON.parse(String(c.to('/service/v1/task')[0].init.body)).task_body[0].template_data.template_id).toBe(TEMPLATE_ID);
   });
@@ -418,11 +418,11 @@ describe('mapContact', () => {
     await settingSet('chat360AutoCreateLeads', 'false', 'test');
     await handleWebhook(inbound());
     vi.mocked(leads.getLead).mockResolvedValue(LEAD);
-    await mapContact('9876543210', 'ENQ-0007', ctx);
-    expect((await messages('9876543210'))[0].leadId).toBe('ENQ-0007');
+    await mapContact('9876501234', 'ENQ-0007', ctx);
+    expect((await messages('9876501234'))[0].leadId).toBe('ENQ-0007');
     expect((await contacts())[0]).toMatchObject({ leadId: 'ENQ-0007', contactName: 'Meera Rao' });
     vi.mocked(leads.getLead).mockResolvedValue(null);
-    await expect(mapContact('9876543210', 'ENQ-404', ctx)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(mapContact('9876501234', 'ENQ-404', ctx)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 
@@ -464,9 +464,9 @@ describe('webhook route', () => {
 describe('Chat360 events that are not chat messages', () => {
   it('chatbot session summaries, assignments, SMS / e-mail are only counted, never shown as messages', async () => {
     for (const event_type of ['get_chatroom_response', 'get_chat_session_data', 'assignment', 'sms_sent_message_delivered', 'email_read', 'template_update_events']) {
-      expect(await handleWebhook({ event_type, event_response_id: `e-${event_type}`, sender_num: '919876543210', message_text: 'x' })).toEqual({ ok: true, ignored: event_type });
+      expect(await handleWebhook({ event_type, event_response_id: `e-${event_type}`, sender_num: '919876501234', message_text: 'x' })).toEqual({ ok: true, ignored: event_type });
     }
-    expect(await messages('9876543210')).toEqual([]);
+    expect(await messages('9876501234')).toEqual([]);
     expect((await webhookStats()).map((s) => s.event)).toContain('get_chat_session_data');
   });
 });
@@ -481,11 +481,11 @@ describe('Chat360 sample events', () => {
 
 describe('chatbot steps sent by the Chat360 bot flow (its Webhook component)', () => {
   it('a bot message is shown as sent by the bot; the name the customer typed renames a "WhatsApp +91…" lead', async () => {
-    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234' } as any);
     vi.mocked(leads.updateLead).mockClear();
-    await handleWebhook({ event_type: 'bot_message_sent', phone: '919876543210', text: 'Hello! Welcome to Amaya Senior Living. May I know your name, please?' });
-    await handleWebhook({ event_type: 'bot_message_sent', phone: '919876543210', customer_name: 'Test', text: 'Thank you Test, please find our project brochure below.' });
-    const all = await messages('9876543210');
+    await handleWebhook({ event_type: 'bot_message_sent', phone: '919876501234', text: 'Hello! Welcome to Amaya Senior Living. May I know your name, please?' });
+    await handleWebhook({ event_type: 'bot_message_sent', phone: '919876501234', customer_name: 'Test', text: 'Thank you Test, please find our project brochure below.' });
+    const all = await messages('9876501234');
     expect(all.map((m) => [m.direction, m.agent])).toEqual([['Outbound', 'Chat360 Bot'], ['Outbound', 'Chat360 Bot']]);
     expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Test' }, expect.anything());
   });
@@ -495,7 +495,7 @@ describe('events panel through the real webhook address', () => {
   const post = (url: string, body: unknown) => webhookPOST(new Request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
   it('counts received messages, bot-flow steps and refused calls', async () => {
     await post('http://x/api/webhooks/chat360?company=test&secret=hook-secret', inbound());
-    await post('http://x/api/webhooks/chat360?company=test&secret=hook-secret', { event_type: 'bot_message_sent', phone: '919876543210', customer_name: 'Test', text: 'Thank you Test' });
+    await post('http://x/api/webhooks/chat360?company=test&secret=hook-secret', { event_type: 'bot_message_sent', phone: '919876501234', customer_name: 'Test', text: 'Thank you Test' });
     await post('http://x/api/webhooks/chat360?company=test&secret=wrong', inbound({ event_response_id: 'x9' }));
     await post('http://x/api/webhooks/chat360?company=test', inbound({ event_response_id: 'x10' }));
     const ev = (await webhookStats()).map((s) => s.event).sort();
@@ -508,17 +508,17 @@ describe('lead_captured (the chatbot collected details)', () => {
     '': '', source: 'Chat360', message: 'New lead captured', event_type: 'lead_captured', room_id: 'room-1', user_id: 1,
     data: { tags: [], room_id: 'room-1', variables: {
       '@name': 'Anita', '@ckgve': 'Talk to Sales Advisor', '@iokht': 'For Relatives', '@room_id': 'room-1', '@session': 'sess-1', '@session_id': 'sess-1',
-      '@user_opt': true, '@user_name': 'Anita Rao', '@lead_score': 0, '@user_number': '919876543210', '@country_code': 91,
+      '@user_opt': true, '@user_name': 'Anita Rao', '@lead_score': 0, '@user_number': '919876501234', '@country_code': 91,
       '@first_response': 'Thank you for reaching Amaya Senior Living.', '@last_response': 'Talk to Sales Advisor', archieve_count: 1, ...over,
     } },
   });
 
   it('renames a "WhatsApp +91…" lead to the typed name, fills Enquired For and shows the answers in the chat', async () => {
-    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210', 'Enquired For': '' } as any);
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234', 'Enquired For': '' } as any);
     vi.mocked(leads.updateLead).mockClear();
     expect(await handleWebhook(captured())).toEqual({ ok: true, leadId: 'ENQ-0007' });
     expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita', 'Enquired For': 'Relatives' }, expect.anything());
-    const [m] = await messages('9876543210');
+    const [m] = await messages('9876501234');
     expect(m).toMatchObject({ direction: 'Outbound', agent: 'Chat360 Bot' });
     expect(m.text).toBe('🤖 Chatbot details — name: Anita\n• Talk to Sales Advisor\n• For Relatives');
     // the same session again (a retry) is not added twice
@@ -549,11 +549,11 @@ describe('name from the answer to the chatbot\'s name question', () => {
     expect(nameFromReply('testing')).toBe('Testing');
     expect(nameFromReply('ravi kumar')).toBe('Ravi Kumar');
     expect(nameFromReply('Anita D\'Souza')).toBe('Anita D\'Souza');
-    for (const t of ['Hi', 'hii', 'Hello', 'ok', 'Price', 'I want a 2 BHK', '9876543210', 'what is the price of the flat']) expect(nameFromReply(t)).toBe('');
+    for (const t of ['Hi', 'hii', 'Hello', 'ok', 'Price', 'I want a 2 BHK', '9876501234', 'what is the price of the flat']) expect(nameFromReply(t)).toBe('');
   });
 
   it('the second message, minutes after the first, renames a "WhatsApp +91…" lead; later messages never do', async () => {
-    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234' } as any);
     vi.mocked(leads.updateLead).mockClear();
     const now = new Date().toISOString();
     await handleWebhook(inbound({ profile_name: undefined, event_response_id: 'n-1', created: now, wab_response: { type: 'text', text: { body: 'Hi' } } }));
@@ -589,7 +589,7 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
       calls.push(url);
       const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 });
       if (url.endsWith('/api/auth/login')) return json({ access: tokenFor(104984) });
-      if (url.includes('/api/clientwidget_updated/listing/active/104984')) return json({ data: [{ room_id: ROOM, variables: { '@name': 'Testing', '@user_number': '919876543210' } }], has_more: false });
+      if (url.includes('/api/clientwidget_updated/listing/active/104984')) return json({ data: [{ room_id: ROOM, variables: { '@name': 'Testing', '@user_number': '919876501234' } }], has_more: false });
       if (url.includes(`/api/clientwidget_updated/${ROOM}/messages`)) return json({ history, previous_cursor: null, next_cursor: null, type: 'cursor' });
       return new Response('{}', { status: 404 });
     });
@@ -604,8 +604,8 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
   });
 
   it('opening a chat brings in the bot messages once; the customer message from the webhook is not doubled; the bot name fills the lead', async () => {
-    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
-    vi.mocked(leads.getLead).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any);
+    vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234' } as any);
+    vi.mocked(leads.getLead).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234' } as any);
     vi.mocked(leads.updateLead).mockClear();
     // the customer's "Testing" already came by webhook
     await handleWebhook(inbound({ profile_name: undefined, event_response_id: 's-1', created: new Date(t0 + 12_000).toISOString(), wab_response: { type: 'text', text: { body: 'Testing' } } }));
@@ -620,8 +620,8 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
     expect(calls.filter((u) => u.includes('/listing/active/')).length).toBe(1);
     expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Testing' }, expect.anything()); // the name given to the bot
     // again right away: nothing new is fetched (20-second pause) and nothing is doubled
-    await syncConversation('919876543210', { force: true });
-    expect((await messages('9876543210')).length).toBe(4);
+    await syncConversation('919876501234', { force: true });
+    expect((await messages('9876501234')).length).toBe(4);
     expect(calls.filter((u) => u.includes('/listing/active/')).length).toBe(1); // the room is remembered
   });
 
@@ -634,7 +634,7 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
 
   async function dispatchMessages() {
     const { messagesWithSync } = await import('../server/modules/chat360');
-    return messagesWithSync('919876543210');
+    return messagesWithSync('919876501234');
   }
 });
 
@@ -642,7 +642,7 @@ describe('bringing in old chats from Chat360', () => {
   const tokenFor = (userId: number) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ token_type: 'access', exp: Math.floor(Date.now() / 1000) + 3600, user_id: userId })).toString('base64url')}.sig`;
   const iso = (ms: number) => new Date(ms).toISOString().replace('Z', '');
   const rooms = [
-    { room_id: 'room-a', updated_on: iso(Date.now() - 3600e3), last_message: 'Thank you', variables: { '@name': 'Anita', '@user_number': '919876543210' } },
+    { room_id: 'room-a', updated_on: iso(Date.now() - 3600e3), last_message: 'Thank you', variables: { '@name': 'Anita', '@user_number': '919876501234' } },
     { room_id: 'room-b', updated_on: iso(Date.now() - 7200e3), last_message: 'Hi', variables: { '@name': '@name', '@user_number': '918888777766' } },
   ];
   let spy: any;
@@ -665,7 +665,7 @@ describe('bringing in old chats from Chat360', () => {
   afterEach(() => spy.mockRestore());
 
   it('every chat gets its conversation; leads still called "WhatsApp +91…" get the name given to the bot; running again adds nothing', async () => {
-    vi.mocked(leads.findLeadByPhone).mockImplementation(async (p: string) => (String(p).endsWith('9876543210') ? ({ ...LEAD, 'Prospect Name': 'WhatsApp +919876543210' } as any) : null));
+    vi.mocked(leads.findLeadByPhone).mockImplementation(async (p: string) => (String(p).endsWith('9876501234') ? ({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234' } as any) : null));
     vi.mocked(leads.updateLead).mockClear();
     let step: any = {};
     let total = { rooms: 0, named: 0, synced: 0, added: 0 };
@@ -683,6 +683,6 @@ describe('bringing in old chats from Chat360', () => {
     const again = await backfillFromChat360({});
     const again2 = await backfillFromChat360({ phase: again.phase, offset: again.offset });
     expect(again.added + again2.added).toBe(0); // no message added twice
-    expect((await messages('9876543210')).length).toBe(1);
+    expect((await messages('9876501234')).length).toBe(1);
   });
 });

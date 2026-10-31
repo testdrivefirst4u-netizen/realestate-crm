@@ -162,7 +162,7 @@ describe('other AI actions', () => {
   });
 
   it('summarizeLead includes the lead and its timeline, and audits', async () => {
-    vi.mocked(leads.getLead).mockResolvedValue({ 'Enquiry ID': 'ENQ-0001', 'Prospect Name': 'Meera Rao', 'Lead Stage': 'Warm', 'Phone Number': '+919876543210' });
+    vi.mocked(leads.getLead).mockResolvedValue({ 'Enquiry ID': 'ENQ-0001', 'Prospect Name': 'Meera Rao', 'Lead Stage': 'Warm', 'Phone Number': '+919876501234' });
     await (await col(CFG.COLL.TIMELINE)).insertOne({ _id: 'TL_1' as any, leadId: 'ENQ-0001', timestamp: new Date(), type: 'remark', title: 'Asked about 2 BHK', details: 'wants ground floor', actor: 'RM', refType: '', refId: '' });
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResp('- Warm lead\nRecommended next step: call'));
     const r = await summarizeLead('ENQ-0001', ctx);

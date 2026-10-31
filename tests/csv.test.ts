@@ -210,7 +210,7 @@ describe('parseAndAnalyzeCSV', () => {
   });
 
   it('flags duplicate Enquiry IDs within the file', () => {
-    const existing = [lead({ [F.ID]: 'ENQ-0007', [F.PHONE]: '9111111111' })];
+    const existing = [lead({ [F.ID]: 'ENQ-0007', [F.PHONE]: '9111122233' })];
     const csv = `${header}\nA,9000000001,New,,,ENQ-0007,,\nB,9000000002,New,,,enq-0007,,\n`;
     const res = parseAndAnalyzeCSV(csv, existing);
     expect(res.previewRows.map((r) => r.status)).toEqual(['UPDATE', 'DUPLICATE']);
@@ -220,7 +220,7 @@ describe('parseAndAnalyzeCSV', () => {
   it('detects conflicts with existing leads by Enquiry ID first, then phone — and never by email', () => {
     const existing = [
       lead({ [F.ID]: 'ENQ-0001', [F.PHONE]: '9849012345', [F.EMAIL]: 'a@example.com' }),
-      lead({ [F.ID]: 'ENQ-0002', [F.PHONE]: '9000000009', [F.EMAIL]: 'b@example.com' }),
+      lead({ [F.ID]: 'ENQ-0002', [F.PHONE]: '9000012349', [F.EMAIL]: 'b@example.com' }),
     ];
     const csv = `${F.NAME},Phone,${F.EMAIL},${F.ID}\nById,9333333333,x@example.com,ENQ-0002\nByPhone,+91 98490 12345,y@example.com,\nByEmailOnly,9444444444,b@example.com,\nUnknownId,9555555555,,LEAD-99\n`;
     const res = parseAndAnalyzeCSV(csv, existing);

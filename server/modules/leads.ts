@@ -18,7 +18,7 @@ import {
 } from '../core/leadShape';
 import { getSecret, settingsAll } from '../core/settings';
 import { assertLeadAccess, canSeeLead, leadFilter } from '../core/scope';
-import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, shortId, str, truncate } from '../core/utils';
+import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, phoneProblem, shortId, str, truncate } from '../core/utils';
 import { scheduleLeadAlerts } from './leadAlerts';
 import { firstFollowup, nextFollowup as sequenceNextFollowup, parseSequence } from './sequences';
 
@@ -204,11 +204,11 @@ export async function getLeadDoc(id: string): Promise<LeadDoc | null> {
   return (await leadsCol()).findOne({ _id: String(id) });
 }
 
-/** Active (non-archived) lead whose phone matches on the last 10 digits, or null. */
+/** The latest active (non-archived) enquiry whose phone matches on the last 10 digits, or null (a re-enquiry is a newer lead; calls and chats go to it). */
 export async function findLeadByPhone(phone: string): Promise<UiLead | null> {
   const key = last10(phone);
   if (!key || key.length < 10) return null;
-  const doc = await (await leadsCol()).find({ phoneLast10: key, stage: { $ne: S.DELETED } }).sort({ createdAt: 1, _id: 1 }).limit(1).next();
+  const doc = await (await leadsCol()).find({ phoneLast10: key, stage: { $ne: S.DELETED } }).sort({ createdAt: -1, _id: -1 }).limit(1).next();
   return toUiLead(doc);
 }
 
@@ -260,6 +260,8 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   const name = String(obj[L.NAME] || '').trim();
   if (!name) throw fail('VALIDATION', 'Prospect Name is required');
   const actor = actorOf(ctx, options.actor || 'System');
+  const badPhone = obj[L.PHONE] ? phoneProblem(obj[L.PHONE]) : '';
+  if (badPhone) throw fail('VALIDATION', badPhone);
 
   // duplicate protection by phone (unless explicitly allowed)
   if (!options.allowDuplicate && obj[L.PHONE]) {
@@ -712,6 +714,22 @@ export async function importLeads(rows: UiLead[], strategy: string, ctx: Ctx | n
 }
 
 /** Actions on one lead first check that the caller may see it (RMs: own leads — server/core/scope.ts). */
+/**
+ * Every enquiry from this lead's phone number, oldest first (a customer who enquired again has one lead per enquiry).
+ * Enquiries the user may not open show only when and how they came in.
+ */
+async function enquiryHistory(id: string, ctx: Ctx) {
+  const doc = await getLeadDoc(id);
+  const key = String(doc?.phoneLast10 || '');
+  if (key.length < 10) return [];
+  const rows = await (await leadsCol()).find({ phoneLast10: key, stage: { $nin: [S.TRASH, S.DELETED] } }, { projection: { _id: 1, enquiryDate: 1, createdAt: 1, source: 1, stage: 1, assignedRm: 1 } }).sort({ createdAt: 1, _id: 1 }).limit(50).toArray();
+  if (rows.length < 2) return [];
+  return Promise.all(rows.map(async (r) => {
+    const open = await canSeeLead(ctx.user, r._id);
+    return { id: String(r._id), enquiryDate: (r.enquiryDate || r.createdAt)?.toISOString?.() || '', source: String(r.source || ''), stage: open ? String(r.stage || '') : '', rm: open ? String(r.assignedRm || '') : '', canOpen: open, current: String(r._id) === String(id) };
+  }));
+}
+
 const onLead = <T>(fn: (d: any, ctx: Ctx) => Promise<T>) => async (d: any, ctx: Ctx) => {
   await assertLeadAccess(ctx, d.id);
   return fn(d, ctx);
@@ -751,5 +769,6 @@ export const actions: ActionMap = {
   restoreLead: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: S.NEW }, ctx)), perm: 'leads.trash' },
   deleteLead: { fn: onLead((d, ctx) => archiveLead(d.id, ctx)), perm: 'leads.delete' },
   getLeadTimeline: { fn: onLead((d) => timelineForLead(d.id)), perm: 'leads.view' },
+  getEnquiryHistory: { fn: onLead((d, ctx) => enquiryHistory(String(d.id), ctx)), perm: 'leads.view' },
   importLeads: { fn: (d, ctx) => importLeads(d.leads, d.strategy, ctx), perm: 'leads.import' },
 };

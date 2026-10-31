@@ -122,6 +122,7 @@ export interface JcReport {
   byDay: Array<{ date: string; calls: number; answered: number; missed: number; notAnswered: number; talkSeconds: number }>;
   byAgent: Array<{ name: string; calls: number; answered: number; missed: number; notAnswered: number; talkSeconds: number; avgTalkSeconds: number | null }>;
 }
+export interface EnquiryHistoryRow { id: string; enquiryDate: string; source: string; stage: string; rm: string; canOpen: boolean; current: boolean }
 export interface LeaderRow { rm: string; followups: number; calls: number; visits: number; bookings: number }
 export interface SpendRow { campaign: string; month: string; amount: number }
 
@@ -261,6 +262,8 @@ export const api = {
     restore: (id: string) => request<{ version: string }>('restoreLead', { id }),
     remove: (id: string) => request<{ version: string }>('deleteLead', { id }),
     timeline: (id: string) => request<TimelineEntry[]>('getLeadTimeline', { id }),
+    /** Every enquiry from this lead's phone number, oldest first (empty when it is the only one). */
+    enquiryHistory: (id: string) => request<EnquiryHistoryRow[]>('getEnquiryHistory', { id }),
     merge: (keepId: string, mergeIds: string[]) => request<{ id: string; merged: string[]; version: string }>('mergeLeads', { keepId, mergeIds }),
     importBulk: (leads: Lead[], strategy: string) => request<{ created: number; updated: number; skipped?: number; version: string }>('importLeads', { leads, strategy }),
   },
