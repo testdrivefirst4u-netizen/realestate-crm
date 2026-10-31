@@ -89,7 +89,7 @@ const AddLeadForm: React.FC<AddLeadModalProps> = ({ onClose, config, leads, curr
     source: '',
     unitType: '',
     purchaseOrRent: '',
-    siteVisitStatus: (config.options[F.SITE_VISIT_STATUS] || []).includes(SITE_VISIT.PROSPECT) ? SITE_VISIT.PROSPECT : '',
+    siteVisitStatus: '', // no default: set when a visit is actually discussed
     salutation: '',
     enquiredFor: '',
     country: 'India',

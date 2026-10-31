@@ -16,7 +16,7 @@ import {
   AlertTriangle, ArrowLeft, CalendarClock, Check, CheckCheck, Clock, ExternalLink, Link2, ListPlus, MessageSquare, NotebookPen, Paperclip, RefreshCw, Search, Send, Settings, Sparkles, UserCheck, UserPlus, Wand2, X,
 } from 'lucide-react';
 import { Chat360Contact, Chat360Message, Lead, MessageTemplate, TaskItem, UserAccount } from '../../types/crm';
-import { F, SITE_VISIT, STAGES } from '../../core/config';
+import { F, STAGES } from '../../core/config';
 import { api } from '../../core/api';
 import { searchLeads } from '../../core/analytics';
 import { addDays, compareDates, dateKey, formatDate, formatDateTime, formatRelative, formatTime, fromDatetimeLocalInput, getParts, nowIso, parseDate, startOfToday, toDatetimeLocalInput, todayKey } from '../../core/dates';
@@ -582,7 +582,6 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
       [F.PHONE]: '+' + toE164Digits(selectedPhone),
       [F.SOURCE]: CHAT360_SOURCE,
       [F.STAGE]: STAGES.NEW,
-      [F.SITE_VISIT_STATUS]: SITE_VISIT.PROSPECT,
     });
     if (!created) return false; // the engine already toasted the failure
     const leadId = String(created[F.ID] || '');
@@ -1279,7 +1278,7 @@ const ActionPanel: React.FC<ActionPanelProps> = ({ panel, onClose, phone, contac
             </InlineNotice>
           )}
           <InlineNotice>
-            Creates a <strong>New</strong> enquiry for <strong>{String(contact?.contactName || '').trim() || `WhatsApp ${formatPhone(phone)}`}</strong> ({formatPhone(phone)}) with source <strong>{CHAT360_SOURCE}</strong> and site-visit status <strong>{SITE_VISIT.PROSPECT}</strong>, then links this conversation to it. Edit the details on the lead afterwards.
+            Creates a <strong>New</strong> enquiry for <strong>{String(contact?.contactName || '').trim() || `WhatsApp ${formatPhone(phone)}`}</strong> ({formatPhone(phone)}) with source <strong>{CHAT360_SOURCE}</strong>, then links this conversation to it. Edit the details on the lead afterwards.
           </InlineNotice>
           <div className="flex items-center justify-end gap-2">
             <Button size="xs" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>

@@ -362,7 +362,7 @@ export const fmtAvgCall = (secs: number) => {
 
 /* ------------------------- enquiry performance --------------------------- */
 
-/** A visit actually set or done ("Prospect for Site Visit" alone is the default on every new enquiry, so it does not count). */
+/** A visit actually set or done ("Prospect for Site Visit" alone is only an intention, so it does not count). */
 const VISIT_SET: string[] = [SITE_VISIT.SCHEDULED, ...SITE_VISIT_DONE];
 
 /**

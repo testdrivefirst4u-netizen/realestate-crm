@@ -357,7 +357,6 @@ async function resolveLead(phone: string, contactName: string, cfg: ChatCfg): Pr
       [L.SOURCE]: cfg.defaultSource,
       [L.RM]: cfg.defaultRM,
       [L.BROCHURE]: 'No',
-      [L.SITE_VISIT_STATUS]: CFG.SITE_VISIT.PROSPECT,
     };
     try {
       const res = await addLead(obj, chat360Ctx(), { returnExisting: true, actor: 'Chat360', eventSource: 'chat360' });
