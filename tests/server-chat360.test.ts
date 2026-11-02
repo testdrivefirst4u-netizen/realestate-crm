@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, backfillFromChat360, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
+import { apiKeyShapeProblem, backfillFromChat360, enquiredForFrom, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -50,6 +50,15 @@ beforeEach(async () => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('Enquired For from a chatbot answer', () => {
+  it('a friend is Friend; relatives are Relative (Relatives is no longer an option)', () => {
+    expect(enquiredForFrom('For a friend')).toBe('Friend');
+    expect(enquiredForFrom('For Relatives')).toBe('Relative');
+    expect(enquiredForFrom('For my parents')).toBe('Parents');
+    expect(enquiredForFrom('Myself')).toBe('Self');
+  });
 });
 
 describe('message text', () => {
@@ -517,7 +526,7 @@ describe('lead_captured (the chatbot collected details)', () => {
     vi.mocked(leads.findLeadByPhone).mockResolvedValue({ ...LEAD, 'Prospect Name': 'WhatsApp +919876501234', 'Enquired For': '' } as any);
     vi.mocked(leads.updateLead).mockClear();
     expect(await handleWebhook(captured())).toEqual({ ok: true, leadId: 'ENQ-0007' });
-    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita', 'Enquired For': 'Relatives' }, expect.anything());
+    expect(leads.updateLead).toHaveBeenCalledWith('ENQ-0007', { 'Prospect Name': 'Anita', 'Enquired For': 'Relative' }, expect.anything());
     const [m] = await messages('9876501234');
     expect(m).toMatchObject({ direction: 'Outbound', agent: 'Chat360 Bot' });
     expect(m.text).toBe('🤖 Chatbot details — name: Anita\n• Talk to Sales Advisor\n• For Relatives');

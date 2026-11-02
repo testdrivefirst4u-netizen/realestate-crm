@@ -175,6 +175,8 @@ export async function getLeadsConfig(): Promise<{ fields: string[]; options: Rec
     for (const o of CFG.DEFAULT_OPTIONS[f]) if (!opts[f].includes(o)) opts[f].push(o);
   }
   opts[L.UNIT_TYPE] = dedupeUnitTypes(opts[L.UNIT_TYPE] || []);
+  // Relatives is no longer offered (Relative is; a company's saved list may still have it); leads keep their value
+  opts[L.ENQUIRED_FOR] = (opts[L.ENQUIRED_FOR] || []).filter((v) => !/^relatives$/i.test(v.trim()));
   for (const m of MERGED_VALUES) opts[m.header] = (opts[m.header] || []).filter((v) => !m.from.test(v));
   // stages and sources in the agreed order; any the company added keep their place after them
   for (const f of [L.STAGE, L.SOURCE]) {

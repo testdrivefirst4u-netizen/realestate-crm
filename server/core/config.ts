@@ -136,7 +136,7 @@ export const CFG = {
     'Site Visit Status': ['Prospect for Site Visit', 'Site Visit - Scheduled', 'Site Visit - Walk-In', 'Site Visit - Completed'],
     // how to address the prospect ("Relationship to Prospect" is no longer asked; old values stay on the lead)
     'Salutation': ['Mr.', 'Mrs.', 'Ms.', 'Miss', 'Dr.', 'Prof.', 'Col.', 'Capt.'],
-    'Enquired For': ['Self', 'Parents', 'Grandparents', 'Father', 'Mother', 'Relative', 'Relatives', 'Family'],
+    'Enquired For': ['Self', 'Parents', 'Grandparents', 'Father', 'Mother', 'Relative', 'Family', 'Friend'],
     'Assigned RM': [] as string[],
     'Brochure Shared': ['Yes', 'No'],
   } as Record<string, string[]>,

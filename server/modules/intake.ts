@@ -134,7 +134,8 @@ function forWhom(answer: string): string {
   if (/parent/.test(a)) return 'Parents';
   if (/father|dad/.test(a)) return 'Father';
   if (/mother|mom|mum/.test(a)) return 'Mother';
-  if (/relative/.test(a)) return 'Relatives';
+  if (/friend/.test(a)) return 'Friend';
+  if (/relative/.test(a)) return 'Relative';
   if (/family/.test(a)) return 'Family';
   if (/\b(self|myself|me|for me)\b/.test(a)) return 'Self';
   return '';

@@ -635,14 +635,15 @@ async function saveSentByChat360(payload: any, phone: string, type: string, mid:
 /** Chat360's own variables in a chatbot session — everything else in `variables` is an answer to a bot question. */
 const BOT_SYSTEM_VARS = /^@?(name|room_id|session|session_id|user_.*|lead_score|country_code|room_created|room_updated|end_user_time|archieve_count|first_response|last_response|followers_count|current_datetime|current_variable|profile_username|catalog_cart_details|recent_context_wamid|waba_catalog_total_price)$/i;
 
-/** "For Relatives" → the Enquired For option it means ('' when none fits). */
+/** "For a friend" → the Enquired For option it means ('' when none fits). */
 export function enquiredForFrom(answer: string): string {
   const a = answer.toLowerCase();
   if (/grand ?parent/.test(a)) return 'Grandparents';
   if (/parent/.test(a)) return 'Parents';
   if (/father|dad/.test(a)) return 'Father';
   if (/mother|mom|mum/.test(a)) return 'Mother';
-  if (/relative/.test(a)) return 'Relatives';
+  if (/friend/.test(a)) return 'Friend';
+  if (/relative/.test(a)) return 'Relative';
   if (/family/.test(a)) return 'Family';
   if (/\b(self|myself|me|for me)\b/.test(a)) return 'Self';
   return '';
