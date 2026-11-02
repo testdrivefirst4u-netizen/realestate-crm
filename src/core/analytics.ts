@@ -221,7 +221,12 @@ export interface KpiSnapshot {
   rangeKey?: string;
   totalEnquiries: number;
   newLeads: number;
+  /** Every lead still being worked (not booked or lost): New, Open, Not Responding, Qualified, Warm, Hot. */
   openLeads: number;
+  /** "Open" on the dashboard: stage New or Open only. */
+  openNewLeads: number;
+  /** Stage Not Responding. */
+  notRespondingLeads: number;
   hotLeads: number;
   warmLeads: number;
   qualifiedLeads: number;
@@ -249,6 +254,8 @@ export interface KpiSnapshot {
   ids: {
     enquiries: string[];
     open: string[];
+    openNew: string[];
+    notResponding: string[];
     hot: string[];
     warm: string[];
     qualified: string[];
@@ -329,6 +336,8 @@ export function computeKpis(
   const cohort = range ? leads.filter((l) => inRange(enquiryDate(l), range)) : leads;
 
   const open = cohort.filter(isActive);
+  const openNew = cohort.filter((l) => isNew(l) || stageOf(l) === STAGES.OPEN);
+  const notResponding = cohort.filter((l) => stageOf(l) === STAGES.NOT_RESPONDING);
   const hot = cohort.filter(isHot);
   const warm = cohort.filter(isWarm);
   const qualified = cohort.filter(isQualified);
@@ -387,6 +396,8 @@ export function computeKpis(
     totalEnquiries: total,
     newLeads: newLeads.length,
     openLeads: open.length,
+    openNewLeads: openNew.length,
+    notRespondingLeads: notResponding.length,
     hotLeads: hot.length,
     warmLeads: warm.length,
     qualifiedLeads: qualified.length,
@@ -413,6 +424,8 @@ export function computeKpis(
     ids: {
       enquiries: cohort.map(idOf),
       open: open.map(idOf),
+      openNew: openNew.map(idOf),
+      notResponding: notResponding.map(idOf),
       hot: hot.map(idOf),
       warm: warm.map(idOf),
       qualified: qualified.map(idOf),

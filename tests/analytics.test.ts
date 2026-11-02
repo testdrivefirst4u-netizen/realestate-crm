@@ -72,6 +72,13 @@ describe('computeKpis', () => {
     expect(all.totalEnquiries).toBe(6);
     expect(all.lostLeads).toBe(1);
     expect(all.openLeads).toBe(4); // hot, warm, qualified, new(blank)
+    // the dashboard's Open is only New + Open (here the blank-stage lead); Not Responding is counted on its own
+    expect(all.openNewLeads).toBe(1);
+    expect(all.notRespondingLeads).toBe(0);
+    const nr = computeKpis([...leads, { ...leads[0], [F.ID]: 'ENQ-0099', [F.STAGE]: STAGES.NOT_RESPONDING }], tasks, null, { now });
+    expect(nr.notRespondingLeads).toBe(1);
+    expect(nr.ids.notResponding).toEqual(['ENQ-0099']);
+    expect(nr.ids.openNew).not.toContain('ENQ-0099');
     expect(all.followupsOverdue).toBe(2); // ENQ-0005 (29 Sep) + ENQ-0001 (16:00 IST today, now is 23:30 IST)
     expect(all.ids.enquiries).not.toContain('ENQ-0004');
   });

@@ -99,8 +99,8 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
     ['Leads Received', C.received, p.received, 'Enquiries that came in, by enquiry date'],
     ['Qualified Leads', C.qualified, p.qualified, 'Of those: Qualified, Warm, HOT, booked, or a site visit scheduled / done'],
     ['Unqualified Leads', C.unqualified, p.unqualified, 'Of those: disqualified (budget, location, not interested…)'],
-    ['Open Enquiries', C.open, [...p.fresh, ...p.open], 'Of those: stage New, Open or Not Responding'],
-    ['Non-Responding', C.nonResponding, p.nonResponding, 'Of the open enquiries: stage Not Responding (also counted in Open Enquiries)'],
+    ['Open Enquiries', C.open, [...p.fresh, ...p.open.filter((l) => !p.nonResponding.includes(l))], 'Of those: stage New or Open'],
+    ['Non-Responding', C.nonResponding, p.nonResponding, 'Of those: stage Not Responding (not part of Open Enquiries)'],
     ['Site Visits', C.visits, p.visits, 'Site visits done in this period, by visit date'],
   ];
   const year = d.slice(0, 4);
@@ -155,9 +155,8 @@ export const EnquiryPerformance: React.FC<{ nonDate: MisLead[]; today: string; s
         <p className="font-bold text-[#0B2A44] mb-1">How to read these numbers</p>
         <ul className="space-y-1 list-disc pl-4">
           <li><b>Leads Received</b>: every enquiry that came in on these dates.</li>
-          <li>Each of those leads is in exactly one of three boxes: <b>Qualified</b> (good lead: Qualified, Warm, Hot, Booked, or a site visit fixed or done), <b>Unqualified</b> (disqualified or lost), or <b>Open</b> (still being worked on: New, Open or Not Responding).</li>
-          <li><b>Qualified + Unqualified + Open = Leads Received.</b> This month: {rows.mtd.qualified.length} + {rows.mtd.unqualified.length} + {rows.mtd.fresh.length + rows.mtd.open.length} = {rows.mtd.received.length}.</li>
-          <li><b>Non-Responding</b> is not extra leads. It is the part of Open Enquiries that is not picking up. Do not add it to the total.</li>
+          <li>Each of those leads is in exactly one of four boxes: <b>Qualified</b> (good lead: Qualified, Warm, Hot, Booked, or a site visit fixed or done), <b>Unqualified</b> (disqualified or lost), <b>Open</b> (New or Open) or <b>Non-Responding</b> (not picking up).</li>
+          <li><b>Qualified + Unqualified + Open + Non-Responding = Leads Received.</b> This month: {rows.mtd.qualified.length} + {rows.mtd.unqualified.length} + {rows.mtd.fresh.length + rows.mtd.open.length - rows.mtd.nonResponding.length} + {rows.mtd.nonResponding.length} = {rows.mtd.received.length}.</li>
           <li><b>Site Visits</b> counts visits done on these dates, even if the lead came in earlier. Do not add it to the total either. A lead with a visit is already counted in Qualified, in the month it came in.</li>
           <li>The overall pipeline at the bottom is not limited to these dates: it shows all leads as they stand today.</li>
           <li>Tap any number to see the leads behind it. The representative and source filters at the top change every box.</li>

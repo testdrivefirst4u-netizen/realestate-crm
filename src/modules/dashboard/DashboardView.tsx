@@ -130,7 +130,8 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
 
   const funnel = [
     { label: 'Enquiries', value: kpi.totalEnquiries, color: C.blue, fg: '#fff', note: prevKpi ? <Delta value={trend('totalEnquiries')} /> : `${rangeLabel}`, ids: kpi.ids.enquiries },
-    { label: 'Open pipeline', value: kpi.openLeads, color: C.mid, fg: '#fff', note: `${formatPercent(kpi.totalEnquiries ? (kpi.openLeads / kpi.totalEnquiries) * 100 : 0, 0)} of enquiries`, ids: kpi.ids.open },
+    { label: 'Open', value: kpi.openNewLeads, color: C.mid, fg: '#fff', note: `New + Open · ${formatPercent(kpi.totalEnquiries ? (kpi.openNewLeads / kpi.totalEnquiries) * 100 : 0, 0)} of enquiries`, ids: kpi.ids.openNew },
+    { label: 'Not responding', value: kpi.notRespondingLeads, color: '#C46A12', fg: '#fff', note: `${formatPercent(kpi.totalEnquiries ? (kpi.notRespondingLeads / kpi.totalEnquiries) * 100 : 0, 0)} of enquiries`, ids: kpi.ids.notResponding },
     { label: 'Site visits', value: kpi.siteVisitsTotal, color: C.sea, fg: '#04263D', note: `${kpi.siteVisitsCompleted} completed`, ids: [...kpi.ids.svScheduled, ...kpi.ids.svCompleted] },
     { label: 'Qualified', value: kpi.qualifiedLeads, color: C.sky, fg: '#04263D', note: `Qualification ${formatPercent(kpi.qualificationRate, 1)}`, ids: kpi.ids.qualified },
     { label: 'Booked', value: kpi.bookings, color: C.teal, fg: '#fff', note: `Conversion ${formatPercent(kpi.conversionRate, 1)}`, ids: kpi.ids.booked },
@@ -148,7 +149,8 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
   const tiles: Array<{ label: string; value: number; color: string; delta?: number | null; lower?: boolean; onClick: () => void }> = [
     { label: 'Total Enquiries', value: kpi.totalEnquiries, color: C.blue, delta: trend('totalEnquiries'), onClick: () => onFilterClick(`${rangeLabel} · Enquiries`, kpi.ids.enquiries) },
     { label: 'New', value: kpi.newLeads, color: C.sky, delta: trend('newLeads'), onClick: () => onFilterClick(`${rangeLabel} · New`, idsWhere(F.STAGE, 'New', '')) },
-    { label: 'Open Leads', value: kpi.openLeads, color: C.mid, delta: trend('openLeads'), onClick: () => onFilterClick(`${rangeLabel} · Open pipeline`, kpi.ids.open) },
+    { label: 'Open Leads', value: kpi.openNewLeads, color: C.mid, delta: trend('openNewLeads'), onClick: () => onFilterClick(`${rangeLabel} · Open (New + Open)`, kpi.ids.openNew) },
+    { label: 'Not Responding', value: kpi.notRespondingLeads, color: '#C46A12', delta: trend('notRespondingLeads'), lower: true, onClick: () => onFilterClick(`${rangeLabel} · Not responding`, kpi.ids.notResponding) },
     { label: 'Hot', value: kpi.hotLeads, color: C.coral, delta: trend('hotLeads'), onClick: () => onFilterClick(`${rangeLabel} · Hot`, kpi.ids.hot) },
     { label: 'Warm', value: kpi.warmLeads, color: C.amber, delta: trend('warmLeads'), onClick: () => onFilterClick(`${rangeLabel} · Warm`, kpi.ids.warm) },
     { label: 'Qualified', value: kpi.qualifiedLeads, color: C.sea, delta: trend('qualifiedLeads'), onClick: () => onFilterClick(`${rangeLabel} · Qualified`, kpi.ids.qualified) },
@@ -198,7 +200,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
       </Panel>
 
       {/* KPI tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {tiles.map((t) => (
           <button key={t.label} type="button" onClick={t.onClick} className="bg-white border border-[#DCE8F2] rounded-2xl px-4 py-3.5 text-left hover:shadow-md hover:-translate-y-px transition min-w-0" style={{ borderTop: `4px solid ${t.color}` }}>
             <div className="text-[12.5px] font-semibold text-[#5E778C] truncate">{t.label}</div>
