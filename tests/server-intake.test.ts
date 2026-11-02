@@ -219,6 +219,15 @@ describe('POST /api/inbound/leads', () => {
     expect((await inCo(() => leadsModule.findLeadByPhone('9876501234')))![CFG.LEAD.ID]).toBe('ENQ-0002');
     const tl = await inCo(() => leadsModule.timelineForLead('ENQ-0001'));
     expect(tl.some((t: any) => t.title === 'Enquired again' && /ENQ-0002/.test(t.details))).toBe(true);
+    // the returning customer gets a call-back task due in about 10 minutes
+    const tasks = await inCo(async () => (await (await import('../server/core/db')).col(CFG.COLL.TASKS)).find({ leadId: 'ENQ-0002' } as any).toArray());
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].name).toBe('Call back: returning customer Ravi K');
+    expect(Math.abs(new Date(tasks[0].dateTime).getTime() - (Date.now() + 10 * 60000))).toBeLessThan(60_000);
+    // a returning customer: a call-back task on the new enquiry, due in about 10 minutes
+    const task = await inCo(async () => (await (await import('../server/core/db')).col(CFG.COLL.TASKS)).findOne({ leadId: 'ENQ-0002' } as any)) as any;
+    expect(task.name).toBe('Call back: returning customer Ravi K');
+    expect(Math.abs(new Date(task.dateTime).getTime() - (Date.now() + 10 * 60000))).toBeLessThan(60_000);
   });
 
   it("duplicate 'remark' adds a follow-up to the existing lead and creates nothing", async () => {

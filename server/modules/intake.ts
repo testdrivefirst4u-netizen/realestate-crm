@@ -20,6 +20,8 @@ import { addEvent, addTimeline, logError } from '../core/events';
 import { escapeRegex, last10, phoneProblem, shortId, truncate } from '../core/utils';
 import type { InboundLogEntry, InboundStatus, LeadSource, LeadSourceConfig, LeadSourceStats } from '../core/leadSourceTypes';
 import { addLead, appendRemark, findLeadByPhone, getLead, type UiLead } from './leads';
+import { idsByName, sendPush } from './push';
+import { addTask } from './tasks';
 
 const L = CFG.LEAD;
 
@@ -345,11 +347,36 @@ const SAME_ENQUIRY_MS = 24 * 60 * 60 * 1000;
  * A new enquiry from someone who enquired before: a new lead (stage New, today's date) linked to the earlier one,
  * which stays exactly as it was. The same RM keeps the customer when still active; WhatsApp now opens the new lead.
  */
+/** A returning customer is warm: the RM gets a phone notification and a call-back task due in 10 minutes. Never fails the intake. */
+async function alertReturning(leadId: string, lead: UiLead, prev: UiLead, rm: string, first: string, actor: string, users: Awaited<ReturnType<typeof listUsers>>) {
+  const name = String(lead[L.NAME] || prev[L.NAME] || 'Customer').trim();
+  try {
+    await addTask({ name: `Call back: returning customer ${name}`, leadId, assignedTo: rm || actor, datetime: new Date(Date.now() + 10 * 60000).toISOString() }, null);
+  } catch (e: any) {
+    await logError('intake.reenquiry', e?.code || 'INTERNAL', `Call-back task for ${leadId}: ${e?.message}`, e?.stack, '', { leadId });
+  }
+  try {
+    const managers = users.filter((u) => u.status !== 'Disabled' && (u.role === 'Admin' || u.role === 'Manager')).map((u) => u.id);
+    const ids = rm ? idsByName([rm], users) : managers;
+    if (ids.length) {
+      await sendPush(ids, {
+        title: `Returning customer: ${name}`,
+        body: [`Enquired before${first ? ` on ${first}` : ''} as ${prev[L.ID]} (${prev[L.STAGE] || 'New'})`, 'Call within 10 minutes'].join(' · ').slice(0, 180),
+        url: `/leads?lead=${encodeURIComponent(leadId)}`,
+        tag: `reenquiry-${leadId}`,
+      });
+    }
+  } catch (e: any) {
+    await logError('intake.reenquiry', e?.code || 'INTERNAL', `Push for ${leadId}: ${e?.message}`, e?.stack, '', { leadId });
+  }
+}
+
 async function reEnquiry(source: SourceDoc, m: MappedLead, prev: UiLead): Promise<Outcome> {
   const prevId = prev[L.ID];
   const lead: UiLead = { ...m.lead, [CFG.REENQUIRY_OF]: prevId };
   const prevRm = String(prev[L.RM] || '').trim();
-  const active = prevRm ? (await listUsers()).some((u) => u.status === 'Active' && u.name === prevRm) : false;
+  const users = await listUsers();
+  const active = prevRm ? users.some((u) => u.status === 'Active' && u.name === prevRm) : false;
   const { rm, warning } = active ? { rm: prevRm, warning: '' } : await pickAssignee(source, true);
   if (rm) lead[L.RM] = rm;
   const first = String(prev[L.ENQUIRY_DATE] || prev[L.CREATED_AT] || '').slice(0, 10);
@@ -360,6 +387,7 @@ async function reEnquiry(source: SourceDoc, m: MappedLead, prev: UiLead): Promis
   // the WhatsApp conversation follows the customer to the new enquiry (earlier messages stay on the old one)
   const key = last10(lead[L.PHONE] || prev[L.PHONE] || '');
   if (key.length === 10) await (await col(CFG.COLL.CHAT_CONTACTS)).updateOne({ phoneLast10: key }, { $set: { leadId: res.id } });
+  await alertReturning(res.id, lead, prev, rm, first, source.name, users);
   const notes = [`Re-enquiry of ${prevId}`, ...m.warnings, warning].filter(Boolean).join('; ');
   return { status: 'created', leadId: res.id, duplicate: true, message: truncate(notes, 500) };
 }

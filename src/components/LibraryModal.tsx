@@ -79,6 +79,50 @@ export function rowTable(verses: DocVerse[]): RowTable | null {
 }
 
 const gridOf = (n: number) => ({ gridTemplateColumns: `minmax(0,1.7fr) repeat(${Math.max(0, n - 1)}, minmax(64px,1fr))` });
+/** The answer a telecaller can send: distance, car time and a directions link. */
+export function distanceReply(place: string, km: string, time: string): string {
+  const to = encodeURIComponent('Amaya by Vera Vita, Munirabad, Medchal, Telangana');
+  const from = encodeURIComponent(`${place}, Hyderabad`);
+  return `Amaya by Vera Vita is about ${km} from ${place}, usually ${time} by car.\nDirections: https://www.google.com/maps/dir/?api=1&origin=${from}&destination=${to}`;
+}
+
+/** "How far is …?": type a place, get distance and car time with Copy / WhatsApp / Directions (location documents). */
+const DistanceFinder: React.FC<{ places: Array<{ name: string; km: string; time: string; side: string }> }> = ({ places }) => {
+  const [q, setQ] = useState('');
+  const [copied, setCopied] = useState('');
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const k = norm(q);
+  const hits = k ? places.filter((p) => norm(p.name).includes(k)).sort((a, b) => Number(!norm(a.name).startsWith(k)) - Number(!norm(b.name).startsWith(k))).slice(0, 6) : [];
+  const copy = async (p: { name: string; km: string; time: string }) => {
+    try { await navigator.clipboard.writeText(distanceReply(p.name, p.km, p.time)); setCopied(p.name); setTimeout(() => setCopied(''), 1500); } catch { /* blocked */ }
+  };
+  return (
+    <div className="mb-4 rounded-xl border border-[#BFD9EE] bg-white p-3 sm:p-4">
+      <label htmlFor="lib-distance" className="flex items-center gap-1.5 text-sm font-bold text-[#0B2A44] mb-2"><MapPin size={15} className="text-[#0B6BB0]" />How far is Amaya from…</label>
+      <input id="lib-distance" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a place, e.g. Kukatpally, Apollo, airport" autoComplete="off"
+        className="w-full h-10 px-3 rounded-lg border border-[#A9BDCD] text-sm text-[#0B2A44] focus:outline-none focus:ring-2 focus:ring-[#0B6BB0]/40" />
+      {k && !hits.length && <p className="mt-2 text-xs text-[#5E778C]">No place called “{q}” in this list.</p>}
+      {hits.length > 0 && (
+        <ul className="mt-2 divide-y divide-[#EEF4F9]">
+          {hits.map((p) => (
+            <li key={p.name} className="py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="min-w-0 flex-1">
+                <b className="text-[#0B2A44]">{p.name}</b>
+                <span className="block text-[13px] text-[#2B4A63]"><b className="tabular-nums">{p.km}</b> · {p.time} by car{p.side ? <span className="text-[#7E93A6]"> · {p.side}</span> : null}</span>
+              </span>
+              <span className="flex gap-1.5">
+                <button type="button" onClick={() => void copy(p)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D3E3F0] text-xs font-semibold text-[#0B2A44] hover:bg-[#F2F7FB]">{copied === p.name ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}{copied === p.name ? 'Copied' : 'Copy reply'}</button>
+                <a href={`https://api.whatsapp.com/send?text=${encodeURIComponent(distanceReply(p.name, p.km, p.time))}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1F9D55] text-xs font-semibold text-white hover:brightness-110"><Share2 size={12} />WhatsApp</a>
+                <a href={distanceReply(p.name, p.km, p.time).split('Directions: ')[1]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#D3E3F0] text-xs font-semibold text-[#0B6BB0] hover:bg-[#F2F7FB]"><MapPin size={12} />Directions</a>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const TableHead: React.FC<{ labels: string[] }> = ({ labels }) => (
   <div className="grid gap-x-2 px-1.5 pb-1 mb-1 border-b border-[#EEF4F9] text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7E93A6] pr-14" style={gridOf(labels.length)}>
     {labels.map((l, i) => <span key={l + i} className={cx('truncate', i > 0 && 'text-right')}>{l}</span>)}
@@ -209,6 +253,16 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
 
   const readerDoc = documents.find((d) => d.id === readerDocId) || documents[0];
   const tables = useMemo(() => new Map((readerDoc?.chapters || []).map((c) => [c.chapterNumber, rowTable(c.verses)] as const)), [readerDoc]);
+  const places = useMemo(() => {
+    const out: Array<{ name: string; km: string; time: string; side: string }> = [];
+    for (const c of readerDoc?.chapters || []) {
+      const t = tables.get(c.chapterNumber);
+      if (!t || t.labels.join() !== 'Location,Distance,By car') continue;
+      const side = /^(north|east|south|west)\b/i.test(c.title) ? c.title : '';
+      for (const v of c.verses) { const cells = t.cells(v); if (cells) out.push({ name: cells[0], km: cells[1], time: cells[2], side }); }
+    }
+    return out;
+  }, [readerDoc, tables]);
   const chapter = readerDoc?.chapters.find((c) => c.chapterNumber === readerChapter) || readerDoc?.chapters[0];
 
   // "Open in document": bring the passage into view once the reader shows it; otherwise start at the top
@@ -551,6 +605,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                         <h3 className="text-lg sm:text-xl font-bold text-[#0B2A44] leading-snug">{readerDoc.title}</h3>
                         {readerDoc.summary && <p className="text-xs text-[#5E778C] mt-1 max-w-3xl">{readerDoc.summary}</p>}
                       </div>
+                      {places.length > 0 && <DistanceFinder key={readerDoc.id} places={places} />}
                       <div className="columns-1 xl:columns-2 gap-4">
                         {readerDoc.chapters.map((c) => (
                           <section key={c.chapterNumber} id={`libsec-${c.chapterNumber}`} className="break-inside-avoid mb-4 bg-white rounded-xl border border-[#D3E3F0] p-4 scroll-mt-3">
@@ -600,6 +655,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                   <div className="max-w-3xl mx-auto px-4 sm:px-8 py-5 sm:py-7">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0B6BB0]">{readerDoc.shortName} · Section {chapter.chapterNumber} of {readerDoc.chapters.length}</div>
                     <h3 className="text-xl sm:text-2xl font-bold text-[#0B2A44] mt-1 mb-5">{chapter.title}</h3>
+                    {places.length > 0 && <DistanceFinder key={readerDoc.id} places={places} />}
                     <div className="space-y-1">
                       {tables.get(chapter.chapterNumber) && <TableHead labels={tables.get(chapter.chapterNumber)!.labels} />}
                       {chapter.verses.map((v) => {
