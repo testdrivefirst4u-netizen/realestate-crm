@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import { CFG } from '@/server/core/config';
 import { finishMetaConnect, NONCE_COOKIE, readCookie, settingsRedirect } from '@/server/modules/meta';
+import { conversionsRedirect, finishCapiConnect, isCapiCallback } from '@/server/modules/adConversions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,15 +16,19 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   const cookie = req.headers.get('cookie');
   let target: string;
+  const params = new URL(req.url).searchParams;
+  // the same callback serves "Connect with Facebook" of Ad conversions (told apart by the signed state)
+  const capi = isCapiCallback(params);
   try {
-    target = (await finishMetaConnect({
-      params: new URL(req.url).searchParams,
+    target = (await (capi ? finishCapiConnect : finishMetaConnect)({
+      params,
       sessionCookie: readCookie(cookie, CFG.SESSION_COOKIE),
       nonceCookie: readCookie(cookie, NONCE_COOKIE),
     })).redirect;
   } catch (e: any) {
     console.error('[meta:callback]', e?.message);
-    target = settingsRedirect({ metaError: 'Something went wrong while connecting Facebook. Please try again.' });
+    const msg = 'Something went wrong while connecting Facebook. Please try again.';
+    target = capi ? conversionsRedirect({ capiError: msg }) : settingsRedirect({ metaError: msg });
   }
   const res = NextResponse.redirect(target, 302);
   res.headers.set('Cache-Control', 'no-store');

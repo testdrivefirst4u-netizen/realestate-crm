@@ -42,6 +42,8 @@ export interface MetaSettingsDoc {
   verifyToken: string; // encrypted
   graphVersion: string;
   loginConfigId: string;
+  /** Facebook Login for Business configuration of "Ad conversions" (system-user token, ads permissions). */
+  capiConfigId?: string;
   updatedAt: Date;
   updatedBy: string;
 }
@@ -52,6 +54,7 @@ export interface MetaConfig {
   verifyToken: string;
   graphVersion: string;
   loginConfigId: string;
+  capiConfigId: string;
   /** Where the app id / secret come from. */
   source: 'platform' | 'env' | 'none';
   configured: boolean;
@@ -72,8 +75,9 @@ export async function loadMetaConfig(): Promise<MetaConfig> {
   const verifyToken = storedVerify || env('META_VERIFY_TOKEN');
   const graphVersion = doc?.graphVersion || env('META_GRAPH_VERSION') || DEFAULT_GRAPH_VERSION;
   const loginConfigId = doc?.loginConfigId || env('META_LOGIN_CONFIG_ID');
+  const capiConfigId = doc?.capiConfigId || env('META_CAPI_CONFIG_ID');
   const source: MetaConfig['source'] = doc?.appId || storedSecret ? 'platform' : appId || appSecret ? 'env' : 'none';
-  return { appId, appSecret, verifyToken, graphVersion, loginConfigId, source, configured: !!(appId && appSecret && verifyToken) };
+  return { appId, appSecret, verifyToken, graphVersion, loginConfigId, capiConfigId, source, configured: !!(appId && appSecret && verifyToken) };
 }
 
 const NOT_CONFIGURED_MSG = 'Meta Lead Ads is not set up on this platform yet (no Meta app). Ask your platform administrator.';

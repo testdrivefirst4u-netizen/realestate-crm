@@ -25,10 +25,11 @@ interface Form {
   appSecret: string;
   graphVersion: string;
   loginConfigId: string;
+  capiConfigId: string;
 }
 
 function formFrom(s: MetaSettings | null): Form {
-  return { appId: s?.appId || '', appSecret: '', graphVersion: s?.graphVersion || DEFAULT_GRAPH_VERSION, loginConfigId: s?.loginConfigId || '' };
+  return { appId: s?.appId || '', appSecret: '', graphVersion: s?.graphVersion || DEFAULT_GRAPH_VERSION, loginConfigId: s?.loginConfigId || '', capiConfigId: s?.capiConfigId || '' };
 }
 
 function ExtLink({ href, children }: { href: string; children: ReactNode }) {
@@ -159,19 +160,21 @@ export function MetaSettingsCard() {
     const appSecret = f.appSecret.trim();
     const graphVersion = f.graphVersion.trim() || DEFAULT_GRAPH_VERSION;
     const loginConfigId = f.loginConfigId.trim();
+    const capiConfigId = f.capiConfigId.trim();
     if (!appId) errs.appId = 'Enter the App ID (App settings › Basic).';
     else if (!APP_ID_RE.test(appId)) errs.appId = 'The App ID is a number.';
     if (!appSecret && !(s?.configured && s.source === 'platform')) errs.appSecret = 'Enter the App Secret (App settings › Basic › Show).';
     else if (appSecret && !/^[a-f0-9]{32}$/i.test(appSecret)) errs.appSecret = 'An App Secret is 32 letters and digits (0–9, a–f).';
     if (!GRAPH_VERSION_RE.test(graphVersion)) errs.graphVersion = `Use the form vNN.N, e.g. ${DEFAULT_GRAPH_VERSION}.`;
     if (loginConfigId && !LOGIN_CONFIG_RE.test(loginConfigId)) errs.loginConfigId = 'The configuration ID is a number.';
+    if (capiConfigId && !LOGIN_CONFIG_RE.test(capiConfigId)) errs.capiConfigId = 'The configuration ID is a number.';
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
     setSaving(true);
     setSaveError('');
     try {
-      const updated = await call('setMetaSettings', { appId, appSecret, graphVersion, loginConfigId });
+      const updated = await call('setMetaSettings', { appId, appSecret, graphVersion, loginConfigId, capiConfigId });
       settings.setData(updated);
       setF(formFrom(updated));
       setTest(null);
@@ -281,6 +284,7 @@ export function MetaSettingsCard() {
             <Field label="App ID">{s.appId ? <span className="font-mono">{s.appId}</span> : '—'}</Field>
             <Field label="Graph API version">{s.graphVersion ? <span className="font-mono">{s.graphVersion}</span> : '—'}</Field>
             <Field label="Login configuration ID">{s.loginConfigId ? <span className="font-mono">{s.loginConfigId}</span> : 'Not set (standard Facebook Login)'}</Field>
+            <Field label="Ad conversions configuration ID">{s.capiConfigId ? <span className="font-mono">{s.capiConfigId}</span> : 'Not set (asks for the ads permissions directly)'}</Field>
             <Field label="Updated">{s.updatedAt ? fmtDateTime(s.updatedAt) : '—'}</Field>
             <Field label="Updated by">{s.updatedBy || '—'}</Field>
           </dl>
@@ -384,6 +388,18 @@ export function MetaSettingsCard() {
               error={errors.loginConfigId}
               placeholder="Optional"
               hint="Facebook Login for Business › Configurations. Leave empty to request the permissions directly."
+              inputMode="numeric"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={25}
+            />
+            <TextField
+              label="Ad conversions configuration ID"
+              value={f.capiConfigId}
+              onChange={(e) => set('capiConfigId', e.target.value)}
+              error={errors.capiConfigId}
+              placeholder="Optional"
+              hint="A second configuration for “Connect with Facebook” in Settings › Ad conversions: token type System-user, assets Ad accounts and Datasets (Pixels), permissions ads_management and business_management. Its token does not expire."
               inputMode="numeric"
               autoComplete="off"
               spellCheck={false}

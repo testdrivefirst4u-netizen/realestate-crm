@@ -32,6 +32,15 @@ export function signState(p: OAuthState, purpose = 'meta'): string {
   return `${body}.${b64url(crypto.createHmac('sha256', stateKey(purpose)).update(body).digest())}`;
 }
 
+/** True when `state` carries a valid signature for `purpose` (tells two flows sharing one callback apart; verify it fully after). */
+export function stateSignedFor(state: string, purpose: string): boolean {
+  const [body, sig, extra] = String(state || '').split('.');
+  if (!body || !sig || extra !== undefined) return false;
+  const want = crypto.createHmac('sha256', stateKey(purpose)).update(body).digest();
+  const got = Buffer.from(sig, 'base64url');
+  return got.length === want.length && crypto.timingSafeEqual(got, want);
+}
+
 /** Verify signature, expiry, nonce (cookie) and that the session is the same company + user. */
 export function verifyState(
   state: string,

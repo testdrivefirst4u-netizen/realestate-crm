@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { recordJobRejected, recordJobRun, summarize } from '@/server/platform/health';
 import { safeEqual } from '@/server/core/utils';
 import { runMetaCron } from '@/server/modules/metaQueue';
+import { runConversionsCron } from '@/server/modules/adConversions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,10 @@ export async function GET(req: Request) {
   }
   const started = Date.now();
   try {
-    const data = await runMetaCron({ deadline: Date.now() + BUDGET_MS });
+    const meta = await runMetaCron({ deadline: Date.now() + BUDGET_MS });
+    // lead results that could not be sent to Meta at once (no Meta app needed for these)
+    const conversions = await runConversionsCron().catch((e) => { console.error('[cron:meta] conversions', e); return { error: 'failed' }; });
+    const data = Object.keys(conversions).length ? { ...meta, conversions } : meta;
     await recordJobRun('meta', started, true, summarize(data));
     return NextResponse.json({ status: 'success', data });
   } catch (e: any) {

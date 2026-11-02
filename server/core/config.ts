@@ -55,6 +55,10 @@ export const CFG = {
     /** pieces of a file being uploaded to the library (removed once it is added) */
     LIBRARY_UPLOADS: 'libraryUploads',
     LOGIN_ATTEMPTS: 'loginAttempts',
+    /** connection settings of ad / marketing integrations (e.g. _id 'metaCapi': Meta Conversions API) */
+    INTEGRATIONS: 'integrations',
+    /** conversions reported to ad platforms, one per lead and event (modules/adConversions.ts) */
+    CONVERSIONS: 'adConversions',
     FILES_BUCKET: 'files', // GridFS bucket (lead documents, call recordings)
   },
 

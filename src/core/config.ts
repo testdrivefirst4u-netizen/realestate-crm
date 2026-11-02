@@ -273,6 +273,7 @@ export const FEATURES = {
   websiteApi: true,
   metaLeads: false,
   googleSheets: false,
+  adConversions: false,
   csvImport: true,
   documents: true,
   templates: true,

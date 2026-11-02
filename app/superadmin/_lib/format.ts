@@ -85,6 +85,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   websiteApi: 'Website forms & lead API',
   metaLeads: 'Meta (Facebook/Instagram) Lead Ads',
   googleSheets: 'Google Sheets sync',
+  adConversions: 'Ad conversions (lead results to Meta)',
 };
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
 

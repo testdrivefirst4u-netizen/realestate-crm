@@ -25,6 +25,8 @@ export interface TenantFeatures {
   metaLeads: boolean;
   /** Google Sheets import / export. */
   googleSheets: boolean;
+  /** Report lead results (Qualified, site visit, Booked) to the company's own ad accounts (Meta Conversions API). */
+  adConversions: boolean;
 }
 
 export interface Tenant {

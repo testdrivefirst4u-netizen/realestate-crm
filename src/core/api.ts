@@ -216,6 +216,30 @@ async function request<T>(action: string, data: Record<string, any> = {}, opts: 
 /* Typed API surface                                                         */
 /* ------------------------------------------------------------------------ */
 
+/** Settings › Ad conversions (server: modules/adConversions.ts). */
+export interface AdConversionRule { event: string; when: 'stage' | 'siteVisit'; value: string }
+export type AdConversionStatus = 'pending' | 'sent' | 'failed' | 'skipped' | 'expired';
+export interface AdConversionsView {
+  enabled: boolean;
+  datasetId: string;
+  tokenSet: boolean;
+  testCode: string;
+  rules: AdConversionRule[];
+  updatedAt: string;
+  updatedBy: string;
+  connectedVia: 'facebook' | 'manual' | '';
+  datasetName: string;
+  /** '' when the token does not expire. */
+  tokenExpiresAt: string;
+  connectAvailable: boolean;
+  /** GET this URL (a full page load) to start "Connect with Facebook". */
+  connectUrl: string;
+  /** Datasets this admin's Facebook login found, waiting for a choice. */
+  pending: Array<{ id: string; name: string; account: string }> | null;
+  last30: Record<AdConversionStatus, number>;
+  recent: Array<{ id: string; leadId: string; leadName: string; event: string; status: AdConversionStatus; at: string; matchedBy: string; error: string }>;
+}
+
 export const api = {
   raw: request,
 
@@ -449,6 +473,14 @@ export const api = {
 
   /** Retired Developer Mode actions — kept for API compatibility; the server answers with an explanatory error. */
   /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
+  /** Lead results to the company's Meta dataset (plan feature adConversions). The token is write-only. */
+  adConversions: {
+    get: () => request<AdConversionsView>('getAdConversions'),
+    save: (d: { enabled?: boolean; datasetId?: string; token?: string; clearToken?: boolean; testCode?: string; rules?: AdConversionRule[] }) => request<AdConversionsView>('saveAdConversions', d),
+    test: (testCode?: string) => request<{ ok: boolean; message: string }>('testAdConversion', { testCode }, { timeoutMs: 30000 }),
+    chooseDataset: (datasetId: string) => request<AdConversionsView>('chooseAdConversionDataset', { datasetId }),
+    disconnect: () => request<AdConversionsView>('disconnectAdConversions'),
+  },
   library: {
     get: () => request<LibraryResponse>('libraryGet'),
     /** `baseUpdatedAt`: when the library being edited was saved; the server refuses if someone saved since. */

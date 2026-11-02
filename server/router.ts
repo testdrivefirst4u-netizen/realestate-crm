@@ -35,6 +35,7 @@ import { actions as pushActions } from './modules/push';
 import { actions as justconnectActions } from './modules/justconnect';
 import { actions as jcSyncActions } from './modules/jcSync';
 import { actions as libraryActions } from './modules/library';
+import { actions as adConversionActions } from './modules/adConversions';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -58,6 +59,7 @@ export const registry: ActionMap = {
   ...justconnectActions,
   ...jcSyncActions,
   ...libraryActions,
+  ...adConversionActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -80,6 +82,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],
   [/^library(Get|Save|SetEditors|UploadPart|Import)$/, 'projectLibrary', 'The project library'],
+  [/^(get|save|test|disconnect)AdConversions?$|^chooseAdConversionDataset$/, 'adConversions', 'Ad conversions'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
   [/LeadSource|^listInboundLog$|^retryInbound$/, ['websiteApi', 'googleSheets', 'metaLeads'], 'Website forms & lead API'],
   // googleStatus is not gated (it only says whether the platform is configured and which e-mail to share with)

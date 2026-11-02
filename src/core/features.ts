@@ -15,6 +15,7 @@ export type FeatureName =
   | 'websiteApi'
   | 'metaLeads'
   | 'googleSheets'
+  | 'adConversions'
   | 'unitLocator'
   | 'projectLibrary'
   | 'reports'
@@ -65,6 +66,7 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   websiteApi: 'Website forms & lead API',
   metaLeads: 'Meta Lead Ads',
   googleSheets: 'Google Sheets sync',
+  adConversions: 'Ad conversions',
 };
 
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */

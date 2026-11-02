@@ -453,6 +453,9 @@ export async function updateLead(
     await runEffects(updateEffects(before._id, plan, after, actor));
     await auditLog(ctx, 'Lead Updated', 'Lead', before._id, plan.changes.map((c) => c.field).join(', '), auditDiff(plan.changes));
     if (plan.rm) scheduleLeadAlerts(after, 'assigned'); // tell the newly assigned RM
+    // a step the company reports to its ad accounts (plan feature adConversions; never fails the save)
+    const reached = { stage: plan.newStage !== undefined && plan.newStage !== plan.oldStage ? plan.newStage : undefined, siteVisit: plan.newSvs && plan.newSvs !== plan.oldSvs ? plan.newSvs : undefined };
+    if (reached.stage || reached.siteVisit) await (await import('./adConversions')).queueConversions(before._id, reached);
     return { lead: after, version: await bumpVersion(), changes: plan.changes };
   }
   throw fail('CONFLICT', 'This lead is being edited by someone else right now. Please try again.');

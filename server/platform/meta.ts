@@ -27,6 +27,7 @@ export async function getMetaSettings(): Promise<Res<'getMetaSettings'>> {
     ...statusOf(cfg),
     verifyToken: cfg.verifyToken,
     loginConfigId: cfg.loginConfigId,
+    capiConfigId: cfg.capiConfigId,
     updatedAt: doc?.updatedAt ? new Date(doc.updatedAt).toISOString() : '',
     updatedBy: doc?.updatedBy || '',
     queue,
@@ -64,10 +65,12 @@ export async function setMetaSettings(d: Req<'setMetaSettings'>, ctx: SaCtx): Pr
   if (!/^v\d+\.\d+$/.test(graphVersion)) throw fail('VALIDATION', 'Graph API version must look like v23.0');
   const loginConfigId = d?.loginConfigId === undefined ? cur?.loginConfigId || '' : String(d.loginConfigId ?? '').trim();
   if (loginConfigId && !/^\d{1,30}$/.test(loginConfigId)) throw fail('VALIDATION', 'The Facebook Login for Business configuration id is a number');
+  const capiConfigId = d?.capiConfigId === undefined ? cur?.capiConfigId || '' : String(d.capiConfigId ?? '').trim();
+  if (capiConfigId && !/^\d{1,30}$/.test(capiConfigId)) throw fail('VALIDATION', 'The ad conversions configuration id is a number');
 
   await c.updateOne(
     { _id: 'meta' },
-    { $set: { appId, appSecret, verifyToken, graphVersion, loginConfigId, updatedAt: new Date(), updatedBy: actorLabel(ctx) } },
+    { $set: { appId, appSecret, verifyToken, graphVersion, loginConfigId, capiConfigId, updatedAt: new Date(), updatedBy: actorLabel(ctx) } },
     { upsert: true }
   );
   const changed = [secretIn ? 'app secret' : '', verifyPlain ? 'verify token' : ''].filter(Boolean).join(', ');
