@@ -26,7 +26,9 @@ export default async function TermsPage() {
       <h2>1. The service</h2>
       <p>
         The CRM lets real-estate teams record and manage leads, follow-ups, tasks, inventory and reports, and receive leads from website forms,
-        Google Sheets, Facebook and Instagram Lead Ads and other connected services. Features available to a company depend on its plan.
+        Google Sheets, Facebook and Instagram Lead Ads, Google Ads, LinkedIn and other connected services. Where a company turns them on, it can also
+        publish posts to its own social media pages and profiles, answer comments, messages and reviews, see the results of its own advertising and
+        report conversions back to its own ad accounts. Features available to a company depend on its plan.
       </p>
 
       <h2>2. Accounts</h2>
@@ -54,9 +56,12 @@ export default async function TermsPage() {
 
       <h2>5. Connected services</h2>
       <p>
-        When a company connects Facebook or Instagram, Google, Chat360, a telephony provider or another service, its use of that service is also
-        subject to that provider&rsquo;s terms. The company must have the necessary rights to the Pages, sheets and accounts it connects. We are not
-        responsible for outages or changes made by those providers.
+        When a company connects Facebook or Instagram, Google (Sheets, Ads, Analytics, Business Profile), LinkedIn, Pinterest, Chat360, a telephony
+        provider or another service, its use of that service is also subject to that provider&rsquo;s terms and policies (for example Meta&rsquo;s Platform
+        Terms and advertising policies). The company must have the necessary rights to the pages, profiles, ad accounts, sheets and accounts it
+        connects, is responsible for the content it publishes and the ads it runs, and must have a lawful basis to report its leads&rsquo; conversions
+        to its ad accounts. Posts and ad changes made through the CRM are made on the company&rsquo;s instruction. We are not responsible for outages or
+        changes made by those providers.
       </p>
 
       <h2>6. Plans and fees</h2>

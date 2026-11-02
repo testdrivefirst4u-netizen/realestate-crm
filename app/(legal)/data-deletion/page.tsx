@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const LEGAL = await legalDetails();
-  return { title: 'Data Deletion', description: `How to delete your data from ${LEGAL.product}, including data received from Facebook.` };
+  return { title: 'Data Deletion', description: `How to delete your data from ${LEGAL.product}, including data received from Facebook, Instagram, Google, LinkedIn or Pinterest.` };
 }
 
 export default async function DataDeletionPage() {
@@ -20,16 +20,19 @@ export default async function DataDeletionPage() {
 
       <p>
         You can ask for your personal data to be deleted from {product} at any time. This page explains how, including for data we received through
-        Facebook or Instagram Lead Ads.
+        Facebook, Instagram, Google, LinkedIn or Pinterest.
       </p>
 
-      <h2>If you submitted a Facebook or Instagram lead form</h2>
+      <h2>If you submitted a lead form, or commented on or messaged a business page</h2>
       <ol>
         <li>
           E-mail <a href={`mailto:${email}?subject=Data%20deletion%20request`}>{email}</a> with the subject <strong>&ldquo;Data deletion request&rdquo;</strong>.
         </li>
-        <li>Include the phone number and/or e-mail address you entered in the form, and the name of the business you enquired with.</li>
-        <li>We delete the matching lead records and their history within 30 days and confirm by e-mail.</li>
+        <li>
+          Include the phone number and/or e-mail address you entered, or your Facebook, Instagram, LinkedIn or Pinterest name for a comment or message,
+          and the name of the business.
+        </li>
+        <li>We delete the matching lead records, messages, comments and their history within 30 days and confirm by e-mail.</li>
       </ol>
       <p>
         You can also remove the business&rsquo;s access from Facebook itself: <strong>Settings &amp; privacy → Settings → Business integrations</strong>{' '}
@@ -37,10 +40,17 @@ export default async function DataDeletionPage() {
         request above.
       </p>
 
-      <h2>If you connected a Facebook Page to the CRM</h2>
+      <h2>If you connected a page or account to the CRM</h2>
       <ol>
-        <li>In the CRM, go to <strong>Settings → Lead sources</strong>, open the Page and click <strong>Disconnect</strong>. The Page access token is deleted immediately and no further leads are received.</li>
-        <li>To delete the leads that came from that Page as well, delete them in the CRM or e-mail us and we will remove them.</li>
+        <li>
+          In the CRM, go to <strong>Settings</strong>, open the connected Facebook Page, Instagram account, Google, LinkedIn or Pinterest account and click{' '}
+          <strong>Disconnect</strong>. Its access token is deleted immediately and no further data is received.
+        </li>
+        <li>You can also remove the app from the platform itself (for Facebook: <strong>Business integrations</strong>; for Google: <strong>Google Account → Security → Third-party connections</strong>).</li>
+        <li>
+          To delete the data that already came from that account as well (leads, messages, comments, reviews, post statistics), e-mail us from the
+          company&rsquo;s registered address and we will remove it within 30 days.
+        </li>
       </ol>
 
       <h2>If you are a CRM user</h2>

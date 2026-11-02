@@ -44,6 +44,16 @@ export default async function PrivacyPage() {
         <li>Enquiry details: property or unit type of interest, budget, source of the enquiry, messages, notes, follow-ups, site visits and bookings.</li>
         <li>Campaign information that arrives with an enquiry, such as the ad, campaign, form or page it came from.</li>
         <li>Where a company uses these features: WhatsApp conversations (through Chat360), call logs and call recordings, and uploaded documents.</li>
+        <li>
+          Where a company connects its social media pages: comments and direct messages that people send to those pages (with their public name or
+          username and profile picture), and reviews left on the company&rsquo;s Google Business Profile.
+        </li>
+      </ul>
+      <h3>Company social media and advertising accounts</h3>
+      <ul>
+        <li>The pages, profiles and ad accounts a company connects, the posts it publishes through the CRM, and their performance (reach, likes, clicks).</li>
+        <li>Advertising figures for the company&rsquo;s own campaigns: spend, impressions, clicks and leads per campaign.</li>
+        <li>Website visit statistics from the company&rsquo;s own Google Analytics property.</li>
       </ul>
 
       <h2>3. Where lead data comes from</h2>
@@ -60,6 +70,17 @@ export default async function PrivacyPage() {
           this only to create the lead in that company&rsquo;s CRM. We do not use Facebook data for advertising, do not sell it, and do not combine it
           with data from other companies.
         </li>
+        <li>
+          <strong>Facebook Pages and Instagram business accounts</strong> (Meta), when a company admin connects them: comments and messages sent to
+          those accounts, so the company&rsquo;s team can read and answer them in the CRM, and the insights of the company&rsquo;s own posts.
+        </li>
+        <li>
+          <strong>Google Ads lead forms</strong>, <strong>Google Business Profile</strong> (reviews and profile insights) and <strong>Google Analytics</strong>{' '}
+          (visit statistics), only for the accounts a company connects with &ldquo;Connect with Google&rdquo;.
+        </li>
+        <li>
+          <strong>LinkedIn and Pinterest</strong> company pages and ad accounts, and LinkedIn Lead Gen Form submissions, only when a company connects them.
+        </li>
         <li><strong>WhatsApp (Chat360) and telephony providers</strong> that a company connects, for messages and calls with its leads.</li>
       </ul>
 
@@ -72,14 +93,27 @@ export default async function PrivacyPage() {
           Optional AI features (summaries, rewriting, transcription) send the relevant text or audio to Google&rsquo;s Gemini API to produce the result. They
           run only when a company has enabled them and a user asks for them.
         </li>
+        <li>
+          To publish and schedule posts that the company&rsquo;s team writes to the pages and profiles it connected, and to show how those posts perform.
+        </li>
+        <li>To show a company the spend and results of its own advertising, and, where it allows, to pause campaigns or change their budgets on its instruction.</li>
+        <li>
+          <strong>Measuring the company&rsquo;s own ads (only when the company turns this on).</strong> When a lead reaches a stage the company chooses (for
+          example &ldquo;site visit done&rdquo; or &ldquo;booked&rdquo;), the CRM tells the company&rsquo;s own Meta, Google Ads or Google Analytics account that
+          the conversion happened. Contact details sent for this are first converted to a one-way hash (SHA-256), so the advertising platform can only
+          match them with people it already knows; the plain phone number or e-mail address is not sent.
+        </li>
       </ul>
-      <p>We do not sell personal data and do not use it for advertising.</p>
+      <p>
+        We do not sell personal data. We never use one company&rsquo;s data for another company or for our own advertising, and we do not build profiles
+        across companies.
+      </p>
 
       <h2>5. Who we share it with</h2>
       <p>Only with the service providers needed to run the CRM, each bound to protect the data:</p>
       <ul>
         <li>Vercel (application hosting) and MongoDB Atlas on AWS in Mumbai, India (database and file storage).</li>
-        <li>Meta, Google, Chat360 and telephony providers, only when a company connects them, to exchange the data described above.</li>
+        <li>Meta, Google, LinkedIn, Pinterest, Chat360 and telephony providers, only when a company connects them, to exchange the data described above.</li>
         <li>Google (Gemini API), only when AI features are used.</li>
         <li>An e-mail provider, to deliver notification e-mails.</li>
       </ul>
@@ -88,7 +122,7 @@ export default async function PrivacyPage() {
       <h2>6. How we protect it</h2>
       <ul>
         <li>Each company&rsquo;s data is kept in its own separate database.</li>
-        <li>All connections use HTTPS. API keys, Facebook and Google tokens and other secrets are stored encrypted (AES-256-GCM).</li>
+        <li>All connections use HTTPS. API keys, access tokens for Facebook, Instagram, Google, LinkedIn and Pinterest, and other secrets are stored encrypted (AES-256-GCM).</li>
         <li>Sessions use secure, http-only cookies that expire after 12 hours of inactivity.</li>
         <li>Access inside a company is limited by role (for example, a relationship manager sees only their own leads unless allowed otherwise).</li>
       </ul>
@@ -97,13 +131,15 @@ export default async function PrivacyPage() {
       <ul>
         <li>Lead and account data: for as long as the company uses the CRM, or until it is deleted.</li>
         <li>Records of incoming form, webhook and Facebook submissions: 180 days.</li>
+        <li>Comments, messages and reviews received from connected pages: for as long as the company keeps them, and deleted with the company&rsquo;s data.</li>
+        <li>When a company disconnects an account, its access token is deleted immediately and no further data is received from it.</li>
         <li>When a company account is deleted, its entire database is deleted.</li>
       </ul>
 
       <h2>8. Cookies and local storage</h2>
       <p>
         We use one essential cookie to keep you signed in, and short-lived cookies during Google or Facebook connection to protect against forged
-        requests. Your browser also stores display preferences (such as layout settings) locally. We do not use advertising or tracking cookies.
+        requests. Your browser also stores display preferences (such as layout settings) locally. The CRM itself does not use advertising or tracking cookies.
       </p>
 
       <h2>9. Your rights</h2>
