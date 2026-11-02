@@ -97,15 +97,24 @@ async function canEditLibrary(ctx: Ctx | undefined): Promise<boolean> {
  * editor who deletes one later is not overruled). The save bumps updatedAt, so an editor with an older copy open
  * is asked to reload instead of saving over it.
  */
-const ADDED_LATER: Array<{ id: string; doc: () => unknown }> = [{ id: LOCATIONS_DOC_ID, doc: locationsDoc }];
+const ADDED_LATER: Array<{ id: string; seed: string; doc: () => unknown; replaces?: string }> = [
+  // v2: each place as "name — km · min" (replaces v1, which also said the kind and side in words)
+  { id: LOCATIONS_DOC_ID, seed: 'amaya-locations-v2', doc: locationsDoc, replaces: LOCATIONS_DOC_ID },
+];
 
 async function addLaterDocuments(doc: any): Promise<any> {
-  const missing = ADDED_LATER.filter((x) => !arr(doc?.seeded, 50).includes(x.id));
+  const seeded: string[] = arr(doc?.seeded, 50);
+  const missing = ADDED_LATER.filter((x) => !seeded.includes(x.seed));
   if (!doc?.content || !missing.length) return doc;
-  const have = new Set(arr(doc.content.documents, 200).map((d: any) => str(d?.id)));
-  const content = { ...doc.content, documents: [...arr(doc.content.documents, 200), ...missing.filter((x) => !have.has(x.id)).map((x) => x.doc())] };
+  let documents: any[] = arr(doc.content.documents, 200);
+  for (const x of missing) {
+    const at = documents.findIndex((d: any) => str(d?.id) === x.id);
+    if (at >= 0) documents = documents.map((d: any, i: number) => (i === at ? x.doc() : d)); // a newer version in place
+    else if (!(x.replaces && seeded.includes(x.replaces))) documents = [...documents, x.doc()]; // an editor removed it: leave it out
+  }
+  const content = { ...doc.content, documents };
   const updatedAt = new Date();
-  const r = await (await libraryCol()).updateOne({ _id: DOC_ID, updatedAt: doc.updatedAt }, { $set: { content, updatedAt }, $addToSet: { seeded: { $each: missing.map((x) => x.id) } } });
+  const r = await (await libraryCol()).updateOne({ _id: DOC_ID, updatedAt: doc.updatedAt }, { $set: { content, updatedAt }, $addToSet: { seeded: { $each: missing.map((x) => x.seed) } } });
   return r.matchedCount ? { ...doc, content, updatedAt } : doc;
 }
 

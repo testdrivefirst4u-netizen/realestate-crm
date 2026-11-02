@@ -42,8 +42,53 @@ function emphasise(text: string): React.ReactNode {
   return parts.map((p, i) => (i % 2 ? <b key={i} className="font-semibold text-[#0B2A44]">{p}</b> : p));
 }
 
-/** "Kukatpally (Locality) — west side · about 25–30 km from Amaya · 35–50 min by car" → its parts. */
-const LOCATION_LINE = /^(.+?) \((.+?)\) — (?:.*?)about (.+?) km from Amaya · (.+?) min by car$/;
+/** "Kukatpally — 25–30 km · 35–50 min" (Locations) → place, km, minutes. */
+const LOCATION_LINE = /^(.+?) — ([\d.]+(?:\s?[–-]\s?[\d.]+)?) km · ([\d.]+(?:\s?[–-]\s?[\d.]+)?) min$/;
+
+/** "Header: value · Header: value" (a spreadsheet row the library read from an upload) → its pairs. */
+function rowPairs(text: string): Array<[string, string]> | null {
+  const pairs: Array<[string, string]> = [];
+  for (const part of text.split(' · ')) {
+    const i = part.indexOf(': ');
+    if (i <= 0 || i > 60) return null;
+    pairs.push([part.slice(0, i).trim(), part.slice(i + 2).trim()]);
+  }
+  return pairs.length >= 2 ? pairs : null;
+}
+
+interface RowTable { labels: string[]; cells: (v: DocVerse) => string[] | null }
+
+/**
+ * A section whose passages are table rows is shown as a table: Locations lines ("Name — 25–30 km · 35–50 min"),
+ * or an uploaded spreadsheet. A list of places keeps just place, distance and car time (no category or side).
+ */
+export function rowTable(verses: DocVerse[]): RowTable | null {
+  if (verses.length < 2) return null;
+  if (verses.filter((v) => LOCATION_LINE.test(v.text)).length >= verses.length * 0.8) {
+    return { labels: ['Location', 'Distance', 'By car'], cells: (v) => { const m = LOCATION_LINE.exec(v.text); return m ? [m[1], `${m[2]} km`, `${m[3]} min`] : null; } };
+  }
+  const parsed = verses.map((v) => rowPairs(v.text));
+  if (parsed.filter(Boolean).length < verses.length * 0.8) return null;
+  const keys: string[] = [];
+  for (const p of parsed) for (const [k] of p || []) if (!keys.includes(k)) keys.push(k);
+  const find = (re: RegExp) => keys.find((k) => re.test(k));
+  const place = find(/location|place|area|locality|name/i), dist = find(/distance|\bkm\b|kms/i), time = find(/time|duration|\bmin/i);
+  const cols = place && dist && time ? [place, dist, time] : keys.slice(0, 6);
+  const labels = place && dist && time ? ['Location', 'Distance', 'By car'] : cols;
+  return { labels, cells: (v) => { const p = rowPairs(v.text); if (!p) return null; const m = new Map(p); return cols.map((k) => m.get(k) || '—'); } };
+}
+
+const gridOf = (n: number) => ({ gridTemplateColumns: `minmax(0,1.7fr) repeat(${Math.max(0, n - 1)}, minmax(64px,1fr))` });
+const TableHead: React.FC<{ labels: string[] }> = ({ labels }) => (
+  <div className="grid gap-x-2 px-1.5 pb-1 mb-1 border-b border-[#EEF4F9] text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7E93A6] pr-14" style={gridOf(labels.length)}>
+    {labels.map((l, i) => <span key={l + i} className={cx('truncate', i > 0 && 'text-right')}>{l}</span>)}
+  </div>
+);
+const TableRow: React.FC<{ cells: string[] }> = ({ cells }) => (
+  <span className="flex-1 min-w-0 grid items-baseline gap-x-2" style={gridOf(cells.length)}>
+    {cells.map((c, i) => (i === 0 ? <b key={i} className="font-semibold text-[#0B2A44] truncate" title={c}>{c}</b> : <span key={i} className={cx('tabular-nums text-right truncate', i === 1 ? 'text-[#0B2A44]' : 'text-[#5E778C]')} title={c}>{c}</span>))}
+  </span>
+);
 
 /** ".pdf" — from the document's file name, else from its download link. */
 function extensionOf(fileName: string, url: string): string {
@@ -163,6 +208,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
   );
 
   const readerDoc = documents.find((d) => d.id === readerDocId) || documents[0];
+  const tables = useMemo(() => new Map((readerDoc?.chapters || []).map((c) => [c.chapterNumber, rowTable(c.verses)] as const)), [readerDoc]);
   const chapter = readerDoc?.chapters.find((c) => c.chapterNumber === readerChapter) || readerDoc?.chapters[0];
 
   // "Open in document": bring the passage into view once the reader shows it; otherwise start at the top
@@ -513,18 +559,15 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                               <h4 className="text-sm font-bold text-[#0B2A44] flex-1">{c.title}</h4>
                               <span className="text-[10px] text-[#7E93A6]">{c.verses.length}</span>
                             </div>
+                            {tables.get(c.chapterNumber) && <TableHead labels={tables.get(c.chapterNumber)!.labels} />}
                             <ul className="space-y-0.5">
                               {c.verses.map((v) => {
                                 const lit = highlightId === v.id;
-                                const loc = LOCATION_LINE.exec(v.text);
+                                const row = tables.get(c.chapterNumber)?.cells(v) || null;
                                 return (
                                   <li key={v.id} id={v.id} ref={lit ? (highlightedRef as unknown as React.Ref<HTMLLIElement>) : undefined} className={cx('group flex gap-2 rounded-md px-1.5 py-1 -mx-1.5 text-[13px] leading-relaxed text-[#0F2233] transition', lit ? 'bg-[#EEF6FC] ring-2 ring-[#0B6BB0]/40' : 'hover:bg-[#F7FAFD]')}>
-                                    {loc ? (
-                                      <span className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2">
-                                        <b className="font-semibold text-[#0B2A44]">{loc[1]}</b>
-                                        <span className="text-[11px] text-[#7E93A6]">{loc[2]}</span>
-                                        <span className="ml-auto tabular-nums whitespace-nowrap text-[#0B2A44]"><b className="font-semibold">{loc[3]} km</b> <span className="text-[#5E778C]">· {loc[4]} min</span></span>
-                                      </span>
+                                    {row ? (
+                                      <TableRow cells={row} />
                                     ) : (
                                       <>
                                         <span className="text-[#0B6BB0] select-none">•</span>
@@ -558,6 +601,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#0B6BB0]">{readerDoc.shortName} · Section {chapter.chapterNumber} of {readerDoc.chapters.length}</div>
                     <h3 className="text-xl sm:text-2xl font-bold text-[#0B2A44] mt-1 mb-5">{chapter.title}</h3>
                     <div className="space-y-1">
+                      {tables.get(chapter.chapterNumber) && <TableHead labels={tables.get(chapter.chapterNumber)!.labels} />}
                       {chapter.verses.map((v) => {
                         const lit = highlightId === v.id;
                         return (
@@ -568,10 +612,12 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, ini
                             className={cx('group relative flex gap-3 rounded-lg px-2 py-2 -mx-2 transition', lit ? 'bg-[#EEF6FC] ring-2 ring-[#0B6BB0]/40' : 'hover:bg-[#F7FAFD]')}
                           >
                             <span className="w-8 shrink-0 text-right text-[10px] font-mono text-[#9AB0C2] pt-1 tabular-nums">{v.chapterNumber}.{v.verseNumber}</span>
+                            {tables.get(chapter.chapterNumber)?.cells(v) ? <span className="flex-1 text-[15px]"><TableRow cells={tables.get(chapter.chapterNumber)!.cells(v)!} /></span> : (
                             <p className="flex-1 text-[15px] text-[#0A1F33] leading-relaxed">
                               {q ? <span dangerouslySetInnerHTML={{ __html: highlightText(v.text, q) }} /> : v.text}
                               {v.pageNumber && <span className="ml-2 text-[10px] text-[#9AB0C2] whitespace-nowrap">p. {v.pageNumber}</span>}
                             </p>
+                            )}
                             <div className="flex items-start gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition">
                               <IconBtn title={copiedId === v.id ? 'Copied' : 'Copy with source'} onClick={() => copyPassage(v)}>
                                 {copiedId === v.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}

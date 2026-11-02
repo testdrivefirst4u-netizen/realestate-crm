@@ -169,14 +169,14 @@ export function locationsDoc(): LibraryDoc {
     idPrefix: 'LOC',
     category: 'Locations',
     badgeColor: '',
-    summary: `${AMAYA_LOCATIONS.length} localities, hospitals, stations and landmarks across Hyderabad with the side of the city, the approximate distance from Amaya (Munirabad, Medchal) and the usual car travel time.`,
+    summary: `Distance from Amaya (Munirabad, Medchal) and usual car travel time for ${AMAYA_LOCATIONS.length} places in Hyderabad, by side of the city, nearest first.`,
     fileName: 'Amaya_Hyderabad_Locations_CRM.pdf',
     downloadUrl: '',
     chapters: SIDES.map((side) => ({
       title: `${side} Hyderabad`,
-      passages: AMAYA_LOCATIONS.filter((r) => r[2] === side).sort(nearFirst).map(([name, category, s, km, min, note]) => ({
-        text: `${name} (${category}) — ${note ? `${note}, ` : ''}${s.toLowerCase()} side · about ${km} km from Amaya · ${min} min by car`,
-        tags: ['location', 'distance', side.toLowerCase(), category.toLowerCase().split(' / ')[0], ...name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)],
+      passages: AMAYA_LOCATIONS.filter((r) => r[2] === side).sort(nearFirst).map(([name, category, , km, min, note]) => ({
+        text: `${name} — ${km} km · ${min} min`,
+        tags: ['location', 'distance', side.toLowerCase(), ...(note ? [note] : []), category.toLowerCase().split(' / ')[0], ...name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)],
       })),
     })),
   };

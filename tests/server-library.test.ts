@@ -5,6 +5,8 @@ import { dispatch } from '../server/router';
 import { createUser, login } from '../server/core/auth';
 import { PROJECT_DOCUMENTS } from '../src/documents/projectDocuments';
 import { buildDocuments, defaultLibrary } from '../src/documents/projectLibrary';
+import { col } from '../server/core/db';
+import { CFG } from '../server/core/config';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 const base = { userAgent: 'vitest', ip: '10.1.1.2' };
@@ -42,8 +44,22 @@ describe('project library', () => {
     expect(loc).toMatchObject({ category: 'Locations', shortName: 'Locations' });
     expect(loc.chapters.map((c) => c.title)).toEqual(['North Hyderabad', 'East Hyderabad', 'South Hyderabad', 'West Hyderabad']);
     expect(loc.verses).toHaveLength(144);
-    expect(loc.chapters[0].verses[0].text).toBe('Kandlakoya (Locality) — north side · about 0–5 km from Amaya · 5–15 min by car');
+    expect(loc.chapters[0].verses[0].text).toBe('Kandlakoya — 0–5 km · 5–15 min');
+    expect(loc.verses.find((v) => v.text.startsWith('AIG Hospitals'))!.tags).toContain('major hospital');
     expect(loc.verses.find((v) => v.text.startsWith('Kukatpally'))!.reference).toMatch(/^Locations 4:\d+$/);
+  });
+
+  it('a saved library with the old Locations wording gets the new one in place (not a second copy)', async () => {
+    const content = defaultLibrary();
+    const at = content.documents.findIndex((d) => d.id === 'amaya-locations');
+    content.documents[at] = { ...content.documents[at], chapters: [{ title: 'North Hyderabad', passages: [{ text: 'Kandlakoya (Locality) — north side · about 0–5 km from Amaya · 5–15 min by car', tags: [] }] }] };
+    expect((await as('Asha', 'librarySave', { content })).status).toBe('success');
+    await (await col(CFG.COLL.LIBRARY)).updateOne({ _id: 'content' as any }, { $set: { seeded: ['amaya-locations'] } });
+    const docs = (await as('Ravi', 'libraryGet')).data.content.documents;
+    const locs = docs.filter((d: any) => d.id === 'amaya-locations');
+    expect(locs).toHaveLength(1);
+    expect(locs[0].chapters[0].passages[0].text).toBe('Kandlakoya — 0–5 km · 5–15 min');
+    expect(docs.findIndex((d: any) => d.id === 'amaya-locations')).toBe(at); // same place in the list
   });
 
   it('a library the company saved before gets the locations once; deleting them afterwards sticks', async () => {
