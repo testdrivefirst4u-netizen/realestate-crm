@@ -22,7 +22,7 @@ export const RecycleBinSection: React.FC<RecycleBinSectionProps> = ({ trashedLea
   const [limit, setLimit] = useState(PAGE);
 
   const canRestore = can('leads.trash') || can('leads.edit');
-  const canDelete = can('leads.delete');
+  const canDelete = false; // leads are never deleted for good
 
   const sorted = useMemo(
     () => [...trashedLeads].sort((a, b) => String(b[F.UPDATED_AT] || '').localeCompare(String(a[F.UPDATED_AT] || ''))),

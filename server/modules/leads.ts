@@ -358,8 +358,10 @@ function planUpdate(before: LeadDoc, patch: Record<string, unknown>, ctx: Ctx | 
 
   const newStage = cellPatch[L.STAGE] as string | undefined;
   const oldStage = str(before.stage);
-  // Trashing / restoring is a 'leads.trash' permission even when done through a generic update
-  if (ctx && ctx.user && newStage !== undefined && (newStage === S.TRASH || oldStage === S.TRASH) && !can(ctx.user, 'leads.trash')) {
+  // leads are never deleted or binned (any role, any route: the form, bulk, import, Copilot)
+  if (newStage === S.TRASH || newStage === S.DELETED) throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage).");
+  // restoring a lead that was binned before is a 'leads.trash' permission
+  if (ctx && ctx.user && newStage !== undefined && oldStage === S.TRASH && !can(ctx.user, 'leads.trash')) {
     throw fail('FORBIDDEN', 'Your role cannot move leads to or from the Recycle Bin');
   }
   if (newStage !== undefined && newStage === S.BOOKED && !parseDate(before.bookingDate) && cellPatch[L.BOOKING_DATE] === undefined) {
@@ -588,6 +590,13 @@ export async function importLeads(rows: UiLead[], strategy: string, ctx: Ctx | n
   const strat = String(strategy || 'SKIP').toUpperCase();
   const actor = actorOf(ctx);
   const leads = await leadsCol();
+  rows = rows.map((r) => {
+    if (!r || typeof r !== 'object' || r[L.STAGE] === undefined) return r;
+    const st = canonicalStage(String(r[L.STAGE] || '').trim());
+    if (st !== S.TRASH && st !== S.DELETED) return r;
+    const { [L.STAGE]: _drop, ...rest } = r;
+    return rest as UiLead;
+  });
 
   const ids = [...new Set(rows.map((r) => str(r && r[L.ID])).filter(Boolean))];
   const phones = [...new Set(rows.map((r) => last10(r && r[L.PHONE])).filter((p) => p.length === 10))];
@@ -763,8 +772,7 @@ export async function bulkLeads(d: { ids?: unknown; op?: unknown; value?: unknow
     if (!value) throw fail('VALIDATION', 'Write the remark');
     apply = (id) => appendRemark(id, truncate(value, 2000), ctx);
   } else if (op === 'trash') {
-    if (!can(ctx.user, 'leads.trash')) throw fail('FORBIDDEN', 'You cannot move leads to the bin');
-    apply = (id) => updateLead(id, { [L.STAGE]: S.TRASH }, ctx);
+    throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage).");
   } else {
     throw fail('VALIDATION', 'Unknown bulk action');
   }
@@ -818,9 +826,9 @@ export const actions: ActionMap = {
   updateLead: { fn: onLead(async (d, ctx) => { await assertLockedUnchanged(d.id, d.data); return updateLead(d.id, d.data, ctx, d.expectedUpdatedAt); }), perm: 'leads.edit' },
   appendRemark: { fn: onLead((d, ctx) => appendRemark(d.id, d.remark, ctx, d.nextFollowup)), perm: 'leads.edit' },
   setLeadStage: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: d.stage }, ctx)), perm: 'leads.edit' },
-  trashLead: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: S.TRASH }, ctx)), perm: 'leads.trash' },
+  trashLead: { fn: async () => { throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage)."); }, perm: 'leads.view' },
   restoreLead: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: S.NEW }, ctx)), perm: 'leads.trash' },
-  deleteLead: { fn: onLead((d, ctx) => archiveLead(d.id, ctx)), perm: 'leads.delete' },
+  deleteLead: { fn: async () => { throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage)."); }, perm: 'leads.view' },
   getLeadTimeline: { fn: onLead((d) => timelineForLead(d.id)), perm: 'leads.view' },
   getEnquiryHistory: { fn: onLead((d, ctx) => enquiryHistory(String(d.id), ctx)), perm: 'leads.view' },
   bulkLeads: { fn: (d, ctx) => bulkLeads(d, ctx), perm: 'leads.edit' },

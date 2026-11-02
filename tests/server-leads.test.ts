@@ -145,14 +145,25 @@ describe('leads', () => {
     }
   });
 
-  it('only leads.trash may move leads to the bin through updateLead', async () => {
+  it('nobody can delete a lead or move it to the bin; a lead binned before can still be restored', async () => {
     const rm = await t.ctx('RM');
     const { id } = await addLead(sample(), admin);
-    await expect(updateLead(id, { [L.STAGE]: 'Trash' }, rm)).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await updateLead(id, { [L.STAGE]: 'Trash' }, admin);
-    // a trashed lead's phone may be re-used
-    const again = await addLead(sample({ [L.NAME]: 'Again' }), admin);
-    expect(again.id).toBe('ENQ-0002');
+    for (const who of [rm, admin]) {
+      await expect(updateLead(id, { [L.STAGE]: 'Trash' }, who)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(updateLead(id, { [L.STAGE]: 'Permanently Deleted' }, who)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    }
+    const { bulkLeads, actions } = await import('../server/modules/leads');
+    await expect(bulkLeads({ ids: [id], op: 'trash' }, admin)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(actions.trashLead.fn({ id }, admin)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(actions.deleteLead.fn({ id }, admin)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await getLead(id))![L.STAGE]).toBe('New');
+    // an import cannot bin it either: a Trash stage in the file is ignored
+    await importLeads([{ [L.ID]: id, [L.NAME]: 'Ravi Kumar', [L.STAGE]: 'Trash', [L.NOTES]: 'from file' }], 'OVERWRITE', admin);
+    expect(await getLead(id)).toMatchObject({ [L.STAGE]: 'New', [L.NOTES]: 'from file' });
+    // one binned before this rule: an admin brings it back
+    await (await col(CFG.COLL.LEADS)).updateOne({ _id: id as any }, { $set: { stage: 'Trash' } });
+    await expect(updateLead(id, { [L.STAGE]: 'New' }, rm)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await updateLead(id, { [L.STAGE]: 'New' }, admin)).lead[L.STAGE]).toBe('New');
   });
 
   it('archives a lead (moved, not copied) and never reuses its id', async () => {
