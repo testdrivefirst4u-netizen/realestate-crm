@@ -6,7 +6,7 @@
  * console never switches to the company's CRM.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, BellRing, CalendarDays, DatabaseBackup, Plug } from 'lucide-react';
+import { Activity, BellRing, CalendarDays, DatabaseBackup, ExternalLink, Plug } from 'lucide-react';
 import type { CompanyDetail } from '@/server/platform/contract';
 import type { ServerSettings, UserAccount } from '@/src/types/crm';
 import { api, configureApi } from '@/src/core/api';
@@ -21,6 +21,49 @@ import { MetaSyncSection } from '@/src/modules/settings/MetaSyncSection';
 import { BackupsSection } from '@/src/modules/settings/BackupsSection';
 import type { ServerSettingsExt } from '@/src/modules/settings/types';
 import { Button, Card, ErrorBox, Skeleton, cx, focusRing } from '../../../_components/ui';
+import { call, errorMessage } from '../../../_lib/api';
+
+/**
+ * The marketing connections (Meta ads, Google, Social accounts) sign in to Facebook / Google / LinkedIn / Pinterest
+ * and come back to the CRM, so they open in the company's CRM as its Platform support account (a 2-hour session,
+ * audited under the super admin's name) instead of inside the console.
+ */
+const MARKETING_PAGES: Array<{ section: string; label: string; on: (f: Record<string, boolean>) => boolean }> = [
+  { section: 'google', label: 'Google (Ads, Analytics, Business)', on: (f) => !!(f.googleConversions || f.googleAdsSpend || f.websiteAnalytics || f.socialInbox || f.socialPosts || f.adsControl) },
+  { section: 'adConversions', label: 'Meta ads', on: (f) => !!(f.adConversions || f.adSpend) },
+  { section: 'social', label: 'Social accounts', on: (f) => !!(f.socialInbox || f.socialPosts || f.linkedin || f.pinterest) },
+  { section: 'leadSources', label: 'Lead sources', on: () => true },
+];
+
+function MarketingLinks({ company }: { company: CompanyDetail }) {
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const f = (company.features || {}) as unknown as Record<string, boolean>;
+  const pages = MARKETING_PAGES.filter((p) => p.on(f));
+  const open = async (section: string) => {
+    setBusy(section);
+    setError('');
+    try {
+      const r = await call('openCompanySupport', { companyId: company.id });
+      window.location.href = `${r.redirect || '/settings'}?section=${encodeURIComponent(section)}`;
+    } catch (e) {
+      setError(errorMessage(e));
+      setBusy('');
+    }
+  };
+  return (
+    <div className="mt-4 rounded-xl border border-[#D3E3F0] bg-white p-3.5">
+      <p className="text-[13.5px] font-semibold text-[#0A1F33]">Marketing connections</p>
+      <p className="mt-0.5 text-[12.5px] text-[#5E778C]">Open in {company.name}'s CRM as Platform support (2 hours). This browser's CRM sign-in switches to that session.</p>
+      <div className="mt-2.5 flex flex-col gap-1.5">
+        {pages.map((p) => (
+          <Button key={p.section} variant="secondary" size="sm" loading={busy === p.section} disabled={!!busy} icon={<ExternalLink className="h-4 w-4" aria-hidden />} onClick={() => void open(p.section)}>{p.label}</Button>
+        ))}
+      </div>
+      {error && <ErrorBox message={error} className="mt-2" />}
+    </div>
+  );
+}
 
 type SectionId = 'integrations' | 'alerts' | 'visits' | 'meta' | 'backups';
 
@@ -106,6 +149,7 @@ export function CompanySettingsTab({ company }: { company: CompanyDetail }) {
         <p className="mt-3 hidden text-[12.5px] leading-relaxed text-[#5E778C] lg:block">
           Changes apply to {company.name} straight away and are recorded in its audit log under your name.
         </p>
+        <MarketingLinks company={company} />
       </nav>
 
       <div className="crm-ocean min-w-0 flex-1">
