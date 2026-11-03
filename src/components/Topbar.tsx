@@ -142,7 +142,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
             />
           </div>
           {open && q.trim() && (
-            <div id="global-search-results" role="listbox" aria-label="Search results" className="fixed left-3 right-3 top-15 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:w-md mt-1.5 bg-white rounded-xl shadow-xl border border-[#D3E3F0] overflow-hidden z-50 max-h-[70vh] overflow-y-auto">
+            <div id="global-search-results" role="listbox" aria-label="Search results" className="fixed left-3 right-3 top-15 sm:absolute sm:left-auto sm:right-0 lg:left-0 lg:right-auto sm:top-full sm:w-md sm:max-w-[calc(100vw-1.5rem)] mt-1.5 bg-white rounded-xl shadow-xl border border-[#D3E3F0] overflow-hidden z-50 max-h-[70vh] overflow-y-auto">
               {aiEnabled && (
                 <button type="button" onClick={() => { onOpenChatbot(q.trim()); close(); }} className="w-full flex items-center gap-2 p-3 text-left text-xs bg-[#F7FAFD] hover:bg-[#F2F7FB] border-b border-[#E6EFF6]">
                   <Sparkles size={14} className="text-[#0B6BB0] flex-shrink-0" />
