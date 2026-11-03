@@ -91,7 +91,7 @@ describe('connect with Facebook', () => {
     expect(start.status).toBe(302);
     expect(dialog.origin + dialog.pathname).toMatch(/^https:\/\/www\.facebook\.com\/v[\d.]+\/dialog\/oauth$/);
     expect(dialog.searchParams.get('redirect_uri')).toBe('https://crm.example.com/api/integrations/meta/callback');
-    expect(dialog.searchParams.get('scope')).toBe('ads_management,business_management');
+    expect(dialog.searchParams.get('scope')).toBe('ads_management,ads_read,business_management');
     expect(nonce).toMatch(/^[0-9a-f]{32}$/);
 
     process.env.META_CAPI_CONFIG_ID = '987654321';

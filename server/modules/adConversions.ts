@@ -418,7 +418,7 @@ export const CAPI_CONNECT_PATH = '/api/integrations/meta/conversions/connect';
 export const CAPI_PURPOSE = 'metaCapi';
 const STATE_TTL_S = 600;
 const PENDING_TTL_MS = 30 * 60000;
-const CAPI_SCOPES = 'ads_management,business_management';
+const CAPI_SCOPES = 'ads_management,ads_read,business_management';
 
 /** Settings › Ad conversions with a result for the page to show (never a token in the URL). */
 export const conversionsRedirect = (params: Record<string, string>) => `${appUrl()}/settings?${new URLSearchParams({ section: 'adConversions', ...params }).toString()}`;
