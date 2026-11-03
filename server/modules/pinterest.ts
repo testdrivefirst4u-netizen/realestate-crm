@@ -144,7 +144,7 @@ export async function disconnectPinterest(ctx: Ctx): Promise<PinterestView> {
 }
 
 export const actions: ActionMap = {
-  getPinterest: { fn: () => getPinterest(), perm: 'settings.view' },
-  savePinterest: { fn: (d, ctx) => savePinterest(d, ctx), perm: 'settings.edit' },
-  disconnectPinterest: { fn: (_d, ctx) => disconnectPinterest(ctx), perm: 'settings.edit' },
+  getPinterest: { fn: () => getPinterest(), perm: 'integrations.connect' },
+  savePinterest: { fn: (d, ctx) => savePinterest(d, ctx), perm: 'integrations.connect' },
+  disconnectPinterest: { fn: (_d, ctx) => disconnectPinterest(ctx), perm: 'integrations.connect' },
 };

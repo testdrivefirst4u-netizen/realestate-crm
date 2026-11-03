@@ -15,12 +15,12 @@ const STATE_TTL_S = 600;
 
 export const socialSettingsRedirect = (params: Record<string, string>) => `${appUrl()}/settings?${new URLSearchParams({ section: 'social', ...params }).toString()}`;
 
-/** Start: the signed-in Platform support user of a company with `feature` → state + nonce, or a redirect explaining why not. */
+/** Start: the signed-in administrator of a company with `feature` → state + nonce, or a redirect explaining why not. */
 export async function beginSocialOAuth(input: { sessionCookie: string; nowMs?: number }, purpose: string, feature: keyof Tenant['features'], label: string, errKey: string):
   Promise<{ ok: true; state: string; nonce: string } | { ok: false; redirect: string }> {
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { ok: false, redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { ok: false, redirect: socialSettingsRedirect({ [errKey]: `Only Platform support can connect ${label}.` }) };
+  if (!can(sess.user, 'integrations.connect')) return { ok: false, redirect: socialSettingsRedirect({ [errKey]: `Only an administrator can connect ${label}.` }) };
   if (!sess.tenant.features[feature]) return { ok: false, redirect: socialSettingsRedirect({ [errKey]: `${label} is not included in your company's plan.` }) };
   const nonce = randomToken(16);
   const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S }, purpose);
@@ -37,7 +37,7 @@ export async function endSocialOAuth(input: { params: URLSearchParams; sessionCo
   if (!sess) return { ok: false, redirect: `${appUrl()}/` };
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, purpose);
   if (!v.ok) return fail(`The ${label} sign-in could not be verified (it expired or was started in another session). Please try again.`);
-  if (!can(sess.user, 'settings.edit') || !sess.tenant.features[feature]) return fail(`You cannot connect ${label} here.`);
+  if (!can(sess.user, 'integrations.connect') || !sess.tenant.features[feature]) return fail(`You cannot connect ${label} here.`);
   const code = p.get('code') || '';
   if (!code) return fail(`${label} did not return an authorisation code. Please try again.`);
   return { ok: true, tenant: sess.tenant, user: sess.user, code };

@@ -427,7 +427,7 @@ export const conversionsRedirect = (params: Record<string, string>) => `${appUrl
 export async function startCapiConnect(input: { sessionCookie: string; nowMs?: number }): Promise<{ redirect: string; nonce?: string }> {
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { redirect: conversionsRedirect({ capiError: 'Only Platform support can connect Facebook.' }) };
+  if (!can(sess.user, 'integrations.connect')) return { redirect: conversionsRedirect({ capiError: 'Only an administrator can connect Facebook.' }) };
   if (!sess.tenant.features.adConversions && !sess.tenant.features.adSpend) return { redirect: conversionsRedirect({ capiError: "Meta ads features are not included in your company's plan." }) };
   const cfg = await loadMetaConfig();
   if (!cfg.appId || !cfg.appSecret) return { redirect: conversionsRedirect({ capiError: 'Facebook is not set up on this platform yet. Ask your platform administrator, or enter the dataset ID and token by hand.' }) };
@@ -505,7 +505,7 @@ export async function finishCapiConnect(input: { params: URLSearchParams; sessio
   if (!sess) return { redirect: `${appUrl()}/` };
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, CAPI_PURPOSE);
   if (!v.ok) return { redirect: conversionsRedirect({ capiError: 'The Facebook login could not be verified (it expired or was started in another session). Please try again.' }) };
-  if (!can(sess.user, 'settings.edit') || (!sess.tenant.features.adConversions && !sess.tenant.features.adSpend)) return { redirect: conversionsRedirect({ capiError: 'You cannot connect Facebook here.' }) };
+  if (!can(sess.user, 'integrations.connect') || (!sess.tenant.features.adConversions && !sess.tenant.features.adSpend)) return { redirect: conversionsRedirect({ capiError: 'You cannot connect Facebook here.' }) };
   const code = p.get('code') || '';
   if (!code) return { redirect: conversionsRedirect({ capiError: 'Facebook did not return an authorisation code. Please try again.' }) };
   const ctx = { user: sess.user } as Ctx;
@@ -697,13 +697,13 @@ export async function getConversionRules(): Promise<{ rules: ConversionRule[] }>
 }
 
 export const actions: ActionMap = {
-  getConversionRules: { fn: () => getConversionRules(), perm: 'settings.view' },
-  saveConversionRules: { fn: (d, ctx) => saveConversionRules(d, ctx), perm: 'settings.edit' },
-  getAdConversions: { fn: (_d, ctx) => getAdConversions(ctx), perm: 'settings.view' },
-  chooseAdConversionDataset: { fn: (d, ctx) => chooseAdConversionDataset(d, ctx), perm: 'settings.edit' },
-  disconnectAdConversions: { fn: (_d, ctx) => disconnectAdConversions(ctx), perm: 'settings.edit' },
-  syncAdSpend: { fn: (_d, ctx) => syncAdSpend(ctx), perm: 'settings.edit' },
-  saveAdSpendAccounts: { fn: (d, ctx) => saveAdSpendAccounts(d, ctx), perm: 'settings.edit' },
-  saveAdConversions: { fn: (d, ctx) => saveAdConversions(d, ctx), perm: 'settings.edit' },
-  testAdConversion: { fn: (d, ctx) => testAdConversion(d, ctx), perm: 'settings.edit' },
+  getConversionRules: { fn: () => getConversionRules(), perm: 'integrations.connect' },
+  saveConversionRules: { fn: (d, ctx) => saveConversionRules(d, ctx), perm: 'integrations.connect' },
+  getAdConversions: { fn: (_d, ctx) => getAdConversions(ctx), perm: 'integrations.connect' },
+  chooseAdConversionDataset: { fn: (d, ctx) => chooseAdConversionDataset(d, ctx), perm: 'integrations.connect' },
+  disconnectAdConversions: { fn: (_d, ctx) => disconnectAdConversions(ctx), perm: 'integrations.connect' },
+  syncAdSpend: { fn: (_d, ctx) => syncAdSpend(ctx), perm: 'integrations.connect' },
+  saveAdSpendAccounts: { fn: (d, ctx) => saveAdSpendAccounts(d, ctx), perm: 'integrations.connect' },
+  saveAdConversions: { fn: (d, ctx) => saveAdConversions(d, ctx), perm: 'integrations.connect' },
+  testAdConversion: { fn: (d, ctx) => testAdConversion(d, ctx), perm: 'integrations.connect' },
 };

@@ -33,7 +33,7 @@ export function useReturnToast(keys: Array<[ok: string, err: string, label: stri
 }
 
 export const SocialAccountsSection: React.FC<{ can: (p: Permission) => boolean }> = ({ can }) => {
-  const editable = can('settings.edit');
+  const editable = can('integrations.connect');
   const linkedinOn = useFeature('linkedin');
   const pinterestOn = useFeature('pinterest');
   const inboxOn = useFeature('socialInbox');
@@ -90,7 +90,7 @@ export const SocialAccountsSection: React.FC<{ can: (p: Permission) => boolean }
       )}
       {linkedinOn && <LinkedInCard editable={editable} />}
       {pinterestOn && <PinterestCard editable={editable} />}
-      {!editable && <InlineNotice tone="info">Only Platform support can connect accounts.</InlineNotice>}
+      {!editable && <InlineNotice tone="info">Only an administrator can connect accounts.</InlineNotice>}
     </div>
   );
 };

@@ -109,6 +109,21 @@ export default async function PrivacyPage() {
         across companies.
       </p>
 
+      <h3>Google user data</h3>
+      <p>When a company connects its Google account (&ldquo;Connect with Google&rdquo; in Settings), the CRM asks only for the access below and uses it only for these purposes, for that company:</p>
+      <ul>
+        <li><strong>Google Ads</strong> (<em>adwords</em>): uploads the company&rsquo;s own lead results (qualified, site visit, booking) to its own conversion actions, with phone and e-mail hashed; reads its campaign cost to show cost per lead and booking; pauses a campaign or changes its daily budget only when the company&rsquo;s administrator clicks that button.</li>
+        <li><strong>Google Business Profile</strong> (<em>business.manage</em>): reads the company&rsquo;s reviews into its inbox, posts the replies its team writes, and publishes the posts its team writes.</li>
+        <li><strong>Google Analytics</strong> (<em>analytics.readonly</em>, read only): shows the company&rsquo;s website visitors, channels and landing pages next to its CRM enquiries.</li>
+        <li><strong>Google Sheets</strong> (<em>spreadsheets</em>): reads and writes only the sheets the company links for lead import and export.</li>
+      </ul>
+      <p>
+        {product}&rsquo;s use and transfer of information received from Google APIs to any other app will adhere to the{' '}
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.
+        Google user data is not used for advertising, not sold, not used to train AI models, and not read by people except with the company&rsquo;s permission, for security, or where the law requires.
+        The company can disconnect at any time in Settings › Connected accounts or in its Google Account (Security › Third-party connections); its Google access token is then no longer used.
+      </p>
+
       <h2>5. Who we share it with</h2>
       <p>Only with the service providers needed to run the CRM, each bound to protect the data:</p>
       <ul>

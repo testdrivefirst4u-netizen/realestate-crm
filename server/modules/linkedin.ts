@@ -309,8 +309,8 @@ export async function disconnectLinkedIn(ctx: Ctx): Promise<LinkedInView> {
 }
 
 export const actions: ActionMap = {
-  getLinkedIn: { fn: () => getLinkedIn(), perm: 'settings.view' },
-  saveLinkedIn: { fn: (d, ctx) => saveLinkedIn(d, ctx), perm: 'settings.edit' },
-  disconnectLinkedIn: { fn: (_d, ctx) => disconnectLinkedIn(ctx), perm: 'settings.edit' },
-  syncLinkedInLeads: { fn: async () => syncLinkedInLeads(), perm: 'settings.edit' },
+  getLinkedIn: { fn: () => getLinkedIn(), perm: 'integrations.connect' },
+  saveLinkedIn: { fn: (d, ctx) => saveLinkedIn(d, ctx), perm: 'integrations.connect' },
+  disconnectLinkedIn: { fn: (_d, ctx) => disconnectLinkedIn(ctx), perm: 'integrations.connect' },
+  syncLinkedInLeads: { fn: async () => syncLinkedInLeads(), perm: 'integrations.connect' },
 };

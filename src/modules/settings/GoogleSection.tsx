@@ -17,7 +17,7 @@ const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateStrin
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 
 export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOptions: string[] }> = ({ can, stageOptions }) => {
-  const editable = can('settings.edit');
+  const editable = can('integrations.connect');
   const conversionsOn = useFeature('googleConversions');
   const spendOn = useFeature('googleAdsSpend');
   const inboxOn = useFeature('socialInbox');
@@ -220,7 +220,7 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
           </div>
         </Card>
       )}
-      {!editable && <InlineNotice tone="info">Only Platform support can change these settings.</InlineNotice>}
+      {!editable && <InlineNotice tone="info">Only an administrator can change these settings.</InlineNotice>}
     </div>
   );
 };

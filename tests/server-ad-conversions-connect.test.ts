@@ -6,6 +6,7 @@ import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { col } from '../server/core/db';
 import { CFG } from '../server/core/config';
 import { createUser, login, type Ctx } from '../server/core/auth';
+import { getConnectedAccounts } from '../server/modules/connectedAccounts';
 import { chooseAdConversionDataset, disconnectAdConversions, getAdConversions, saveAdSpendAccounts, spendWindow, syncMetaSpend } from '../server/modules/adConversions';
 import { getCampaignSpend, saveCampaignSpend } from '../server/modules/salesOps';
 import { settingSet } from '../server/core/settings';
@@ -47,7 +48,7 @@ async function fakeGraph(input: any): Promise<Response> {
   return json(404, { error: { message: 'unexpected ' + path, code: 100 } });
 }
 
-async function signIn(role: 'Developer' | 'Admin' = 'Developer', email = 'support@capi.test') {
+async function signIn(role: 'Developer' | 'Admin' | 'Manager' = 'Developer', email = 'support@capi.test') {
   await createUser({ name: `Support ${email}`, email, password: 'long-enough-pw', role, mustChangePassword: false }, null);
   const r = await login(email, 'long-enough-pw', { userAgent: 'vitest', ip: '10.3.3.3' });
   return { cookie: `amaya_session=CMP-test.${r.token}`, ctx: { user: r.user } as unknown as Ctx };
@@ -84,7 +85,7 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('connect with Facebook', () => {
-  it('asks for the ads permissions on the shared callback, or uses the configuration when set; Admins and the switch-off are refused', async () => {
+  it('asks for the ads permissions on the shared callback, or uses the configuration when set; a company Admin may connect; Managers and the switch-off are refused', async () => {
     const me = await signIn();
     const { start, dialog, nonce } = await connect(me.cookie);
     expect(start.status).toBe(302);
@@ -99,7 +100,9 @@ describe('connect with Facebook', () => {
     expect(withConfig.searchParams.get('scope')).toBeNull();
 
     const admin = await signIn('Admin', 'owner@capi.test');
-    expect((await connect(admin.cookie)).dialog.searchParams.get('capiError')).toMatch(/Platform support/);
+    expect((await connect(admin.cookie)).dialog.host).toBe('www.facebook.com'); // the client connects its own account
+    const mgr = await signIn('Manager', 'manager@capi.test');
+    expect((await connect(mgr.cookie)).dialog.searchParams.get('capiError')).toMatch(/administrator/);
     await t.company('test', { adConversions: false });
     expect((await connect(me.cookie)).dialog.searchParams.get('capiError')).toMatch(/not included/);
   });
@@ -123,6 +126,12 @@ describe('connect with Facebook', () => {
     const raw = await inCo(async () => (await col<any>(CFG.COLL.INTEGRATIONS)).findOne({ _id: 'metaCapi' }));
     expect(JSON.stringify(raw)).not.toContain('LONG-USER-TOKEN');
     expect(graphPaths).toContain('me/adaccounts');
+    // Settings › Connected accounts shows it, with who connected it and what it is used for
+    const list = await inCo(() => getConnectedAccounts());
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ key: 'meta', platform: 'Meta ad account', status: 'connected', section: 'adConversions' });
+    expect(list[0].account).toContain('Amaya Website');
+    expect(list[0].usedFor).toContain('Reads campaign spend');
   });
 
   it('several datasets wait for a choice by the same person; cancelling says so', async () => {

@@ -44,6 +44,7 @@ import { actions as pinterestActions } from './modules/pinterest';
 import { actions as socialPostActions } from './modules/socialPosts';
 import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
+import { actions as connectedAccountActions } from './modules/connectedAccounts';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -76,6 +77,7 @@ export const registry: ActionMap = {
   ...socialPostActions,
   ...adsControlActions,
   ...websiteAnalyticsActions,
+  ...connectedAccountActions,
 };
 
 const STATUS: Record<string, number> = {

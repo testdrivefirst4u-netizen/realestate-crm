@@ -20,7 +20,7 @@ const STATUS_LABEL = { sent: 'Sent', pending: 'Waiting', failed: 'Will retry', s
 const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
 export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; stageOptions: string[]; onOpenLead?: (id: string) => void }> = ({ can, stageOptions, onOpenLead }) => {
-  const editable = can('settings.edit');
+  const editable = can('integrations.connect');
   const conversionsOn = useFeature('adConversions');
   const spendOn = useFeature('adSpend');
   const [view, setView] = useState<AdConversionsView | null>(null);
@@ -245,7 +245,7 @@ export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; s
               <Button variant="primary" onClick={() => void save()} loading={saving} icon={<Save size={13} />}>Save</Button>
             </div>
           ) : (
-            <InlineNotice tone="info">Only Platform support can change these settings.</InlineNotice>
+            <InlineNotice tone="info">Only an administrator can change these settings.</InlineNotice>
           )}
 
           <Card title="Recently sent" subtitle={`Last 30 days: ${view.last30.sent} sent · ${view.last30.failed} retrying · ${view.last30.skipped + view.last30.expired} not sent`}>

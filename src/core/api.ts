@@ -262,6 +262,8 @@ export interface SocialPost {
   id: string; text: string; link: string; imageUrl: string; scheduledAt: string; status: 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string;
   targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string }>;
 }
+/** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
+export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
 /** Website analytics (server: modules/websiteAnalytics.ts). */
 export interface WebsiteAnalytics {
   days: number; from: string; to: string; property: { id: string; name: string } | null; error: string;
@@ -547,6 +549,9 @@ export const api = {
     retry: (id: string) => request<SocialPost>('retryPost', { id }, { timeoutMs: 120000 }),
     remove: (id: string) => request<{ ok: true }>('deletePost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),
+  },
+  connectedAccounts: {
+    list: () => request<ConnectedAccount[]>('getConnectedAccounts'),
   },
   analytics: {
     get: (days: 7 | 30 | 90, refresh = false) => request<WebsiteAnalytics>('getWebsiteAnalytics', { days, refresh }, { timeoutMs: 60000 }),

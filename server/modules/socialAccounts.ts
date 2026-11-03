@@ -73,7 +73,7 @@ export async function ensureSocialSubscription(pageId: string, token: string, cf
 export async function startSocialConnect(input: { sessionCookie: string; nowMs?: number }): Promise<{ redirect: string; nonce?: string }> {
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { redirect: socialRedirect({ socialError: 'Only Platform support can connect Facebook.' }) };
+  if (!can(sess.user, 'integrations.connect')) return { redirect: socialRedirect({ socialError: 'Only an administrator can connect Facebook.' }) };
   if (!usesSocial(sess.tenant.features as any)) return { redirect: socialRedirect({ socialError: "The social inbox and post scheduler are not included in your company's plan." }) };
   const cfg = await loadMetaConfig();
   if (!cfg.appId || !cfg.appSecret) return { redirect: socialRedirect({ socialError: 'Facebook is not set up on this platform yet. Ask your platform administrator.' }) };
@@ -96,7 +96,7 @@ export async function finishSocialConnect(input: { params: URLSearchParams; sess
   if (!sess) return { redirect: `${appUrl()}/` };
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, SOCIAL_PURPOSE);
   if (!v.ok) return err('The Facebook login could not be verified (it expired or was started in another session). Please try again.');
-  if (!can(sess.user, 'settings.edit') || !usesSocial(sess.tenant.features as any)) return err('You cannot connect Facebook here.');
+  if (!can(sess.user, 'integrations.connect') || !usesSocial(sess.tenant.features as any)) return err('You cannot connect Facebook here.');
   const code = p.get('code') || '';
   if (!code) return err('Facebook did not return an authorisation code. Please try again.');
   const ctx = { user: sess.user } as Ctx;
@@ -196,6 +196,6 @@ export async function refreshSocialSubscriptions(): Promise<number> {
 }
 
 export const actions: ActionMap = {
-  getSocialAccounts: { fn: () => getSocialAccounts(), perm: 'settings.view' },
-  disconnectSocialPage: { fn: (d, ctx) => disconnectSocialPage(d, ctx), perm: 'settings.edit' },
+  getSocialAccounts: { fn: () => getSocialAccounts(), perm: 'integrations.connect' },
+  disconnectSocialPage: { fn: (d, ctx) => disconnectSocialPage(d, ctx), perm: 'integrations.connect' },
 };

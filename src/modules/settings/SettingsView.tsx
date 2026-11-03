@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Building2, Target, Globe, Share2, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
+import { Activity, Building2, Target, Globe, Share2, ShieldCheck, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -24,6 +24,7 @@ import { VisitBookingSection } from './VisitBookingSection';
 import { AdConversionsSection } from './AdConversionsSection';
 import { GoogleSection } from './GoogleSection';
 import { SocialAccountsSection } from './SocialAccountsSection';
+import { ConnectedAccountsSection } from './ConnectedAccountsSection';
 
 export interface SettingsViewProps {
   settings: CRMSettings;
@@ -55,7 +56,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'adConversions', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -85,9 +86,10 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('settings.view') },
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'visitBooking', label: 'Visit booking', icon: <CalendarDays size={14} />, show: can('settings.view') },
-      { id: 'adConversions', label: 'Meta ads', icon: <Target size={14} />, show: metaAdsOn && can('settings.view') },
-      { id: 'google', label: 'Google (Ads, Analytics, Business)', icon: <Globe size={14} />, show: googleOn && can('settings.view') },
-      { id: 'social', label: 'Social accounts', icon: <Share2 size={14} />, show: socialOn && can('settings.view') },
+      { id: 'connections', label: 'Connected accounts', icon: <ShieldCheck size={14} />, show: (metaAdsOn || googleOn || socialOn) && can('integrations.connect') },
+      { id: 'adConversions', label: 'Meta ads', icon: <Target size={14} />, show: metaAdsOn && can('integrations.connect') },
+      { id: 'google', label: 'Google (Ads, Analytics, Business)', icon: <Globe size={14} />, show: googleOn && can('integrations.connect') },
+      { id: 'social', label: 'Social accounts', icon: <Share2 size={14} />, show: socialOn && can('integrations.connect') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
       { id: 'backups', label: 'Backups', icon: <DatabaseBackup size={14} />, show: can('settings.edit') },
       { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view'), badge: trashedLeads.length || undefined },
@@ -157,9 +159,10 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'metaSync' && metaOn && can('settings.view') && <MetaSyncSection canEdit={can('settings.edit')} />}
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}
           {active === 'visitBooking' && can('settings.view') && <VisitBookingSection {...base} />}
-          {active === 'adConversions' && metaAdsOn && can('settings.view') && <AdConversionsSection can={can} stageOptions={stageOptions || []} onOpenLead={onOpenLead} />}
-          {active === 'google' && googleOn && can('settings.view') && <GoogleSection can={can} stageOptions={stageOptions || []} />}
-          {active === 'social' && socialOn && can('settings.view') && <SocialAccountsSection can={can} />}
+          {active === 'connections' && can('integrations.connect') && <ConnectedAccountsSection onOpen={(s) => setActive(s as SectionId)} />}
+          {active === 'adConversions' && metaAdsOn && can('integrations.connect') && <AdConversionsSection can={can} stageOptions={stageOptions || []} onOpenLead={onOpenLead} />}
+          {active === 'google' && googleOn && can('integrations.connect') && <GoogleSection can={can} stageOptions={stageOptions || []} />}
+          {active === 'social' && socialOn && can('integrations.connect') && <SocialAccountsSection can={can} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}
           {active === 'backups' && can('settings.edit') && <BackupsSection />}
           {active === 'recycle' && can('settings.view') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}

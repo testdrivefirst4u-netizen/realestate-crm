@@ -85,7 +85,7 @@ export const usesGoogleMarketing = (f: Record<string, boolean>) => !!(f.googleCo
 export async function startGoogleMktConnect(input: { sessionCookie: string; nowMs?: number }): Promise<{ redirect: string; nonce?: string }> {
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { redirect: googleMktRedirect({ gmktError: 'Only Platform support can connect Google.' }) };
+  if (!can(sess.user, 'integrations.connect')) return { redirect: googleMktRedirect({ gmktError: 'Only an administrator can connect Google.' }) };
   if (!usesGoogleMarketing(sess.tenant.features as any)) return { redirect: googleMktRedirect({ gmktError: "Google marketing features are not included in your company's plan." }) };
   const client = await loadOAuthClient();
   if (!client) return { redirect: googleMktRedirect({ gmktError: '"Connect with Google" is not set up on this platform yet (Super admin › Settings › Google).' }) };
@@ -118,7 +118,7 @@ export async function finishGoogleMktConnect(input: { params: URLSearchParams; s
   if (error) return err(error === 'access_denied' ? 'Google sign-in was cancelled.' : `Google sign-in failed: ${p.get('error_description') || error}`);
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, GMKT_PURPOSE);
   if (!v.ok) return err('The Google sign-in could not be verified (it expired or was started in another session). Please try again.');
-  if (!can(sess.user, 'settings.edit') || !usesGoogleMarketing(sess.tenant.features as any)) return err('You cannot connect Google here.');
+  if (!can(sess.user, 'integrations.connect') || !usesGoogleMarketing(sess.tenant.features as any)) return err('You cannot connect Google here.');
   const code = p.get('code') || '';
   if (!code) return err('Google did not return an authorisation code. Please try again.');
   const ctx: Ctx = { user: sess.user, session: null, token: '', userAgent: '', ip: '', action: 'googleMktConnect' };
@@ -567,11 +567,11 @@ export async function testGa4(): Promise<{ ok: boolean; message: string }> {
 const tenantFeatures = () => (currentTenant()?.features || {}) as Record<string, boolean>;
 
 export const actions: ActionMap = {
-  getGoogleMarketing: { fn: () => getGoogleMarketing(), perm: 'settings.view' },
-  saveGoogleMarketing: { fn: (d, ctx) => saveGoogleMarketing(d, ctx), perm: 'settings.edit' },
-  refreshGoogleMarketing: { fn: async () => { await refreshGoogleAssets(); return getGoogleMarketing(); }, perm: 'settings.edit' },
-  listGoogleConversionActions: { fn: () => listGoogleConversionActions(), perm: 'settings.edit' },
-  disconnectGoogleMarketing: { fn: (_d, ctx) => disconnectGoogleMarketing(ctx), perm: 'settings.edit' },
-  testGa4: { fn: () => testGa4(), perm: 'settings.edit' },
-  syncGoogleSpend: { fn: async (_d, ctx) => { if (!tenantFeatures().googleAdsSpend) throw fail('FORBIDDEN', "Ad spend from Google Ads is not included in your company's plan."); await syncGoogleSpend({ actor: ctx.user?.name }); return getGoogleMarketing(); }, perm: 'settings.edit' },
+  getGoogleMarketing: { fn: () => getGoogleMarketing(), perm: 'integrations.connect' },
+  saveGoogleMarketing: { fn: (d, ctx) => saveGoogleMarketing(d, ctx), perm: 'integrations.connect' },
+  refreshGoogleMarketing: { fn: async () => { await refreshGoogleAssets(); return getGoogleMarketing(); }, perm: 'integrations.connect' },
+  listGoogleConversionActions: { fn: () => listGoogleConversionActions(), perm: 'integrations.connect' },
+  disconnectGoogleMarketing: { fn: (_d, ctx) => disconnectGoogleMarketing(ctx), perm: 'integrations.connect' },
+  testGa4: { fn: () => testGa4(), perm: 'integrations.connect' },
+  syncGoogleSpend: { fn: async (_d, ctx) => { if (!tenantFeatures().googleAdsSpend) throw fail('FORBIDDEN', "Ad spend from Google Ads is not included in your company's plan."); await syncGoogleSpend({ actor: ctx.user?.name }); return getGoogleMarketing(); }, perm: 'integrations.connect' },
 };
