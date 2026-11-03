@@ -69,7 +69,7 @@ export function MarketingAppsCard() {
             <div className="grid gap-4 sm:grid-cols-3">
               <TextField label="Developer token" type="password" autoComplete="off" value={f.googleAdsDeveloperToken} onChange={set('googleAdsDeveloperToken')} placeholder={s.googleAds.tokenSet ? '•••••• saved' : 'From Tools › API Center'} hint="Google Ads manager account › Tools › API Center." />
               <TextField label="Manager account ID" value={f.googleAdsLoginCustomerId} onChange={set('googleAdsLoginCustomerId')} placeholder="123-456-7890" hint="The manager (MCC) account the token belongs to." />
-              <TextField label="API version" value={f.googleAdsApiVersion} onChange={set('googleAdsApiVersion')} placeholder="v21" hint="Change only when Google retires this version." />
+              <TextField label="API version" value={f.googleAdsApiVersion} onChange={set('googleAdsApiVersion')} placeholder="v26" hint="Change only when Google retires this version (developers.google.com/google-ads/api/docs/sunset-dates)." />
             </div>
           </section>
           <section className="space-y-3">

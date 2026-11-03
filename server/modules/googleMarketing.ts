@@ -273,7 +273,10 @@ export async function refreshGoogleAssets(): Promise<void> {
     try {
       set.gbpLocations = await listGbpLocations();
       if (!d.gbpLocation && set.gbpLocations.length === 1) set.gbpLocation = set.gbpLocations[0];
-    } catch (e: any) { errs.push(e?.message || 'Business Profile locations could not be read'); }
+    } catch (e: any) {
+      // a project without approved Business Profile API access has a quota of 0 requests: say so plainly
+      errs.push(/quota/i.test(e?.message || '') ? 'Business Profile access is waiting for Google’s approval (the API access request). Click Refresh accounts after Google approves.' : e?.message || 'Business Profile locations could not be read');
+    }
   }
   if (d.scopes.includes(ANALYTICS_SCOPE)) {
     try {

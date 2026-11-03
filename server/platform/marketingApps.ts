@@ -12,7 +12,7 @@ import { PCOLL } from './registry';
 
 export const LINKEDIN_CALLBACK_PATH = '/api/integrations/linkedin/callback';
 export const PINTEREST_CALLBACK_PATH = '/api/integrations/pinterest/callback';
-export const DEFAULT_GOOGLE_ADS_VERSION = 'v21';
+export const DEFAULT_GOOGLE_ADS_VERSION = 'v26';
 export const DEFAULT_LINKEDIN_VERSION = '202605';
 
 interface MarketingAppsDoc {
@@ -105,7 +105,7 @@ export async function setMarketingApps(d: any, ctx: SaCtx): Promise<MarketingApp
   };
   secret('googleAdsDeveloperToken', /^[A-Za-z0-9_-]{10,64}$/, 'A Google Ads developer token is 22 letters and digits (Google Ads › Tools › API Center).');
   plain('googleAdsLoginCustomerId', d?.googleAdsLoginCustomerId === undefined ? undefined : digits(d.googleAdsLoginCustomerId), /^\d{10}$/, 'The manager account ID is 10 digits, e.g. 123-456-7890.');
-  plain('googleAdsApiVersion', d?.googleAdsApiVersion === undefined ? undefined : String(d.googleAdsApiVersion).trim(), /^v\d{2}$/, 'Google Ads API version looks like v21.');
+  plain('googleAdsApiVersion', d?.googleAdsApiVersion === undefined ? undefined : String(d.googleAdsApiVersion).trim(), /^v\d{2}$/, 'Google Ads API version looks like v26.');
   plain('linkedinClientId', d?.linkedinClientId === undefined ? undefined : String(d.linkedinClientId).trim(), /^[A-Za-z0-9]{8,40}$/, 'The LinkedIn Client ID is letters and digits (LinkedIn Developers › your app › Auth).');
   secret('linkedinClientSecret', /^[A-Za-z0-9_.=-]{8,120}$/, 'That does not look like a LinkedIn Client Secret.');
   plain('linkedinVersion', d?.linkedinVersion === undefined ? undefined : String(d.linkedinVersion).trim(), /^20\d{4}$/, 'LinkedIn API version looks like 202605 (year and month).');
