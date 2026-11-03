@@ -40,7 +40,7 @@ function SourceRow({
   const s = source.stats;
   const cfg = source.config;
   const keyed = hasApiKey(source.type);
-  const TypeIcon = source.type === 'webhook' ? Webhook : source.type === 'google_sheet' ? FileSpreadsheet : source.type === 'meta' ? Megaphone : Globe;
+  const TypeIcon = source.type === 'webhook' ? Webhook : source.type === 'google_sheet' ? FileSpreadsheet : source.type === 'meta' || source.type === 'google_ads' ? Megaphone : Globe;
   return (
     <li className="px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">

@@ -9,6 +9,9 @@ import { recordJobRejected, recordJobRun, summarize } from '@/server/platform/he
 import { safeEqual } from '@/server/core/utils';
 import { runMetaCron } from '@/server/modules/metaQueue';
 import { runConversionsCron } from '@/server/modules/adConversions';
+import { runInboxCron } from '@/server/modules/socialInbox';
+import { runLinkedInCron } from '@/server/modules/linkedin';
+import { runPostsCron } from '@/server/modules/socialPosts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,7 +31,14 @@ export async function GET(req: Request) {
     const meta = await runMetaCron({ deadline: Date.now() + BUDGET_MS });
     // lead results that could not be sent to Meta at once (no Meta app needed for these)
     const conversions = await runConversionsCron().catch((e) => { console.error('[cron:meta] conversions', e); return { error: 'failed' }; });
-    const data = Object.keys(conversions).length ? { ...meta, conversions } : meta;
+    // Google reviews for the social inbox
+    const inbox = await runInboxCron().catch((e) => { console.error('[cron:meta] inbox', e); return { error: 'failed' }; });
+    // LinkedIn Lead Gen Form leads
+    const linkedin = await runLinkedInCron().catch((e) => { console.error('[cron:meta] linkedin', e); return { error: 'failed' }; });
+    // scheduled social posts that are due
+    const posts = await runPostsCron().catch((e) => { console.error('[cron:meta] posts', e); return { error: 'failed' }; });
+    const extra = { ...(Object.keys(conversions).length ? { conversions } : {}), ...(Object.keys(inbox).length ? { inbox } : {}), ...(Object.keys(linkedin).length ? { linkedin } : {}), ...(Object.keys(posts).length ? { posts } : {}) };
+    const data = Object.keys(extra).length ? { ...meta, ...extra } : meta;
     await recordJobRun('meta', started, true, summarize(data));
     return NextResponse.json({ status: 'success', data });
   } catch (e: any) {

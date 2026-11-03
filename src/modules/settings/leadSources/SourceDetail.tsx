@@ -8,6 +8,7 @@ import { reportError, toAppError } from '../../../core/errors';
 import { toast } from '../../../core/notifications';
 import { Badge, Button, ConfirmDialog, ErrorState, InlineNotice, Modal, Select, Tabs, cx, inputCls, labelCls } from '../../../components/ui';
 import { ApiKeyPanel, CodeBlock, IntegrationGuide } from './IntegrationGuide';
+import { GoogleAdsGuide } from './GoogleAdsGuide';
 import { SourceForm, SourceFormState, formStateFromSource, formToRequest } from './SourceForm';
 import { SAMPLE_PAYLOAD, STATUS_OPTIONS, TYPE_LABEL, canRetry, parseSamplePayload, statusTone, usesApiKey } from './leadSourceUtils';
 import { SheetSummary, syncSheetSource } from '../sheets/sheetSource';
@@ -230,7 +231,7 @@ export const SourceDetail: React.FC<SourceDetailProps> = ({ source, canManage, s
           {tab === 'guide' && !keyless && (
             <div className="space-y-4">
               {freshKey && <ApiKeyPanel apiKey={freshKey} />}
-              <IntegrationGuide apiKey={freshKey || undefined} initialTab={source.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={source.config?.allowedOrigins?.[0] ? `${source.config.allowedOrigins[0]}/thank-you` : undefined} />
+              {source.type === 'google_ads' ? <GoogleAdsGuide apiKey={freshKey || undefined} /> : <IntegrationGuide apiKey={freshKey || undefined} initialTab={source.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={source.config?.allowedOrigins?.[0] ? `${source.config.allowedOrigins[0]}/thank-you` : undefined} />}
             </div>
           )}
         </div>

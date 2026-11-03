@@ -158,9 +158,9 @@ export const CFG = {
   PERMISSIONS: {
     Developer: ['*'],
     Admin: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*',
-      'users.*', 'audit.*', 'records.*', 'storage.*'],
+      'users.*', 'audit.*', 'records.*', 'storage.*', 'marketing.*'],
     Manager: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*', 'audit.view',
-      'users.manageAgents', 'records.*', 'storage.*'],
+      'users.manageAgents', 'records.*', 'storage.*', 'marketing.*'],
     RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'tasks.*', 'inventory.view', 'reports.view',
       'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*'],
     Viewer: ['leads.view', 'leads.viewAll', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],

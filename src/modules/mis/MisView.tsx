@@ -889,7 +889,7 @@ const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; 
   const months = useMemo(() => uniq(all.filter((l) => l.campaign && l.day).map((l) => l.day.slice(0, 7))).sort().reverse(), [all]);
   const [month, setMonth] = useState(() => today.slice(0, 7));
   const [spend, setSpend] = useState<Record<string, string>>({});
-  const [saved, setSaved] = useState<Array<{ campaign: string; month: string; amount: number }>>([]);
+  const [saved, setSaved] = useState<Array<{ campaign: string; month: string; amount: number; source?: 'meta' | 'google' }>>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'saving'>('loading');
   const [msg, setMsg] = useState('');
 
@@ -907,12 +907,16 @@ const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; 
   const camps = uniq([...inMonth.map((l) => l.campaign), ...Object.keys(spend).filter((c) => Number(spend[c]) > 0)]).sort((a, b) => a.localeCompare(b));
   const visited = (l: MisLead) => SITE_VISIT_DONE.includes(l.sv);
   const cost = (amt: number, n: number) => (amt > 0 && n > 0 ? inr(amt / n) : '—');
-  const dirty = camps.some((c) => (Number(spend[c]) || 0) !== (saved.find((r) => r.month === month && r.campaign === c)?.amount || 0));
+  // campaigns whose spend comes from Meta / Google Ads every morning (Settings) are read-only here
+  const autoSource = new Map(saved.filter((r) => r.month === month && r.source).map((r) => [r.campaign, r.source === 'google' ? 'Google' : 'Meta'] as const));
+  const fromMeta = new Set(autoSource.keys());
+  const typed = camps.filter((c) => !fromMeta.has(c));
+  const dirty = typed.some((c) => (Number(spend[c]) || 0) !== (saved.find((r) => r.month === month && r.campaign === c)?.amount || 0));
 
   const save = async () => {
     setState('saving');
     try {
-      const r = await api.team.saveSpend(month, camps.map((c) => ({ campaign: c, amount: Number(spend[c]) || 0 })));
+      const r = await api.team.saveSpend(month, typed.map((c) => ({ campaign: c, amount: Number(spend[c]) || 0 })));
       setSaved(r.rows);
       setMsg('Spend saved.');
     } catch (e) {
@@ -926,7 +930,7 @@ const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; 
   return (
     <Panel
       title="Cost per lead, site visit and booking"
-      hint={`Leads by enquiry month and ad campaign (Facebook / Instagram). Enter what each campaign cost that month — from Meta Ads Manager — to see what a lead, a site visit and a booking really cost.${canEdit ? '' : ' Only administrators can enter spend.'}`}
+      hint={`Leads by enquiry month and ad campaign (Facebook / Instagram). Spend marked Meta or Google fills itself every morning (Settings); enter any other campaign’s cost by hand to see what a lead, a site visit and a booking really cost.${canEdit ? '' : ' Only administrators can enter spend.'}`}
       actions={
         <select className="text-xs px-2.5 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
           {monthOpts.map((m) => <option key={m} value={m}>{monthNameOf(m + '-01')} {m.slice(0, 4)}</option>)}
@@ -949,7 +953,9 @@ const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; 
                   <tr key={c} className="hover:bg-[#F7FAFD]">
                     <td className={cx(td, first, 'max-w-[260px] truncate')} title={c}>{c}</td>
                     <td className={td}>
-                      {canEdit ? (
+                      {fromMeta.has(c) ? (
+                        <span className="inline-flex items-center gap-1.5" title={`Filled every morning from ${autoSource.get(c)}`}>{inr(amt)}<span className="text-[10px] font-semibold uppercase tracking-wide text-[#0B6BB0]">{autoSource.get(c)}</span></span>
+                      ) : canEdit ? (
                         <input type="number" min={0} step={100} inputMode="decimal" value={spend[c] ?? ''} placeholder="0" onChange={(e) => setSpend((x) => ({ ...x, [c]: e.target.value }))}
                           className="w-28 text-right text-xs px-2 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]" aria-label={`Ad spend for ${c}`} />
                       ) : amt ? inr(amt) : '—'}
@@ -979,7 +985,7 @@ const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; 
           </table>
         </div>
       )}
-      {canEdit && camps.length > 0 && (
+      {canEdit && typed.length > 0 && (
         <div className="flex items-center justify-end gap-3 mt-3">
           {msg && <span className="text-xs text-[#5E778C]">{msg}</span>}
           {state === 'error' && <span className="text-xs text-[#B54708]">Saved spend could not be loaded.</span>}

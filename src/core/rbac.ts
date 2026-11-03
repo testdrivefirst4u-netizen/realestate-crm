@@ -35,14 +35,16 @@ export type Permission =
   | 'developer.view'
   | 'developer.edit'
   | 'developer.deploy'
-  | 'audit.view';
+  | 'audit.view'
+  /** Publish posts and pause / budget ad campaigns (Admins, Managers). */
+  | 'marketing.manage';
 
 const ALL: Permission[] = [
   'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export',
   'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export',
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
-  'developer.view', 'developer.edit', 'developer.deploy', 'audit.view',
+  'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.manage',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {

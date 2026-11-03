@@ -37,8 +37,8 @@ import { defaultMetaSourceConfig, disconnectMetaSourceDoc, validFormIds } from '
 type Req<K extends keyof LeadSourceActions> = LeadSourceActions[K]['req'];
 type Res<K extends keyof LeadSourceActions> = LeadSourceActions[K]['res'];
 
-const TYPES: LeadSourceType[] = ['website', 'webhook', 'google_sheet'];
-const TYPE_LABEL: Record<LeadSourceType, string> = { website: 'Website', webhook: 'Webhook', google_sheet: 'Google Sheet', meta: 'Meta Lead Ads' };
+const TYPES: LeadSourceType[] = ['website', 'webhook', 'google_sheet', 'google_ads'];
+const TYPE_LABEL: Record<LeadSourceType, string> = { website: 'Website', webhook: 'Webhook', google_sheet: 'Google Sheet', meta: 'Meta Lead Ads', google_ads: 'Google Ads', linkedin: 'LinkedIn' };
 const ASSIGN_MODES = ['unassigned', 'fixed', 'round_robin'] as const;
 const DUP_MODES = ['remark', 'skip', 'create'] as const;
 const STATUSES: InboundStatus[] = ['created', 'duplicate', 'rejected', 'failed'];
@@ -225,7 +225,7 @@ export async function createLeadSource(d: Req<'createLeadSource'>, ctx: Ctx | nu
   const name = validName(d?.name);
   const type = String(d?.type || '') as LeadSourceType;
   if (type === 'meta') throw fail('VALIDATION', 'Meta (Facebook / Instagram) sources are created by connecting a Facebook Page (Connect with Facebook)');
-  if (!TYPES.includes(type)) throw fail('VALIDATION', 'type must be website, webhook or google_sheet');
+  if (!TYPES.includes(type)) throw fail('VALIDATION', 'type must be website, webhook, google_sheet or google_ads');
   const config = await mergeConfig(defaultConfig(type), d?.config);
   const isSheet = type === 'google_sheet';
   if (isSheet) {
@@ -327,7 +327,7 @@ export async function updateLeadSource(d: Req<'updateLeadSource'>, ctx: Ctx | nu
 
 export async function rotateLeadSourceKey(d: Req<'rotateLeadSourceKey'>, ctx: Ctx | null): Promise<Res<'rotateLeadSourceKey'>> {
   const cur = await findSource(d?.id);
-  if (cur.type === 'google_sheet' || cur.type === 'meta') throw fail('VALIDATION', cur.type === 'meta' ? 'Meta sources have no API key' : 'Google Sheet sources have no API key');
+  if (cur.type === 'google_sheet' || cur.type === 'meta' || cur.type === 'linkedin') throw fail('VALIDATION', cur.type === 'google_sheet' ? 'Google Sheet sources have no API key' : 'This source is connected through its platform and has no API key');
   const tenant = requireTenant();
   const keys = await apiKeys();
   const key = await issueKey(cur._id);
@@ -383,7 +383,7 @@ export async function previewLeadSource(d: Req<'previewLeadSource'>): Promise<Re
 
 /**
  * The company router admits lead-source actions when the plan has websiteApi OR googleSheets; here each
- * source type is held to its own feature (website/webhook → websiteApi, google_sheet → googleSheets).
+ * source type is held to its own feature (website/webhook → websiteApi, google_sheet → googleSheets, google_ads → googleAdsLeads).
  * Meta sources need metaLeads. The super-admin console calls the functions directly and is not gated.
  */
 function assertTypeFeature(type: string) {
@@ -391,6 +391,14 @@ function assertTypeFeature(type: string) {
   if (!t) return;
   if (type === 'meta') {
     if (!t.features.metaLeads) throw fail('FORBIDDEN', "Meta (Facebook / Instagram) Lead Ads are not included in your company's plan.");
+    return;
+  }
+  if (type === 'google_ads') {
+    if (!t.features.googleAdsLeads) throw fail('FORBIDDEN', "Google Ads lead forms are not included in your company's plan.");
+    return;
+  }
+  if (type === 'linkedin') {
+    if (!t.features.linkedin) throw fail('FORBIDDEN', "LinkedIn is not included in your company's plan.");
     return;
   }
   if (type === 'google_sheet' ? !t.features.googleSheets : !t.features.websiteApi) {

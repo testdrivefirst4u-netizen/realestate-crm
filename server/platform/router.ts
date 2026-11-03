@@ -20,6 +20,7 @@ import * as BR from './branding';
 import { platformHealth } from './health';
 import * as ST from './storage';
 import * as BI from './billing';
+import * as MK from './marketingApps';
 
 type Handler = { public?: boolean; fn: (data: any, ctx: SaCtx) => Promise<unknown> | unknown };
 
@@ -83,6 +84,8 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   storageOverview: { fn: (d) => ST.storageOverview(d || {}) },
   storageCompany: { fn: (d) => ST.storageCompany(d) },
   storageLargest: { fn: (d) => ST.storageLargest(d) },
+  getMarketingApps: { fn: () => MK.getMarketingApps() },
+  setMarketingApps: { fn: (d, ctx) => MK.setMarketingApps(d, ctx) },
   /* billing */
   billingOverview: { fn: () => BI.billingOverview() },
   saveSubscription: { fn: (d, ctx) => BI.saveSubscription(d, ctx) },

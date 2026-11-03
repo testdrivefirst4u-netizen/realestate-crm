@@ -11,6 +11,8 @@ export const SOURCE_TYPE_LABELS: Record<LeadSourceType, string> = {
   webhook: 'Webhook',
   google_sheet: 'Google Sheet',
   meta: 'Facebook / Instagram',
+  google_ads: 'Google Ads',
+  linkedin: 'LinkedIn',
 };
 
 /**

@@ -66,6 +66,16 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   metaLeads: false,
   googleSheets: false,
   adConversions: false,
+  googleAdsLeads: false,
+  adSpend: false,
+  googleConversions: false,
+  googleAdsSpend: false,
+  socialInbox: false,
+  socialPosts: false,
+  adsControl: false,
+  linkedin: false,
+  pinterest: false,
+  websiteAnalytics: false,
 };
 
 export function normalizeFeatures(f: Partial<TenantFeatures> | null | undefined): TenantFeatures {

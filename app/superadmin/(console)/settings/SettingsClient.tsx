@@ -10,6 +10,7 @@ import { useToast } from '../../_components/Toast';
 import { Button, Card, CardHeader, ErrorBox, PageHeader, Skeleton, TextAreaField } from '../../_components/ui';
 import { GoogleOAuthSection } from './GoogleOAuthSection';
 import { MetaSettingsCard } from './MetaSettingsCard';
+import { MarketingAppsCard } from './MarketingAppsCard';
 import { BrandingCard } from './BrandingCard';
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { Field, Guide, StatusPill, TestResult } from './SettingsParts';
@@ -280,6 +281,7 @@ export function SettingsClient() {
       </Card>
 
       <MetaSettingsCard />
+      <MarketingAppsCard />
 
       <ConfirmDialog
         open={removeOpen}

@@ -136,6 +136,13 @@ export async function handleMetaWebhookPost(req: Request, schedule: (fn: () => P
   } catch {
     return json({ status: 'error', code: 'VALIDATION', message: 'Invalid JSON' }, 400);
   }
+  // social inbox: comments and messages (stored at once; never blocks the lead queue)
+  try {
+    const { ingestSocialWebhook } = await import('./socialInbox');
+    await ingestSocialWebhook(body);
+  } catch (e: any) {
+    console.error('[webhook:meta] social inbox', e?.message);
+  }
   try {
     const { ids, inserted } = await enqueueLeadgen(body);
     if (ids.length) schedule(() => processQueueItems(ids));

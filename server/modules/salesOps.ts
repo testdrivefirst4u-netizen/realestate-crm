@@ -531,13 +531,15 @@ export async function leaderboard(d: { days?: number } | undefined, now = new Da
 
 /* ------------------------------ campaign spend --------------------------- */
 
-export interface SpendRow { campaign: string; month: string; amount: number }
+/** `source`: filled daily from Meta or Google Ads (Ad spend from …); those rows are not typed over by hand. */
+export type SpendSource = 'meta' | 'google';
+export interface SpendRow { campaign: string; month: string; amount: number; source?: SpendSource }
 
 export function parseSpend(raw: unknown): SpendRow[] {
   const list = (typeof raw === 'string' ? safeJsonParse<unknown[]>(raw, []) : raw) as unknown[];
   if (!Array.isArray(list)) return [];
   return list
-    .map((r: any) => ({ campaign: String(r?.campaign ?? '').trim().slice(0, 200), month: String(r?.month ?? '').trim(), amount: Math.round(Number(r?.amount) * 100) / 100 }))
+    .map((r: any): SpendRow => ({ campaign: String(r?.campaign ?? '').trim().slice(0, 200), month: String(r?.month ?? '').trim(), amount: Math.round(Number(r?.amount) * 100) / 100, ...(r?.source === 'meta' || r?.source === 'google' ? { source: r.source as SpendSource } : {}) }))
     .filter((r) => r.campaign && /^\d{4}-\d{2}$/.test(r.month) && Number.isFinite(r.amount) && r.amount >= 0);
 }
 
@@ -550,12 +552,30 @@ export async function saveCampaignSpend(d: { month: string; rows: Array<{ campai
   const month = String(d?.month || '');
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw fail('VALIDATION', 'Choose a month');
   if (!Array.isArray(d?.rows) || d.rows.length > 500) throw fail('VALIDATION', 'Send at most 500 campaigns');
-  const incoming = parseSpend(d.rows.map((r) => ({ ...r, month }))).filter((r) => r.amount > 0);
+  const current = parseSpend((await settingsAll()).campaignSpend);
+  // campaigns whose spend comes from Meta / Google keep it (typing over them would be overwritten at the next sync)
+  const fromMeta = current.filter((r) => r.month === month && !!r.source);
+  const metaNames = new Set(fromMeta.map((r) => r.campaign));
+  const incoming = parseSpend(d.rows.map((r) => ({ campaign: r.campaign, amount: r.amount, month }))).filter((r) => r.amount > 0 && !metaNames.has(r.campaign));
   if (incoming.some((r) => r.amount > 1e9)) throw fail('VALIDATION', 'That amount looks too large');
-  const rows = [...parseSpend((await settingsAll()).campaignSpend).filter((r) => r.month !== month), ...incoming];
+  const rows = [...current.filter((r) => r.month !== month), ...fromMeta, ...incoming];
   if (rows.length > 5000) throw fail('VALIDATION', 'Too many spend entries — remove old months first');
   await settingSet('campaignSpend', JSON.stringify(rows), ctx.user?.name || 'System');
   return { rows };
+}
+
+/**
+ * Ad spend from Meta / Google Ads: replace that source's rows of the synced months with `rows` (a campaign typed in
+ * by hand that the platform now reports is replaced too). Other months, sources and campaigns are left alone.
+ */
+export async function replaceSpend(source: SpendSource, months: string[], rows: Array<{ campaign: string; month: string; amount: number }>, actor: string): Promise<SpendRow[]> {
+  const fresh = parseSpend(rows.map((r) => ({ ...r, source }))).filter((r) => months.includes(r.month));
+  const taken = new Set(fresh.map((r) => r.month + '\u0000' + r.campaign));
+  const kept = parseSpend((await settingsAll()).campaignSpend).filter((r) => !(months.includes(r.month) && (r.source === source || (!r.source && taken.has(r.month + '\u0000' + r.campaign)))));
+  const all = [...kept, ...fresh];
+  if (all.length > 5000) throw fail('VALIDATION', 'Too many spend entries — remove old months first');
+  await settingSet('campaignSpend', JSON.stringify(all), actor);
+  return all;
 }
 
 export const actions: ActionMap = {

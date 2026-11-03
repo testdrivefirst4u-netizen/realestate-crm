@@ -16,7 +16,7 @@ import type { SheetImportConfig } from './sheetTypes';
 import type { MetaSourceConfig } from './metaTypes';
 
 /** website/webhook: pushed to /api/inbound/leads with an API key. google_sheet: rows pulled from a shared Google Sheet (no key). meta: a connected Facebook Page (no key). */
-export type LeadSourceType = 'website' | 'webhook' | 'google_sheet' | 'meta';
+export type LeadSourceType = 'website' | 'webhook' | 'google_sheet' | 'meta' | 'google_ads' | 'linkedin';
 export type AssignmentMode = 'unassigned' | 'fixed' | 'round_robin';
 export type DuplicateMode = 'remark' | 'skip' | 'create';
 export type InboundStatus = 'created' | 'duplicate' | 'rejected' | 'failed';

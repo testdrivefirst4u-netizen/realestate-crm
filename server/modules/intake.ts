@@ -63,7 +63,12 @@ export interface IngestMeta {
   ip?: string;
   origin?: string;
   idempotencyKey?: string;
+  /** A test sent by the provider (Google Ads "Send test data"): logged as received, no lead is made. */
+  test?: boolean;
 }
+
+/** Log message of a provider's test submission (not an error; "Retry" in the intake log turns it into a lead). */
+export const TEST_MESSAGE = 'test lead: received correctly, not added as a lead';
 
 export interface IngestResult {
   logId: string;
@@ -253,7 +258,7 @@ export function mapFields(source: Pick<SourceDoc, 'type' | 'config'>, raw: Recor
   let reject = '';
   if (!phoneOk && !emailOk) reject = phone || email ? 'No valid phone number or e-mail address' : 'A phone number or e-mail address is required';
 
-  const typeLabel = source.type === 'webhook' ? 'Webhook' : source.type === 'google_sheet' ? 'Google Sheet' : source.type === 'meta' ? 'Meta Lead Ads' : 'Website';
+  const typeLabel = source.type === 'webhook' ? 'Webhook' : source.type === 'google_sheet' ? 'Google Sheet' : source.type === 'meta' ? 'Meta Lead Ads' : source.type === 'google_ads' ? 'Google Ads' : source.type === 'linkedin' ? 'LinkedIn' : 'Website';
   if (!lead[L.NAME]) lead[L.NAME] = `${typeLabel} enquiry ${phoneOk ? lead[L.PHONE] : emailOk ? lead[L.EMAIL] : ''}`.trim();
 
   const message = messages.join('\n');
@@ -439,7 +444,7 @@ const STAT_OF: Record<InboundStatus, keyof LeadSourceStats> = { created: 'create
 async function bumpStats(sourceId: string, inc: Record<string, number>, status: InboundStatus, message: string) {
   const set: Record<string, unknown> = { 'stats.lastReceivedAt': new Date() };
   // bot traffic caught by the honeypot is counted as rejected but is not an error worth flagging
-  if (status === 'failed' || (status === 'rejected' && !/^spam/.test(message))) set['stats.lastError'] = truncate(`${status}: ${message}`, 300);
+  if (status === 'failed' || (status === 'rejected' && !/^spam|^test lead/.test(message))) set['stats.lastError'] = truncate(`${status}: ${message}`, 300);
   await (await sourcesCol()).updateOne({ _id: sourceId }, { $inc: inc, $set: set });
 }
 
@@ -490,7 +495,9 @@ export async function ingestLead(source: SourceDoc, rawFields: Record<string, un
   }
 
   const gotcha = flatValue(rawFields?._gotcha).trim();
-  const out: Outcome = gotcha ? { status: 'rejected', leadId: '', duplicate: false, message: 'spam (honeypot)' } : await processFields(source, rawFields);
+  const out: Outcome = gotcha ? { status: 'rejected', leadId: '', duplicate: false, message: 'spam (honeypot)' }
+    : meta.test ? { status: 'rejected', leadId: '', duplicate: false, message: TEST_MESSAGE }
+    : await processFields(source, rawFields);
   await log.updateOne({ _id: entry._id }, { $set: { status: out.status, leadId: out.leadId, message: out.message, duplicate: out.duplicate } });
   await bumpStats(source._id, { 'stats.received': 1, ['stats.' + STAT_OF[out.status]]: 1 }, out.status, out.message);
   return { logId: entry._id, ...out };

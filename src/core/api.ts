@@ -125,7 +125,8 @@ export interface JcReport {
 export type BulkOp = 'assign' | 'stage' | 'followup' | 'remark' | 'trash';
 export interface EnquiryHistoryRow { id: string; enquiryDate: string; source: string; stage: string; rm: string; canOpen: boolean; current: boolean }
 export interface LeaderRow { rm: string; followups: number; calls: number; visits: number; bookings: number }
-export interface SpendRow { campaign: string; month: string; amount: number }
+/** `source`: filled daily from Meta or Google Ads (read-only in Sales MIS). */
+export interface SpendRow { campaign: string; month: string; amount: number; source?: 'meta' | 'google' }
 
 /** Where requests go: the CRM's /api/rpc, or the Super Admin console's company proxy (company settings in the console). */
 let rpcPath: string = API.rpcPath;
@@ -236,8 +237,62 @@ export interface AdConversionsView {
   connectUrl: string;
   /** Datasets this admin's Facebook login found, waiting for a choice. */
   pending: Array<{ id: string; name: string; account: string }> | null;
+  /** Ad spend from Meta (plan feature adSpend). */
+  spend: {
+    accounts: Array<{ id: string; name: string; currency: string; included: boolean }>;
+    syncedAt: string;
+    error: string;
+    months: Array<{ month: string; total: number }>;
+    currencies: string[];
+  };
   last30: Record<AdConversionStatus, number>;
-  recent: Array<{ id: string; leadId: string; leadName: string; event: string; status: AdConversionStatus; at: string; matchedBy: string; error: string }>;
+  recent: Array<{ id: string; platform: 'meta' | 'google_ads' | 'ga4'; leadId: string; leadName: string; event: string; status: AdConversionStatus; at: string; matchedBy: string; error: string }>;
+}
+
+/** Social inbox (server: modules/socialInbox.ts). */
+export type InboxPlatform = 'facebook' | 'instagram' | 'google';
+export interface InboxThread { thread: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; authorName: string; text: string; rating?: number; at: string; unread: number; count: number; leadId: string; answered: boolean }
+export interface InboxMessage { id: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; thread: string; authorName: string; text: string; rating?: number; direction: 'in' | 'out'; at: string; read: boolean; leadId?: string; by?: string }
+/** Settings › Social accounts (server: modules/socialAccounts.ts and linkedin / pinterest). */
+export interface SocialAccountsView { connectUrl: string; available: boolean; pages: Array<{ id: string; name: string; igId: string; igUsername: string }>; note: string }
+/** Post scheduler (server: modules/socialPosts.ts). */
+export type PostTargetKind = 'facebook' | 'instagram' | 'google' | 'linkedin' | 'pinterest';
+export interface PostTargetOption { key: string; kind: PostTargetKind; name: string; needsImage: boolean }
+export interface SocialPost {
+  id: string; text: string; link: string; imageUrl: string; scheduledAt: string; status: 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string;
+  targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string }>;
+}
+/** Website analytics (server: modules/websiteAnalytics.ts). */
+export interface WebsiteAnalytics {
+  days: number; from: string; to: string; property: { id: string; name: string } | null; error: string;
+  web: { visitors: number; newVisitors: number; sessions: number; daily: Array<{ day: string; visitors: number; sessions: number }>; channels: Array<{ name: string; sessions: number; visitors: number }>; sources: Array<{ name: string; sessions: number }>; pages: Array<{ path: string; sessions: number }> } | null;
+  crm: { enquiries: number; siteVisits: number; bookings: number; daily: Array<{ day: string; enquiries: number }>; bySource: Array<{ name: string; enquiries: number; siteVisits: number; bookings: number }> };
+}
+/** Ads manager (server: modules/adsControl.ts). */
+export interface AdCampaign { platform: 'meta' | 'google'; id: string; name: string; account: string; status: 'ACTIVE' | 'PAUSED' | 'OTHER'; dailyBudget: number | null; budgetRef: string; spend7: number; leads7: number }
+export interface LinkedInView { available: boolean; connected: boolean; leadAccess: boolean; orgs: Array<{ urn: string; name: string }>; orgUrn: string; adAccounts: Array<{ urn: string; name: string }>; leadAccount: string; leadsSince: string; leadsError: string; expiresAt: string; connectUrl: string }
+export interface PinterestView { available: boolean; connected: boolean; username: string; boards: Array<{ id: string; name: string }>; boardId: string; connectUrl: string }
+
+/** Settings › Google (server: modules/googleMarketing.ts). */
+export interface GoogleMarketingView {
+  available: boolean;
+  developerTokenSet: boolean;
+  connectUrl: string;
+  connected: boolean;
+  email: string;
+  adsAccess: boolean;
+  businessAccess: boolean;
+  setupError: string;
+  adsCustomers: Array<{ id: string; name: string; currency: string; manager: boolean }>;
+  adsCustomerId: string;
+  adsConversions: { enabled: boolean; actions: Record<string, string> };
+  ga4: { enabled: boolean; measurementId: string; secretSet: boolean };
+  gbpLocations: Array<{ name: string; title: string; account: string }>;
+  gbpLocation: { name: string; title: string; account: string } | null;
+  analyticsAccess: boolean;
+  ga4Properties: Array<{ id: string; name: string }>;
+  ga4PropertyId: string;
+  spend: { syncedAt: string; error: string; months: Array<{ month: string; total: number }>; currency: string };
 }
 
 export const api = {
@@ -473,6 +528,61 @@ export const api = {
 
   /** Retired Developer Mode actions — kept for API compatibility; the server answers with an explanatory error. */
   /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
+  /** Social inbox: Facebook / Instagram comments and messages, Google reviews (plan feature socialInbox). */
+  inbox: {
+    list: (filter: { platform?: InboxPlatform | ''; kind?: string } = {}) => request<{ threads: InboxThread[]; unread: number }>('listInbox', filter),
+    thread: (thread: string) => request<{ thread: string; items: InboxMessage[] }>('getInboxThread', { thread }),
+    reply: (thread: string, text: string) => request<{ ok: true }>('replyInbox', { thread, text }, { timeoutMs: 30000 }),
+    markRead: (thread: string, read = true) => request<{ ok: true }>('markInboxRead', { thread, read }),
+    createLead: (d: { thread: string; name: string; phone: string; email?: string }) => request<{ leadId: string }>('inboxCreateLead', d),
+    refresh: () => request<{ reviews: number }>('refreshInbox', {}, { timeoutMs: 60000 }),
+  },
+  socialAccounts: {
+    get: () => request<SocialAccountsView>('getSocialAccounts'),
+    disconnectPage: (pageId: string) => request<SocialAccountsView>('disconnectSocialPage', { pageId }),
+  },
+  posts: {
+    list: () => request<{ posts: SocialPost[]; targets: PostTargetOption[] }>('listPosts'),
+    create: (d: { text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),
+    retry: (id: string) => request<SocialPost>('retryPost', { id }, { timeoutMs: 120000 }),
+    remove: (id: string) => request<{ ok: true }>('deletePost', { id }),
+    uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),
+  },
+  analytics: {
+    get: (days: 7 | 30 | 90, refresh = false) => request<WebsiteAnalytics>('getWebsiteAnalytics', { days, refresh }, { timeoutMs: 60000 }),
+  },
+  ads: {
+    list: () => request<{ campaigns: AdCampaign[]; errors: Partial<Record<'meta' | 'google', string>>; alerts: { enabled: boolean; minSpend: number } }>('listAdCampaigns', {}, { timeoutMs: 60000 }),
+    setStatus: (c: AdCampaign, status: 'ACTIVE' | 'PAUSED') => request<{ ok: true }>('setCampaignStatus', { platform: c.platform, id: c.id, name: c.name, status }),
+    setBudget: (c: AdCampaign, daily: number) => request<{ ok: true }>('setCampaignBudget', { platform: c.platform, id: c.id, name: c.name, budgetRef: c.budgetRef, daily }),
+    saveAlerts: (d: { enabled: boolean; minSpend: number }) => request<{ enabled: boolean; minSpend: number }>('saveAdAlerts', d),
+  },
+  linkedin: {
+    get: () => request<LinkedInView>('getLinkedIn'),
+    save: (d: { orgUrn?: string; leadAccount?: string }) => request<LinkedInView>('saveLinkedIn', d),
+    disconnect: () => request<LinkedInView>('disconnectLinkedIn'),
+    syncLeads: () => request<{ received: number; created: number }>('syncLinkedInLeads', {}, { timeoutMs: 120000 }),
+  },
+  pinterest: {
+    get: () => request<PinterestView>('getPinterest'),
+    save: (d: { boardId: string }) => request<PinterestView>('savePinterest', d),
+    disconnect: () => request<PinterestView>('disconnectPinterest'),
+  },
+  /** Google Ads, GA4 and Business Profile (plan features googleConversions, googleAdsSpend, socialInbox, socialPosts, adsControl). */
+  googleMarketing: {
+    get: () => request<GoogleMarketingView>('getGoogleMarketing'),
+    save: (d: { adsCustomerId?: string; adsConversions?: { enabled: boolean; actions: Record<string, string> }; ga4?: { enabled: boolean; measurementId: string; apiSecret?: string }; gbpLocation?: string; ga4PropertyId?: string }) => request<GoogleMarketingView>('saveGoogleMarketing', d),
+    refresh: () => request<GoogleMarketingView>('refreshGoogleMarketing', {}, { timeoutMs: 60000 }),
+    conversionActions: () => request<Array<{ resourceName: string; name: string; type: string }>>('listGoogleConversionActions', {}, { timeoutMs: 60000 }),
+    disconnect: () => request<GoogleMarketingView>('disconnectGoogleMarketing'),
+    testGa4: () => request<{ ok: boolean; message: string }>('testGa4', {}, { timeoutMs: 30000 }),
+    syncSpend: () => request<GoogleMarketingView>('syncGoogleSpend', {}, { timeoutMs: 120000 }),
+  },
+  /** The events sent to ad platforms and the steps that send them (shared by Meta and Google). */
+  conversionRules: {
+    get: () => request<{ rules: AdConversionRule[] }>('getConversionRules'),
+    save: (rules: AdConversionRule[]) => request<{ rules: AdConversionRule[] }>('saveConversionRules', { rules }),
+  },
   /** Lead results to the company's Meta dataset (plan feature adConversions). The token is write-only. */
   adConversions: {
     get: () => request<AdConversionsView>('getAdConversions'),
@@ -480,6 +590,9 @@ export const api = {
     test: (testCode?: string) => request<{ ok: boolean; message: string }>('testAdConversion', { testCode }, { timeoutMs: 30000 }),
     chooseDataset: (datasetId: string) => request<AdConversionsView>('chooseAdConversionDataset', { datasetId }),
     disconnect: () => request<AdConversionsView>('disconnectAdConversions'),
+    /** Read Meta ad spend now (also runs every morning). */
+    syncSpend: () => request<AdConversionsView>('syncAdSpend', {}, { timeoutMs: 120000 }),
+    saveSpendAccounts: (accounts: string[]) => request<AdConversionsView>('saveAdSpendAccounts', { accounts }),
   },
   library: {
     get: () => request<LibraryResponse>('libraryGet'),

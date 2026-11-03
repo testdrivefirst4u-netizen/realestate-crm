@@ -36,6 +36,14 @@ import { actions as justconnectActions } from './modules/justconnect';
 import { actions as jcSyncActions } from './modules/jcSync';
 import { actions as libraryActions } from './modules/library';
 import { actions as adConversionActions } from './modules/adConversions';
+import { actions as googleMarketingActions } from './modules/googleMarketing';
+import { actions as socialAccountActions } from './modules/socialAccounts';
+import { actions as socialInboxActions } from './modules/socialInbox';
+import { actions as linkedinActions } from './modules/linkedin';
+import { actions as pinterestActions } from './modules/pinterest';
+import { actions as socialPostActions } from './modules/socialPosts';
+import { actions as adsControlActions } from './modules/adsControl';
+import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -60,6 +68,14 @@ export const registry: ActionMap = {
   ...jcSyncActions,
   ...libraryActions,
   ...adConversionActions,
+  ...googleMarketingActions,
+  ...socialAccountActions,
+  ...socialInboxActions,
+  ...linkedinActions,
+  ...pinterestActions,
+  ...socialPostActions,
+  ...adsControlActions,
+  ...websiteAnalyticsActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -82,9 +98,19 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],
   [/^library(Get|Save|SetEditors|UploadPart|Import)$/, 'projectLibrary', 'The project library'],
-  [/^(get|save|test|disconnect)AdConversions?$|^chooseAdConversionDataset$/, 'adConversions', 'Ad conversions'],
+  [/^(save|test)AdConversions?$/, 'adConversions', 'Ad conversions'],
+  [/^(get|disconnect)AdConversions$|^chooseAdConversionDataset$/, ['adConversions', 'adSpend', 'googleConversions'], 'Meta ads features'],
+  [/^(get|save)ConversionRules$/, ['adConversions', 'googleConversions'], 'Lead results to ad platforms'],
+  [/^(get|save|refresh|disconnect)GoogleMarketing$|^listGoogleConversionActions$|^testGa4$|^syncGoogleSpend$/, ['googleConversions', 'googleAdsSpend', 'socialInbox', 'socialPosts', 'adsControl', 'websiteAnalytics'], 'Google marketing features'],
+  [/^(syncAdSpend|saveAdSpendAccounts)$/, 'adSpend', 'Ad spend from Meta'],
+  [/^(getSocialAccounts|disconnectSocialPage)$/, ['socialInbox', 'socialPosts'], 'The social inbox and post scheduler'],
+  [/^(listInbox|getInboxThread|replyInbox|markInboxRead|inboxCreateLead|refreshInbox)$/, 'socialInbox', 'The social inbox'],
+  [/^(get|save|disconnect)LinkedIn$|^syncLinkedInLeads$/, 'linkedin', 'LinkedIn'],
+  [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
+  [/^(listPosts|createPost|retryPost|deletePost|uploadPostImage)$/, 'socialPosts', 'The post scheduler'],
+  [/^(listAdCampaigns|setCampaignStatus|setCampaignBudget|saveAdAlerts)$/, 'adsControl', 'The ads manager'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
-  [/LeadSource|^listInboundLog$|^retryInbound$/, ['websiteApi', 'googleSheets', 'metaLeads'], 'Website forms & lead API'],
+  [/LeadSource|^listInboundLog$|^retryInbound$/, ['websiteApi', 'googleSheets', 'metaLeads', 'googleAdsLeads', 'linkedin'], 'Website forms & lead API'],
   // googleStatus is not gated (it only says whether the platform is configured and which e-mail to share with)
   [/^(checkSheet|syncSheetImport|listGoogleConnections|disconnectGoogleConnection)$|SheetExport/, 'googleSheets', 'Google Sheets sync features'],
   // metaStatus is not gated (it only says whether the platform has a Meta app)
@@ -102,6 +128,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
+  'listInbox', 'getInboxThread', 'listAdCampaigns', 'getWebsiteAnalytics',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

@@ -16,6 +16,7 @@ import { useFeature } from '../../../core/tenant';
 import { Badge, Button, Card, EmptyState, ErrorState, Modal } from '../../../components/ui';
 import type { CanFn } from '../types';
 import { ApiKeyPanel, IntegrationGuide } from './IntegrationGuide';
+import { GoogleAdsGuide } from './GoogleAdsGuide';
 import { SourceDetail } from './SourceDetail';
 import { SourceForm, SourceFormState, emptyFormState, formToRequest } from './SourceForm';
 import { TYPE_LABEL, usableStages, usesApiKey } from './leadSourceUtils';
@@ -49,9 +50,10 @@ export const LeadSourcesSection: React.FC<LeadSourcesSectionProps> = (props) => 
   const apiEnabled = useFeature('websiteApi');
   const sheetsEnabled = useFeature('googleSheets');
   const metaEnabled = useFeature('metaLeads');
+  const googleAdsEnabled = useFeature('googleAdsLeads');
   if (!props.can('settings.view')) return null;
   // A Facebook login that just finished is still shown (the server refuses it when the plan does not allow it).
-  if (!apiEnabled && !sheetsEnabled && !metaEnabled && !props.metaConnect && !props.metaError) {
+  if (!apiEnabled && !sheetsEnabled && !metaEnabled && !googleAdsEnabled && !props.metaConnect && !props.metaError) {
     return (
       <Card title="Lead sources">
         <EmptyState
@@ -62,7 +64,7 @@ export const LeadSourcesSection: React.FC<LeadSourcesSectionProps> = (props) => 
       </Card>
     );
   }
-  return <LeadSourcesScreen {...props} stageOptions={usableStages(props.stageOptions)} apiEnabled={apiEnabled} sheetsEnabled={sheetsEnabled} metaEnabled={metaEnabled} />;
+  return <LeadSourcesScreen {...props} stageOptions={usableStages(props.stageOptions)} apiEnabled={apiEnabled} sheetsEnabled={sheetsEnabled} metaEnabled={metaEnabled} googleAdsEnabled={googleAdsEnabled} />;
 };
 
 function sectionSubtitle(apiEnabled: boolean, sheetsEnabled: boolean, metaEnabled: boolean): string {
@@ -74,11 +76,11 @@ function sectionSubtitle(apiEnabled: boolean, sheetsEnabled: boolean, metaEnable
   return `${list.charAt(0).toUpperCase()}${list.slice(1)} that create leads automatically.`;
 }
 
-type ScreenProps = LeadSourcesSectionProps & { apiEnabled: boolean; sheetsEnabled: boolean; metaEnabled: boolean };
+type ScreenProps = LeadSourcesSectionProps & { apiEnabled: boolean; sheetsEnabled: boolean; metaEnabled: boolean; googleAdsEnabled: boolean };
 
-const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions, onOpenLead, apiEnabled, sheetsEnabled, metaEnabled, metaConnect, metaError, onMetaLinkConsumed }) => {
+const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions, onOpenLead, apiEnabled, sheetsEnabled, metaEnabled, googleAdsEnabled, metaConnect, metaError, onMetaLinkConsumed }) => {
   const canManage = can('settings.edit');
-  const canAdd = canManage && (apiEnabled || sheetsEnabled);
+  const canAdd = canManage && (apiEnabled || sheetsEnabled || googleAdsEnabled);
   const google = useGoogleStatus(sheetsEnabled);
   const googleConns = useGoogleConnections(sheetsEnabled && !!google.status?.oauthConfigured);
   // Also needed for a returning Facebook login ("Connect again") before the plan features are known.
@@ -231,7 +233,7 @@ const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions
             <ApiKeyPanel apiKey={created.apiKey} />
             <div>
               <h4 className="text-sm font-bold text-[#0B2A44] mb-2">Integration guide</h4>
-              <IntegrationGuide apiKey={created.apiKey} initialTab={created.source.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={created.source.config?.allowedOrigins?.[0] ? `${created.source.config.allowedOrigins[0]}/thank-you` : undefined} />
+              {created.source.type === 'google_ads' ? <GoogleAdsGuide apiKey={created.apiKey} /> : <IntegrationGuide apiKey={created.apiKey} initialTab={created.source.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={created.source.config?.allowedOrigins?.[0] ? `${created.source.config.allowedOrigins[0]}/thank-you` : undefined} />}
             </div>
           </div>
         </Modal>
@@ -239,7 +241,7 @@ const LeadSourcesScreen: React.FC<ScreenProps> = ({ can, stageOptions, rmOptions
 
       {guideFor && usesApiKey(guideFor.type) && (
         <Modal open width="lg" onClose={() => setGuideFor(null)} title={`Integration guide · ${guideFor.name}`} subtitle={<>Key starts with <code className="font-mono">{guideFor.keyPrefix}…</code></>}>
-          <IntegrationGuide initialTab={guideFor.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={guideFor.config?.allowedOrigins?.[0] ? `${guideFor.config.allowedOrigins[0]}/thank-you` : undefined} />
+          {guideFor.type === 'google_ads' ? <GoogleAdsGuide /> : <IntegrationGuide initialTab={guideFor.type === 'webhook' ? 'zapier' : 'html'} redirectUrl={guideFor.config?.allowedOrigins?.[0] ? `${guideFor.config.allowedOrigins[0]}/thank-you` : undefined} />}
         </Modal>
       )}
 

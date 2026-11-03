@@ -9,6 +9,8 @@ import type { TenantFeatures } from '../core/tenant';
 import type { PlatformLeadSourceActions } from '../core/leadSourceTypes';
 import type { PlatformSheetActions } from '../core/sheetTypes';
 import type { PlatformMetaActions } from '../core/metaTypes';
+import type { MarketingAppsView } from './marketingApps';
+export type { MarketingAppsView } from './marketingApps';
 import type { Branding, BrandingInput } from './branding';
 export type { Branding, BrandingInput } from './branding';
 export type { MetaSourceConfig, MetaStatus } from '../core/metaTypes';
@@ -30,6 +32,16 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   metaLeads: 'Meta (Facebook/Instagram) Lead Ads',
   googleSheets: 'Google Sheets sync',
   adConversions: 'Ad conversions (lead results to Meta)',
+  googleAdsLeads: 'Google Ads lead forms',
+  adSpend: 'Ad spend from Meta (cost per lead / visit / booking)',
+  googleConversions: 'Lead results to Google (Ads conversions + Analytics)',
+  googleAdsSpend: 'Ad spend from Google Ads',
+  socialInbox: 'Social inbox (Facebook, Instagram, Google reviews)',
+  socialPosts: 'Post scheduler (Facebook, Instagram, Google, LinkedIn, Pinterest)',
+  adsControl: 'Ads control (pause, budgets, alerts)',
+  linkedin: 'LinkedIn (posts and lead forms)',
+  pinterest: 'Pinterest (pins)',
+  websiteAnalytics: 'Website analytics (Google Analytics)',
 };
 
 export interface SuperAdmin {
@@ -282,6 +294,9 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   saveSubscription: { req: { companyId: string; amount: number; currency: string; cycle: 'monthly' | 'yearly'; status: BillingSubscription['status']; startedOn?: string; renewsOn?: string; notes?: string }; res: BillingSubscription };
   createInvoice: { req: { companyId: string; amount: number; currency: string; description?: string; periodFrom?: string; periodTo?: string; issuedOn?: string; dueOn?: string }; res: BillingInvoice };
   setInvoiceStatus: { req: { id: string; status: 'due' | 'paid' | 'void'; method?: string; reference?: string; paidOn?: string }; res: BillingInvoice };
+  /* marketing integrations: Google Ads developer token, LinkedIn and Pinterest apps, Facebook social configuration */
+  getMarketingApps: { req: {}; res: MarketingAppsView };
+  setMarketingApps: { req: Partial<{ googleAdsDeveloperToken: string; googleAdsLoginCustomerId: string; googleAdsApiVersion: string; linkedinClientId: string; linkedinClientSecret: string; linkedinVersion: string; pinterestAppId: string; pinterestAppSecret: string; metaSocialConfigId: string }>; res: MarketingAppsView };
   /* branding & legal details (public legal pages) */
   getBranding: { req: {}; res: Branding };
   saveBranding: { req: BrandingInput; res: Branding };

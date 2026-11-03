@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, MessageCircle, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  type LucideIcon,
+  Inbox, Send, Megaphone, Globe2, type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
@@ -21,6 +21,8 @@ export interface SidebarCounts {
   followupsToday?: number;
   tasksPending?: number;
   unreadChats?: number;
+  /** Unanswered social inbox conversations. */
+  unreadSocial?: number;
 }
 
 interface SidebarProps {
@@ -42,6 +44,8 @@ interface SidebarProps {
   counts?: SidebarCounts;
   /** @deprecated Use `counts.unreadChats`. */
   unreadChats?: number;
+  /** Unanswered social inbox conversations. */
+  unreadSocial?: number;
 }
 
 interface Item { id: ViewId; label: string; icon: LucideIcon; count?: number; urgent?: boolean }
@@ -53,6 +57,7 @@ function buildGroups(counts: SidebarCounts): Group[] {
     { id: 'overview', label: 'Overview', items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'mis', label: 'Sales MIS', icon: ChartColumn },
       { id: 'performance', label: 'YTD / MTD', icon: TrendingUp }, { id: 'reports', label: 'Reports', icon: FileChartColumn },
+      { id: 'analytics', label: 'Website Analytics', icon: Globe2 },
     ] },
     { id: 'leads', label: 'Leads', items: [
       { id: 'leads', label: 'All Leads', icon: Users, count: counts.leads }, { id: 'kanban', label: 'Enquiry Status', icon: SquareKanban },
@@ -60,6 +65,10 @@ function buildGroups(counts: SidebarCounts): Group[] {
     ] },
     { id: 'messages', label: 'Messages', items: [
       { id: 'chat360', label: 'WhatsApp (Chat360)', icon: MessageCircle, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },
+      { id: 'inbox', label: 'Social Inbox', icon: Inbox, count: counts.unreadSocial, urgent: true },
+    ] },
+    { id: 'marketing', label: 'Marketing', items: [
+      { id: 'posts', label: 'Post Scheduler', icon: Send }, { id: 'ads', label: 'Ads Manager', icon: Megaphone },
     ] },
     { id: 'work', label: 'Workspace', items: [
       { id: 'inventory', label: 'Inventory', icon: Building2 }, { id: 'tasks', label: 'Tasks & Notes', icon: CheckSquare, count: counts.tasksPending },

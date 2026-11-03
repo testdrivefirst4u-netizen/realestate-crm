@@ -27,6 +27,26 @@ export interface TenantFeatures {
   googleSheets: boolean;
   /** Report lead results (Qualified, site visit, Booked) to the company's own ad accounts (Meta Conversions API). */
   adConversions: boolean;
+  /** Google Ads lead form leads (webhook → lead source of type google_ads). */
+  googleAdsLeads: boolean;
+  /** Daily Meta ad spend per campaign into the campaign spend of Sales MIS (needs the Facebook connection of Ad conversions). */
+  adSpend: boolean;
+  /** Report lead results to the company's Google Ads conversion actions and GA4 property. */
+  googleConversions: boolean;
+  /** Daily Google Ads spend per campaign into the campaign spend of Sales MIS. */
+  googleAdsSpend: boolean;
+  /** Facebook / Instagram comments and messages and Google reviews in one inbox, answered from the CRM. */
+  socialInbox: boolean;
+  /** Write once, publish or schedule posts to the connected pages and profiles. */
+  socialPosts: boolean;
+  /** Pause / resume Meta and Google campaigns, change budgets, alerts for campaigns spending without leads. */
+  adsControl: boolean;
+  /** LinkedIn company page posts and Lead Gen Form leads. */
+  linkedin: boolean;
+  /** Pins to a Pinterest board from the post scheduler. */
+  pinterest: boolean;
+  /** Website analytics screen: the company's GA4 visitors next to CRM enquiries, site visits and bookings. */
+  websiteAnalytics: boolean;
 }
 
 export interface Tenant {

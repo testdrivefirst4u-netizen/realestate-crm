@@ -86,6 +86,16 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   metaLeads: 'Meta (Facebook/Instagram) Lead Ads',
   googleSheets: 'Google Sheets sync',
   adConversions: 'Ad conversions (lead results to Meta)',
+  googleAdsLeads: 'Google Ads lead forms',
+  adSpend: 'Ad spend from Meta (cost per lead / visit / booking)',
+  googleConversions: 'Lead results to Google (Ads conversions + Analytics)',
+  googleAdsSpend: 'Ad spend from Google Ads',
+  socialInbox: 'Social inbox (Facebook, Instagram, Google reviews)',
+  socialPosts: 'Post scheduler (Facebook, Instagram, Google, LinkedIn, Pinterest)',
+  adsControl: 'Ads control (pause, budgets, alerts)',
+  linkedin: 'LinkedIn (posts and lead forms)',
+  pinterest: 'Pinterest (pins)',
+  websiteAnalytics: 'Website analytics (Google Analytics)',
 };
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
 

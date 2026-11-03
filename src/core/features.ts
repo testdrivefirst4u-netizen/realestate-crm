@@ -16,6 +16,16 @@ export type FeatureName =
   | 'metaLeads'
   | 'googleSheets'
   | 'adConversions'
+  | 'googleAdsLeads'
+  | 'adSpend'
+  | 'googleConversions'
+  | 'googleAdsSpend'
+  | 'socialInbox'
+  | 'socialPosts'
+  | 'adsControl'
+  | 'linkedin'
+  | 'pinterest'
+  | 'websiteAnalytics'
   | 'unitLocator'
   | 'projectLibrary'
   | 'reports'
@@ -67,6 +77,16 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   metaLeads: 'Meta Lead Ads',
   googleSheets: 'Google Sheets sync',
   adConversions: 'Ad conversions',
+  googleAdsLeads: 'Google Ads lead forms',
+  adSpend: 'Ad spend from Meta',
+  googleConversions: 'Lead results to Google',
+  googleAdsSpend: 'Ad spend from Google Ads',
+  socialInbox: 'Social inbox',
+  socialPosts: 'Post scheduler',
+  adsControl: 'Ads control',
+  linkedin: 'LinkedIn',
+  pinterest: 'Pinterest',
+  websiteAnalytics: 'Website analytics',
 };
 
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */

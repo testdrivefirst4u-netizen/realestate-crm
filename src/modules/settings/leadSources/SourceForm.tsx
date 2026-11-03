@@ -4,6 +4,7 @@ import type { AssignmentMode, DuplicateMode, LeadSource, LeadSourceConfig, LeadS
 import type { GoogleConnection, GoogleStatus } from '../../../../server/core/sheetTypes';
 import { Button, Select, cx, inputCls, labelCls } from '../../../components/ui';
 import { SheetImportFields } from '../sheets/SheetImportFields';
+import { useFeature } from '../../../core/tenant';
 import { SheetImportFormState, emptySheetImportForm, sheetImportFormFrom, sheetImportToRequest } from '../sheets/sheetUtils';
 import {
   ASSIGNMENT_OPTIONS, DUPLICATE_OPTIONS, FieldMapRow, MAPPABLE_FIELDS, TYPE_OPTIONS, defaultConfig, defaultSourceLabel, fieldMapToRows, normalizeOrigin, normalizeOrigins, rowsToFieldMap, usesOrigins, allowedTypeOptions,
@@ -93,7 +94,8 @@ export const SourceForm: React.FC<{
 }> = ({ value: f, onChange, stageOptions, rmOptions, typeLocked, disabled, idPrefix, allowSheet, allowApi = true, google = null, connections = null }) => {
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
   const isSheet = f.type === 'google_sheet';
-  const allowed = allowedTypeOptions({ apiEnabled: allowApi, sheetsEnabled: !!allowSheet });
+  const googleAdsEnabled = useFeature('googleAdsLeads');
+  const allowed = allowedTypeOptions({ apiEnabled: allowApi, sheetsEnabled: !!allowSheet, googleAdsEnabled });
   const typeOptions = TYPE_OPTIONS.filter((t) => t.value === f.type || allowed.includes(t));
   const set = (patch: Partial<SourceFormState>) => onChange({ ...f, ...patch });
   const id = (s: string) => `${idPrefix}-${s}`;

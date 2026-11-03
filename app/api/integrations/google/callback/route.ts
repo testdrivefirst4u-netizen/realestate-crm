@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import { CFG } from '@/server/core/config';
 import { finishGoogleConnect, GOOGLE_COOKIE_PATH, GOOGLE_NONCE_COOKIE, googleSettingsRedirect, readCookie } from '@/server/modules/googleConnect';
+import { finishGoogleMktConnect, googleMktRedirect, isGoogleMktCallback } from '@/server/modules/googleMarketing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,15 +17,19 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   const cookie = req.headers.get('cookie');
   let target: string;
+  const params = new URL(req.url).searchParams;
+  // the same callback serves "Connect with Google" of Settings › Google (told apart by the signed state)
+  const mkt = isGoogleMktCallback(params);
   try {
-    target = (await finishGoogleConnect({
-      params: new URL(req.url).searchParams,
+    target = (await (mkt ? finishGoogleMktConnect : finishGoogleConnect)({
+      params,
       sessionCookie: readCookie(cookie, CFG.SESSION_COOKIE),
       nonceCookie: readCookie(cookie, GOOGLE_NONCE_COOKIE),
     })).redirect;
   } catch (e: any) {
     console.error('[google:callback]', e?.message);
-    target = googleSettingsRedirect({ googleError: 'Something went wrong while connecting Google. Please try again.' });
+    const msg = 'Something went wrong while connecting Google. Please try again.';
+    target = mkt ? googleMktRedirect({ gmktError: msg }) : googleSettingsRedirect({ googleError: msg });
   }
   const res = NextResponse.redirect(target, 302);
   res.headers.set('Cache-Control', 'no-store');

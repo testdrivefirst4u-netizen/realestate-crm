@@ -171,6 +171,7 @@ async function handleInCompany(req: Request, fields: Record<string, unknown>, so
     if (doc.type === 'google_sheet') return err(403, 'FORBIDDEN', 'This lead source imports from Google Sheets and does not accept submissions', open);
     // Meta sources receive leads from Facebook (webhook + Graph API) only.
     if (doc.type === 'meta') return err(403, 'FORBIDDEN', 'This lead source receives Meta (Facebook / Instagram) Lead Ads and does not accept submissions', open);
+    if (doc.type === 'linkedin') return err(403, 'FORBIDDEN', 'This lead source receives LinkedIn Lead Gen Forms and does not accept submissions', open);
     const source = { ...doc, config: toSource(doc).config };
     const allowed = source.config.allowedOrigins || [];
     if (origin && allowed.length && !allowed.includes(origin)) {

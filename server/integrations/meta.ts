@@ -250,7 +250,12 @@ export async function listForms(pageId: string, pageToken: string, config?: Meta
 }
 
 export async function subscribePage(pageId: string, pageToken: string, config?: MetaConfig): Promise<boolean> {
-  const j = await graph<{ success?: boolean }>(`${pageId}/subscribed_apps`, { token: pageToken, config, method: 'POST', params: { subscribed_fields: 'leadgen' } });
+  // keep the fields already subscribed (the social inbox adds feed + messages): the POST replaces the list
+  const cfg = config || (await requireMetaConfig());
+  const cur = await graph<{ data?: Array<{ id?: string; subscribed_fields?: string[] }> }>(`${pageId}/subscribed_apps`, { token: pageToken, config: cfg }).catch(() => ({ data: [] as Array<{ id?: string; subscribed_fields?: string[] }> }));
+  const have = (cur.data || []).find((a) => String(a.id) === cfg.appId)?.subscribed_fields || [];
+  const fields = [...new Set(['leadgen', ...have])].join(',');
+  const j = await graph<{ success?: boolean }>(`${pageId}/subscribed_apps`, { token: pageToken, config: cfg, method: 'POST', params: { subscribed_fields: fields } });
   return j.success !== false;
 }
 

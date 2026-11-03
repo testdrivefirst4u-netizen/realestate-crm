@@ -6,6 +6,10 @@ import { listActiveTenants } from '@/server/platform/registry';
 import { runDaily } from '@/server/modules/jobs';
 import { safeEqual } from '@/server/core/utils';
 import { snapshotStorage } from '@/server/platform/storage';
+import { runConversionsCron, runSpendCron } from '@/server/modules/adConversions';
+import { runGoogleSpendCron } from '@/server/modules/googleMarketing';
+import { runInboxCron } from '@/server/modules/socialInbox';
+import { runAdAlertsCron } from '@/server/modules/adsControl';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,7 +36,13 @@ export async function GET(req: Request) {
   }
   // database sizes for the console's Storage page (growth needs one snapshot a day)
   const storage = await snapshotStorage().catch((e) => { console.error('[cron] storage snapshot', e); return { error: 'failed' }; });
-  const data = { companies: Object.keys(results).length, failed, results, storage };
+  // Meta: yesterday's ad spend per campaign (Sales MIS cost per lead / visit / booking) and lead results not sent yet
+  const adSpend = await runSpendCron().catch((e) => { console.error('[cron] ad spend', e); return { error: 'failed' }; });
+  const googleSpend = await runGoogleSpendCron().catch((e) => { console.error('[cron] google spend', e); return { error: 'failed' }; });
+  const conversions = await runConversionsCron().catch((e) => { console.error('[cron] conversions', e); return { error: 'failed' }; });
+  const inbox = await runInboxCron({ daily: true }).catch((e) => { console.error('[cron] inbox', e); return { error: 'failed' }; });
+  const adAlerts = await runAdAlertsCron().catch((e) => { console.error('[cron] ad alerts', e); return { error: 'failed' }; });
+  const data = { companies: Object.keys(results).length, failed, results, storage, adSpend, googleSpend, conversions, inbox, adAlerts };
   await recordJobRun('daily', started, !failed, summarize(data));
   return NextResponse.json({ status: failed ? 'error' : 'success', data }, { status: failed ? 500 : 200 });
 }

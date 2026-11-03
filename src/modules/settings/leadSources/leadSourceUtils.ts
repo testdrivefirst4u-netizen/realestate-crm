@@ -12,20 +12,21 @@ export const TYPE_OPTIONS: Array<{ value: LeadSourceType; label: string; hint: s
   { value: 'website', label: 'Website form', hint: 'Your own website’s enquiry form posts straight to the CRM.' },
   { value: 'webhook', label: 'Webhook', hint: 'Zapier, Make, IndiaMART, landing-page tools and other services that can send a webhook.' },
   { value: 'google_sheet', label: 'Google Sheet (import)', hint: 'New rows in a Google Sheet you share with the CRM become leads (no API key needed).' },
+  { value: 'google_ads', label: 'Google Ads lead form', hint: 'Leads from Google Ads lead forms arrive within seconds (the form’s webhook integration).' },
 ];
 
-export const TYPE_LABEL: Record<LeadSourceType, string> = { website: 'Website', webhook: 'Webhook', google_sheet: 'Google Sheet', meta: 'Facebook / Instagram' };
+export const TYPE_LABEL: Record<LeadSourceType, string> = { website: 'Website', webhook: 'Webhook', google_sheet: 'Google Sheet', meta: 'Facebook / Instagram', google_ads: 'Google Ads', linkedin: 'LinkedIn' };
 
 /** Sources that receive pushed submissions with an API key (a Google Sheet import pulls rows; a Meta Page is connected through Facebook). */
-export const usesApiKey = (type: LeadSourceType | string) => type !== 'google_sheet' && type !== 'meta';
+export const usesApiKey = (type: LeadSourceType | string) => type !== 'google_sheet' && type !== 'meta' && type !== 'linkedin';
 
 /** Only key-based sources receive browser submissions, so only they have "allowed websites". */
-export const usesOrigins = (type: LeadSourceType | string) => usesApiKey(type);
+export const usesOrigins = (type: LeadSourceType | string) => usesApiKey(type) && type !== 'google_ads';
 
 /** Type choices of the "Add source" form for the plan: website/webhook need `websiteApi`, the sheet import `googleSheets`.
  *  Meta Pages are added with "Connect Facebook / Instagram", never through this form. */
-export function allowedTypeOptions(opts: { apiEnabled: boolean; sheetsEnabled: boolean }) {
-  return TYPE_OPTIONS.filter((t) => (t.value === 'google_sheet' ? opts.sheetsEnabled : opts.apiEnabled));
+export function allowedTypeOptions(opts: { apiEnabled: boolean; sheetsEnabled: boolean; googleAdsEnabled?: boolean }) {
+  return TYPE_OPTIONS.filter((t) => (t.value === 'google_sheet' ? opts.sheetsEnabled : t.value === 'google_ads' ? !!opts.googleAdsEnabled : opts.apiEnabled));
 }
 
 export const ASSIGNMENT_OPTIONS: Array<{ value: AssignmentMode; label: string }> = [
@@ -248,6 +249,23 @@ export function buildSnippets(tab: GuideTab, opts: { endpoint: string; apiKey?: 
             `  <label>Message <textarea name="message"></textarea></label>`,
             `  <button type="submit">Send enquiry</button>`,
             `</form>`,
+          ].join('\n'),
+        },
+        {
+          title: 'Optional: Google Analytics and Google Ads',
+          note: 'Add these two hidden fields and the script inside the same form. The CRM then reports a lead’s results (Qualified, site visit, booking) to Google Analytics and Google Ads for that visitor (Settings › Google).',
+          code: [
+            `  <input type="hidden" name="_ga">`,
+            `  <input type="hidden" name="gclid">`,
+            `<script>`,
+            `  (function () {`,
+            `    var f = document.currentScript.closest('form') || document.forms[document.forms.length - 1];`,
+            `    var ga = (document.cookie.match(/(?:^|; )_ga=([^;]+)/) || [])[1] || '';`,
+            `    var gclid = new URLSearchParams(location.search).get('gclid') || sessionStorage.getItem('gclid') || '';`,
+            `    if (gclid) sessionStorage.setItem('gclid', gclid);`,
+            `    if (f) { f.elements._ga.value = ga; f.elements.gclid.value = gclid; }`,
+            `  })();`,
+            `</script>`,
           ].join('\n'),
         },
       ];
