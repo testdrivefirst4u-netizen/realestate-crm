@@ -473,7 +473,14 @@ export async function listAdAssets(token: string, cfg: MetaConfig): Promise<{ da
   try {
     const biz = await graph<{ data?: any[] }>('me/businesses', { token, config: cfg, params: { fields: 'name,owned_pixels.limit(50){id,name}', limit: 50 } });
     reached = true;
-    for (const b of biz.data || []) for (const p of b?.owned_pixels?.data || []) add(p.id, p.name, String(b.name || ''));
+    for (const b of biz.data || []) {
+      for (const p of b?.owned_pixels?.data || []) add(p.id, p.name, String(b.name || ''));
+      // datasets another business (an agency) shared with this one
+      try {
+        const shared = await graph<{ data?: any[] }>(`${b.id}/client_pixels`, { token, config: cfg, params: { fields: 'id,name', limit: 50 } });
+        for (const p of shared.data || []) add(p.id, p.name, String(b.name || ''));
+      } catch { /* not allowed */ }
+    }
   } catch { /* none */ }
   if (!reached) throw fail('SERVER', 'Facebook did not let the CRM read your ad accounts. Allow access to the ad account and its dataset in the Facebook window.');
   return { datasets: [...out.values()].slice(0, 100), accounts: accounts.slice(0, 50) };
@@ -516,7 +523,12 @@ export async function finishCapiConnect(input: { params: URLSearchParams; sessio
       // a system-user token (configuration) does not expire; a plain login token is swapped for the ~60-day one
       if (!cfg.capiConfigId) token = await longLivedUserToken(token, cfg);
       const { datasets, accounts } = await listAdAssets(token, cfg);
-      if (!datasets.length) throw fail('VALIDATION', 'Facebook returned no dataset (Pixel). In the Facebook window choose the ad account and its dataset, or create a dataset in Events Manager first.');
+      if (!datasets.length) {
+        const seen = accounts.length
+          ? `Facebook shared ${accounts.length} ad account${accounts.length === 1 ? '' : 's'} (${accounts.slice(0, 3).map((a) => a.name).join(', ')}) but no dataset. `
+          : 'Facebook shared no ad account and no dataset. ';
+        throw fail('VALIDATION', seen + 'Connect again and tick the dataset (Pixel) on the Facebook screen, or create one in Events Manager › Connect data sources first.');
+      }
       const expires = await tokenExpiry(token, cfg);
       if (datasets.length === 1) {
         await saveConnected(datasets[0], encryptSecret(token), expires, accounts, ctx);
