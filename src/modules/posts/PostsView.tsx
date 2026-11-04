@@ -4,7 +4,7 @@
  * to be changed; a posted or failed one shows where it went, with retry for what failed.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, Plus, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { api, type PostTargetOption, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx } from '../../components/ui';
@@ -91,6 +91,19 @@ export const PostsView: React.FC = () => {
       toast('Could not delete', errText('posts.delete', e), 'alert');
     }
   };
+  const syncOld = async () => {
+    setBusy('sync');
+    try {
+      const r = await api.posts.syncOld();
+      const failed = r.errors.map((e) => `${e.account}: ${e.message}`).join(' · ');
+      toast(`${r.imported} old post${r.imported === 1 ? '' : 's'} added`, failed || (r.updated ? `${r.updated} already here were refreshed.` : undefined), failed ? 'alert' : 'success');
+      await load();
+    } catch (e) {
+      toast('Could not sync old posts', errText('posts.sync', e), 'alert');
+    } finally {
+      setBusy('');
+    }
+  };
   const open = (p: SocialPost) => (editable(p) ? setComposing({ post: p }) : setDetails(p));
   const newOn = (d: Date) => {
     const when = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0);
@@ -110,6 +123,7 @@ export const PostsView: React.FC = () => {
           ))}
         </div>
         <span className="flex-1" />
+        <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={busy === 'sync' ? 'animate-spin' : ''} />} disabled={busy === 'sync' || !targets.some((t) => t.kind === 'facebook')} title="Copy the last year of posts from your connected Facebook Pages and Instagram accounts" onClick={() => void syncOld()}>Sync old posts</Button>
         <button type="button" disabled={!targets.length} title={targets.length ? undefined : 'Connect an account first'} onClick={() => setComposing({})} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0866FF] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={15} /> Create post</button>
       </div>
 

@@ -51,7 +51,7 @@ export default async function PrivacyPage() {
       </ul>
       <h3>Company social media and advertising accounts</h3>
       <ul>
-        <li>The pages, profiles and ad accounts a company connects, the posts it publishes through the CRM, and their performance (reach, likes, clicks).</li>
+        <li>The pages, profiles and ad accounts a company connects, the posts it publishes through the CRM or that are copied from those accounts so its team can see them in the CRM, and their performance (reach, likes, clicks).</li>
         <li>Advertising figures for the company&rsquo;s own campaigns: spend, impressions, clicks and leads per campaign.</li>
         <li>Website visit statistics from the company&rsquo;s own Google Analytics property.</li>
       </ul>

@@ -561,6 +561,7 @@ export const api = {
     create: (d: { text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string; draft?: boolean }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),
     update: (d: { id: string; text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string; draft?: boolean }) => request<SocialPost>('updatePost', d, { timeoutMs: 120000 }),
     retry: (id: string) => request<SocialPost>('retryPost', { id }, { timeoutMs: 120000 }),
+    syncOld: () => request<{ imported: number; updated: number; skipped: number; errors: Array<{ account: string; message: string }> }>('syncOldPosts', {}, { timeoutMs: 120000 }),
     remove: (id: string) => request<{ ok: true }>('deletePost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),
   },

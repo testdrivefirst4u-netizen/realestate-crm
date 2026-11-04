@@ -44,6 +44,9 @@ interface PostDoc {
   createdAt: Date;
   updatedAt: Date;
   publishedAt?: Date | null;
+  /** Copied from the platform (socialPostsImport.ts): its picture link, read only. */
+  imported?: boolean;
+  imageExternal?: string;
 }
 const postsCol = () => col<PostDoc>('socialPosts');
 
@@ -207,7 +210,7 @@ export async function runPostsCron(now = new Date()): Promise<Record<string, unk
 
 export interface PostView { id: string; text: string; link: string; imageFileId: string; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string }
 const view = (p: PostDoc): PostView => ({
-  id: p._id, text: p.text, link: p.link, imageFileId: p.imageFileId, imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
+  id: p._id, text: p.text, link: p.link, imageFileId: p.imageFileId, imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
   status: p.status, createdBy: p.createdBy, publishedAt: p.publishedAt ? p.publishedAt.toISOString() : '',
 });
 
