@@ -77,7 +77,8 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
     if (active) void loadThread(active);
     else setItems([]);
   }, [active, loadThread]);
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [items]);
+  // in braces: browsers can return a promise from scrollIntoView, and React would call an effect's return value as its cleanup
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [items]);
 
   const current = useMemo(() => threads?.find((t) => t.thread === active) || null, [threads, active]);
   const leadId = items.find((i) => i.leadId)?.leadId || current?.leadId || '';
