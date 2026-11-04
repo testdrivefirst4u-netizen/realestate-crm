@@ -1,5 +1,5 @@
 /**
- * Ads manager (/ads, plan feature adsControl; server: modules/adsControl.ts): Meta and Google Ads campaigns with
+ * Ads manager (/ads, plan feature adsControl; server: modules/adsControl.ts): the Meta table (MetaAdsTable.tsx), and an overview of Meta and Google Ads campaigns with
  * 7 days' spend and CRM leads, pause / resume, daily budget, and the "spending without leads" alert.
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -7,7 +7,8 @@ import { BellRing, Pause, Pencil, Play, RefreshCw } from 'lucide-react';
 import { api, type AdCampaign } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { Badge, Button, Card, EmptyState, InlineNotice, cx, inputCls } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, InlineNotice, Tabs, cx, inputCls } from '../../components/ui';
+import { MetaAdsTable } from './MetaAdsTable';
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
@@ -20,6 +21,7 @@ export const AdsView: React.FC<{ canChange: boolean }> = ({ canChange }) => {
   const [busy, setBusy] = useState('');
   const [editing, setEditing] = useState<{ key: string; value: string } | null>(null);
   const [alerts, setAlerts] = useState({ enabled: true, minSpend: '3000' });
+  const [tab, setTab] = useState<'meta' | 'overview'>('meta');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,7 +35,7 @@ export const AdsView: React.FC<{ canChange: boolean }> = ({ canChange }) => {
       setLoading(false);
     }
   }, []);
-  useEffect(() => void load(), [load]);
+  useEffect(() => { if (tab === 'overview') void load(); }, [load, tab]);
 
   const key = (c: AdCampaign) => `${c.platform}:${c.id}`;
   const status = async (c: AdCampaign) => {
@@ -84,6 +86,8 @@ export const AdsView: React.FC<{ canChange: boolean }> = ({ canChange }) => {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
+      <Tabs tabs={[{ id: 'meta', label: 'Meta ads' }, { id: 'overview', label: 'Overview (Meta + Google)' }]} value={tab} onChange={(v) => setTab(v as 'meta' | 'overview')} />
+      {tab === 'meta' ? <MetaAdsTable canChange={canChange} /> : (<>
       <Card title="Campaigns · last 7 days" subtitle="Spend from Meta and Google Ads; leads are the CRM leads that came from each campaign."
         actions={<Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load()}>Refresh</Button>}>
         {data?.errors.meta && <InlineNotice tone="warning" className="mb-2">Meta: {data.errors.meta}</InlineNotice>}
@@ -136,6 +140,7 @@ export const AdsView: React.FC<{ canChange: boolean }> = ({ canChange }) => {
           {canChange && <Button variant="primary" size="sm" loading={busy === 'alerts'} onClick={() => void saveAlerts()}>Save</Button>}
         </div>
       </Card>
+      </>)}
     </div>
   );
 };

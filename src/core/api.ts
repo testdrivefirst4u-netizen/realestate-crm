@@ -276,6 +276,15 @@ export interface WebsiteAnalytics {
 }
 /** Ads manager (server: modules/adsControl.ts). */
 export interface AdCampaign { platform: 'meta' | 'google'; id: string; name: string; account: string; status: 'ACTIVE' | 'PAUSED' | 'OTHER'; dailyBudget: number | null; budgetRef: string; spend7: number; leads7: number }
+export type MetaAdsLevel = 'campaign' | 'adset' | 'ad';
+export interface MetaAdsRow {
+  id: string; level: MetaAdsLevel; name: string; accountId: string; currency: string; campaignId: string; campaignName: string; adsetId: string; adsetName: string;
+  status: string; delivery: string; objective: string; optimizationGoal: string; bidStrategy: string; dailyBudget: number | null; lifetimeBudget: number | null; start: string; end: string; thumbnail: string;
+  resultLabel: string; results: number | null; costPerResult: number | null; spend: number | null; reach: number | null; impressions: number | null; frequency: number | null;
+  clicks: number | null; ctr: number | null; cpc: number | null; cpm: number | null; linkClicks: number | null; linkCtr: number | null; linkCpc: number | null; leads: number | null; landingPageViews: number | null;
+  qualityRanking: string; engagementRanking: string; conversionRanking: string;
+}
+export interface MetaAdsResult { connected: boolean; accounts: Array<{ id: string; name: string; currency: string }>; rows: MetaAdsRow[]; errors: Array<{ account: string; message: string }> }
 export interface LinkedInView { available: boolean; connected: boolean; leadAccess: boolean; orgs: Array<{ urn: string; name: string }>; orgUrn: string; adAccounts: Array<{ urn: string; name: string }>; leadAccount: string; leadsSince: string; leadsError: string; expiresAt: string; connectUrl: string }
 export interface PinterestView { available: boolean; connected: boolean; username: string; boards: Array<{ id: string; name: string }>; boardId: string; connectUrl: string }
 
@@ -569,6 +578,9 @@ export const api = {
     get: (days: 7 | 30 | 90, refresh = false) => request<WebsiteAnalytics>('getWebsiteAnalytics', { days, refresh }, { timeoutMs: 60000 }),
   },
   ads: {
+    meta: (d: { level: MetaAdsLevel; preset?: string; since?: string; until?: string }) => request<MetaAdsResult>('listMetaAds', d, { timeoutMs: 60000 }),
+    setMetaStatus: (id: string, name: string, status: 'ACTIVE' | 'PAUSED') => request<{ ok: true }>('setCampaignStatus', { platform: 'meta', id, name, status }),
+    setMetaBudget: (id: string, name: string, daily: number) => request<{ ok: true }>('setCampaignBudget', { platform: 'meta', id, name, daily }),
     list: () => request<{ campaigns: AdCampaign[]; errors: Partial<Record<'meta' | 'google', string>>; alerts: { enabled: boolean; minSpend: number } }>('listAdCampaigns', {}, { timeoutMs: 60000 }),
     setStatus: (c: AdCampaign, status: 'ACTIVE' | 'PAUSED') => request<{ ok: true }>('setCampaignStatus', { platform: c.platform, id: c.id, name: c.name, status }),
     setBudget: (c: AdCampaign, daily: number) => request<{ ok: true }>('setCampaignBudget', { platform: c.platform, id: c.id, name: c.name, budgetRef: c.budgetRef, daily }),
