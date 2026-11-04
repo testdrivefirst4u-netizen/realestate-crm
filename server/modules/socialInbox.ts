@@ -9,6 +9,7 @@
  * Threads = a direct conversation per person and account; a comment with its replies; a review with its reply.
  * Replies = Messenger / Instagram: POST /{page}/messages (inside Meta's 24-hour window); comments:
  *           /{comment}/comments (Facebook) or /{comment}/replies (Instagram); reviews: PUT …/reviews/{id}/reply.
+ * Posts   = a comment thread shows the post it is on: from `socialPosts`, else read from the platform when opened.
  * Alerts  = a phone notification to Admins and Managers for each new message, comment or review (3 stars or less
  *           say so in the title).
  */
@@ -40,6 +41,8 @@ export interface InboxItem {
   externalId: string;
   /** Post / media the comment is on. */
   parent?: string;
+  /** A conversation's other person, also when only the account has written so far. */
+  partnerName?: string;
   authorId: string;
   authorName: string;
   text: string;
@@ -52,6 +55,8 @@ export interface InboxItem {
 }
 
 export const inboxCol = () => col<InboxItem>('socialInbox');
+/** A message Meta gives without its content (a shared reel or post, a story, a voice note…). */
+export const UNSUPPORTED_MESSAGE = '[Shared content Meta does not show to apps: open it in the app]';
 const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
 
 /** Store one incoming item (no-op when it was stored before); alerts on new ones. */
@@ -121,7 +126,7 @@ export async function ingestSocialWebhook(body: any): Promise<number> {
         if (!msg?.mid || msg.is_echo) continue;
         const sender = String(m?.sender?.id || '');
         if (!sender || sender === account) continue;
-        const text = msg.text || (Array.isArray(msg.attachments) && msg.attachments.length ? `[${msg.attachments.map((a: any) => a?.type || 'attachment').join(', ')}]` : '');
+        const text = msg.text || (Array.isArray(msg.attachments) && msg.attachments.length ? `[${msg.attachments.map((a: any) => a?.type || 'attachment').join(', ')}]` : msg.is_unsupported ? UNSUPPORTED_MESSAGE : '');
         if (await store({
           _id: `${platform}:${msg.mid}`, platform, kind: 'message', thread: `${ig ? 'ig' : 'fb'}:dm:${account}:${sender}`, account, externalId: String(msg.mid),
           authorId: sender, authorName: page ? await personName(page.token, sender, ig) : '', text, at: tsDate(m?.timestamp),
@@ -208,6 +213,42 @@ export interface InboxThread {
   count: number;
   leadId: string;
   answered: boolean;
+  /** The post a comment thread is on. */
+  parent: string;
+  postText: string;
+  postImage: string;
+}
+
+export interface InboxPost { id: string; text: string; imageUrl: string; url: string; at: string }
+
+/** Posts already in the post scheduler, by their id on the platform. */
+async function knownPosts(ids: string[]): Promise<Map<string, InboxPost>> {
+  const out = new Map<string, InboxPost>();
+  if (!ids.length) return out;
+  const rows = await (await col<any>('socialPosts')).find({ 'targets.postId': { $in: ids } }, { projection: { text: 1, imageFileId: 1, imageExternal: 1, targets: 1, scheduledAt: 1, publishedAt: 1 } }).toArray();
+  for (const p of rows) {
+    for (const t of p.targets || []) {
+      if (!ids.includes(t.postId)) continue;
+      out.set(t.postId, { id: t.postId, text: p.text || '', imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', url: t.url || '', at: new Date(p.publishedAt || p.scheduledAt).toISOString() });
+    }
+  }
+  return out;
+}
+
+/** A post not in the scheduler (not synced yet) is read from the platform; no post is better than no conversation. */
+async function readPost(id: string, platform: InboxPlatform, account: string): Promise<InboxPost | null> {
+  try {
+    const page = await pageFor(account);
+    if (!page) return null;
+    if (platform === 'facebook') {
+      const j = await graph<any>(id, { token: page.token, params: { fields: 'message,full_picture,permalink_url,created_time' } });
+      return { id, text: String(j.message || ''), imageUrl: String(j.full_picture || ''), url: String(j.permalink_url || ''), at: String(j.created_time || '') };
+    }
+    const j = await graph<any>(id, { token: page.token, params: { fields: 'caption,media_type,media_url,thumbnail_url,permalink,timestamp' } });
+    return { id, text: String(j.caption || ''), imageUrl: String((j.media_type === 'VIDEO' ? j.thumbnail_url : j.media_url) || ''), url: String(j.permalink || ''), at: String(j.timestamp || '') };
+  } catch {
+    return null;
+  }
 }
 
 export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; unread: number; hasMore: boolean }> {
@@ -215,6 +256,7 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
   const match: Record<string, unknown> = {};
   if (['facebook', 'instagram', 'google'].includes(d?.platform)) match.platform = d.platform;
   if (['comment', 'message', 'review'].includes(d?.kind)) match.kind = d.kind;
+  if (d?.parent) match.parent = String(d.parent);
   const rows = await (await inboxCol()).aggregate<any>([
     { $match: match },
     { $sort: { at: 1 } },
@@ -223,27 +265,31 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
       unread: { $sum: { $cond: [{ $and: [{ $eq: ['$direction', 'in'] }, { $eq: ['$read', false] }] }, 1, 0] } },
       // incoming items only ($push skips $REMOVE; $last would not), the last one is shown
       ins: { $push: { $cond: [{ $eq: ['$direction', 'in'] }, { name: '$authorName', text: '$text', rating: '$rating' }, '$REMOVE'] } },
-      lastDir: { $last: '$direction' }, lastText: { $last: '$text' }, leadId: { $max: '$leadId' },
+      lastDir: { $last: '$direction' }, lastText: { $last: '$text' }, leadId: { $max: '$leadId' }, parent: { $max: '$parent' }, partner: { $max: '$partnerName' },
     } },
     { $sort: { at: -1 } },
     { $limit: limit + 1 },
     { $addFields: { lastIn: { $arrayElemAt: ['$ins', -1] } } },
     { $project: { ins: 0 } },
   ]).toArray();
+  const known = await knownPosts([...new Set(rows.slice(0, limit).map((r) => String(r.parent || '')).filter(Boolean))]);
   const threads: InboxThread[] = rows.slice(0, limit).map((r) => ({
-    thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
+    parent: r.parent || '', postText: known.get(r.parent)?.text || '', postImage: known.get(r.parent)?.imageUrl || '',
+    thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || r.partner || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
     rating: r.lastIn?.rating, at: new Date(r.at).toISOString(), unread: r.unread, count: r.count, leadId: r.leadId || '', answered: r.lastDir === 'out',
   }));
   const unread = (await (await inboxCol()).distinct('thread', { direction: 'in', read: false })).length;
   return { threads, unread, hasMore: rows.length > limit };
 }
 
-export async function getInboxThread(d: any): Promise<{ thread: string; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string }> }> {
+export async function getInboxThread(d: any): Promise<{ thread: string; post: InboxPost | null; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string }> }> {
   const thread = String(d?.thread || '');
   const items = await (await inboxCol()).find({ thread }).sort({ at: 1 }).limit(500).toArray();
   if (!items.length) throw fail('NOT_FOUND', 'Conversation not found');
   await (await inboxCol()).updateMany({ thread, direction: 'in', read: false }, { $set: { read: true } });
-  return { thread, items: items.map(({ _id, at, ...x }) => ({ ...x, id: _id, at: at.toISOString() })) };
+  const on = items.find((i) => i.parent);
+  const post = on?.parent ? (await knownPosts([on.parent])).get(on.parent) || await readPost(on.parent, on.platform, on.account) : null;
+  return { thread, post, items: items.map(({ _id, at, ...x }) => ({ ...x, id: _id, at: at.toISOString() })) };
 }
 
 /** Answer the conversation on its platform, then keep the answer in the thread. */
@@ -254,7 +300,7 @@ export async function replyInbox(d: any, ctx: Ctx): Promise<{ ok: true }> {
   if (text.length > 2000) throw fail('VALIDATION', 'Replies can be up to 2000 characters.');
   const c = await inboxCol();
   const last = await c.find({ thread, direction: 'in' }).sort({ at: -1 }).limit(1).next();
-  if (!last) throw fail('NOT_FOUND', 'Conversation not found');
+  if (!last) throw fail('VALIDATION', 'Only your own messages are in this conversation. Meta lets you reply once the person writes.');
   let externalId = '';
   if (last.platform === 'google') {
     await gbpFetch(`https://mybusiness.googleapis.com/v4/${last.account}/reviews/${last.externalId}/reply`, { method: 'PUT', body: { comment: text } });
@@ -279,7 +325,7 @@ export async function replyInbox(d: any, ctx: Ctx): Promise<{ ok: true }> {
   const id = `${last.platform}:${externalId || 'out-' + Date.now()}`;
   await c.updateOne({ _id: id }, { $setOnInsert: {
     platform: last.platform, kind: last.kind, thread, account: last.account, externalId, authorId: '', authorName: ctx.user?.name || 'CRM',
-    text, direction: 'out', at: new Date(), read: true, by: ctx.user?.name || '', ...(last.leadId ? { leadId: last.leadId } : {}),
+    text, direction: 'out', at: new Date(), read: true, by: ctx.user?.name || '', ...(last.parent ? { parent: last.parent } : {}), ...(last.leadId ? { leadId: last.leadId } : {}),
   } }, { upsert: true });
   await c.updateMany({ thread, direction: 'in', read: false }, { $set: { read: true } });
   return { ok: true };

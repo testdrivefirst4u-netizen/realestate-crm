@@ -1,10 +1,11 @@
 /**
  * Social inbox (/inbox, plan feature socialInbox; server: modules/socialInbox.ts): Facebook / Instagram comments
- * and messages and Google reviews in one list; open a conversation, answer it, or turn it into a lead.
+ * and messages and Google reviews in one list; open a conversation, answer it, or turn it into a lead. A comment shows
+ * the post it is on, and all the comments of one post can be listed together.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ExternalLink, Inbox, MessageSquare, RefreshCw, Send, Star, UserPlus } from 'lucide-react';
-import { api, type InboxMessage, type InboxPlatform, type InboxThread } from '../../core/api';
+import { api, type InboxMessage, type InboxPlatform, type InboxPost, type InboxThread } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { phoneProblem } from '../../core/phone';
@@ -39,6 +40,8 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
   const [active, setActive] = useState<string | null>(initialThread || null);
   const [items, setItems] = useState<InboxMessage[]>([]);
+  const [post, setPost] = useState<InboxPost | null>(null);
+  const [onlyPost, setOnlyPost] = useState<{ id: string; text: string } | null>(null);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,14 +54,14 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
 
   const loadList = useCallback(async () => {
     try {
-      const r = await api.inbox.list({ platform, kind: filter === 'all' ? '' : filter, limit });
+      const r = await api.inbox.list({ platform, kind: filter === 'all' ? '' : filter, limit, parent: onlyPost?.id });
       setThreads(r.threads);
       setHasMore(r.hasMore);
     } catch (e) {
       setThreads((t) => t || []);
       toast('Could not load the inbox', errText('inbox.list', e), 'alert');
     }
-  }, [platform, filter, limit]);
+  }, [platform, filter, limit, onlyPost]);
   useEffect(() => {
     void loadList();
     const t = setInterval(() => void loadList(), 30000);
@@ -67,7 +70,9 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
 
   const loadThread = useCallback(async (id: string) => {
     try {
-      setItems((await api.inbox.thread(id)).items);
+      const r = await api.inbox.thread(id);
+      setItems(r.items);
+      setPost(r.post);
       setThreads((ts) => ts?.map((t) => (t.thread === id ? { ...t, unread: 0 } : t)) || ts);
     } catch (e) {
       toast('Could not open the conversation', errText('inbox.thread', e), 'alert');
@@ -75,7 +80,7 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
   }, []);
   useEffect(() => {
     if (active) void loadThread(active);
-    else setItems([]);
+    else { setItems([]); setPost(null); }
   }, [active, loadThread]);
   // in braces: browsers can return a promise from scrollIntoView, and React would call an effect's return value as its cleanup
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [items]);
@@ -157,6 +162,12 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
           <option value="instagram">Instagram</option>
           <option value="google">Google reviews</option>
         </select>
+        {onlyPost && (
+          <div className="flex items-center gap-2 rounded-lg bg-[#EEF5FC] px-2.5 py-1.5 text-xs text-[#0B2A44]">
+            <span className="min-w-0 flex-1 truncate">Comments on: <b>{onlyPost.text || 'this post'}</b></span>
+            <button type="button" className="font-semibold text-[#0B5E9C] hover:underline" onClick={() => setOnlyPost(null)}>Show all</button>
+          </div>
+        )}
       </div>
       <ul className="flex-1 overflow-y-auto divide-y divide-[#EEF4F9]">
         {threads === null ? <li className="p-6 text-center text-xs text-[#7E93A6]">Loading…</li> : !threads.length ? (
@@ -175,6 +186,12 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
                   <span className={cx('truncate text-xs', t.unread ? 'text-[#0B2A44] font-medium' : 'text-[#5E778C]')}>{t.text || '—'}</span>
                   {t.unread > 0 && <span className="ml-auto h-2 w-2 rounded-full bg-[#1E6FB0] flex-shrink-0" aria-label="unread" />}
                 </span>
+                {t.kind === 'comment' && (
+                  <span className="mt-1 flex items-center gap-1.5 rounded-md bg-[#F2F7FB] p-1">
+                    {t.postImage && <img src={t.postImage} alt="" loading="lazy" className="h-7 w-7 flex-none rounded object-cover" />}
+                    <span className="min-w-0 truncate text-[10.5px] text-[#5E778C]">On post: {t.postText || (t.parent ? 'open to see the post' : 'not known')}</span>
+                  </span>
+                )}
                 <span className="text-[10.5px] text-[#7E93A6]">{KIND[t.kind]}{t.leadId ? ' · lead ' + t.leadId : ''}{t.answered ? ' · answered' : ''}</span>
               </span>
             </button>
@@ -200,6 +217,19 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
           <Button variant="secondary" size="sm" icon={<UserPlus size={13} />} onClick={() => setLeadFor({ name: (first.authorName || '').replace(/^@/, ''), phone: '', email: '' })}>Create lead</Button>
         ) : null}
       </div>
+      {post && (
+        <div className="flex gap-3 border-b border-[#E3EDF5] bg-white px-3 py-2.5 sm:px-4">
+          {post.imageUrl && <img src={post.imageUrl} alt="" className="h-16 w-16 flex-none rounded-lg border border-[#E3EDF5] object-cover" />}
+          <div className="min-w-0 flex-1">
+            <span className="block text-[10.5px] font-bold uppercase tracking-wider text-[#5E778C]">Comments on this post{post.at ? ` · ${new Date(post.at).toLocaleDateString()}` : ''}</span>
+            <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-xs text-[#0B2A44]">{post.text || 'This post has no caption.'}</p>
+            <span className="mt-1 flex flex-wrap gap-3 text-[11px] font-semibold text-[#0B5E9C]">
+              <button type="button" className="hover:underline" onClick={() => { setOnlyPost({ id: post.id, text: post.text }); setFilter('comment'); }}>All comments on this post</button>
+              {post.url && <a href={post.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:underline">Open post <ExternalLink size={10} /></a>}
+            </span>
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2">
         {items.map((m) => (
           <div key={m.id} className={cx('max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-2xs', m.direction === 'out' ? 'ml-auto bg-[#1E6FB0] text-white' : 'bg-white text-[#0B2A44] border border-[#E3EDF5]')}>
@@ -210,7 +240,8 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
         ))}
         <div ref={endRef} />
       </div>
-      {canReply && (
+      {canReply && items.length > 0 && !first && <p className="border-t border-[#E3EDF5] bg-white p-3 text-xs text-[#5E778C]">Only your own messages are in this conversation. Meta lets you reply once the person writes.</p>}
+      {canReply && (items.length === 0 || !!first) && (
         <div className="p-3 border-t border-[#E3EDF5] bg-white flex gap-2 items-end">
           <textarea className={cx(inputCls, 'min-h-[42px] max-h-40 text-sm')} rows={2} value={reply} maxLength={2000} onChange={(e) => setReply(e.target.value)}
             placeholder={current?.kind === 'review' ? 'Reply publicly to the review…' : current?.kind === 'comment' ? 'Reply publicly to the comment…' : 'Write a message…'}

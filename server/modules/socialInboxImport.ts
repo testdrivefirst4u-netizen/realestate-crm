@@ -19,7 +19,7 @@ import { truncate } from '../core/utils';
 import { graph } from '../integrations/meta';
 import { listActiveTenants } from '../platform/registry';
 import { socialPages, type SocialPage } from './socialAccounts';
-import { inboxCol, type InboxItem } from './socialInbox';
+import { inboxCol, UNSUPPORTED_MESSAGE, type InboxItem } from './socialInbox';
 import { importOldPosts } from './socialPostsImport';
 
 const DAY_MS = 86400000;
@@ -54,7 +54,18 @@ const dateOf = (v: unknown) => {
 
 /* -------------------------------- messages -------------------------------- */
 
-const MESSAGE_FIELDS = 'id,updated_time,messages.limit(20){id,message,created_time,from,to,attachments}';
+const messageFields = (rich: boolean) => `id,updated_time,messages.limit(20){id,message,created_time,from,to,attachments${rich ? ',shares{link,name},story,is_unsupported' : ''}}`;
+
+/** What a message without text was, so a conversation is never just "no text". */
+export function messageText(m: any): string {
+  if (m?.message) return String(m.message);
+  if (m?.story) return m.story.mention ? '[Mentioned you in a story]' : '[Replied to a story]';
+  const share = m?.shares?.data?.[0];
+  if (share) return `[Shared a post]${share.link ? ' ' + share.link : ''}`;
+  if (m?.attachments?.data?.length) return '[Attachment]';
+  return UNSUPPORTED_MESSAGE;
+}
+const personName = (p: any) => String(p?.name || (p?.username ? `@${p.username}` : ''));
 
 /** One conversation's messages as inbox items; the other person is whoever is not the account. */
 export function conversationItems(conv: any, platform: 'facebook' | 'instagram', account: string, accountName: string, cutoff: Date): Item[] {
@@ -67,20 +78,20 @@ export function conversationItems(conv: any, platform: 'facebook' | 'instagram',
     const mine = fromId === account;
     const person = mine ? String(m?.to?.data?.[0]?.id || '') : fromId;
     if (!person) continue;
-    const name = m?.from?.name || (m?.from?.username ? `@${m.from.username}` : '');
-    const text = m?.message || (m?.attachments?.data?.length ? '[attachment]' : '');
+    const other = mine ? m?.to?.data?.[0] : m?.from;
     out.push({
       _id: `${platform}:${m.id}`, platform, kind: 'message', thread: `${ig ? 'ig' : 'fb'}:dm:${account}:${person}`, account, externalId: String(m.id),
-      authorId: mine ? '' : person, authorName: truncate(mine ? accountName : String(name), 120), text: truncate(String(text), 4000), at, direction: mine ? 'out' : 'in',
+      authorId: mine ? '' : person, authorName: truncate(mine ? accountName : personName(m?.from), 120), partnerName: truncate(personName(other), 120), text: truncate(messageText(m), 4000), at, direction: mine ? 'out' : 'in',
     });
   }
   return out;
 }
 
 async function readConversations(p: SocialPage, platform: 'messenger' | 'instagram', cutoff: Date): Promise<Item[]> {
-  const convs = await pages<any>(`${p.id}/conversations`, p.token, { platform, fields: MESSAGE_FIELDS, limit: 25 }, CONVERSATION_PAGES,
+  const read = (rich: boolean) => pages<any>(`${p.id}/conversations`, p.token, { platform, fields: messageFields(rich), limit: 25 }, CONVERSATION_PAGES,
     // the newest conversations come first: stop once a whole page is older than the cutoff
     (rows) => rows.length > 0 && rows.every((c) => (dateOf(c.updated_time)?.getTime() || 0) < cutoff.getTime()));
+  const convs = await read(true).catch(() => read(false));
   const items = convs.flatMap((c) => (platform === 'instagram'
     ? conversationItems(c, 'instagram', String(p.igId), `@${p.igUsername || p.igId}`, cutoff)
     : conversationItems(c, 'facebook', p.id, p.name, cutoff)));
@@ -129,12 +140,14 @@ async function readComments(kind: 'facebook' | 'instagram', postId: string, p: S
 
 /* ---------------------------------- import --------------------------------- */
 
-/** New items only: one already here (a webhook, a reply from the CRM) is left as it is. */
+/** New items only: one already here (a webhook, a reply from the CRM) is left as it is, except for what it lacks. */
 async function storeItems(items: Item[], unread: boolean): Promise<number> {
   if (!items.length) return 0;
   const r = await (await inboxCol()).bulkWrite(items.map((i) => ({
     updateOne: { filter: { _id: i._id }, update: { $setOnInsert: { ...i, read: !(unread && i.direction === 'in') } }, upsert: true },
   })), { ordered: false });
+  const fill = (field: 'text' | 'authorName' | 'partnerName', i: Item) => (i[field] ? [{ updateOne: { filter: { _id: i._id, $or: [{ [field]: '' }, { [field]: { $exists: false } }] }, update: { $set: { [field]: i[field] } } } }] : []);
+  await (await inboxCol()).bulkWrite(items.flatMap((i) => [...fill('text', i), ...fill('authorName', i), ...fill('partnerName', i)]) as any, { ordered: false });
   return r.upsertedCount;
 }
 

@@ -251,7 +251,8 @@ export interface AdConversionsView {
 
 /** Social inbox (server: modules/socialInbox.ts). */
 export type InboxPlatform = 'facebook' | 'instagram' | 'google';
-export interface InboxThread { thread: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; authorName: string; text: string; rating?: number; at: string; unread: number; count: number; leadId: string; answered: boolean }
+export interface InboxPost { id: string; text: string; imageUrl: string; url: string; at: string }
+export interface InboxThread { parent: string; postText: string; postImage: string; thread: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; authorName: string; text: string; rating?: number; at: string; unread: number; count: number; leadId: string; answered: boolean }
 export interface InboxMessage { id: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; thread: string; authorName: string; text: string; rating?: number; direction: 'in' | 'out'; at: string; read: boolean; leadId?: string; by?: string }
 /** Settings › Social accounts (server: modules/socialAccounts.ts and linkedin / pinterest). */
 export interface SocialAccountsView { connectUrl: string; available: boolean; pages: Array<{ id: string; name: string; igId: string; igUsername: string }>; note: string }
@@ -545,9 +546,9 @@ export const api = {
   /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
   /** Social inbox: Facebook / Instagram comments and messages, Google reviews (plan feature socialInbox). */
   inbox: {
-    list: (filter: { platform?: InboxPlatform | ''; kind?: string; limit?: number } = {}) => request<{ threads: InboxThread[]; unread: number; hasMore: boolean }>('listInbox', filter),
+    list: (filter: { platform?: InboxPlatform | ''; kind?: string; limit?: number; parent?: string } = {}) => request<{ threads: InboxThread[]; unread: number; hasMore: boolean }>('listInbox', filter),
     syncOld: () => request<{ added: number; conversations: number; posts: number; partial: boolean; postsImported: number; errors: Array<{ account: string; message: string }> }>('syncOldInbox', {}, { timeoutMs: 290000 }),
-    thread: (thread: string) => request<{ thread: string; items: InboxMessage[] }>('getInboxThread', { thread }),
+    thread: (thread: string) => request<{ thread: string; post: InboxPost | null; items: InboxMessage[] }>('getInboxThread', { thread }),
     reply: (thread: string, text: string) => request<{ ok: true }>('replyInbox', { thread, text }, { timeoutMs: 30000 }),
     markRead: (thread: string, read = true) => request<{ ok: true }>('markInboxRead', { thread, read }),
     createLead: (d: { thread: string; name: string; phone: string; email?: string }) => request<{ leadId: string }>('inboxCreateLead', d),
