@@ -7,7 +7,7 @@ import { encryptSecret } from '../server/core/settings';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import * as push from '../server/modules/push';
-import { getInboxThread, inboxCreateLead, listInbox, mediaOf, replyInbox, UNSUPPORTED_MESSAGE } from '../server/modules/socialInbox';
+import { getInboxThread, inboxCreateLead, listInbox, mediaOf, refreshInboxPeople, replyInbox, UNSUPPORTED_MESSAGE } from '../server/modules/socialInbox';
 import { conversationItems, importOldInbox, messageText, runInboxImportCron, syncOldInbox } from '../server/modules/socialInboxImport';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -260,6 +260,52 @@ describe('media in messages', () => {
     const { items } = await inCo(() => getInboxThread({ thread: 'ig:dm:IG1:U1' }));
     expect(items.find((i) => i.id === 'instagram:m3')!.media).toEqual([{ type: 'link', url: 'https://www.instagram.com/reel/xyz/', preview: '', name: '' }]);
     expect(items.find((i) => i.id === 'instagram:m4')!.media).toEqual([]);
+  });
+});
+
+describe('people', () => {
+  const add = (thread: string, id: string, account = 'IG1') => inCo(async () => (await col<any>('socialInbox')).insertOne({ _id: `instagram:${id}`, platform: 'instagram', kind: 'message', thread, account, externalId: id, authorId: 'IGU1', authorName: '', text: 'Hi', direction: 'in', at: new Date(), read: true }));
+  const THREAD = 'ig:dm:IG1:IGU1';
+
+  it('asks Meta who someone is, keeps it, and shows it in the list', async () => {
+    await add(THREAD, 'x1');
+    expect((await inCo(() => listInbox({}))).threads[0]).toMatchObject({ personStale: true, username: '', picture: '' });
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => { n += 1; return json(200, { name: 'Ravi K', username: 'ravi', profile_pic: 'https://cdn.example/r.jpg' }); }));
+    const r = await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
+    expect(r.people).toEqual([{ thread: THREAD, name: 'Ravi K', username: 'ravi', picture: 'https://cdn.example/r.jpg' }]);
+    expect((await inCo(() => listInbox({}))).threads[0]).toMatchObject({ personStale: false, username: 'ravi', picture: 'https://cdn.example/r.jpg', authorName: 'Ravi K' });
+    await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
+    expect(n).toBe(1); // not asked again soon
+    await inCo(() => refreshInboxPeople({ threads: [THREAD] }, new Date(Date.now() + 4 * 86400000)));
+    expect(n).toBe(2); // the picture link expires, so it is asked again later
+  });
+
+  it('asks for less when Meta refuses a field, and is not asked again at every screen when it gives nothing', async () => {
+    await add(THREAD, 'x1');
+    const fields: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: any) => {
+      const f = new URL(String(input)).searchParams.get('fields') || '';
+      fields.push(f);
+      return f.includes('username') && f.includes('name') ? json(400, { error: { message: 'nonexisting field (username)', code: 100 } }) : json(200, { name: 'Ravi', profile_pic: 'http://not-secure.example/a.jpg' });
+    }));
+    expect((await inCo(() => refreshInboxPeople({ threads: [THREAD] }))).people[0]).toEqual({ thread: THREAD, name: 'Ravi', username: '', picture: '' });
+    expect(fields).toEqual(['name,username,profile_pic', 'name,profile_pic']);
+    await inCo(async () => (await col<any>('socialInboxPeople')).deleteMany({}));
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => { n += 1; return json(400, { error: { message: 'No consent', code: 10 } }); }));
+    await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
+    const after = n;
+    await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
+    expect(n).toBe(after);
+    expect((await inCo(() => listInbox({}))).threads[0].personStale).toBe(false);
+  });
+
+  it('only for this company\'s own conversations, direct messages only', async () => {
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => { n += 1; return json(200, { name: 'Someone' }); }));
+    expect((await inCo(() => refreshInboxPeople({ threads: ['ig:dm:OTHER:VICTIM', 'fb:c:123', '../../me'] }))).people).toEqual([]);
+    expect(n).toBe(0);
   });
 });
 

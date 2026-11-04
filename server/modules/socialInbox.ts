@@ -12,6 +12,8 @@
  * Posts   = a comment thread shows the post it is on: from `socialPosts`, else read from the platform when opened.
  * Media   = pictures, videos and shared posts of a message are read from Meta when the conversation is opened and not
  *           stored: Meta's links expire, and it has them for a conversation's 20 most recent messages only.
+ * People  = the name, username and picture of who a conversation is with, kept in `socialInboxPeople`: Meta gives them
+ *           only once the person has written, the picture link expires within days, and some fields can be refused.
  * Alerts  = a phone notification to Admins and Managers for each new message, comment or review (3 stars or less
  *           say so in the title).
  */
@@ -215,10 +217,63 @@ export interface InboxThread {
   count: number;
   leadId: string;
   answered: boolean;
+  /** Who a conversation is with, when Meta has told us. */
+  username: string;
+  picture: string;
+  /** Worth asking Meta (refreshInboxPeople). */
+  personStale: boolean;
   /** The post a comment thread is on. */
   parent: string;
   postText: string;
   postImage: string;
+}
+
+interface InboxPerson { _id: string; name: string; username: string; picture: string; at: Date }
+const peopleCol = () => col<InboxPerson>('socialInboxPeople');
+const PERSON_REFRESH_MS = 3 * 86400000;
+const MAX_PEOPLE = 30;
+/** ig:dm:<account>:<person> or fb:dm:<account>:<person>. */
+const DM_THREAD = /^(ig|fb):dm:([^:]+):([^:]+)$/;
+const personKey = (thread: string) => {
+  const m = DM_THREAD.exec(thread);
+  return m ? `${m[1]}:${m[3]}` : '';
+};
+
+/** The most Meta will say about someone: it refuses a whole request over one field it does not allow. */
+async function readPerson(ig: boolean, id: string, token: string): Promise<{ name: string; username: string; picture: string } | null> {
+  for (const fields of ig ? ['name,username,profile_pic', 'name,profile_pic', 'username'] : ['name,profile_pic', 'first_name,last_name,profile_pic']) {
+    try {
+      const j = await graph<any>(id, { token, params: { fields } });
+      const name = String(j.name || [j.first_name, j.last_name].filter(Boolean).join(' ') || '');
+      return { name: truncate(name, 120), username: truncate(String(j.username || ''), 60), picture: /^https:\/\//.test(String(j.profile_pic || '')) ? String(j.profile_pic) : '' };
+    } catch { /* ask for less */ }
+  }
+  return null;
+}
+
+/** Ask Meta about the people of these conversations, at most a few at a time and not too often. */
+export async function refreshInboxPeople(d: any, now = new Date()): Promise<{ people: Array<{ thread: string; name: string; username: string; picture: string }> }> {
+  const threads = [...new Set((Array.isArray(d?.threads) ? d.threads : []).map(String))].slice(0, MAX_PEOPLE) as string[];
+  const c = await peopleCol();
+  const out: Array<{ thread: string; name: string; username: string; picture: string }> = [];
+  await Promise.all(threads.map(async (thread) => {
+    const m = DM_THREAD.exec(thread);
+    // only a conversation of this company, reached with this company's own page token
+    if (!m || !(await (await inboxCol()).findOne({ thread }, { projection: { _id: 1 } }))) return;
+    const key = personKey(thread);
+    const known = await c.findOne({ _id: key });
+    if (known && now.getTime() - known.at.getTime() < PERSON_REFRESH_MS) {
+      out.push({ thread, name: known.name, username: known.username, picture: known.picture });
+      return;
+    }
+    const page = await pageFor(m[2]);
+    const got = page ? await readPerson(m[1] === 'ig', m[3], page.token) : null;
+    // nothing from Meta is remembered too, so it is not asked again at every screen; what we knew is kept
+    const next = { name: got?.name || known?.name || '', username: got?.username || known?.username || '', picture: got?.picture || '' };
+    await c.updateOne({ _id: key }, { $set: { ...next, at: now } }, { upsert: true });
+    out.push({ thread, ...next });
+  }));
+  return { people: out };
 }
 
 export interface InboxMedia { type: 'image' | 'video' | 'file' | 'link'; url: string; preview: string; name: string }
@@ -321,9 +376,13 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
     { $project: { ins: 0 } },
   ]).toArray();
   const known = await knownPosts([...new Set(rows.slice(0, limit).map((r) => String(r.parent || '')).filter(Boolean))]);
+  const keys = rows.slice(0, limit).map((r) => personKey(String(r._id))).filter(Boolean);
+  const people = new Map((keys.length ? await (await peopleCol()).find({ _id: { $in: keys } }).toArray() : []).map((p) => [p._id, p]));
   const threads: InboxThread[] = rows.slice(0, limit).map((r) => ({
+    username: people.get(personKey(String(r._id)))?.username || '', picture: people.get(personKey(String(r._id)))?.picture || '',
+    personStale: !!personKey(String(r._id)) && (!people.get(personKey(String(r._id))) || Date.now() - people.get(personKey(String(r._id)))!.at.getTime() >= PERSON_REFRESH_MS),
     parent: r.parent || '', postText: known.get(r.parent)?.text || '', postImage: known.get(r.parent)?.imageUrl || '',
-    thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || r.partner || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
+    thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || r.partner || people.get(personKey(String(r._id)))?.name || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
     rating: r.lastIn?.rating, at: new Date(r.at).toISOString(), unread: r.unread, count: r.count, leadId: r.leadId || '', answered: r.lastDir === 'out',
   }));
   const unread = (await (await inboxCol()).distinct('thread', { direction: 'in', read: false })).length;
@@ -414,6 +473,7 @@ export const actions: ActionMap = {
   getInboxThread: { fn: (d) => getInboxThread(d), perm: 'chat.view' },
   replyInbox: { fn: (d, ctx) => replyInbox(d, ctx), perm: 'chat.send' },
   markInboxRead: { fn: (d) => markInboxRead(d), perm: 'chat.view' },
+  refreshInboxPeople: { fn: (d) => refreshInboxPeople(d), perm: 'chat.view' },
   inboxCreateLead: { fn: (d, ctx) => inboxCreateLead(d, ctx), perm: 'leads.create' },
   refreshInbox: { fn: () => refreshInbox(), perm: 'chat.view' },
 };

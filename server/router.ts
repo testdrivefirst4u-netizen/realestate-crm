@@ -120,7 +120,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(get|save|refresh|disconnect)GoogleMarketing$|^listGoogleConversionActions$|^testGa4$|^syncGoogleSpend$/, ['googleConversions', 'googleAdsSpend', 'socialInbox', 'socialPosts', 'adsControl', 'websiteAnalytics'], 'Google marketing features'],
   [/^(syncAdSpend|saveAdSpendAccounts)$/, 'adSpend', 'Ad spend from Meta'],
   [/^(getSocialAccounts|disconnectSocialPage)$/, ['socialInbox', 'socialPosts'], 'The social inbox and post scheduler'],
-  [/^(listInbox|getInboxThread|replyInbox|markInboxRead|inboxCreateLead|refreshInbox|syncOldInbox)$/, 'socialInbox', 'The social inbox'],
+  [/^(listInbox|getInboxThread|refreshInboxPeople|replyInbox|markInboxRead|inboxCreateLead|refreshInbox|syncOldInbox)$/, 'socialInbox', 'The social inbox'],
   [/^(get|save|disconnect)LinkedIn$|^syncLinkedInLeads$/, 'linkedin', 'LinkedIn'],
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
   [/^(listPosts|getPost|createPost|updatePost|reschedulePost|editPublishedPost|retryPost|deletePost|uploadPostImage|uploadPostVideoPart|finishPostVideo|discardPostVideo|syncOldPosts|getPostComments|getSocialInsights|getPostInsights)$/, 'socialPosts', 'The post scheduler'],
@@ -145,7 +145,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
-  'listInbox', 'getInboxThread', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'listCompetitors', 'listMetaAds',
+  'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

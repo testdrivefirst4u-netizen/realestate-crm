@@ -253,7 +253,7 @@ export interface AdConversionsView {
 export type InboxPlatform = 'facebook' | 'instagram' | 'google';
 export interface InboxMedia { type: 'image' | 'video' | 'file' | 'link'; url: string; preview: string; name: string }
 export interface InboxPost { id: string; text: string; imageUrl: string; url: string; at: string }
-export interface InboxThread { parent: string; postText: string; postImage: string; thread: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; authorName: string; text: string; rating?: number; at: string; unread: number; count: number; leadId: string; answered: boolean }
+export interface InboxThread { username: string; picture: string; personStale: boolean; parent: string; postText: string; postImage: string; thread: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; authorName: string; text: string; rating?: number; at: string; unread: number; count: number; leadId: string; answered: boolean }
 export interface InboxMessage { media?: InboxMedia[]; id: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; thread: string; authorName: string; text: string; rating?: number; direction: 'in' | 'out'; at: string; read: boolean; leadId?: string; by?: string }
 /** Settings › Social accounts (server: modules/socialAccounts.ts and linkedin / pinterest). */
 export interface SocialAccountsView { connectUrl: string; available: boolean; pages: Array<{ id: string; name: string; igId: string; igUsername: string }>; note: string }
@@ -566,6 +566,7 @@ export const api = {
     syncOld: () => request<{ added: number; conversations: number; posts: number; partial: boolean; postsImported: number; errors: Array<{ account: string; message: string }> }>('syncOldInbox', {}, { timeoutMs: 290000 }),
     thread: (thread: string) => request<{ thread: string; post: InboxPost | null; items: InboxMessage[] }>('getInboxThread', { thread }),
     reply: (thread: string, text: string) => request<{ ok: true }>('replyInbox', { thread, text }, { timeoutMs: 30000 }),
+    people: (threads: string[]) => request<{ people: Array<{ thread: string; name: string; username: string; picture: string }> }>('refreshInboxPeople', { threads }, { timeoutMs: 30000 }),
     markRead: (thread: string, read = true) => request<{ ok: true }>('markInboxRead', { thread, read }),
     createLead: (d: { thread: string; name: string; phone: string; email?: string }) => request<{ leadId: string }>('inboxCreateLead', d),
     refresh: () => request<{ reviews: number }>('refreshInbox', {}, { timeoutMs: 60000 }),
