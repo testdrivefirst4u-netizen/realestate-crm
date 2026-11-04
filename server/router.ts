@@ -45,6 +45,8 @@ import { actions as socialPostActions } from './modules/socialPosts';
 import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
+import { actions as socialInsightsActions } from './modules/socialInsights';
+import { actions as socialPostVideoActions } from './modules/socialPostVideo';
 import { actions as analyticsReportActions } from './modules/analyticsReports';
 import { actions as socialPostsImportActions } from './modules/socialPostsImport';
 import { actions as socialInboxImportActions } from './modules/socialInboxImport';
@@ -83,6 +85,8 @@ export const registry: ActionMap = {
   ...adsControlActions,
   ...websiteAnalyticsActions,
   ...competitorActions,
+  ...socialInsightsActions,
+  ...socialPostVideoActions,
   ...analyticsReportActions,
   ...socialPostsImportActions,
   ...socialInboxImportActions,
@@ -119,7 +123,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(listInbox|getInboxThread|replyInbox|markInboxRead|inboxCreateLead|refreshInbox|syncOldInbox)$/, 'socialInbox', 'The social inbox'],
   [/^(get|save|disconnect)LinkedIn$|^syncLinkedInLeads$/, 'linkedin', 'LinkedIn'],
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
-  [/^(listPosts|createPost|updatePost|editPublishedPost|retryPost|deletePost|uploadPostImage|syncOldPosts|getPostComments)$/, 'socialPosts', 'The post scheduler'],
+  [/^(listPosts|getPost|createPost|updatePost|reschedulePost|editPublishedPost|retryPost|deletePost|uploadPostImage|uploadPostVideoPart|finishPostVideo|discardPostVideo|syncOldPosts|getPostComments|getSocialInsights|getPostInsights)$/, 'socialPosts', 'The post scheduler'],
   [/^(listAdCampaigns|listMetaAds|setCampaignStatus|setCampaignBudget|saveAdAlerts)$/, 'adsControl', 'The ads manager'],
   [/^(listCompetitors|saveCompetitor|deleteCompetitor|recordCompetitorCheck|saveCompetitorAd|deleteCompetitorAd)$/, 'competitorAds', 'Competitor ads'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts

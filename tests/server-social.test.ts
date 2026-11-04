@@ -13,7 +13,7 @@ import { getAllLeads } from '../server/modules/leads';
 import { resetGoogleOAuthTokenCache } from '../server/modules/googleConnect';
 import { savePages } from '../server/modules/socialAccounts';
 import { getInboxThread, inboxCreateLead, listInbox, pollGoogleReviews, replyInbox } from '../server/modules/socialInbox';
-import { createPost, deletePost, listPosts, listPostTargets, publicMediaUrl, retryPost, runPostsCron, updatePost, uploadPostImage } from '../server/modules/socialPosts';
+import { createPost, deletePost, listPosts, listPostTargets, publicMediaUrl, reschedulePost, retryPost, runPostsCron, updatePost, uploadPostImage } from '../server/modules/socialPosts';
 import { POST as webhookPOST } from '../app/api/webhooks/meta/route';
 import { GET as mediaGET } from '../app/api/public/media/[companyId]/[fileId]/route';
 
@@ -46,10 +46,11 @@ async function fake(input: any, init: any = {}): Promise<Response> {
     if (m && method === 'POST') { subscribed[m[1]] = String(params.subscribed_fields).split(','); return json(200, { success: true }); }
     if (path === '/PSID1') return json(200, { name: 'Ravi Kumar' });
     if (path === '/PAGE1/messages') return json(200, { recipient_id: 'PSID1', message_id: 'm_out_1' });
+    if (failComment && /\/comments$/.test(path) && method === 'POST') return json(400, { error: { message: 'Comments are off', code: 100 } });
     if (/^\/\w+\/(comments|replies)$/.test(path)) return json(200, { id: 'reply_1' });
-    if (path === '/PAGE1/photos') return json(200, { id: 'PH1', post_id: 'PAGE1_POST1' });
+    if (path === '/PAGE1/photos') return json(200, params.published === 'false' ? { id: `PH${(photoSeq += 1)}` } : { id: 'PH1', post_id: 'PAGE1_POST1' });
     if (path === '/PAGE1/feed') return json(200, { id: 'PAGE1_POST2' });
-    if (path === '/IG1/media') return json(200, { id: 'C1' });
+    if (path === '/IG1/media') return json(200, { id: params.media_type === 'CAROUSEL' ? 'PARENT' : params.is_carousel_item ? `CH${(photoSeq += 1)}` : 'C1' });
     if (path === '/IG1/media_publish') return json(200, { id: 'M1' });
     if (path === '/M1') return json(200, { permalink: 'https://www.instagram.com/p/abc/' });
   }
@@ -71,7 +72,12 @@ async function fake(input: any, init: any = {}): Promise<Response> {
   return json(404, { error: { message: `unexpected ${method} ${url.host}${path}` } });
 }
 
+let photoSeq = 0;
+let failComment = false;
+
 async function setup(): Promise<Ctx> {
+  photoSeq = 0;
+  failComment = false;
   await createUser({ name: 'Support', email: 'support@social.test', password: 'long-enough-pw', role: 'Developer', mustChangePassword: false }, null);
   const r = await login('support@social.test', 'long-enough-pw', { userAgent: 'vitest', ip: '10.5.5.5' });
   const ctx = { user: r.user } as unknown as Ctx;
@@ -225,6 +231,85 @@ describe('post scheduler', () => {
     const again = await inCo(() => retryPost({ id: p.id }, ctx));
     expect(again.status).toBe('published');
     expect(hits(/PAGE1\/photos/)).toHaveLength(1); // Facebook was not posted twice
+  });
+
+  it('a scheduled post can be moved by the planner, but not into the past or once posted, and goes out at the new time', async () => {
+    const ctx = await setup();
+    await everything(ctx);
+    const at = new Date(Date.now() + 3600e3);
+    const p = await inCo(() => createPost({ text: 'Open house', targets: ['facebook:PAGE1'], scheduledAt: at.toISOString() }, ctx));
+    const moved = new Date(Date.now() + 2 * 86400e3);
+    expect(await inCo(() => reschedulePost({ id: p.id, scheduledAt: moved.toISOString() }, ctx))).toMatchObject({ id: p.id, text: 'Open house', status: 'scheduled', scheduledAt: moved.toISOString() });
+    await expect(inCo(() => reschedulePost({ id: p.id, scheduledAt: '2020-01-01T00:00:00Z' }, ctx))).rejects.toThrow(/has passed/);
+    await expect(inCo(() => reschedulePost({ id: p.id }, ctx))).rejects.toThrow(/valid date/);
+    expect(await runPostsCron(new Date(at.getTime() + 60000))).toEqual({});
+    expect(await runPostsCron(new Date(moved.getTime() + 60000))).toEqual({ test: { published: 1 } });
+    await expect(inCo(() => reschedulePost({ id: p.id, scheduledAt: new Date(Date.now() + 3600e3).toISOString() }, ctx))).rejects.toThrow(/Only a scheduled post/);
+  });
+
+  it('the list searches the text, safely, and filters by account', async () => {
+    const ctx = await setup();
+    await everything(ctx);
+    const at = new Date(Date.now() + 3600e3).toISOString();
+    await inCo(() => createPost({ text: 'Diwali (offer) price', targets: ['facebook:PAGE1'], scheduledAt: at }, ctx));
+    await inCo(() => createPost({ text: 'Site visit', targets: ['google:accounts/1/locations/9'], scheduledAt: at }, ctx));
+    const texts = async (d: any) => (await inCo(() => listPosts(d))).posts.map((x) => x.text);
+    expect(await texts({ q: 'diwali' })).toEqual(['Diwali (offer) price']);
+    expect(await texts({ q: '(offer)' })).toEqual(['Diwali (offer) price']); // a bracket is text, not a pattern
+    expect(await texts({ q: '.*' })).toEqual([]);
+    expect(await texts({ account: 'google:accounts/1/locations/9' })).toEqual(['Site visit']);
+    expect(await texts({ q: 'diwali', account: 'google:accounts/1/locations/9' })).toEqual([]);
+  });
+
+  it('several photos: one Facebook post with them attached, an Instagram carousel, and the first photo elsewhere', async () => {
+    const ctx = await setup();
+    const a = await everything(ctx);
+    const b = await inCo(() => uploadPostImage({ name: 'two.png', mime: 'image/png', base64: PNG.toString('base64') }, ctx));
+    const p = await inCo(() => createPost({ text: 'Three towers', imageFileIds: [a.fileId, b.fileId], targets: ['facebook:PAGE1', 'instagram:IG1', 'pinterest:B1'] }, ctx));
+    expect(p.status).toBe('published');
+    expect(p).toMatchObject({ imageFileId: a.fileId, imageFileIds: [a.fileId, b.fileId], imageUrls: [`/api/files/${a.fileId}`, `/api/files/${b.fileId}`] });
+    const staged = hits(/POST graph\.facebook\.com\/PAGE1\/photos/);
+    expect(staged.map((c) => c.params.published)).toEqual(['false', 'false']);
+    const feed = hits(/POST graph\.facebook\.com\/PAGE1\/feed/)[0].params;
+    expect(feed.message).toBe('Three towers');
+    expect(JSON.parse(feed.attached_media)).toEqual([{ media_fbid: 'PH1' }, { media_fbid: 'PH2' }]);
+    const ig = hits(/POST graph\.facebook\.com\/IG1\/media$/).map((c) => c.params);
+    expect(ig.slice(0, 2).every((x) => x.is_carousel_item === 'true' && !x.caption)).toBe(true);
+    expect(ig[2]).toMatchObject({ media_type: 'CAROUSEL', children: 'CH3,CH4', caption: 'Three towers' });
+    expect(hits(/POST graph\.facebook\.com\/IG1\/media_publish/)[0].params.creation_id).toBe('PARENT');
+    expect(String(hits(/api\.pinterest\.com\/v5\/pins/)[0].params.media_source.url)).toContain(a.fileId);
+  });
+
+  it('text per platform, and only for the platforms chosen; limits apply to the text each one gets', async () => {
+    const ctx = await setup();
+    const img = await everything(ctx);
+    const p = await inCo(() => createPost({ text: 'For all', texts: { instagram: 'Only #Instagram', linkedin: 'Not chosen' }, imageFileIds: [img.fileId], targets: ['facebook:PAGE1', 'instagram:IG1'] }, ctx));
+    expect(p.texts).toEqual({ instagram: 'Only #Instagram' });
+    expect(hits(/POST graph\.facebook\.com\/PAGE1\/photos/)[0].params.caption).toBe('For all');
+    expect(hits(/POST graph\.facebook\.com\/IG1\/media$/)[0].params.caption).toBe('Only #Instagram');
+    await expect(inCo(() => createPost({ text: 'Short', texts: { instagram: 'x'.repeat(2300) }, imageFileIds: [img.fileId], targets: ['instagram:IG1'] }, ctx))).rejects.toThrow(/2200/);
+    // a long caption is fine elsewhere when Instagram has its own
+    const ok = await inCo(() => createPost({ text: 'y'.repeat(2500), texts: { instagram: 'Short' }, imageFileIds: [img.fileId], targets: ['facebook:PAGE1', 'instagram:IG1'] }, ctx));
+    expect(ok.status).toBe('published');
+    const many = Array.from({ length: 31 }, (_, i) => `#t${i}`).join(' ');
+    await expect(inCo(() => createPost({ text: many, imageFileIds: [img.fileId], targets: ['instagram:IG1'] }, ctx))).rejects.toThrow(/30 hashtags/);
+    expect((await inCo(() => createPost({ text: many, targets: ['facebook:PAGE1'] }, ctx))).status).toBe('published');
+    await expect(inCo(() => createPost({ text: 'x', imageFileIds: Array.from({ length: 11 }, (_, i) => `f${i}`), targets: ['facebook:PAGE1'] }, ctx))).rejects.toThrow(/up to 10/);
+  });
+
+  it('the first comment follows the post on Facebook and Instagram; if it fails the post still counts and says why', async () => {
+    const ctx = await setup();
+    const img = await everything(ctx);
+    const p = await inCo(() => createPost({ text: 'Open house', firstComment: 'Book here', imageFileIds: [img.fileId], targets: ['facebook:PAGE1', 'instagram:IG1', 'pinterest:B1'] }, ctx));
+    expect(p.status).toBe('published');
+    expect(hits(/POST graph\.facebook\.com\/PAGE1_POST1\/comments/)[0].params.message).toBe('Book here');
+    expect(hits(/POST graph\.facebook\.com\/M1\/comments/)[0].params.message).toBe('Book here');
+    failComment = true;
+    const q = await inCo(() => createPost({ text: 'Again', firstComment: 'Nope', targets: ['facebook:PAGE1'] }, ctx));
+    expect(q.status).toBe('published');
+    expect(q.targets[0].commentError).toContain('Comments are off');
+    const onlyPin = await inCo(() => createPost({ text: 'Pin', firstComment: 'Ignored', imageFileIds: [img.fileId], targets: ['pinterest:B1'] }, ctx));
+    expect(onlyPin.firstComment).toBe('');
   });
 
   it('a draft is never posted, can stay unfinished, and is listed whatever its date', async () => {

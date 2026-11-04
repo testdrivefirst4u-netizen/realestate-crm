@@ -259,10 +259,14 @@ export interface InboxMessage { media?: InboxMedia[]; id: string; platform: Inbo
 export interface SocialAccountsView { connectUrl: string; available: boolean; pages: Array<{ id: string; name: string; igId: string; igUsername: string }>; note: string }
 /** Post scheduler (server: modules/socialPosts.ts). */
 export type PostTargetKind = 'facebook' | 'instagram' | 'google' | 'linkedin' | 'pinterest';
+export type PostType = 'post' | 'video' | 'reel' | 'story';
+export interface InsightValue { id: string; label: string; value: number | null; format: 'number' | 'duration' }
+export interface InsightsAccount { key: string; kind: 'facebook' | 'instagram'; name: string; followers: number | null; metrics: InsightValue[]; chartLabel: string; daily: Array<{ day: string; value: number }>; refused: string[] }
+export interface InsightsOverview { days: number; accounts: InsightsAccount[]; topPosts: Array<{ id: string; text: string; imageUrl: string; url: string; kind: string; account: string; postType: string; at: string; likes: number | null; comments: number | null; shares: number | null }>; fetchedAt: string }
 export interface PostTargetOption { key: string; kind: PostTargetKind; name: string; needsImage: boolean }
 export interface SocialPost {
-  id: string; text: string; link: string; imageFileId: string; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null;
-  targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string }>;
+  id: string; text: string; texts: Partial<Record<PostTargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null; postType: PostType; videoFileId: string; videoUrl: string;
+  targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string; commentError?: string }>;
 }
 /** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
 export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
@@ -571,14 +575,21 @@ export const api = {
     disconnectPage: (pageId: string) => request<SocialAccountsView>('disconnectSocialPage', { pageId }),
   },
   posts: {
-    list: (range: { from?: string; to?: string; statuses?: string[]; skip?: number; limit?: number } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[]; hasMore: boolean }>('listPosts', range),
+    reschedule: (id: string, scheduledAt: string) => request<SocialPost>('reschedulePost', { id, scheduledAt }),
+    list: (range: { from?: string; to?: string; statuses?: string[]; skip?: number; limit?: number; q?: string; account?: string } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[]; hasMore: boolean }>('listPosts', range),
     editPublished: (id: string, text: string) => request<SocialPost>('editPublishedPost', { id, text }, { timeoutMs: 60000 }),
-    create: (d: { text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string; draft?: boolean }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),
-    update: (d: { id: string; text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string; draft?: boolean }) => request<SocialPost>('updatePost', d, { timeoutMs: 120000 }),
+    create: (d: { text: string; link?: string; imageFileIds?: string[]; targets: string[]; scheduledAt?: string; draft?: boolean; texts?: Record<string, string>; firstComment?: string; postType?: PostType; videoFileId?: string }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),
+    update: (d: { id: string; text: string; link?: string; imageFileIds?: string[]; targets: string[]; scheduledAt?: string; draft?: boolean; texts?: Record<string, string>; firstComment?: string; postType?: PostType; videoFileId?: string }) => request<SocialPost>('updatePost', d, { timeoutMs: 120000 }),
     retry: (id: string) => request<SocialPost>('retryPost', { id }, { timeoutMs: 120000 }),
     syncOld: () => request<{ imported: number; updated: number; skipped: number; errors: Array<{ account: string; message: string }>; warnings: string[] }>('syncOldPosts', {}, { timeoutMs: 280000 }),
     comments: (id: string) => request<{ comments: Array<{ id: string; author: string; text: string; at: string }> }>('getPostComments', { id }, { timeoutMs: 60000 }),
     remove: (id: string) => request<{ ok: true }>('deletePost', { id }),
+    uploadVideoPart: (uploadId: string, index: number, base64: string) => request<{ ok: true }>('uploadPostVideoPart', { uploadId, index, base64 }, { timeoutMs: 120000 }),
+    finishVideo: (d: { uploadId: string; parts: number; name: string; mime: string }) => request<{ fileId: string; previewUrl: string }>('finishPostVideo', d, { timeoutMs: 180000 }),
+    discardVideo: (fileId: string) => request<{ ok: true }>('discardPostVideo', { fileId }),
+    insights: (d: { days: number; account?: string; refresh?: boolean }) => request<InsightsOverview>('getSocialInsights', d, { timeoutMs: 60000 }),
+    postInsights: (id: string) => request<{ targets: Array<{ key: string; kind: string; name: string; metrics: InsightValue[]; refused: string[] }> }>('getPostInsights', { id }, { timeoutMs: 60000 }),
+    get: (id: string) => request<{ post: SocialPost }>('getPost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),
   },
   connectedAccounts: {

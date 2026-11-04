@@ -1,16 +1,18 @@
 /**
- * GET /api/public/media/<company>/<file>?sig=… — a social post image for Instagram, Pinterest and Google to fetch.
- * Only files of the post scheduler (category 'Social posts') and only with the signature the CRM made for them.
+ * GET /api/public/media/<company>/<file>?sig=… — a social post image or video for the platforms to fetch.
+ * Only files of the post scheduler and only with the signature the CRM made for them. Videos can be asked for in ranges.
  */
 import { Readable } from 'node:stream';
 import { NextResponse } from 'next/server';
 import { runWithTenant } from '@/server/core/tenant';
 import { getTenantById } from '@/server/platform/registry';
 import { mediaSigOk, POST_IMAGE_CATEGORY } from '@/server/modules/socialPosts';
+import { POST_VIDEO_CATEGORY } from '@/server/modules/socialPostVideo';
 import { openFileStream, statFile } from '@/server/modules/storage';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 const notFound = () => new NextResponse('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -22,11 +24,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ companyId: stri
   if (!tenant || tenant.status !== 'Active') return notFound();
   return runWithTenant(tenant, async () => {
     const info = await statFile(fileId);
-    if (!info || info.category !== POST_IMAGE_CATEGORY || !/^image\//.test(info.mime)) return notFound();
+    const image = info?.category === POST_IMAGE_CATEGORY && /^image\//.test(info.mime);
+    const video = info?.category === POST_VIDEO_CATEGORY && /^video\//.test(info.mime);
+    if (!info || (!image && !video)) return notFound();
+    const headers = { 'Content-Type': info.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=86400' };
+    const asked = /^bytes=(\d+)-(\d*)$/.exec(req.headers.get('range') || '');
+    if (asked) {
+      const start = Number(asked[1]);
+      const end = Math.min(asked[2] ? Number(asked[2]) + 1 : info.size, info.size);
+      if (start >= end) return new NextResponse(null, { status: 416, headers: { 'Content-Range': `bytes */${info.size}` } });
+      const part = await openFileStream(info, { start, end });
+      return new NextResponse(Readable.toWeb(part) as unknown as ReadableStream, { status: 206, headers: { ...headers, 'Content-Length': String(end - start), 'Content-Range': `bytes ${start}-${end - 1}/${info.size}` } });
+    }
     const stream = await openFileStream(info);
-    return new NextResponse(Readable.toWeb(stream) as unknown as ReadableStream, {
-      status: 200,
-      headers: { 'Content-Type': info.mime, 'Content-Length': String(info.size), 'Cache-Control': 'public, max-age=86400' },
-    });
+    return new NextResponse(Readable.toWeb(stream) as unknown as ReadableStream, { status: 200, headers: { ...headers, 'Content-Length': String(info.size) } });
   });
 }
