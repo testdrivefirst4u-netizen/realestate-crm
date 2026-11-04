@@ -70,7 +70,7 @@ describe('competitors', () => {
     const dup = await as('Meera', 'saveCompetitor', { name: '  rival   homes ' });
     expect(dup.code).toBe('VALIDATION');
     expect((await as('Asha', 'saveCompetitor', { id, name: 'Rival Homes', pageName: 'Rival Page', website: 'rival.example' })).status).toBe('success');
-    const c = (await as('Ravi', 'listCompetitors')).data.competitors[0];
+    const c = (await as('Fiona', 'listCompetitors')).data.competitors[0];
     expect(c).toMatchObject({ id, name: 'Rival Homes', pageName: 'Rival Page', website: 'rival.example', meta: null, google: null, due: true });
     expect(c.metaUrl).toContain('q=Rival+Page');
     expect(c.googleUrl).toContain('domain=rival.example');
@@ -110,7 +110,7 @@ describe('competitors', () => {
     expect(list).toEqual(['Asha', 'Meera']);
     const rm = (await as('Asha', 'listCompetitors')).data.checkers.find((p: any) => p.name === 'Meera');
     const id = await add('Rival', { assignedToId: rm.id });
-    expect((await as('Ravi', 'listCompetitors')).data.competitors[0]).toMatchObject({ id, assignedToName: 'Meera' });
+    expect((await as('Fiona', 'listCompetitors')).data.competitors[0]).toMatchObject({ id, assignedToName: 'Meera' });
     expect((await as('Asha', 'saveCompetitor', { name: 'Other', assignedToId: 'USR-nobody' })).status).toBe('error');
   });
 });
@@ -122,7 +122,7 @@ describe('saved ads', () => {
     const id = await add();
     const r = await as('Meera', 'saveCompetitorAd', ad(id, { link: 'https://www.facebook.com/ads/library/?id=1', project: 'Tower A', price: '₹90 L', image: { name: 'ad.png', mime: 'image/png', base64: PNG } }));
     expect(r.status).toBe('success');
-    const saved = (await as('Ravi', 'listCompetitors')).data.competitors[0].ads[0];
+    const saved = (await as('Fiona', 'listCompetitors')).data.competitors[0].ads[0];
     expect(saved).toMatchObject({ offer: 'No pre-EMI', project: 'Tower A', price: '₹90 L', createdBy: 'Meera' });
     const fileId = saved.imageUrl.split('/').pop();
     expect(await inCo(() => statFile(fileId))).not.toBeNull();
@@ -153,9 +153,9 @@ describe('saved ads', () => {
 });
 
 describe('who may do what', () => {
-  it('RMs and Viewers read only; Admins and Managers change', async () => {
+  it('Viewers read only; RMs see nothing; Admins and Managers change', async () => {
     const id = await add();
-    expect((await as('Ravi', 'listCompetitors')).status).toBe('success');
+    expect((await inCo(() => dispatch('listCompetitors', {}, { ...base, token: tokens.Ravi }))).status).toBe(403);
     expect((await as('Fiona', 'listCompetitors')).status).toBe('success');
     for (const who of ['Ravi', 'Fiona']) {
       for (const [action, data] of [

@@ -4,7 +4,7 @@
  *
  * The CRM does not read those sites: neither offers a usable feed of commercial ads for India, so "running or not"
  * is what a person recorded on the date shown. A competitor is due when a platform was not checked for 7 days.
- * Every signed-in role may read; adding and recording needs marketing.manage (Admins, Managers).
+ * Reading needs leads.viewAll (not RMs); adding and recording needs marketing.manage (Admins, Managers).
  */
 import type { ActionMap } from '../core/actions';
 import { auditLog, can, listUsers, type Ctx } from '../core/auth';
@@ -250,7 +250,7 @@ export async function deleteCompetitorAd(d: any, ctx: Ctx): Promise<{ ok: true }
 }
 
 export const actions: ActionMap = {
-  listCompetitors: { fn: () => listCompetitors(), perm: 'leads.view' },
+  listCompetitors: { fn: () => listCompetitors(), perm: 'leads.viewAll' },
   saveCompetitor: { fn: (d, ctx) => saveCompetitor(d, ctx), perm: 'marketing.manage' },
   deleteCompetitor: { fn: (d, ctx) => deleteCompetitor(d, ctx), perm: 'marketing.manage' },
   recordCompetitorCheck: { fn: (d, ctx) => recordCompetitorCheck(d, ctx), perm: 'marketing.manage' },

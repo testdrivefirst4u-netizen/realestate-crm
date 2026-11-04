@@ -51,7 +51,7 @@ export function viewAllowed(view: ViewId, settings: SettingsLike, can: (p: Permi
     case 'posts': return on('socialPosts') && can('marketing.manage');
     case 'ads': return on('adsControl') && can('leads.viewAll');
     case 'analytics': return on('websiteAnalytics') && can('reports.view');
-    case 'competitors': return on('competitorAds') && can('leads.view');
+    case 'competitors': return on('competitorAds') && can('leads.viewAll');
     default: return true;
   }
 }

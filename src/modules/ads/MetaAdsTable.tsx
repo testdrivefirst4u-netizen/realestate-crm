@@ -76,7 +76,7 @@ const COLUMNS: Column[] = [
   { id: 'engagement', label: 'Engagement ranking', levels: ['ad'], sort: (r) => r.engagementRanking, text: (r) => (r.engagementRanking ? words(r.engagementRanking) : '—') },
   { id: 'conversion', label: 'Conversion ranking', levels: ['ad'], sort: (r) => r.conversionRanking, text: (r) => (r.conversionRanking ? words(r.conversionRanking) : '—') },
 ];
-const DEFAULT_COLUMNS = ['delivery', 'bid', 'budget', 'results', 'reach', 'impressions', 'cpr', 'spend', 'end'];
+const DEFAULT_COLUMNS = ['delivery', 'bid', 'budget', 'results', 'reach', 'impressions', 'cpr', 'spend', 'end', 'clicks', 'ctr'];
 const COLUMNS_KEY = 'crm.metaAds.columns';
 
 function savedColumns(): string[] {
