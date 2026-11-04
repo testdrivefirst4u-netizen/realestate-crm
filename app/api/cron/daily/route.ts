@@ -11,6 +11,7 @@ import { runGoogleSpendCron } from '@/server/modules/googleMarketing';
 import { runInboxCron } from '@/server/modules/socialInbox';
 import { runAdAlertsCron } from '@/server/modules/adsControl';
 import { runImportPostsCron } from '@/server/modules/socialPostsImport';
+import { runInboxImportCron } from '@/server/modules/socialInboxImport';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,7 +45,8 @@ export async function GET(req: Request) {
   const inbox = await runInboxCron({ daily: true }).catch((e) => { console.error('[cron] inbox', e); return { error: 'failed' }; });
   const adAlerts = await runAdAlertsCron().catch((e) => { console.error('[cron] ad alerts', e); return { error: 'failed' }; });
   const importedPosts = await runImportPostsCron().catch((e) => { console.error('[cron] imported posts', e); return { error: 'failed' }; });
-  const data = { companies: Object.keys(results).length, failed, results, storage, adSpend, googleSpend, conversions, inbox, adAlerts, importedPosts };
+  const inboxImport = await runInboxImportCron().catch((e) => { console.error('[cron] inbox import', e); return { error: 'failed' }; });
+  const data = { companies: Object.keys(results).length, failed, results, storage, adSpend, googleSpend, conversions, inbox, adAlerts, importedPosts, inboxImport };
   await recordJobRun('daily', started, !failed, summarize(data));
   return NextResponse.json({ status: failed ? 'error' : 'success', data }, { status: failed ? 500 : 200 });
 }

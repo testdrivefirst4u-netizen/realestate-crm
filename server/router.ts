@@ -46,6 +46,7 @@ import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
 import { actions as socialPostsImportActions } from './modules/socialPostsImport';
+import { actions as socialInboxImportActions } from './modules/socialInboxImport';
 import { actions as metaAdsTableActions } from './modules/metaAdsTable';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
 
@@ -82,6 +83,7 @@ export const registry: ActionMap = {
   ...websiteAnalyticsActions,
   ...competitorActions,
   ...socialPostsImportActions,
+  ...socialInboxImportActions,
   ...metaAdsTableActions,
   ...connectedAccountActions,
 };
@@ -112,7 +114,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(get|save|refresh|disconnect)GoogleMarketing$|^listGoogleConversionActions$|^testGa4$|^syncGoogleSpend$/, ['googleConversions', 'googleAdsSpend', 'socialInbox', 'socialPosts', 'adsControl', 'websiteAnalytics'], 'Google marketing features'],
   [/^(syncAdSpend|saveAdSpendAccounts)$/, 'adSpend', 'Ad spend from Meta'],
   [/^(getSocialAccounts|disconnectSocialPage)$/, ['socialInbox', 'socialPosts'], 'The social inbox and post scheduler'],
-  [/^(listInbox|getInboxThread|replyInbox|markInboxRead|inboxCreateLead|refreshInbox)$/, 'socialInbox', 'The social inbox'],
+  [/^(listInbox|getInboxThread|replyInbox|markInboxRead|inboxCreateLead|refreshInbox|syncOldInbox)$/, 'socialInbox', 'The social inbox'],
   [/^(get|save|disconnect)LinkedIn$|^syncLinkedInLeads$/, 'linkedin', 'LinkedIn'],
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
   [/^(listPosts|createPost|updatePost|editPublishedPost|retryPost|deletePost|uploadPostImage|syncOldPosts|getPostComments)$/, 'socialPosts', 'The post scheduler'],

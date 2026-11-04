@@ -210,7 +210,8 @@ export interface InboxThread {
   answered: boolean;
 }
 
-export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; unread: number }> {
+export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; unread: number; hasMore: boolean }> {
+  const limit = Math.min(Math.max(Number(d?.limit) || 100, 1), 2000);
   const match: Record<string, unknown> = {};
   if (['facebook', 'instagram', 'google'].includes(d?.platform)) match.platform = d.platform;
   if (['comment', 'message', 'review'].includes(d?.kind)) match.kind = d.kind;
@@ -225,16 +226,16 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
       lastDir: { $last: '$direction' }, lastText: { $last: '$text' }, leadId: { $max: '$leadId' },
     } },
     { $sort: { at: -1 } },
-    { $limit: Math.min(Number(d?.limit) || 100, 300) },
+    { $limit: limit + 1 },
     { $addFields: { lastIn: { $arrayElemAt: ['$ins', -1] } } },
     { $project: { ins: 0 } },
   ]).toArray();
-  const threads: InboxThread[] = rows.map((r) => ({
+  const threads: InboxThread[] = rows.slice(0, limit).map((r) => ({
     thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
     rating: r.lastIn?.rating, at: new Date(r.at).toISOString(), unread: r.unread, count: r.count, leadId: r.leadId || '', answered: r.lastDir === 'out',
   }));
   const unread = (await (await inboxCol()).distinct('thread', { direction: 'in', read: false })).length;
-  return { threads, unread };
+  return { threads, unread, hasMore: rows.length > limit };
 }
 
 export async function getInboxThread(d: any): Promise<{ thread: string; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string }> }> {
@@ -289,7 +290,9 @@ export async function inboxCreateLead(d: any, ctx: Ctx): Promise<{ leadId: strin
   const thread = String(d?.thread || '');
   const first = await (await inboxCol()).find({ thread, direction: 'in' }).sort({ at: 1 }).limit(1).next();
   if (!first) throw fail('NOT_FOUND', 'Conversation not found');
-  if (first.leadId) return { leadId: first.leadId };
+  // on any item of the thread: old items copied in later are the oldest and carry none
+  const linked = await (await inboxCol()).findOne({ thread, leadId: { $exists: true, $ne: '' } }, { projection: { leadId: 1 } });
+  if (linked?.leadId) return { leadId: linked.leadId };
   // a Google review has no matching enquiry source: the team sets it on the lead
   const source = first.platform === 'facebook' ? 'Facebook' : first.platform === 'instagram' ? 'Instagram' : '';
   const name = String(d?.name || first.authorName || '').replace(/^@/, '').trim();

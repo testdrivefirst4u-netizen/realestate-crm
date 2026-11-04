@@ -33,7 +33,7 @@ const Badge: React.FC<{ p: InboxPlatform }> = ({ p }) => (
   <span className={cx('inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', PLATFORM[p].dot)} title={PLATFORM[p].label}>{PLATFORM[p].short}</span>
 );
 
-export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; onOpenLead: (id: string) => void; initialThread?: string | null }> = ({ canReply, canCreateLead, onOpenLead, initialThread }) => {
+export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; canSync?: boolean; onOpenLead: (id: string) => void; initialThread?: string | null }> = ({ canReply, canCreateLead, canSync, onOpenLead, initialThread }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const [platform, setPlatform] = useState<InboxPlatform | ''>('');
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
@@ -42,19 +42,23 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; on
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [limit, setLimit] = useState(100);
+  const [hasMore, setHasMore] = useState(false);
   const [leadFor, setLeadFor] = useState<{ name: string; phone: string; email: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const loadList = useCallback(async () => {
     try {
-      const r = await api.inbox.list({ platform, kind: filter === 'all' ? '' : filter });
+      const r = await api.inbox.list({ platform, kind: filter === 'all' ? '' : filter, limit });
       setThreads(r.threads);
+      setHasMore(r.hasMore);
     } catch (e) {
       setThreads((t) => t || []);
       toast('Could not load the inbox', errText('inbox.list', e), 'alert');
     }
-  }, [platform, filter]);
+  }, [platform, filter, limit]);
   useEffect(() => {
     void loadList();
     const t = setInterval(() => void loadList(), 30000);
@@ -105,6 +109,20 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; on
       setRefreshing(false);
     }
   };
+  const syncOld = async () => {
+    setSyncing(true);
+    try {
+      const r = await api.inbox.syncOld();
+      const said = r.errors.map((e) => `${e.account}: ${e.message}`).join(' · ');
+      const more = r.partial ? 'Not everything fitted in one go: click Sync old messages again to continue.' : '';
+      toast(`${r.added} old item${r.added === 1 ? '' : 's'} added`, [more, said].filter(Boolean).join(' ') || undefined, said ? 'alert' : r.partial ? 'warning' : 'success');
+      await loadList();
+    } catch (e) {
+      toast('Could not sync old messages', errText('inbox.sync', e), 'alert');
+    } finally {
+      setSyncing(false);
+    }
+  };
   const createLead = async () => {
     if (!active || !leadFor) return;
     const bad = leadFor.phone ? phoneProblem(leadFor.phone) : 'Enter the phone number';
@@ -129,7 +147,8 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; on
       <div className="p-3 space-y-2 border-b border-[#EEF4F9]">
         <div className="flex items-center gap-2">
           <Tabs<Filter> value={filter} onChange={setFilter} tabs={[{ id: 'all', label: 'All' }, { id: 'message', label: 'Messages' }, { id: 'comment', label: 'Comments' }, { id: 'review', label: 'Reviews' }]} />
-          <button type="button" onClick={() => void refresh()} aria-label="Refresh" className="ml-auto h-9 w-9 inline-flex items-center justify-center rounded-lg text-[#5E778C] hover:bg-[#F2F7FB]"><RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /></button>
+          {canSync && <Button variant="secondary" size="xs" className="ml-auto" icon={<RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />} disabled={syncing} onClick={() => void syncOld()}>{syncing ? 'Syncing…' : 'Sync old messages'}</Button>}
+          <button type="button" onClick={() => void refresh()} aria-label="Refresh Google reviews" title="Check for new Google reviews" className={cx(!canSync && 'ml-auto', 'h-9 w-9 inline-flex items-center justify-center rounded-lg text-[#5E778C] hover:bg-[#F2F7FB]')}><RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /></button>
         </div>
         <select className={inputCls} value={platform} onChange={(e) => setPlatform(e.target.value as InboxPlatform | '')} aria-label="Platform">
           <option value="">Every platform</option>
@@ -161,6 +180,7 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; on
           </li>
         ))}
       </ul>
+      {hasMore && <div className="border-t border-[#EEF4F9] p-2 text-center"><Button variant="secondary" size="xs" onClick={() => setLimit((n) => n + 100)}>Load more</Button></div>}
     </div>
   );
 

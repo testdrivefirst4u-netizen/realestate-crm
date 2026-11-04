@@ -545,7 +545,8 @@ export const api = {
   /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
   /** Social inbox: Facebook / Instagram comments and messages, Google reviews (plan feature socialInbox). */
   inbox: {
-    list: (filter: { platform?: InboxPlatform | ''; kind?: string } = {}) => request<{ threads: InboxThread[]; unread: number }>('listInbox', filter),
+    list: (filter: { platform?: InboxPlatform | ''; kind?: string; limit?: number } = {}) => request<{ threads: InboxThread[]; unread: number; hasMore: boolean }>('listInbox', filter),
+    syncOld: () => request<{ added: number; conversations: number; posts: number; partial: boolean; postsImported: number; errors: Array<{ account: string; message: string }> }>('syncOldInbox', {}, { timeoutMs: 290000 }),
     thread: (thread: string) => request<{ thread: string; items: InboxMessage[] }>('getInboxThread', { thread }),
     reply: (thread: string, text: string) => request<{ ok: true }>('replyInbox', { thread, text }, { timeoutMs: 30000 }),
     markRead: (thread: string, read = true) => request<{ ok: true }>('markInboxRead', { thread, read }),

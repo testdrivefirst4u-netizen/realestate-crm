@@ -7,5 +7,5 @@ import { useCrm } from '../_components/CrmShell';
 export function InboxClient() {
   const { engine, openLead } = useCrm();
   const thread = useSearchParams().get('thread');
-  return <InboxView canReply={engine.can('chat.send')} canCreateLead={engine.can('leads.create')} onOpenLead={openLead} initialThread={thread} />;
+  return <InboxView canReply={engine.can('chat.send')} canCreateLead={engine.can('leads.create')} canSync={engine.can('marketing.manage')} onOpenLead={openLead} initialThread={thread} />;
 }
