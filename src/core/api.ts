@@ -251,9 +251,10 @@ export interface AdConversionsView {
 
 /** Social inbox (server: modules/socialInbox.ts). */
 export type InboxPlatform = 'facebook' | 'instagram' | 'google';
+export interface InboxMedia { type: 'image' | 'video' | 'file' | 'link'; url: string; preview: string; name: string }
 export interface InboxPost { id: string; text: string; imageUrl: string; url: string; at: string }
 export interface InboxThread { parent: string; postText: string; postImage: string; thread: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; authorName: string; text: string; rating?: number; at: string; unread: number; count: number; leadId: string; answered: boolean }
-export interface InboxMessage { id: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; thread: string; authorName: string; text: string; rating?: number; direction: 'in' | 'out'; at: string; read: boolean; leadId?: string; by?: string }
+export interface InboxMessage { media?: InboxMedia[]; id: string; platform: InboxPlatform; kind: 'comment' | 'message' | 'review'; thread: string; authorName: string; text: string; rating?: number; direction: 'in' | 'out'; at: string; read: boolean; leadId?: string; by?: string }
 /** Settings › Social accounts (server: modules/socialAccounts.ts and linkedin / pinterest). */
 export interface SocialAccountsView { connectUrl: string; available: boolean; pages: Array<{ id: string; name: string; igId: string; igUsername: string }>; note: string }
 /** Post scheduler (server: modules/socialPosts.ts). */

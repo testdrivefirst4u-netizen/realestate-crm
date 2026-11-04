@@ -154,7 +154,7 @@ export default async function PrivacyPage() {
       <h2>8. Cookies and local storage</h2>
       <p>
         We use one essential cookie to keep you signed in, and short-lived cookies during Google or Facebook connection to protect against forged
-        requests. Your browser also stores display preferences (such as layout settings) locally. The CRM itself does not use advertising or tracking cookies.
+        requests. Your browser also stores display preferences (such as layout settings) locally. The CRM itself does not use advertising or tracking cookies. When someone clicks &ldquo;Show preview&rdquo; on an Instagram post shared in a message, that post loads from Instagram, whose own policy then applies.
       </p>
 
       <h2>9. Your rights</h2>

@@ -10,6 +10,8 @@
  * Replies = Messenger / Instagram: POST /{page}/messages (inside Meta's 24-hour window); comments:
  *           /{comment}/comments (Facebook) or /{comment}/replies (Instagram); reviews: PUT …/reviews/{id}/reply.
  * Posts   = a comment thread shows the post it is on: from `socialPosts`, else read from the platform when opened.
+ * Media   = pictures, videos and shared posts of a message are read from Meta when the conversation is opened and not
+ *           stored: Meta's links expire, and it has them for a conversation's 20 most recent messages only.
  * Alerts  = a phone notification to Admins and Managers for each new message, comment or review (3 stars or less
  *           say so in the title).
  */
@@ -219,6 +221,52 @@ export interface InboxThread {
   postImage: string;
 }
 
+export interface InboxMedia { type: 'image' | 'video' | 'file' | 'link'; url: string; preview: string; name: string }
+const httpsUrl = (v: unknown) => (/^https:\/\//.test(String(v || '')) ? String(v) : '');
+const MEDIA_FIELDS = 'attachments{mime_type,name,file_url,image_data{url,preview_url},video_data{url,preview_url}},shares{link,name}';
+
+/** What Meta sent for one message, in a form the screen can show. */
+export function mediaOf(m: any): InboxMedia[] {
+  const out: InboxMedia[] = [];
+  for (const a of m?.attachments?.data || []) {
+    const video = httpsUrl(a?.video_data?.url);
+    const image = httpsUrl(a?.image_data?.url);
+    const file = httpsUrl(a?.file_url);
+    if (video) out.push({ type: 'video', url: video, preview: httpsUrl(a?.video_data?.preview_url), name: '' });
+    else if (image) out.push({ type: 'image', url: image, preview: httpsUrl(a?.image_data?.preview_url), name: '' });
+    else if (file) out.push({ type: 'file', url: file, preview: '', name: String(a?.name || 'File').slice(0, 120) });
+  }
+  for (const s of m?.shares?.data || []) {
+    const link = httpsUrl(s?.link);
+    if (link) out.push({ type: 'link', url: link, preview: '', name: String(s?.name || '').slice(0, 200) });
+  }
+  return out;
+}
+
+/** The link kept in a message's text, for when Meta no longer gives the message (not among the 20 most recent). */
+const linkInText = (text: string): InboxMedia[] => {
+  const hit = /^\[Shared a post\] (https:\/\/\S+)/.exec(text);
+  return hit ? [{ type: 'link', url: hit[1], preview: '', name: '' }] : [];
+};
+
+/** Media of the newest messages that have some (their text is a label like [Attachment]). */
+async function readMedia(items: InboxItem[]): Promise<Map<string, InboxMedia[]>> {
+  const out = new Map<string, InboxMedia[]>();
+  const withMedia = items.filter((i) => i.kind === 'message' && i.text.startsWith('[') && i.externalId).slice(-20);
+  if (!withMedia.length) return out;
+  const page = await pageFor(withMedia[0].account).catch(() => null);
+  await Promise.all(withMedia.map(async (i) => {
+    let media: InboxMedia[] = [];
+    if (page) {
+      try {
+        media = mediaOf(await graph<any>(i.externalId, { token: page.token, params: { fields: MEDIA_FIELDS } }));
+      } catch { /* an older message: the link in its text is all there is */ }
+    }
+    out.set(i._id, media.length ? media : linkInText(i.text));
+  }));
+  return out;
+}
+
 export interface InboxPost { id: string; text: string; imageUrl: string; url: string; at: string }
 
 /** Posts already in the post scheduler, by their id on the platform. */
@@ -282,14 +330,15 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
   return { threads, unread, hasMore: rows.length > limit };
 }
 
-export async function getInboxThread(d: any): Promise<{ thread: string; post: InboxPost | null; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string }> }> {
+export async function getInboxThread(d: any): Promise<{ thread: string; post: InboxPost | null; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string; media: InboxMedia[] }> }> {
   const thread = String(d?.thread || '');
   const items = await (await inboxCol()).find({ thread }).sort({ at: 1 }).limit(500).toArray();
   if (!items.length) throw fail('NOT_FOUND', 'Conversation not found');
   await (await inboxCol()).updateMany({ thread, direction: 'in', read: false }, { $set: { read: true } });
   const on = items.find((i) => i.parent);
   const post = on?.parent ? (await knownPosts([on.parent])).get(on.parent) || await readPost(on.parent, on.platform, on.account) : null;
-  return { thread, post, items: items.map(({ _id, at, ...x }) => ({ ...x, id: _id, at: at.toISOString() })) };
+  const media = await readMedia(items);
+  return { thread, post, items: items.map(({ _id, at, ...x }) => ({ ...x, id: _id, at: at.toISOString(), media: media.get(_id) || [] })) };
 }
 
 /** Answer the conversation on its platform, then keep the answer in the thread. */

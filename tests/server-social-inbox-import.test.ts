@@ -7,7 +7,7 @@ import { encryptSecret } from '../server/core/settings';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import * as push from '../server/modules/push';
-import { getInboxThread, inboxCreateLead, listInbox, replyInbox, UNSUPPORTED_MESSAGE } from '../server/modules/socialInbox';
+import { getInboxThread, inboxCreateLead, listInbox, mediaOf, replyInbox, UNSUPPORTED_MESSAGE } from '../server/modules/socialInbox';
 import { conversationItems, importOldInbox, messageText, runInboxImportCron, syncOldInbox } from '../server/modules/socialInboxImport';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -214,6 +214,52 @@ describe('clarity', () => {
     const opened = await inCo(() => getInboxThread({ thread: 'fb:c:z1' }));
     expect(opened.post).toBeNull();
     expect(opened.items).toHaveLength(1);
+  });
+});
+
+describe('media in messages', () => {
+  const add = (id: string, text: string, kind = 'message', thread = 'ig:dm:IG1:U1') => inCo(async () => (await col<any>('socialInbox')).insertOne({ _id: `instagram:${id}`, platform: 'instagram', kind, thread, account: 'IG1', externalId: id, authorId: 'U1', authorName: '@u', text, direction: 'in', at: new Date(), read: false }));
+
+  it('turns what Meta sends into pictures, videos, files and links, https only', () => {
+    expect(mediaOf({
+      attachments: { data: [
+        { image_data: { url: 'https://cdn.example/i.jpg', preview_url: 'https://cdn.example/p.jpg' } },
+        { video_data: { url: 'https://cdn.example/v.mp4', preview_url: 'https://cdn.example/vp.jpg' } },
+        { file_url: 'https://cdn.example/f.pdf', name: 'Plan.pdf' },
+        { image_data: { url: 'http://cdn.example/not-secure.jpg' } },
+      ] },
+      shares: { data: [{ link: 'https://www.instagram.com/reel/abc/', name: 'A reel' }, { link: 'javascript:alert(1)' }] },
+    })).toEqual([
+      { type: 'image', url: 'https://cdn.example/i.jpg', preview: 'https://cdn.example/p.jpg', name: '' },
+      { type: 'video', url: 'https://cdn.example/v.mp4', preview: 'https://cdn.example/vp.jpg', name: '' },
+      { type: 'file', url: 'https://cdn.example/f.pdf', preview: '', name: 'Plan.pdf' },
+      { type: 'link', url: 'https://www.instagram.com/reel/abc/', preview: '', name: 'A reel' },
+    ]);
+    expect(mediaOf({})).toEqual([]);
+  });
+
+  it('reads the media when a conversation is opened, and only for messages that have some', async () => {
+    await add('m1', '[Attachment]');
+    await add('m2', 'Just words');
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: any) => {
+      const path = new URL(String(input)).pathname.replace(/^\/v\d+\.\d+\//, '/');
+      asked.push(path);
+      return json(200, { attachments: { data: [{ image_data: { url: 'https://cdn.example/i.jpg' } }] } });
+    }));
+    const { items } = await inCo(() => getInboxThread({ thread: 'ig:dm:IG1:U1' }));
+    expect(asked).toEqual(['/m1']);
+    expect(items.find((i) => i.id === 'instagram:m1')!.media).toEqual([{ type: 'image', url: 'https://cdn.example/i.jpg', preview: '', name: '' }]);
+    expect(items.find((i) => i.id === 'instagram:m2')!.media).toEqual([]);
+  });
+
+  it('falls back to the link in the text when Meta no longer gives the message; the conversation still opens', async () => {
+    await add('m3', '[Shared a post] https://www.instagram.com/reel/xyz/');
+    await add('m4', '[Attachment]');
+    vi.stubGlobal('fetch', vi.fn(async () => json(400, { error: { message: 'Message deleted', code: 100 } })));
+    const { items } = await inCo(() => getInboxThread({ thread: 'ig:dm:IG1:U1' }));
+    expect(items.find((i) => i.id === 'instagram:m3')!.media).toEqual([{ type: 'link', url: 'https://www.instagram.com/reel/xyz/', preview: '', name: '' }]);
+    expect(items.find((i) => i.id === 'instagram:m4')!.media).toEqual([]);
   });
 });
 

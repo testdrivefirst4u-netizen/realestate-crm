@@ -5,7 +5,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ExternalLink, Inbox, MessageSquare, RefreshCw, Send, Star, UserPlus } from 'lucide-react';
-import { api, type InboxMessage, type InboxPlatform, type InboxPost, type InboxThread } from '../../core/api';
+import { api, type InboxMedia, type InboxMessage, type InboxPlatform, type InboxPost, type InboxThread } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { phoneProblem } from '../../core/phone';
@@ -29,6 +29,38 @@ const Stars: React.FC<{ n?: number }> = ({ n }) => (n ? (
     {Array.from({ length: 5 }, (_, i) => <Star key={i} size={11} className={i < n ? 'fill-[#F5A524] text-[#F5A524]' : 'text-[#C9D6E2]'} />)}
   </span>
 ) : null);
+
+/** The embed page of a public Instagram post or reel; anything else gets a plain link. */
+const instagramEmbed = (url: string) => {
+  const hit = /^https:\/\/(?:www\.)?instagram\.com\/(p|reel|reels|tv)\/([\w-]+)/.exec(url);
+  return hit ? `https://www.instagram.com/${hit[1] === 'reels' ? 'reel' : hit[1]}/${hit[2]}/embed/` : '';
+};
+
+/** A shared post: nothing loads from Instagram until someone asks for the preview. */
+const SharedPost: React.FC<{ item: InboxMedia; light: boolean }> = ({ item, light }) => {
+  const [show, setShow] = useState(false);
+  const embed = instagramEmbed(item.url);
+  const linkCls = cx('inline-flex items-center gap-1 text-xs font-semibold hover:underline', light ? 'text-white' : 'text-[#0B5E9C]');
+  return (
+    <span className="block space-y-1.5">
+      <span className="block text-xs font-semibold">{embed && /\/(reel|reels|tv)\//.test(item.url) ? 'Shared a reel' : 'Shared a post'}{item.name ? `: ${item.name}` : ''}</span>
+      {show && embed && <iframe src={embed} title="Shared Instagram post" className="h-[520px] w-[320px] max-w-full rounded-lg border-0 bg-white" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" loading="lazy" />}
+      <span className="flex flex-wrap gap-3">
+        {embed && <button type="button" className={linkCls} onClick={() => setShow((v) => !v)}>{show ? 'Hide preview' : 'Show preview'}</button>}
+        <a href={item.url} target="_blank" rel="noopener noreferrer" className={linkCls}>Open <ExternalLink size={11} /></a>
+      </span>
+    </span>
+  );
+};
+
+const MediaItem: React.FC<{ item: InboxMedia; light: boolean }> = ({ item, light }) => {
+  const [broken, setBroken] = useState(false);
+  const open = <a href={item.url} target="_blank" rel="noopener noreferrer" className={cx('inline-flex items-center gap-1 text-xs font-semibold hover:underline', light ? 'text-white' : 'text-[#0B5E9C]')}>{item.type === 'file' ? item.name : `Open the ${item.type}`} <ExternalLink size={11} /></a>;
+  if (item.type === 'link') return <SharedPost item={item} light={light} />;
+  if (item.type === 'file' || broken) return open;
+  if (item.type === 'video') return <video controls preload="metadata" poster={item.preview || undefined} src={item.url} onError={() => setBroken(true)} className="max-h-96 w-[320px] max-w-full rounded-lg bg-black" />;
+  return <a href={item.url} target="_blank" rel="noopener noreferrer" className="block"><img src={item.url} alt="Sent in this message" loading="lazy" onError={() => setBroken(true)} className="max-h-96 max-w-full rounded-lg object-contain" /></a>;
+};
 
 const Badge: React.FC<{ p: InboxPlatform }> = ({ p }) => (
   <span className={cx('inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', PLATFORM[p].dot)} title={PLATFORM[p].label}>{PLATFORM[p].short}</span>
@@ -234,7 +266,9 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
         {items.map((m) => (
           <div key={m.id} className={cx('max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-2xs', m.direction === 'out' ? 'ml-auto bg-[#1E6FB0] text-white' : 'bg-white text-[#0B2A44] border border-[#E3EDF5]')}>
             {m.direction === 'in' && <span className="flex items-center gap-2 text-[11px] font-semibold text-[#5E778C] mb-0.5">{m.authorName || 'Customer'} <Stars n={m.rating} /></span>}
-            <span className="whitespace-pre-wrap break-words">{m.text || <i className="opacity-70">(no text)</i>}</span>
+            {m.media?.length ? <span className="block space-y-2">{m.media.map((x) => <MediaItem key={x.url} item={x} light={m.direction === 'out'} />)}</span> : null}
+            {/* a label like [Attachment] is only for when the media itself cannot be shown */}
+            {!(m.media?.length && m.text.startsWith('[')) && <span className="whitespace-pre-wrap break-words">{m.text || <i className="opacity-70">(no text)</i>}</span>}
             <span className={cx('block text-[10.5px] mt-1', m.direction === 'out' ? 'text-white/75' : 'text-[#7E93A6]')}>{new Date(m.at).toLocaleString()}{m.by ? ` · ${m.by}` : ''}</span>
           </div>
         ))}

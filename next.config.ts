@@ -14,7 +14,10 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  "media-src 'self' data: blob:",
+  // videos in Social Inbox messages come straight from Meta's servers
+  "media-src 'self' data: blob: https://*.fbcdn.net https://*.cdninstagram.com https://*.fbsbx.com",
+  // a shared Instagram post, shown only after a click on "Show preview"
+  "frame-src 'self' https://www.instagram.com",
   // the phone inside the CRM: SIP over JustConnect's secure WebSocket (src/modules/calls/softphone.ts)
   "connect-src 'self' wss://*.justconnect.biz:*",
   "worker-src 'self' blob:",
