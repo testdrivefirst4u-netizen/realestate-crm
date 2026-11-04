@@ -47,6 +47,8 @@ export interface TenantFeatures {
   pinterest: boolean;
   /** Website analytics screen: the company's GA4 visitors next to CRM enquiries, site visits and bookings. */
   websiteAnalytics: boolean;
+  /** Competitor ads screen: competitors, links to their ads on Meta and Google, what the team saw. */
+  competitorAds: boolean;
 }
 
 export interface Tenant {

@@ -44,6 +44,7 @@ import { actions as pinterestActions } from './modules/pinterest';
 import { actions as socialPostActions } from './modules/socialPosts';
 import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
+import { actions as competitorActions } from './modules/competitors';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
 
 export const registry: ActionMap = {
@@ -77,6 +78,7 @@ export const registry: ActionMap = {
   ...socialPostActions,
   ...adsControlActions,
   ...websiteAnalyticsActions,
+  ...competitorActions,
   ...connectedAccountActions,
 };
 
@@ -111,6 +113,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
   [/^(listPosts|createPost|retryPost|deletePost|uploadPostImage)$/, 'socialPosts', 'The post scheduler'],
   [/^(listAdCampaigns|setCampaignStatus|setCampaignBudget|saveAdAlerts)$/, 'adsControl', 'The ads manager'],
+  [/^(listCompetitors|saveCompetitor|deleteCompetitor|recordCompetitorCheck|saveCompetitorAd|deleteCompetitorAd)$/, 'competitorAds', 'Competitor ads'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
   [/LeadSource|^listInboundLog$|^retryInbound$/, ['websiteApi', 'googleSheets', 'metaLeads', 'googleAdsLeads', 'linkedin'], 'Website forms & lead API'],
   // googleStatus is not gated (it only says whether the platform is configured and which e-mail to share with)
@@ -130,7 +133,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
-  'listInbox', 'getInboxThread', 'listAdCampaigns', 'getWebsiteAnalytics',
+  'listInbox', 'getInboxThread', 'listAdCampaigns', 'getWebsiteAnalytics', 'listCompetitors',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

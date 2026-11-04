@@ -59,6 +59,9 @@ export const CFG = {
     INTEGRATIONS: 'integrations',
     /** conversions reported to ad platforms, one per lead and event (modules/adConversions.ts) */
     CONVERSIONS: 'adConversions',
+    /** the company's competitors and the ads saved of them (modules/competitors.ts) */
+    COMPETITORS: 'competitors',
+    COMPETITOR_ADS: 'competitorAds',
     FILES_BUCKET: 'files', // GridFS bucket (lead documents, call recordings)
   },
 

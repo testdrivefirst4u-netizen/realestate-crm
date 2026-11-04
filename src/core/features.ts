@@ -26,6 +26,7 @@ export type FeatureName =
   | 'linkedin'
   | 'pinterest'
   | 'websiteAnalytics'
+  | 'competitorAds'
   | 'unitLocator'
   | 'projectLibrary'
   | 'reports'
@@ -87,6 +88,7 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   linkedin: 'LinkedIn',
   pinterest: 'Pinterest',
   websiteAnalytics: 'Website analytics',
+  competitorAds: 'Competitor ads',
 };
 
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */

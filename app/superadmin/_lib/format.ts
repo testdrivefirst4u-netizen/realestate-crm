@@ -96,6 +96,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   linkedin: 'LinkedIn (posts and lead forms)',
   pinterest: 'Pinterest (pins)',
   websiteAnalytics: 'Website analytics (Google Analytics)',
+  competitorAds: 'Competitor ads (links to Meta and Google ad libraries)',
 };
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
 

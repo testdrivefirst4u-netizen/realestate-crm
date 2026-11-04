@@ -284,6 +284,7 @@ export const FEATURES = {
   linkedin: false,
   pinterest: false,
   websiteAnalytics: false,
+  competitorAds: false,
   csvImport: true,
   documents: true,
   templates: true,

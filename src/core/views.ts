@@ -10,9 +10,9 @@ import type { Permission } from './rbac';
 
 export type ViewId =
   | 'dashboard' | 'mis' | 'performance' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
-  | 'documents' | 'templates' | 'reports' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics';
+  | 'documents' | 'templates' | 'reports' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics' | 'competitors';
 
-export const VIEW_IDS: ViewId[] = ['dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics'];
+export const VIEW_IDS: ViewId[] = ['dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'competitors'];
 
 export const DEFAULT_VIEW: ViewId = 'dashboard';
 
@@ -20,7 +20,7 @@ export const DEFAULT_VIEW: ViewId = 'dashboard';
 export const VIEW_TITLES: Record<ViewId, string> = {
   dashboard: 'Dashboard', mis: 'Sales MIS', performance: 'YTD / MTD', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
   inventory: 'Inventory', chat360: 'WhatsApp · Chat360', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
-  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics',
+  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', competitors: 'Competitor Ads',
 };
 
 export const viewHref = (view: ViewId) => `/${view}`;
@@ -51,6 +51,7 @@ export function viewAllowed(view: ViewId, settings: SettingsLike, can: (p: Permi
     case 'posts': return on('socialPosts') && can('marketing.manage');
     case 'ads': return on('adsControl') && can('leads.viewAll');
     case 'analytics': return on('websiteAnalytics') && can('reports.view');
+    case 'competitors': return on('competitorAds') && can('leads.view');
     default: return true;
   }
 }
