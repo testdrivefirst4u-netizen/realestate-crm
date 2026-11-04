@@ -45,6 +45,7 @@ import { actions as socialPostActions } from './modules/socialPosts';
 import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
+import { actions as analyticsReportActions } from './modules/analyticsReports';
 import { actions as socialPostsImportActions } from './modules/socialPostsImport';
 import { actions as socialInboxImportActions } from './modules/socialInboxImport';
 import { actions as metaAdsTableActions } from './modules/metaAdsTable';
@@ -82,6 +83,7 @@ export const registry: ActionMap = {
   ...adsControlActions,
   ...websiteAnalyticsActions,
   ...competitorActions,
+  ...analyticsReportActions,
   ...socialPostsImportActions,
   ...socialInboxImportActions,
   ...metaAdsTableActions,
@@ -139,7 +141,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
-  'listInbox', 'getInboxThread', 'listAdCampaigns', 'getWebsiteAnalytics', 'listCompetitors', 'listMetaAds',
+  'listInbox', 'getInboxThread', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

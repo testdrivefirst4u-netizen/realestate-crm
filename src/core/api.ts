@@ -276,6 +276,17 @@ export interface WebsiteAnalytics {
   web: { visitors: number; newVisitors: number; sessions: number; daily: Array<{ day: string; visitors: number; sessions: number }>; channels: Array<{ name: string; sessions: number; visitors: number }>; sources: Array<{ name: string; sessions: number }>; pages: Array<{ path: string; sessions: number }> } | null;
   crm: { enquiries: number; siteVisits: number; bookings: number; daily: Array<{ day: string; enquiries: number }>; bySource: Array<{ name: string; enquiries: number; siteVisits: number; bookings: number }> };
 }
+/** Website analytics reports (server: modules/analyticsReports.ts). */
+export interface AnalyticsMetric { id: string; label: string; format: 'number' | 'percent' | 'duration' | 'decimal' | 'money' }
+export interface AnalyticsRow { name: string; values: Record<string, number> }
+export interface AnalyticsCard { title: string; dimension: string; metric: AnalyticsMetric; rows: AnalyticsRow[]; error: string }
+export interface AnalyticsDay { day: string; prevDay: string; values: Record<string, number>; prev: Record<string, number> | null }
+export interface AnalyticsReport {
+  report: string; title: string; property: { id: string; name: string } | null; error: string; from: string; to: string; prevFrom: string; prevTo: string;
+  dimension: string; dimensions: Array<{ id: string; label: string }>; metrics: AnalyticsMetric[]; totals: Record<string, number>; prevTotals: Record<string, number> | null;
+  daily: AnalyticsDay[]; rows: AnalyticsRow[]; rowCount: number; cards: AnalyticsCard[]; realtime: { activeUsers: number; perMinute: Array<{ minutesAgo: number; users: number }> } | null;
+  currency: string; timeZone: string; notes: string[]; fetchedAt: string;
+}
 /** Ads manager (server: modules/adsControl.ts). */
 export interface AdCampaign { platform: 'meta' | 'google'; id: string; name: string; account: string; status: 'ACTIVE' | 'PAUSED' | 'OTHER'; dailyBudget: number | null; budgetRef: string; spend7: number; leads7: number }
 export type MetaAdsLevel = 'campaign' | 'adset' | 'ad';
@@ -582,6 +593,7 @@ export const api = {
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
   },
   analytics: {
+    report: (d: { report: string; dimension?: string; preset?: string; from?: string; to?: string; compare?: boolean; refresh?: boolean }) => request<AnalyticsReport>('getAnalyticsReport', d, { timeoutMs: 60000 }),
     get: (days: 7 | 30 | 90, refresh = false) => request<WebsiteAnalytics>('getWebsiteAnalytics', { days, refresh }, { timeoutMs: 60000 }),
   },
   ads: {

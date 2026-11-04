@@ -1,7 +1,7 @@
 'use client';
 
-import { AnalyticsView } from '@/src/modules/analytics/AnalyticsView';
+import { AnalyticsReports } from '@/src/modules/analytics/AnalyticsReports';
 
 export function AnalyticsClient() {
-  return <AnalyticsView />;
+  return <AnalyticsReports />;
 }
