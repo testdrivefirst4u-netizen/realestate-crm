@@ -36,19 +36,15 @@ const instagramEmbed = (url: string) => {
   return hit ? `https://www.instagram.com/${hit[1] === 'reels' ? 'reel' : hit[1]}/${hit[2]}/embed/` : '';
 };
 
-/** A shared post: nothing loads from Instagram until someone asks for the preview. */
+/** A shared post shows itself, loading from Instagram as it scrolls into view; other links stay links. */
 const SharedPost: React.FC<{ item: InboxMedia; light: boolean }> = ({ item, light }) => {
-  const [show, setShow] = useState(false);
   const embed = instagramEmbed(item.url);
   const linkCls = cx('inline-flex items-center gap-1 text-xs font-semibold hover:underline', light ? 'text-white' : 'text-[#0B5E9C]');
   return (
     <span className="block space-y-1.5">
-      <span className="block text-xs font-semibold">{embed && /\/(reel|reels|tv)\//.test(item.url) ? 'Shared a reel' : 'Shared a post'}{item.name ? `: ${item.name}` : ''}</span>
-      {show && embed && <iframe src={embed} title="Shared Instagram post" className="h-[520px] w-[320px] max-w-full rounded-lg border-0 bg-white" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" loading="lazy" />}
-      <span className="flex flex-wrap gap-3">
-        {embed && <button type="button" className={linkCls} onClick={() => setShow((v) => !v)}>{show ? 'Hide preview' : 'Show preview'}</button>}
-        <a href={item.url} target="_blank" rel="noopener noreferrer" className={linkCls}>Open <ExternalLink size={11} /></a>
-      </span>
+      {!embed && <span className="block text-xs font-semibold">Shared a post{item.name ? `: ${item.name}` : ''}</span>}
+      {embed && <iframe src={embed} title="Shared Instagram post" className="block h-[560px] w-[320px] max-w-full rounded-xl border border-[#DBDBDB] bg-white" sandbox="allow-scripts allow-same-origin allow-popups" referrerPolicy="no-referrer" loading="lazy" />}
+      <a href={item.url} target="_blank" rel="noopener noreferrer" className={linkCls}>{embed ? 'Open on Instagram' : 'Open'} <ExternalLink size={11} /></a>
     </span>
   );
 };
@@ -263,15 +259,19 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
         </div>
       )}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2">
-        {items.map((m) => (
-          <div key={m.id} className={cx('max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-2xs', m.direction === 'out' ? 'ml-auto bg-[#1E6FB0] text-white' : 'bg-white text-[#0B2A44] border border-[#E3EDF5]')}>
-            {m.direction === 'in' && <span className="flex items-center gap-2 text-[11px] font-semibold text-[#5E778C] mb-0.5">{m.authorName || 'Customer'} <Stars n={m.rating} /></span>}
-            {m.media?.length ? <span className="block space-y-2">{m.media.map((x) => <MediaItem key={x.url} item={x} light={m.direction === 'out'} />)}</span> : null}
-            {/* a label like [Attachment] is only for when the media itself cannot be shown */}
-            {!(m.media?.length && m.text.startsWith('[')) && <span className="whitespace-pre-wrap break-words">{m.text || <i className="opacity-70">(no text)</i>}</span>}
-            <span className={cx('block text-[10.5px] mt-1', m.direction === 'out' ? 'text-white/75' : 'text-[#7E93A6]')}>{new Date(m.at).toLocaleString()}{m.by ? ` · ${m.by}` : ''}</span>
-          </div>
-        ))}
+        {items.map((m) => {
+          // like Instagram: something shared stands on its own, without a coloured bubble around it;
+          // a label like [Attachment] is only for when the media itself cannot be shown
+          const bare = !!m.media?.length && m.text.startsWith('[');
+          return (
+            <div key={m.id} className={cx('w-fit max-w-[85%] text-sm', m.direction === 'out' && 'ml-auto', bare ? 'text-[#0B2A44]' : cx('rounded-2xl px-3 py-2 shadow-2xs', m.direction === 'out' ? 'bg-[#1E6FB0] text-white' : 'bg-white text-[#0B2A44] border border-[#E3EDF5]'))}>
+              {m.direction === 'in' && <span className="flex items-center gap-2 text-[11px] font-semibold text-[#5E778C] mb-0.5">{m.authorName || 'Customer'} <Stars n={m.rating} /></span>}
+              {m.media?.length ? <span className="block space-y-2">{m.media.map((x) => <MediaItem key={x.url} item={x} light={m.direction === 'out' && !bare} />)}</span> : null}
+              {!bare && <span className="whitespace-pre-wrap break-words">{m.text || <i className="opacity-70">(no text)</i>}</span>}
+              <span className={cx('block text-[10.5px] mt-1', m.direction === 'out' && !bare ? 'text-white/75' : 'text-[#7E93A6]')}>{new Date(m.at).toLocaleString()}{m.by ? ` · ${m.by}` : ''}</span>
+            </div>
+          );
+        })}
         <div ref={endRef} />
       </div>
       {canReply && items.length > 0 && !first && <p className="border-t border-[#E3EDF5] bg-white p-3 text-xs text-[#5E778C]">Only your own messages are in this conversation. Meta lets you reply once the person writes.</p>}

@@ -16,7 +16,7 @@ const csp = [
   "img-src 'self' data: blob: https:",
   // videos in Social Inbox messages come straight from Meta's servers
   "media-src 'self' data: blob: https://*.fbcdn.net https://*.cdninstagram.com https://*.fbsbx.com",
-  // a shared Instagram post, shown only after a click on "Show preview"
+  // shared Instagram posts in Social Inbox messages
   "frame-src 'self' https://www.instagram.com",
   // the phone inside the CRM: SIP over JustConnect's secure WebSocket (src/modules/calls/softphone.ts)
   "connect-src 'self' wss://*.justconnect.biz:*",
