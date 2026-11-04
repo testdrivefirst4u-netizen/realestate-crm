@@ -228,9 +228,11 @@ export interface InboxThread {
   postImage: string;
 }
 
-interface InboxPerson { _id: string; name: string; username: string; picture: string; at: Date }
+interface InboxPerson { _id: string; name: string; username: string; picture: string; at: Date; /** What Meta said when it gave no picture. */ reason?: string }
 const peopleCol = () => col<InboxPerson>('socialInboxPeople');
 const PERSON_REFRESH_MS = 3 * 86400000;
+/** No picture yet: worth asking again sooner, it may be allowed by then. */
+const PERSON_RETRY_MS = 6 * 3600000;
 const MAX_PEOPLE = 30;
 /** ig:dm:<account>:<person> or fb:dm:<account>:<person>. */
 const DM_THREAD = /^(ig|fb):dm:([^:]+):([^:]+)$/;
@@ -240,36 +242,41 @@ const personKey = (thread: string) => {
 };
 
 /** The most Meta will say about someone: it refuses a whole request over one field it does not allow. */
-async function readPerson(ig: boolean, id: string, token: string): Promise<{ name: string; username: string; picture: string } | null> {
+async function readPerson(ig: boolean, id: string, token: string): Promise<{ name: string; username: string; picture: string; reason: string }> {
+  let said = '';
   for (const fields of ig ? ['name,username,profile_pic', 'name,profile_pic', 'username'] : ['name,profile_pic', 'first_name,last_name,profile_pic']) {
     try {
       const j = await graph<any>(id, { token, params: { fields } });
       const name = String(j.name || [j.first_name, j.last_name].filter(Boolean).join(' ') || '');
-      return { name: truncate(name, 120), username: truncate(String(j.username || ''), 60), picture: /^https:\/\//.test(String(j.profile_pic || '')) ? String(j.profile_pic) : '' };
-    } catch { /* ask for less */ }
+      const picture = /^https:\/\//.test(String(j.profile_pic || '')) ? String(j.profile_pic) : '';
+      return { name: truncate(name, 120), username: truncate(String(j.username || ''), 60), picture, reason: picture ? '' : said || 'Meta answered without a profile picture.' };
+    } catch (e: any) {
+      said = said || truncate(String(e?.message || e), 240); // ask for less
+    }
   }
-  return null;
+  return { name: '', username: '', picture: '', reason: said };
 }
+const personStale = (p: InboxPerson | null | undefined, now: number) => !p || now - p.at.getTime() >= (p.picture ? PERSON_REFRESH_MS : PERSON_RETRY_MS);
 
 /** Ask Meta about the people of these conversations, at most a few at a time and not too often. */
-export async function refreshInboxPeople(d: any, now = new Date()): Promise<{ people: Array<{ thread: string; name: string; username: string; picture: string }> }> {
+export async function refreshInboxPeople(d: any, now = new Date()): Promise<{ people: Array<{ thread: string; name: string; username: string; picture: string; reason: string }> }> {
   const threads = [...new Set((Array.isArray(d?.threads) ? d.threads : []).map(String))].slice(0, MAX_PEOPLE) as string[];
   const c = await peopleCol();
-  const out: Array<{ thread: string; name: string; username: string; picture: string }> = [];
+  const out: Array<{ thread: string; name: string; username: string; picture: string; reason: string }> = [];
   await Promise.all(threads.map(async (thread) => {
     const m = DM_THREAD.exec(thread);
     // only a conversation of this company, reached with this company's own page token
     if (!m || !(await (await inboxCol()).findOne({ thread }, { projection: { _id: 1 } }))) return;
     const key = personKey(thread);
     const known = await c.findOne({ _id: key });
-    if (known && now.getTime() - known.at.getTime() < PERSON_REFRESH_MS) {
-      out.push({ thread, name: known.name, username: known.username, picture: known.picture });
+    if (!d?.force && !personStale(known, now.getTime())) {
+      out.push({ thread, name: known!.name, username: known!.username, picture: known!.picture, reason: known!.reason || '' });
       return;
     }
     const page = await pageFor(m[2]);
     const got = page ? await readPerson(m[1] === 'ig', m[3], page.token) : null;
     // nothing from Meta is remembered too, so it is not asked again at every screen; what we knew is kept
-    const next = { name: got?.name || known?.name || '', username: got?.username || known?.username || '', picture: got?.picture || '' };
+    const next = { name: got?.name || known?.name || '', username: got?.username || known?.username || '', picture: got?.picture || '', reason: page ? got?.reason || '' : 'This account is no longer connected.' };
     await c.updateOne({ _id: key }, { $set: { ...next, at: now } }, { upsert: true });
     out.push({ thread, ...next });
   }));
@@ -354,7 +361,7 @@ async function readPost(id: string, platform: InboxPlatform, account: string): P
   }
 }
 
-export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; unread: number; hasMore: boolean }> {
+export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; unread: number; hasMore: boolean; peopleNote: string }> {
   const limit = Math.min(Math.max(Number(d?.limit) || 100, 1), 2000);
   const match: Record<string, unknown> = {};
   if (['facebook', 'instagram', 'google'].includes(d?.platform)) match.platform = d.platform;
@@ -380,13 +387,13 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
   const people = new Map((keys.length ? await (await peopleCol()).find({ _id: { $in: keys } }).toArray() : []).map((p) => [p._id, p]));
   const threads: InboxThread[] = rows.slice(0, limit).map((r) => ({
     username: people.get(personKey(String(r._id)))?.username || '', picture: people.get(personKey(String(r._id)))?.picture || '',
-    personStale: !!personKey(String(r._id)) && (!people.get(personKey(String(r._id))) || Date.now() - people.get(personKey(String(r._id)))!.at.getTime() >= PERSON_REFRESH_MS),
+    personStale: !!personKey(String(r._id)) && personStale(people.get(personKey(String(r._id))), Date.now()),
     parent: r.parent || '', postText: known.get(r.parent)?.text || '', postImage: known.get(r.parent)?.imageUrl || '',
     thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || r.partner || people.get(personKey(String(r._id)))?.name || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
     rating: r.lastIn?.rating, at: new Date(r.at).toISOString(), unread: r.unread, count: r.count, leadId: r.leadId || '', answered: r.lastDir === 'out',
   }));
   const unread = (await (await inboxCol()).distinct('thread', { direction: 'in', read: false })).length;
-  return { threads, unread, hasMore: rows.length > limit };
+  return { threads, unread, hasMore: rows.length > limit, peopleNote: [...people.values()].find((p) => !p.picture && p.reason)?.reason || '' };
 }
 
 export async function getInboxThread(d: any): Promise<{ thread: string; post: InboxPost | null; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string; media: InboxMedia[] }> }> {

@@ -273,7 +273,7 @@ describe('people', () => {
     let n = 0;
     vi.stubGlobal('fetch', vi.fn(async () => { n += 1; return json(200, { name: 'Ravi K', username: 'ravi', profile_pic: 'https://cdn.example/r.jpg' }); }));
     const r = await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
-    expect(r.people).toEqual([{ thread: THREAD, name: 'Ravi K', username: 'ravi', picture: 'https://cdn.example/r.jpg' }]);
+    expect(r.people).toEqual([{ thread: THREAD, name: 'Ravi K', username: 'ravi', picture: 'https://cdn.example/r.jpg', reason: '' }]);
     expect((await inCo(() => listInbox({}))).threads[0]).toMatchObject({ personStale: false, username: 'ravi', picture: 'https://cdn.example/r.jpg', authorName: 'Ravi K' });
     await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
     expect(n).toBe(1); // not asked again soon
@@ -289,7 +289,7 @@ describe('people', () => {
       fields.push(f);
       return f.includes('username') && f.includes('name') ? json(400, { error: { message: 'nonexisting field (username)', code: 100 } }) : json(200, { name: 'Ravi', profile_pic: 'http://not-secure.example/a.jpg' });
     }));
-    expect((await inCo(() => refreshInboxPeople({ threads: [THREAD] }))).people[0]).toEqual({ thread: THREAD, name: 'Ravi', username: '', picture: '' });
+    expect((await inCo(() => refreshInboxPeople({ threads: [THREAD] }))).people[0]).toMatchObject({ thread: THREAD, name: 'Ravi', username: '', picture: '', reason: expect.stringContaining('username') });
     expect(fields).toEqual(['name,username,profile_pic', 'name,profile_pic']);
     await inCo(async () => (await col<any>('socialInboxPeople')).deleteMany({}));
     let n = 0;
@@ -299,6 +299,32 @@ describe('people', () => {
     await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
     expect(n).toBe(after);
     expect((await inCo(() => listInbox({}))).threads[0].personStale).toBe(false);
+  });
+
+  it('keeps what Meta said when it gives no picture, asks again in hours rather than days, and at once when told to', async () => {
+    await add(THREAD, 'x1');
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => { n += 1; return json(400, { error: { message: 'Needs advanced access', code: 10 } }); }));
+    const r = await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
+    expect(r.people[0].reason).toContain('Needs advanced access');
+    expect((await inCo(() => listInbox({}))).peopleNote).toContain('Needs advanced access');
+    const first = n;
+    await inCo(() => refreshInboxPeople({ threads: [THREAD] }));
+    expect(n).toBe(first);
+    await inCo(() => refreshInboxPeople({ threads: [THREAD] }, new Date(Date.now() + 7 * 3600000)));
+    const later = n;
+    expect(later).toBeGreaterThan(first); // after hours, not days
+    await inCo(() => refreshInboxPeople({ threads: [THREAD], force: true }));
+    expect(n).toBeGreaterThan(later);
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { name: 'Ravi', profile_pic: 'https://cdn.example/r.jpg' })));
+    await inCo(() => refreshInboxPeople({ threads: [THREAD], force: true }));
+    expect((await inCo(() => listInbox({}))).peopleNote).toBe('');
+  });
+
+  it('says so when Meta answers without a picture', async () => {
+    await add(THREAD, 'x1');
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { name: 'Ravi' })));
+    expect((await inCo(() => refreshInboxPeople({ threads: [THREAD] }))).people[0]).toMatchObject({ name: 'Ravi', picture: '', reason: 'Meta answered without a profile picture.' });
   });
 
   it('only for this company\'s own conversations, direct messages only', async () => {

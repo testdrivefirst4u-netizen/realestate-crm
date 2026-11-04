@@ -114,6 +114,8 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const asked = useRef(new Set<string>());
+  const [peopleNote, setPeopleNote] = useState('');
+  const [askingPeople, setAskingPeople] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const loadList = useCallback(async () => {
@@ -121,12 +123,14 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
       const r = await api.inbox.list({ platform, kind: filter === 'all' ? '' : filter, limit, parent: onlyPost?.id });
       setThreads(r.threads);
       setHasMore(r.hasMore);
+      setPeopleNote(r.peopleNote);
       // who these people are: only those Meta has not been asked about lately, each once per visit
       const ask = r.threads.filter((t) => t.personStale && !asked.current.has(t.thread)).slice(0, 30).map((t) => t.thread);
       if (ask.length) {
         ask.forEach((x) => asked.current.add(x));
         void api.inbox.people(ask).then(({ people }) => {
           const by = new Map(people.map((p) => [p.thread, p]));
+          setPeopleNote((n) => people.find((p) => !p.picture && p.reason)?.reason || n);
           setThreads((ts) => ts?.map((t) => { const p = by.get(t.thread); return p ? { ...t, username: p.username, picture: p.picture, authorName: t.authorName || p.name } : t; }) || ts);
         }).catch(() => undefined);
       }
@@ -208,6 +212,22 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
       setSyncing(false);
     }
   };
+  /** The people shown now, asked about again at once. */
+  const retryPeople = async () => {
+    const ask = (threads || []).filter((t) => t.thread.includes(':dm:') && !t.picture).slice(0, 30).map((t) => t.thread);
+    if (!ask.length) return;
+    setAskingPeople(true);
+    try {
+      const { people } = await api.inbox.people(ask, true);
+      const got = people.filter((p) => p.picture).length;
+      toast(`${got} of ${people.length} profile pictures found`, got ? undefined : people.find((p) => p.reason)?.reason, got ? 'success' : 'warning');
+      await loadList();
+    } catch (e) {
+      toast('Could not ask Meta', errText('inbox.people', e), 'alert');
+    } finally {
+      setAskingPeople(false);
+    }
+  };
   const createLead = async () => {
     if (!active || !leadFor) return;
     const bad = leadFor.phone ? phoneProblem(leadFor.phone) : 'Enter the phone number';
@@ -245,6 +265,13 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
           <option value="instagram">Instagram</option>
           <option value="google">Google reviews</option>
         </select>
+        {peopleNote && (
+          <details className="rounded-lg bg-[#FFF8F1] px-2.5 py-1.5 text-[11px] text-[#9A3412]">
+            <summary className="cursor-pointer font-semibold">Meta is not giving some profile pictures</summary>
+            <p className="mt-1 break-words">{peopleNote}</p>
+            <button type="button" disabled={askingPeople} className="mt-1 font-semibold text-[#0B5E9C] hover:underline disabled:opacity-50" onClick={() => void retryPeople()}>{askingPeople ? 'Asking…' : 'Try again'}</button>
+          </details>
+        )}
         {onlyPost && (
           <div className="flex items-center gap-2 rounded-lg bg-[#EEF5FC] px-2.5 py-1.5 text-xs text-[#0B2A44]">
             <span className="min-w-0 flex-1 truncate">Comments on: <b>{onlyPost.text || 'this post'}</b></span>

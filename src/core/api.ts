@@ -562,11 +562,11 @@ export const api = {
   /** The company's Project Library (null content = the library built into the app). Saving is for admins and the chosen editors. */
   /** Social inbox: Facebook / Instagram comments and messages, Google reviews (plan feature socialInbox). */
   inbox: {
-    list: (filter: { platform?: InboxPlatform | ''; kind?: string; limit?: number; parent?: string } = {}) => request<{ threads: InboxThread[]; unread: number; hasMore: boolean }>('listInbox', filter),
+    list: (filter: { platform?: InboxPlatform | ''; kind?: string; limit?: number; parent?: string } = {}) => request<{ threads: InboxThread[]; unread: number; hasMore: boolean; peopleNote: string }>('listInbox', filter),
     syncOld: () => request<{ added: number; conversations: number; posts: number; partial: boolean; postsImported: number; errors: Array<{ account: string; message: string }> }>('syncOldInbox', {}, { timeoutMs: 290000 }),
     thread: (thread: string) => request<{ thread: string; post: InboxPost | null; items: InboxMessage[] }>('getInboxThread', { thread }),
     reply: (thread: string, text: string) => request<{ ok: true }>('replyInbox', { thread, text }, { timeoutMs: 30000 }),
-    people: (threads: string[]) => request<{ people: Array<{ thread: string; name: string; username: string; picture: string }> }>('refreshInboxPeople', { threads }, { timeoutMs: 30000 }),
+    people: (threads: string[], force = false) => request<{ people: Array<{ thread: string; name: string; username: string; picture: string; reason: string }> }>('refreshInboxPeople', { threads, force }, { timeoutMs: 30000 }),
     markRead: (thread: string, read = true) => request<{ ok: true }>('markInboxRead', { thread, read }),
     createLead: (d: { thread: string; name: string; phone: string; email?: string }) => request<{ leadId: string }>('inboxCreateLead', d),
     refresh: () => request<{ reviews: number }>('refreshInbox', {}, { timeoutMs: 60000 }),
