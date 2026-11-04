@@ -31,7 +31,7 @@ const MAX_IMAGE = 3 * 1024 * 1024;
 
 export type TargetKind = 'facebook' | 'instagram' | 'google' | 'linkedin' | 'pinterest';
 export interface PostTarget { key: string; kind: TargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string }
-export type PostStatus = 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed';
+export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed';
 interface PostDoc {
   _id: string;
   text: string;
@@ -205,55 +205,86 @@ export async function runPostsCron(now = new Date()): Promise<Record<string, unk
 
 /* ---------------------------------- screen -------------------------------- */
 
-export interface PostView { id: string; text: string; link: string; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string }
+export interface PostView { id: string; text: string; link: string; imageFileId: string; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string }
 const view = (p: PostDoc): PostView => ({
-  id: p._id, text: p.text, link: p.link, imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
+  id: p._id, text: p.text, link: p.link, imageFileId: p.imageFileId, imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
   status: p.status, createdBy: p.createdBy, publishedAt: p.publishedAt ? p.publishedAt.toISOString() : '',
 });
 
+/** Posts in the range (the planner's month; by default from 30 days ago), and every draft. */
 export async function listPosts(d: any = {}): Promise<{ posts: PostView[]; targets: TargetOption[] }> {
-  const from = d?.from ? new Date(d.from) : new Date(Date.now() - 30 * 86400000);
-  const rows = await (await postsCol()).find({ scheduledAt: { $gte: from } }).sort({ scheduledAt: -1 }).limit(200).toArray();
+  const parsed = d?.from ? new Date(d.from) : null;
+  const from = parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date(Date.now() - 30 * 86400000);
+  const until = d?.to ? new Date(d.to) : null;
+  const range = { $gte: from, ...(until && !Number.isNaN(until.getTime()) ? { $lt: until } : {}) };
+  const rows = await (await postsCol()).find({ $or: [{ status: 'draft' }, { scheduledAt: range }] }).sort({ scheduledAt: -1 }).limit(500).toArray();
   return { posts: rows.map(view), targets: await listPostTargets() };
 }
 
 const LINK_RE = /^https:\/\/[^\s]+$/i;
 
-export async function createPost(d: any, ctx: Ctx): Promise<PostView> {
+/** The post's content; a draft may still be unfinished (no account yet, no image for Instagram). */
+async function readPost(d: any, draft: boolean) {
   const text = String(d?.text || '').trim();
   const link = String(d?.link || '').trim();
   const imageFileId = String(d?.imageFileId || '');
-  if (!text) throw fail('VALIDATION', 'Write the post first.');
+  if (!text && !(draft && imageFileId)) throw fail('VALIDATION', 'Write the post first.');
   if (link && !LINK_RE.test(link)) throw fail('VALIDATION', 'The link must start with https://');
   const options = await listPostTargets();
   const keys = [...new Set((Array.isArray(d?.targets) ? d.targets : []).map(String))] as string[];
-  if (!keys.length) throw fail('VALIDATION', 'Choose where to post.');
+  if (!keys.length && !draft) throw fail('VALIDATION', 'Choose where to post.');
   const chosen = keys.map((k) => options.find((o) => o.key === k));
   if (chosen.some((o) => !o)) throw fail('VALIDATION', 'One of the chosen accounts is no longer connected. Reload the page.');
   if (imageFileId) {
     const f = await statFile(imageFileId);
     if (!f || f.category !== POST_IMAGE_CATEGORY) throw fail('VALIDATION', 'Upload the image again.');
   }
-  for (const o of chosen as TargetOption[]) {
-    if (o.needsImage && !imageFileId) throw fail('VALIDATION', `${o.kind === 'instagram' ? 'Instagram' : 'Pinterest'} needs an image.`);
-    if (o.kind === 'google' && text.length > 1500) throw fail('VALIDATION', 'Google Business Profile posts can be up to 1500 characters.');
-    if (o.kind === 'instagram' && text.length > 2200) throw fail('VALIDATION', 'Instagram captions can be up to 2200 characters.');
+  if (!draft) {
+    for (const o of chosen as TargetOption[]) {
+      if (o.needsImage && !imageFileId) throw fail('VALIDATION', `${o.kind === 'instagram' ? 'Instagram' : 'Pinterest'} needs an image.`);
+      if (o.kind === 'google' && text.length > 1500) throw fail('VALIDATION', 'Google Business Profile posts can be up to 1500 characters.');
+      if (o.kind === 'instagram' && text.length > 2200) throw fail('VALIDATION', 'Instagram captions can be up to 2200 characters.');
+    }
   }
   if (text.length > 3000) throw fail('VALIDATION', 'Posts can be up to 3000 characters.');
-  const now = new Date();
+  return { text, link, imageFileId, targets: (chosen as TargetOption[]).map((o) => ({ key: o.key, kind: o.kind, name: o.name, status: 'pending' as const })) };
+}
+
+/** When it goes out: the chosen time, or now. */
+function readWhen(d: any, now: Date): Date {
   const when = d?.scheduledAt ? new Date(d.scheduledAt) : now;
   if (Number.isNaN(when.getTime())) throw fail('VALIDATION', 'Choose a valid date and time.');
   if (when.getTime() < now.getTime() - 60000) throw fail('VALIDATION', 'The time has passed. Choose a later time, or Post now.');
   if (when.getTime() > now.getTime() + 180 * 86400000) throw fail('VALIDATION', 'Posts can be scheduled up to 6 months ahead.');
-  const doc: PostDoc = {
-    _id: await nextSeq('POST', 4), text, link, imageFileId,
-    targets: (chosen as TargetOption[]).map((o) => ({ key: o.key, kind: o.kind, name: o.name, status: 'pending' as const })),
-    scheduledAt: when, status: 'scheduled', createdBy: ctx.user?.name || 'System', createdAt: now, updatedAt: now,
-  };
+  return when;
+}
+
+export async function createPost(d: any, ctx: Ctx): Promise<PostView> {
+  const draft = !!d?.draft;
+  const fields = await readPost(d, draft);
+  const now = new Date();
+  const when = draft ? now : readWhen(d, now);
+  const doc: PostDoc = { _id: await nextSeq('POST', 4), ...fields, scheduledAt: when, status: draft ? 'draft' : 'scheduled', createdBy: ctx.user?.name || 'System', createdAt: now, updatedAt: now };
   await (await postsCol()).insertOne(doc);
-  await auditLog(ctx, d?.scheduledAt ? 'Post Scheduled' : 'Post Published', 'Post', doc._id, `${doc.targets.map((t) => t.kind).join(', ')} · ${truncate(text, 80)}`);
-  const out = d?.scheduledAt ? doc : await publishPost(doc._id, { now });
+  await auditLog(ctx, draft ? 'Post Draft Saved' : d?.scheduledAt ? 'Post Scheduled' : 'Post Published', 'Post', doc._id, `${doc.targets.map((t) => t.kind).join(', ')} · ${truncate(fields.text, 80)}`);
+  const out = draft || d?.scheduledAt ? doc : await publishPost(doc._id, { now });
   return view(out || doc);
+}
+
+/** Change a draft or a scheduled post: keep it as a draft, (re)schedule it, or publish it now. */
+export async function updatePost(d: any, ctx: Ctx): Promise<PostView> {
+  const id = String(d?.id || '');
+  const draft = !!d?.draft;
+  const fields = await readPost(d, draft);
+  const now = new Date();
+  const when = draft ? now : readWhen(d, now);
+  const c = await postsCol();
+  // the filter is the guard: a post the cron has just taken is no longer changed
+  const r = await c.findOneAndUpdate({ _id: id, status: { $in: ['draft', 'scheduled'] } }, { $set: { ...fields, scheduledAt: when, status: draft ? 'draft' : 'scheduled', updatedAt: now } }, { returnDocument: 'after' });
+  if (!r) throw fail('VALIDATION', 'Only a draft or a scheduled post can be changed. This one may have just been posted.');
+  await auditLog(ctx, draft ? 'Post Draft Saved' : d?.scheduledAt ? 'Post Rescheduled' : 'Post Published', 'Post', id, `${fields.targets.map((t) => t.kind).join(', ')} · ${truncate(fields.text, 80)}`);
+  const out = draft || d?.scheduledAt ? r : await publishPost(id, { now });
+  return view(out || r);
 }
 
 export async function retryPost(d: any, ctx: Ctx): Promise<PostView> {
@@ -265,8 +296,8 @@ export async function retryPost(d: any, ctx: Ctx): Promise<PostView> {
 
 export async function deletePost(d: any, ctx: Ctx): Promise<{ ok: true }> {
   const id = String(d?.id || '');
-  const r = await (await postsCol()).deleteOne({ _id: id, status: { $in: ['scheduled', 'failed'] } });
-  if (!r.deletedCount) throw fail('VALIDATION', 'Only a scheduled post, or one that failed everywhere, can be deleted here. Published posts are removed on the platform itself.');
+  const r = await (await postsCol()).deleteOne({ _id: id, status: { $in: ['draft', 'scheduled', 'failed'] } });
+  if (!r.deletedCount) throw fail('VALIDATION', 'Only a draft, a scheduled post, or one that failed everywhere, can be deleted here. Published posts are removed on the platform itself.');
   await auditLog(ctx, 'Post Deleted', 'Post', id, '');
   return { ok: true };
 }
@@ -274,6 +305,7 @@ export async function deletePost(d: any, ctx: Ctx): Promise<{ ok: true }> {
 export const actions: ActionMap = {
   listPosts: { fn: (d) => listPosts(d), perm: 'marketing.manage' },
   createPost: { fn: (d, ctx) => createPost(d, ctx), perm: 'marketing.manage' },
+  updatePost: { fn: (d, ctx) => updatePost(d, ctx), perm: 'marketing.manage' },
   retryPost: { fn: (d, ctx) => retryPost(d, ctx), perm: 'marketing.manage' },
   deletePost: { fn: (d, ctx) => deletePost(d, ctx), perm: 'marketing.manage' },
   uploadPostImage: { fn: (d, ctx) => uploadPostImage(d, ctx), perm: 'marketing.manage' },

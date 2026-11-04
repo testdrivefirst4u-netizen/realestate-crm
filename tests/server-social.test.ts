@@ -13,7 +13,7 @@ import { getAllLeads } from '../server/modules/leads';
 import { resetGoogleOAuthTokenCache } from '../server/modules/googleConnect';
 import { savePages } from '../server/modules/socialAccounts';
 import { getInboxThread, inboxCreateLead, listInbox, pollGoogleReviews, replyInbox } from '../server/modules/socialInbox';
-import { createPost, listPostTargets, publicMediaUrl, retryPost, runPostsCron, uploadPostImage } from '../server/modules/socialPosts';
+import { createPost, deletePost, listPosts, listPostTargets, publicMediaUrl, retryPost, runPostsCron, updatePost, uploadPostImage } from '../server/modules/socialPosts';
 import { POST as webhookPOST } from '../app/api/webhooks/meta/route';
 import { GET as mediaGET } from '../app/api/public/media/[companyId]/[fileId]/route';
 
@@ -225,5 +225,42 @@ describe('post scheduler', () => {
     const again = await inCo(() => retryPost({ id: p.id }, ctx));
     expect(again.status).toBe('published');
     expect(hits(/PAGE1\/photos/)).toHaveLength(1); // Facebook was not posted twice
+  });
+
+  it('a draft is never posted, can stay unfinished, and is listed whatever its date', async () => {
+    const ctx = await setup();
+    const img = await everything(ctx);
+    await expect(inCo(() => createPost({ draft: true, text: '' }, ctx))).rejects.toThrow(/Write the post/);
+    const d = await inCo(() => createPost({ draft: true, text: 'Idea for Instagram', targets: ['instagram:IG1'] }, ctx));
+    expect(d.status).toBe('draft');
+    const later = new Date(Date.now() + 90 * 86400000);
+    expect(await runPostsCron(later)).toEqual({});
+    expect(hits(/IG1\/media/)).toHaveLength(0);
+    const far = await inCo(() => listPosts({ from: later.toISOString(), to: new Date(later.getTime() + 86400000).toISOString() }));
+    expect(far.posts.map((p) => p.id)).toEqual([d.id]);
+    // finishing it needs everything a real post needs
+    await expect(inCo(() => updatePost({ id: d.id, text: 'Idea for Instagram', targets: ['instagram:IG1'] }, ctx))).rejects.toThrow(/needs an image/);
+    const done = await inCo(() => updatePost({ id: d.id, text: 'Ready', imageFileId: img.fileId, targets: ['instagram:IG1'] }, ctx));
+    expect(done.status).toBe('published');
+    expect(done.imageFileId).toBe(img.fileId);
+    expect(hits(/IG1\/media_publish/)).toHaveLength(1);
+  });
+
+  it('a scheduled post can be changed or moved until it is posted, and the planner gets one month', async () => {
+    const ctx = await setup();
+    await everything(ctx);
+    const at = new Date(Date.now() + 3600e3);
+    const p = await inCo(() => createPost({ text: 'First', targets: ['facebook:PAGE1'], scheduledAt: at.toISOString() }, ctx));
+    const moved = new Date(Date.now() + 7200e3);
+    const changed = await inCo(() => updatePost({ id: p.id, text: 'Second', targets: ['facebook:PAGE1'], scheduledAt: moved.toISOString() }, ctx));
+    expect(changed).toMatchObject({ id: p.id, text: 'Second', status: 'scheduled', scheduledAt: moved.toISOString() });
+    expect(await runPostsCron(new Date(at.getTime() + 60000))).toEqual({}); // the old time no longer applies
+    const none = await inCo(() => listPosts({ from: new Date(Date.now() - 86400e3).toISOString(), to: new Date(Date.now() - 3600e3).toISOString() }));
+    expect(none.posts).toEqual([]);
+    expect(await runPostsCron(new Date(moved.getTime() + 60000))).toEqual({ test: { published: 1 } });
+    await expect(inCo(() => updatePost({ id: p.id, text: 'Too late', targets: ['facebook:PAGE1'] }, ctx))).rejects.toThrow(/Only a draft or a scheduled/);
+    await expect(inCo(() => deletePost({ id: p.id }, ctx))).rejects.toThrow(/Only a draft/);
+    const d = await inCo(() => createPost({ draft: true, text: 'Bin me' }, ctx));
+    expect(await inCo(() => deletePost({ id: d.id }, ctx))).toEqual({ ok: true });
   });
 });

@@ -1,177 +1,212 @@
 /**
- * Post scheduler (/posts, plan feature socialPosts; server: modules/socialPosts.ts): write a post once, choose the
- * connected accounts, post now or schedule it; see what went out where, retry what failed.
+ * Post scheduler (/posts, plan feature socialPosts; server: modules/socialPosts.ts): a month planner and a list of the
+ * company's posts by status. Create post opens the composer (PostComposer.tsx); a draft or scheduled post opens there
+ * to be changed; a posted or failed one shows where it went, with retry for what failed.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarClock, ExternalLink, ImagePlus, RotateCcw, Send, Trash2, X } from 'lucide-react';
-import { api, type PostTargetKind, type PostTargetOption, type SocialPost } from '../../core/api';
-import { reportError, toAppError } from '../../core/errors';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { api, type PostTargetOption, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
-import { Badge, Button, Card, EmptyState, Field, cx, inputCls } from '../../components/ui';
+import { Badge, Button, EmptyState, InlineNotice, Modal, cx } from '../../components/ui';
+import { PostComposer } from './PostComposer';
+import { KIND, STATUS, errText, postDate } from './postShared';
 
-const KIND: Record<PostTargetKind, { label: string; cls: string }> = {
-  facebook: { label: 'Facebook', cls: 'bg-[#1877F2]' },
-  instagram: { label: 'Instagram', cls: 'bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF]' },
-  google: { label: 'Google', cls: 'bg-[#34A853]' },
-  linkedin: { label: 'LinkedIn', cls: 'bg-[#0A66C2]' },
-  pinterest: { label: 'Pinterest', cls: 'bg-[#E60023]' },
+type Tab = 'calendar' | 'list';
+type Filter = 'scheduled' | 'published' | 'draft' | 'failed';
+const FILTERS: Array<{ id: Filter; label: string; has: Array<SocialPost['status']> }> = [
+  { id: 'scheduled', label: 'Scheduled', has: ['scheduled', 'publishing'] },
+  { id: 'published', label: 'Published', has: ['published', 'partial'] },
+  { id: 'draft', label: 'Drafts', has: ['draft'] },
+  { id: 'failed', label: 'Failed', has: ['failed'] },
+];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const CHIP: Record<SocialPost['status'], string> = {
+  draft: 'border-[#CED0D4] bg-[#F5F6F7]', scheduled: 'border-[#BFD4FF] bg-[#E7F0FF]', publishing: 'border-[#F2D49B] bg-[#FFF6E5]', published: 'border-[#BFE3CF] bg-[#F1FAF5]', partial: 'border-[#F2D49B] bg-[#FFF6E5]', failed: 'border-[#F5C2B8] bg-[#FEF3F2]',
 };
-const STATUS: Record<SocialPost['status'], { label: string; tone: 'sage' | 'amber' | 'rust' | 'muted' | 'navy' }> = {
-  scheduled: { label: 'Scheduled', tone: 'navy' }, publishing: { label: 'Posting…', tone: 'amber' }, published: { label: 'Posted', tone: 'sage' }, partial: { label: 'Partly posted', tone: 'amber' }, failed: { label: 'Failed', tone: 'rust' },
-};
-const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
-const localInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+/** The six weeks shown for a month, from the Sunday on or before the 1st. */
+function monthGrid(month: Date): Date[] {
+  const start = new Date(month.getFullYear(), month.getMonth(), 1);
+  start.setDate(1 - start.getDay());
+  return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+}
+const editable = (p: SocialPost) => p.status === 'draft' || p.status === 'scheduled';
 
-const readBase64 = (file: File) => new Promise<string>((resolve, reject) => {
-  const r = new FileReader();
-  r.onload = () => resolve(String(r.result || '').split(',')[1] || '');
-  r.onerror = () => reject(new Error('Could not read the image'));
-  r.readAsDataURL(file);
-});
+const Accounts: React.FC<{ post: SocialPost }> = ({ post }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {post.targets.map((t) => (
+      <span key={t.key} title={t.error || ''} className={cx('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold', t.status === 'posted' ? 'border-[#BFE3CF] bg-[#F1FAF5] text-[#067647]' : t.status === 'failed' ? 'border-[#F5C2B8] bg-[#FEF3F2] text-[#B42318]' : 'border-[#DADDE1] text-[#65676B]')}>
+        <span className={cx('h-2 w-2 rounded-full', KIND[t.kind].cls)} />{t.name}
+        {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" aria-label={`Open on ${KIND[t.kind].label}`}><ExternalLink size={10} /></a>}
+      </span>
+    ))}
+  </div>
+);
 
 export const PostsView: React.FC = () => {
+  const [tab, setTab] = useState<Tab>('calendar');
+  const [filter, setFilter] = useState<Filter>('scheduled');
+  const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [targets, setTargets] = useState<PostTargetOption[]>([]);
-  const [text, setText] = useState('');
-  const [link, setLink] = useState('');
-  const [image, setImage] = useState<{ fileId: string; previewUrl: string } | null>(null);
-  const [chosen, setChosen] = useState<string[]>([]);
-  const [when, setWhen] = useState('');
+  const [composing, setComposing] = useState<{ post?: SocialPost | null; when?: Date | null } | null>(null);
+  const [details, setDetails] = useState<SocialPost | null>(null);
   const [busy, setBusy] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
+  const grid = useMemo(() => monthGrid(month), [month]);
 
   const load = useCallback(async () => {
     try {
-      const r = await api.posts.list();
+      const end = new Date(grid[41].getFullYear(), grid[41].getMonth(), grid[41].getDate() + 1);
+      const r = await api.posts.list(tab === 'calendar' ? { from: grid[0].toISOString(), to: end.toISOString() } : {});
       setPosts(r.posts);
       setTargets(r.targets);
     } catch (e) {
       setPosts((p) => p || []);
       toast('Could not load posts', errText('posts.list', e), 'alert');
     }
-  }, []);
+  }, [tab, grid]);
   useEffect(() => void load(), [load]);
 
-  const needsImage = targets.filter((t) => chosen.includes(t.key) && t.needsImage);
-  const googleChosen = targets.some((t) => chosen.includes(t.key) && t.kind === 'google');
-  const limit = googleChosen ? 1500 : chosen.some((k) => k.startsWith('instagram:')) ? 2200 : 3000;
-
-  const pick = async (f: File | undefined) => {
-    if (!f) return;
-    if (!/^image\/(jpeg|png)$/.test(f.type)) return toast('Use a JPG or PNG image', undefined, 'alert');
-    if (f.size > 3 * 1024 * 1024) return toast('The image is larger than 3 MB', 'Make it smaller first.', 'alert');
-    setBusy('image');
+  const retry = async (p: SocialPost) => {
+    setBusy('retry');
     try {
-      setImage(await api.posts.uploadImage({ name: f.name, mime: f.type, base64: await readBase64(f) }));
-    } catch (e) {
-      toast('Could not upload the image', errText('posts.image', e), 'alert');
-    } finally {
-      setBusy('');
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-
-  const submit = async (schedule: boolean) => {
-    if (schedule && !when) return toast('Choose the date and time', undefined, 'alert');
-    setBusy(schedule ? 'schedule' : 'now');
-    try {
-      const p = await api.posts.create({ text, link: link || undefined, imageFileId: image?.fileId, targets: chosen, ...(schedule ? { scheduledAt: new Date(when).toISOString() } : {}) });
-      toast(schedule ? 'Post scheduled' : p.status === 'published' ? 'Posted' : STATUS[p.status].label, p.targets.filter((t) => t.status === 'failed').map((t) => `${KIND[t.kind].label}: ${t.error}`).join(' · ') || undefined, p.status === 'failed' || p.status === 'partial' ? 'alert' : 'success');
-      setText(''); setLink(''); setImage(null); setWhen('');
+      const r = await api.posts.retry(p.id);
+      setDetails(r);
       await load();
     } catch (e) {
-      toast('Could not post', errText('posts.create', e), 'alert');
+      toast('Retry failed', errText('posts.retry', e), 'alert');
     } finally {
       setBusy('');
     }
   };
-  const retry = async (id: string) => {
-    setBusy('retry' + id);
-    try { await api.posts.retry(id); await load(); } catch (e) { toast('Retry failed', errText('posts.retry', e), 'alert'); } finally { setBusy(''); }
-  };
-  const remove = async (id: string) => {
+  const remove = async (p: SocialPost) => {
     if (!window.confirm('Delete this post?')) return;
-    try { await api.posts.remove(id); await load(); } catch (e) { toast('Could not delete', errText('posts.delete', e), 'alert'); }
+    try {
+      await api.posts.remove(p.id);
+      setComposing(null);
+      setDetails(null);
+      await load();
+    } catch (e) {
+      toast('Could not delete', errText('posts.delete', e), 'alert');
+    }
+  };
+  const open = (p: SocialPost) => (editable(p) ? setComposing({ post: p }) : setDetails(p));
+  const newOn = (d: Date) => {
+    const when = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0);
+    setComposing({ when: when.getTime() > Date.now() ? when : new Date(Date.now() + 3600000) });
   };
 
+  const today = new Date();
+  const onCalendar = (posts || []).filter((p) => p.status !== 'draft');
+  const shown = (posts || []).filter((p) => FILTERS.find((f) => f.id === filter)!.has.includes(p.status));
+
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] items-start">
-      <Card title="New post" subtitle="One post, published to every account you tick.">
-        {!targets.length ? (
-          <p className="text-xs text-[#5E778C]">No account connected yet. Platform support connects Facebook / Instagram, Google Business Profile, LinkedIn and Pinterest in Settings.</p>
-        ) : (
-          <div className="space-y-4">
-            <Field label="Post to">
-              <div className="flex flex-wrap gap-2">
-                {targets.map((t) => {
-                  const on = chosen.includes(t.key);
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="tablist" aria-label="View" className="inline-flex rounded-lg bg-[#E4E6EB] p-0.5">
+          {([['calendar', 'Calendar'], ['list', 'Posts']] as Array<[Tab, string]>).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cx('rounded-md px-3.5 py-1.5 text-[13px] font-semibold', tab === id ? 'bg-white text-[#0866FF] shadow-sm' : 'text-[#44505C]')}>{label}</button>
+          ))}
+        </div>
+        <span className="flex-1" />
+        <button type="button" disabled={!targets.length} title={targets.length ? undefined : 'Connect an account first'} onClick={() => setComposing({})} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0866FF] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={15} /> Create post</button>
+      </div>
+
+      {posts && !targets.length && <InlineNotice tone="warning">No account connected yet. An Admin connects Facebook, Instagram, Google Business Profile, LinkedIn and Pinterest in Settings.</InlineNotice>}
+
+      {tab === 'calendar' ? (
+        <div className="rounded-xl border border-[#DADDE1] bg-white">
+          <div className="flex items-center gap-2 border-b border-[#DADDE1] p-3">
+            <button type="button" aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[#F0F2F5]" onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}><ChevronLeft size={17} /></button>
+            <button type="button" aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[#F0F2F5]" onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}><ChevronRight size={17} /></button>
+            <h2 className="text-[15px] font-bold text-[#1C2B33]">{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h2>
+            <button type="button" className="ml-1 rounded-lg border border-[#CED0D4] px-2.5 py-1 text-xs font-semibold text-[#44505C] hover:bg-[#F5F6F7]" onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))}>Today</button>
+          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[760px]">
+              <div className="grid grid-cols-7 border-b border-[#DADDE1] bg-[#F5F6F7]">
+                {WEEKDAYS.map((d) => <div key={d} className="px-2 py-1.5 text-[11px] font-semibold text-[#44505C]">{d}</div>)}
+              </div>
+              <div className="grid grid-cols-7">
+                {grid.map((d) => {
+                  const dayPosts = onCalendar.filter((p) => sameDay(postDate(p), d)).sort((a, b) => postDate(a).getTime() - postDate(b).getTime());
+                  const inMonth = d.getMonth() === month.getMonth();
+                  const isToday = sameDay(d, today);
+                  const past = !isToday && d.getTime() < today.getTime();
                   return (
-                    <button key={t.key} type="button" aria-pressed={on} onClick={() => setChosen((c) => (on ? c.filter((k) => k !== t.key) : [...c, t.key]))}
-                      className={cx('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold', on ? 'border-[#0B2A44] bg-[#0B2A44] text-white' : 'border-[#D3E3F0] bg-white text-[#2B4A63]')}>
-                      <span className={cx('h-2.5 w-2.5 rounded-full', KIND[t.kind].cls)} />{KIND[t.kind].label} · {t.name}
-                    </button>
+                    <div key={d.toISOString()} className={cx('group min-h-[110px] border-b border-r border-[#EBEDF0] p-1.5', !inMonth && 'bg-[#FAFBFC]')}>
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className={cx('flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-[#0866FF] font-bold text-white' : inMonth ? 'text-[#1C2B33]' : 'text-[#A7B4C0]')}>{d.getDate()}</span>
+                        {!past && targets.length > 0 && <button type="button" aria-label={`Create a post on ${d.toDateString()}`} onClick={() => newOn(d)} className="flex h-6 w-6 items-center justify-center rounded text-[#65676B] opacity-0 hover:bg-[#F0F2F5] focus:opacity-100 group-hover:opacity-100"><Plus size={14} /></button>}
+                      </div>
+                      <div className="space-y-1">
+                        {dayPosts.map((p) => (
+                          <button key={p.id} type="button" onClick={() => open(p)} title={`${STATUS[p.status].label}: ${p.text}`} className={cx('flex w-full items-center gap-1.5 rounded border p-1 text-left hover:brightness-95', CHIP[p.status])}>
+                            {p.imageUrl && <img src={p.imageUrl} alt="" className="h-6 w-6 flex-none rounded object-cover" />}
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[10px] font-semibold text-[#44505C]">{timeOf(postDate(p))}</span>
+                              <span className="block truncate text-[11px] text-[#1C2B33]">{p.text || 'No text'}</span>
+                            </span>
+                            <span className="flex flex-none -space-x-1">{p.targets.slice(0, 3).map((t) => <span key={t.key} title={t.name} className={cx('h-2.5 w-2.5 rounded-full ring-1 ring-white', KIND[t.kind].cls)} />)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            </Field>
-            <Field label={<span className="flex justify-between"><span>Text</span><span className={cx('tabular-nums', text.length > limit ? 'text-[#B42318]' : 'text-[#7E93A6]')}>{text.length}/{limit}</span></span>}>
-              <textarea className={cx(inputCls, 'min-h-[140px] text-sm')} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Site visits open this weekend at Amaya by Vera Vita. Book a slot: …" />
-            </Field>
-            <Field label="Link (optional)"><input className={inputCls} value={link} onChange={(e) => setLink(e.target.value.trim())} placeholder="https://…" /></Field>
-            <Field label={`Image${needsImage.length ? ' (needed for ' + [...new Set(needsImage.map((t) => KIND[t.kind].label))].join(' and ') + ')' : ' (optional)'}`}>
-              {image ? (
-                <div className="relative inline-block">
-                  <img src={image.previewUrl} alt="" className="h-32 rounded-lg border border-[#D3E3F0] object-cover" />
-                  <button type="button" onClick={() => setImage(null)} aria-label="Remove image" className="absolute -right-2 -top-2 h-6 w-6 inline-flex items-center justify-center rounded-full bg-white border border-[#D3E3F0] text-[#5E778C]"><X size={13} /></button>
-                </div>
-              ) : (
-                <Button variant="secondary" size="sm" icon={<ImagePlus size={13} />} loading={busy === 'image'} onClick={() => fileRef.current?.click()}>Add a JPG or PNG (up to 3 MB)</Button>
-              )}
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png" hidden onChange={(e) => void pick(e.target.files?.[0])} />
-            </Field>
-            <div className="flex flex-wrap items-end gap-2 pt-1">
-              <Button variant="primary" icon={<Send size={14} />} loading={busy === 'now'} disabled={!text.trim() || !chosen.length || text.length > limit || (!!needsImage.length && !image)} onClick={() => void submit(false)}>Post now</Button>
-              <span className="text-xs text-[#7E93A6] px-1">or</span>
-              <input type="datetime-local" className={cx(inputCls, 'w-auto')} min={localInput(new Date())} value={when} onChange={(e) => setWhen(e.target.value)} aria-label="Schedule for" />
-              <Button variant="secondary" icon={<CalendarClock size={14} />} loading={busy === 'schedule'} disabled={!text.trim() || !chosen.length || !when || text.length > limit || (!!needsImage.length && !image)} onClick={() => void submit(true)}>Schedule</Button>
             </div>
           </div>
-        )}
-      </Card>
-
-      <Card title="Posts" subtitle="Scheduled posts go out within 10 minutes of their time.">
-        {posts === null ? <p className="text-xs text-[#5E778C]">Loading…</p> : !posts.length ? (
-          <EmptyState icon={<Send size={20} />} title="No posts yet" description="Posts you publish or schedule appear here with where they went." />
-        ) : (
-          <ul className="divide-y divide-[#EEF4F9]">
-            {posts.map((p) => (
-              <li key={p.id} className="py-3 flex gap-3">
-                {p.imageUrl && <img src={p.imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover flex-shrink-0 border border-[#E3EDF5]" />}
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge>
-                    <span className="text-[#5E778C]">{new Date(p.status === 'scheduled' ? p.scheduledAt : p.publishedAt || p.scheduledAt).toLocaleString()} · {p.createdBy}</span>
-                    <span className="ml-auto flex gap-1">
-                      {(p.status === 'failed' || p.status === 'partial') && <Button variant="secondary" size="xs" icon={<RotateCcw size={12} />} loading={busy === 'retry' + p.id} onClick={() => void retry(p.id)}>Retry</Button>}
-                      {(p.status === 'scheduled' || p.status === 'failed') && <button type="button" aria-label="Delete" onClick={() => void remove(p.id)} className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-[#9A3412] hover:bg-[#FDF2EC]"><Trash2 size={13} /></button>}
-                    </span>
-                  </div>
-                  <p className="text-sm text-[#0B2A44] whitespace-pre-wrap break-words line-clamp-3">{p.text}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {p.targets.map((t) => (
-                      <span key={t.key} title={t.error || ''} className={cx('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold border', t.status === 'posted' ? 'border-[#BFE3CF] text-[#067647] bg-[#F1FAF5]' : t.status === 'failed' ? 'border-[#F5C2B8] text-[#B42318] bg-[#FEF3F2]' : 'border-[#D3E3F0] text-[#5E778C]')}>
-                        <span className={cx('h-2 w-2 rounded-full', KIND[t.kind].cls)} />{t.name}
-                        {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" aria-label={`Open on ${KIND[t.kind].label}`}><ExternalLink size={10} /></a>}
-                      </span>
-                    ))}
-                  </div>
-                  {p.targets.filter((t) => t.status === 'failed').map((t) => <p key={t.key} className="text-[11px] text-[#B42318]">{KIND[t.kind].label}: {t.error}</p>)}
-                </div>
-              </li>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-[#DADDE1] bg-white">
+          <div role="tablist" aria-label="Status" className="flex border-b border-[#DADDE1]">
+            {FILTERS.map((f) => (
+              <button key={f.id} type="button" role="tab" aria-selected={filter === f.id} onClick={() => setFilter(f.id)} className={cx('-mb-px flex-1 border-b-2 px-3 py-2.5 text-[13px] font-semibold', filter === f.id ? 'border-[#0866FF] text-[#0866FF]' : 'border-transparent text-[#44505C] hover:bg-[#F5F6F7]')}>{f.label}</button>
             ))}
-          </ul>
+          </div>
+          {posts === null ? <p className="p-4 text-xs text-[#65676B]">Loading…</p> : !shown.length ? (
+            <EmptyState className="py-10" icon={<Send size={20} />} title={`No ${FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} posts`} description="Posts you create appear here." />
+          ) : (
+            <ul className="divide-y divide-[#EBEDF0]">
+              {shown.map((p) => (
+                <li key={p.id}>
+                  <button type="button" onClick={() => open(p)} className="flex w-full gap-3 p-3 text-left hover:bg-[#F5F9FF]">
+                    {p.imageUrl ? <img src={p.imageUrl} alt="" className="h-14 w-14 flex-none rounded-lg border border-[#DADDE1] object-cover" /> : <span className="h-14 w-14 flex-none rounded-lg bg-[#F0F2F5]" />}
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span className="block truncate text-[13px] font-semibold text-[#1C2B33]">{p.text || 'No text'}</span>
+                      <span className="flex flex-wrap items-center gap-2 text-[11px] text-[#65676B]"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge>{postDate(p).toLocaleString()} · {p.createdBy}</span>
+                      <Accounts post={p} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {composing && <PostComposer targets={targets} post={composing.post} initialWhen={composing.when} onClose={() => setComposing(null)} onSaved={() => { setComposing(null); void load(); }} onDelete={(p) => void remove(p)} />}
+
+      <Modal open={!!details} onClose={() => setDetails(null)} title={details ? STATUS[details.status].label : ''} subtitle={details ? `${postDate(details).toLocaleString()} · ${details.createdBy}` : undefined}
+        footer={details && (
+          <>
+            {details.status === 'failed' && <Button variant="secondary" icon={<Trash2 size={13} />} onClick={() => void remove(details)}>Delete</Button>}
+            {(details.status === 'failed' || details.status === 'partial') && <Button icon={<RotateCcw size={13} />} loading={busy === 'retry'} onClick={() => void retry(details)}>Retry</Button>}
+            <Button variant="secondary" onClick={() => setDetails(null)}>Close</Button>
+          </>
+        )}>
+        {details && (
+          <div className="space-y-3">
+            {details.imageUrl && <img src={details.imageUrl} alt="" className="max-h-64 rounded-lg border border-[#DADDE1] object-contain" />}
+            <p className="whitespace-pre-wrap break-words text-sm text-[#1C2B33]">{details.text}</p>
+            {details.link && <a href={details.link} target="_blank" rel="noopener noreferrer" className="block truncate text-xs font-semibold text-[#0866FF] hover:underline">{details.link}</a>}
+            <Accounts post={details} />
+            {details.targets.filter((t) => t.status === 'failed').map((t) => <p key={t.key} className="text-xs text-[#B42318]">{KIND[t.kind].label}: {t.error}</p>)}
+          </div>
         )}
-      </Card>
+      </Modal>
     </div>
   );
 };
