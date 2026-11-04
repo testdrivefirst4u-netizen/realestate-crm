@@ -29,6 +29,7 @@ import { decodeBase64, readFile, saveFile, statFile } from './storage';
 export const POST_IMAGE_CATEGORY = 'Social posts';
 const MAX_IMAGE = 3 * 1024 * 1024;
 
+export interface PostMetrics { likes: number | null; comments: number | null; shares: number | null }
 export type TargetKind = 'facebook' | 'instagram' | 'google' | 'linkedin' | 'pinterest';
 export interface PostTarget { key: string; kind: TargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string }
 export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed';
@@ -47,6 +48,7 @@ interface PostDoc {
   /** Copied from the platform (socialPostsImport.ts): its picture link, read only. */
   imported?: boolean;
   imageExternal?: string;
+  metrics?: PostMetrics | null;
 }
 const postsCol = () => col<PostDoc>('socialPosts');
 
@@ -208,20 +210,24 @@ export async function runPostsCron(now = new Date()): Promise<Record<string, unk
 
 /* ---------------------------------- screen -------------------------------- */
 
-export interface PostView { id: string; text: string; link: string; imageFileId: string; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string }
+export interface PostView { id: string; text: string; link: string; imageFileId: string; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string; metrics: PostMetrics | null }
 const view = (p: PostDoc): PostView => ({
   id: p._id, text: p.text, link: p.link, imageFileId: p.imageFileId, imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
-  status: p.status, createdBy: p.createdBy, publishedAt: p.publishedAt ? p.publishedAt.toISOString() : '',
+  status: p.status, createdBy: p.createdBy, publishedAt: p.publishedAt ? p.publishedAt.toISOString() : '', metrics: p.metrics || null,
 });
 
 /** Posts in the range (the planner's month; by default from 30 days ago), and every draft. */
-export async function listPosts(d: any = {}): Promise<{ posts: PostView[]; targets: TargetOption[] }> {
+export async function listPosts(d: any = {}): Promise<{ posts: PostView[]; targets: TargetOption[]; hasMore: boolean }> {
   const parsed = d?.from ? new Date(d.from) : null;
   const from = parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date(Date.now() - 30 * 86400000);
   const until = d?.to ? new Date(d.to) : null;
   const range = { $gte: from, ...(until && !Number.isNaN(until.getTime()) ? { $lt: until } : {}) };
-  const rows = await (await postsCol()).find({ $or: [{ status: 'draft' }, { scheduledAt: range }] }).sort({ scheduledAt: -1 }).limit(500).toArray();
-  return { posts: rows.map(view), targets: await listPostTargets() };
+  const statuses = Array.isArray(d?.statuses) ? d.statuses.map(String) as PostStatus[] : null;
+  const limit = Math.min(Math.max(Number(d?.limit) || 500, 1), 500);
+  const skip = Math.max(Number(d?.skip) || 0, 0);
+  const filter = statuses ? { status: { $in: statuses }, scheduledAt: range } : { $or: [{ status: 'draft' as const }, { scheduledAt: range }] };
+  const rows = await (await postsCol()).find(filter as any).sort({ scheduledAt: -1 }).skip(skip).limit(limit + 1).toArray();
+  return { posts: rows.slice(0, limit).map(view), targets: await listPostTargets(), hasMore: rows.length > limit };
 }
 
 const LINK_RE = /^https:\/\/[^\s]+$/i;
@@ -290,6 +296,25 @@ export async function updatePost(d: any, ctx: Ctx): Promise<PostView> {
   return view(out || r);
 }
 
+/** Change the text of a post already on Facebook. The platforms do not let an app change a published picture, or Instagram captions. */
+export async function editPublishedPost(d: any, ctx: Ctx): Promise<PostView> {
+  const id = String(d?.id || '');
+  const text = String(d?.text || '').trim();
+  if (!text) throw fail('VALIDATION', 'Write the post first.');
+  if (text.length > 3000) throw fail('VALIDATION', 'Posts can be up to 3000 characters.');
+  const c = await postsCol();
+  const post = await c.findOne({ _id: id });
+  if (!post) throw fail('NOT_FOUND', 'Post not found');
+  const t = post.targets[0];
+  if (post.targets.length !== 1 || t.kind !== 'facebook' || t.status !== 'posted' || !t.postId) throw fail('VALIDATION', 'Only a post on one Facebook Page can be changed here. Change others on the platform itself.');
+  const page = (await socialPages()).find((p) => p.id === t.key.slice('facebook:'.length));
+  if (!page) throw fail('VALIDATION', 'This Facebook Page is no longer connected.');
+  await graph(t.postId, { token: page.token, method: 'POST', params: { message: text } });
+  const r = await c.findOneAndUpdate({ _id: id }, { $set: { text, updatedAt: new Date() } }, { returnDocument: 'after' });
+  await auditLog(ctx, 'Published Post Edited', 'Post', id, truncate(text, 80));
+  return view(r || post);
+}
+
 export async function retryPost(d: any, ctx: Ctx): Promise<PostView> {
   const p = await publishPost(String(d?.id || ''), { retry: true });
   if (!p) throw fail('NOT_FOUND', 'Post not found');
@@ -309,6 +334,7 @@ export const actions: ActionMap = {
   listPosts: { fn: (d) => listPosts(d), perm: 'marketing.manage' },
   createPost: { fn: (d, ctx) => createPost(d, ctx), perm: 'marketing.manage' },
   updatePost: { fn: (d, ctx) => updatePost(d, ctx), perm: 'marketing.manage' },
+  editPublishedPost: { fn: (d, ctx) => editPublishedPost(d, ctx), perm: 'marketing.manage' },
   retryPost: { fn: (d, ctx) => retryPost(d, ctx), perm: 'marketing.manage' },
   deletePost: { fn: (d, ctx) => deletePost(d, ctx), perm: 'marketing.manage' },
   uploadPostImage: { fn: (d, ctx) => uploadPostImage(d, ctx), perm: 'marketing.manage' },

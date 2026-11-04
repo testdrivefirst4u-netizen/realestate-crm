@@ -2,8 +2,9 @@
  * Post scheduler › old posts: copies what the connected Facebook Pages and Instagram accounts already published into
  * `socialPosts`, so the planner shows them next to the posts made in the CRM.
  *
- * Facebook  = GET <page>/published_posts; Instagram = GET <ig>/media. Up to a year back from "Sync old posts", the last
- *             30 days every morning (the platforms' picture links expire, so recent posts get fresh ones).
+ * Facebook  = GET <page>/published_posts; Instagram = GET <ig>/media, with likes, comments and shares. All the history
+ *             (up to 2000 posts an account) from "Sync old posts", the last 30 days every morning (the platforms'
+ *             picture links expire, so recent posts get fresh ones). Views need other permissions and are not read.
  * Imported posts have status 'published' and are read only: they are changed or removed on the platform. A post made
  * in the CRM is recognised by its platform id and not copied. A post deleted on the platform stays here.
  */
@@ -18,11 +19,14 @@ import { listActiveTenants } from '../platform/registry';
 import { socialPages } from './socialAccounts';
 
 const PAGE_SIZE = 100;
-const MAX_PAGES = 5;
+const MAX_PAGES = 20;
+const ALL_HISTORY_DAYS = 20 * 365;
 const DAY_MS = 86400000;
 const postsCol = () => col<any>('socialPosts');
 
-interface Found { kind: 'facebook' | 'instagram'; accountId: string; accountName: string; postId: string; text: string; url: string; image: string; at: Date }
+interface Metrics { likes: number | null; comments: number | null; shares: number | null }
+interface Found { kind: 'facebook' | 'instagram'; accountId: string; accountName: string; postId: string; text: string; url: string; image: string; at: Date; metrics: Metrics }
+const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 const https = (v: unknown) => (/^https:\/\//.test(String(v || '')) ? String(v) : '');
 
@@ -42,15 +46,20 @@ async function newestPosts(path: string, token: string, fields: string, dateOf: 
 }
 
 async function facebookPosts(p: { id: string; name: string; token: string }, cutoff: Date): Promise<Found[]> {
-  const rows = await newestPosts(`${p.id}/published_posts`, p.token, 'id,message,created_time,permalink_url,full_picture', (x) => new Date(x.created_time), cutoff);
-  return rows.map((x) => ({ kind: 'facebook', accountId: p.id, accountName: p.name, postId: String(x.id), text: String(x.message || ''), url: https(x.permalink_url), image: https(x.full_picture), at: new Date(x.created_time) }));
+  const base = 'id,message,created_time,permalink_url,full_picture';
+  const read = (fields: string) => newestPosts(`${p.id}/published_posts`, p.token, fields, (x) => new Date(x.created_time), cutoff);
+  // the posts matter more than their counts: without the counts' permission they still come through
+  const rows = await read(`${base},shares,likes.summary(true).limit(0),comments.summary(true).limit(0)`).catch(() => read(base));
+  return rows.map((x) => ({ kind: 'facebook', accountId: p.id, accountName: p.name, postId: String(x.id), text: String(x.message || ''), url: https(x.permalink_url), image: https(x.full_picture), at: new Date(x.created_time), metrics: { likes: num(x.likes?.summary?.total_count), comments: num(x.comments?.summary?.total_count), shares: num(x.shares?.count) ?? (x.likes ? 0 : null) } }));
 }
 
 async function instagramPosts(p: { igId?: string; igUsername?: string; token: string }, cutoff: Date): Promise<Found[]> {
-  const rows = await newestPosts(`${p.igId}/media`, p.token, 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp', (x) => new Date(x.timestamp), cutoff);
+  const base = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp';
+  const read = (fields: string) => newestPosts(`${p.igId}/media`, p.token, fields, (x) => new Date(x.timestamp), cutoff);
+  const rows = await read(`${base},like_count,comments_count`).catch(() => read(base));
   return rows.map((x) => ({
     kind: 'instagram', accountId: String(p.igId), accountName: `@${p.igUsername || p.igId}`, postId: String(x.id), text: String(x.caption || ''), url: https(x.permalink),
-    image: https(x.media_type === 'VIDEO' ? x.thumbnail_url : x.media_url), at: new Date(x.timestamp),
+    image: https(x.media_type === 'VIDEO' ? x.thumbnail_url : x.media_url), at: new Date(x.timestamp), metrics: { likes: num(x.like_count), comments: num(x.comments_count), shares: null },
   }));
 }
 
@@ -79,7 +88,7 @@ export async function importOldPosts(opts: { days?: number; now?: Date } = {}): 
       filter: { _id: `IMP-${f.kind}-${f.postId}` },
       update: {
         $set: {
-          text: truncate(f.text, 3000), link: '', imageFileId: '', imageExternal: f.image, imported: true, scheduledAt: f.at, publishedAt: f.at, status: 'published', updatedAt: now,
+          text: truncate(f.text, 3000), link: '', imageFileId: '', imageExternal: f.image, imported: true, metrics: f.metrics, scheduledAt: f.at, publishedAt: f.at, status: 'published', updatedAt: now,
           targets: [{ key: `${f.kind}:${f.accountId}`, kind: f.kind, name: f.accountName, status: 'posted', postId: f.postId, url: f.url, error: '' }],
           createdBy: `Imported from ${f.kind === 'facebook' ? 'Facebook' : 'Instagram'}`,
         },
@@ -93,7 +102,7 @@ export async function importOldPosts(opts: { days?: number; now?: Date } = {}): 
 
 export async function syncOldPosts(_d: any, ctx: Ctx) {
   if (!(await socialPages()).length) throw fail('VALIDATION', 'Connect a Facebook Page first (Settings › Social accounts).');
-  const r = await importOldPosts();
+  const r = await importOldPosts({ days: ALL_HISTORY_DAYS });
   await auditLog(ctx, 'Old Posts Synced', 'Post', 'import', `${r.imported} new · ${r.updated} updated${r.errors.length ? ` · ${r.errors.length} account(s) failed` : ''}`);
   return r;
 }

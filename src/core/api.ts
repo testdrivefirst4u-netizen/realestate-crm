@@ -259,7 +259,7 @@ export interface SocialAccountsView { connectUrl: string; available: boolean; pa
 export type PostTargetKind = 'facebook' | 'instagram' | 'google' | 'linkedin' | 'pinterest';
 export interface PostTargetOption { key: string; kind: PostTargetKind; name: string; needsImage: boolean }
 export interface SocialPost {
-  id: string; text: string; link: string; imageFileId: string; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string;
+  id: string; text: string; link: string; imageFileId: string; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null;
   targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string }>;
 }
 /** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
@@ -557,11 +557,12 @@ export const api = {
     disconnectPage: (pageId: string) => request<SocialAccountsView>('disconnectSocialPage', { pageId }),
   },
   posts: {
-    list: (range: { from?: string; to?: string } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[] }>('listPosts', range),
+    list: (range: { from?: string; to?: string; statuses?: string[]; skip?: number; limit?: number } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[]; hasMore: boolean }>('listPosts', range),
+    editPublished: (id: string, text: string) => request<SocialPost>('editPublishedPost', { id, text }, { timeoutMs: 60000 }),
     create: (d: { text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string; draft?: boolean }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),
     update: (d: { id: string; text: string; link?: string; imageFileId?: string; targets: string[]; scheduledAt?: string; draft?: boolean }) => request<SocialPost>('updatePost', d, { timeoutMs: 120000 }),
     retry: (id: string) => request<SocialPost>('retryPost', { id }, { timeoutMs: 120000 }),
-    syncOld: () => request<{ imported: number; updated: number; skipped: number; errors: Array<{ account: string; message: string }> }>('syncOldPosts', {}, { timeoutMs: 120000 }),
+    syncOld: () => request<{ imported: number; updated: number; skipped: number; errors: Array<{ account: string; message: string }> }>('syncOldPosts', {}, { timeoutMs: 280000 }),
     remove: (id: string) => request<{ ok: true }>('deletePost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),
   },

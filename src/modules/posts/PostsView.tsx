@@ -1,14 +1,15 @@
 /**
  * Post scheduler (/posts, plan feature socialPosts; server: modules/socialPosts.ts): a month planner and a list of the
  * company's posts by status. Create post opens the composer (PostComposer.tsx); a draft or scheduled post opens there
- * to be changed; a posted or failed one shows where it went, with retry for what failed.
+ * to be changed; a posted or failed one shows as it looks on the platform, with retry for what failed, and the text can
+ * be changed for a post on one Facebook Page. A new picture means a new post ("Post again").
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, Plus, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, Pencil, Plus, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { api, type PostTargetOption, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx } from '../../components/ui';
-import { PostComposer } from './PostComposer';
+import { PostComposer, Preview } from './PostComposer';
 import { KIND, STATUS, errText, postDate } from './postShared';
 
 type Tab = 'calendar' | 'list';
@@ -32,6 +33,10 @@ function monthGrid(month: Date): Date[] {
   return Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
 }
 const editable = (p: SocialPost) => p.status === 'draft' || p.status === 'scheduled';
+const onePage = (p: SocialPost) => p.targets.length === 1 && p.targets[0].kind === 'facebook' && p.targets[0].status === 'posted' && !!p.targets[0].postId;
+const PAGE_SIZE = 60;
+const listQuery = (filter: Filter, skip: number) => ({ from: '2000-01-01T00:00:00.000Z', statuses: FILTERS.find((f) => f.id === filter)!.has, skip, limit: PAGE_SIZE });
+const whenText = (p: SocialPost) => postDate(p).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 const Accounts: React.FC<{ post: SocialPost }> = ({ post }) => (
   <div className="flex flex-wrap gap-1.5">
@@ -50,7 +55,9 @@ export const PostsView: React.FC = () => {
   const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [posts, setPosts] = useState<SocialPost[] | null>(null);
   const [targets, setTargets] = useState<PostTargetOption[]>([]);
-  const [composing, setComposing] = useState<{ post?: SocialPost | null; when?: Date | null } | null>(null);
+  const [composing, setComposing] = useState<{ post?: SocialPost | null; seed?: SocialPost | null; when?: Date | null } | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [editText, setEditText] = useState<string | null>(null);
   const [details, setDetails] = useState<SocialPost | null>(null);
   const [busy, setBusy] = useState('');
   const grid = useMemo(() => monthGrid(month), [month]);
@@ -58,14 +65,15 @@ export const PostsView: React.FC = () => {
   const load = useCallback(async () => {
     try {
       const end = new Date(grid[41].getFullYear(), grid[41].getMonth(), grid[41].getDate() + 1);
-      const r = await api.posts.list(tab === 'calendar' ? { from: grid[0].toISOString(), to: end.toISOString() } : {});
+      const r = await api.posts.list(tab === 'calendar' ? { from: grid[0].toISOString(), to: end.toISOString() } : listQuery(filter, 0));
       setPosts(r.posts);
       setTargets(r.targets);
+      setHasMore(tab === 'list' && r.hasMore);
     } catch (e) {
       setPosts((p) => p || []);
       toast('Could not load posts', errText('posts.list', e), 'alert');
     }
-  }, [tab, grid]);
+  }, [tab, grid, filter]);
   useEffect(() => void load(), [load]);
 
   const retry = async (p: SocialPost) => {
@@ -91,6 +99,32 @@ export const PostsView: React.FC = () => {
       toast('Could not delete', errText('posts.delete', e), 'alert');
     }
   };
+  const loadMore = async () => {
+    setBusy('more');
+    try {
+      const r = await api.posts.list(listQuery(filter, (posts || []).length));
+      setPosts((p) => [...(p || []), ...r.posts]);
+      setHasMore(r.hasMore);
+    } catch (e) {
+      toast('Could not load more posts', errText('posts.more', e), 'alert');
+    } finally {
+      setBusy('');
+    }
+  };
+  const saveText = async (p: SocialPost) => {
+    setBusy('edit');
+    try {
+      const r = await api.posts.editPublished(p.id, editText || '');
+      setDetails(r);
+      setEditText(null);
+      toast('Post changed on Facebook', undefined, 'success');
+      await load();
+    } catch (e) {
+      toast('Not changed', errText('posts.edit', e), 'alert');
+    } finally {
+      setBusy('');
+    }
+  };
   const syncOld = async () => {
     setBusy('sync');
     try {
@@ -104,7 +138,7 @@ export const PostsView: React.FC = () => {
       setBusy('');
     }
   };
-  const open = (p: SocialPost) => (editable(p) ? setComposing({ post: p }) : setDetails(p));
+  const open = (p: SocialPost) => { setEditText(null); if (editable(p)) setComposing({ post: p }); else setDetails(p); };
   const newOn = (d: Date) => {
     const when = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0);
     setComposing({ when: when.getTime() > Date.now() ? when : new Date(Date.now() + 3600000) });
@@ -183,39 +217,41 @@ export const PostsView: React.FC = () => {
           {posts === null ? <p className="p-4 text-xs text-[#65676B]">Loading…</p> : !shown.length ? (
             <EmptyState className="py-10" icon={<Send size={20} />} title={`No ${FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} posts`} description="Posts you create appear here." />
           ) : (
-            <ul className="divide-y divide-[#EBEDF0]">
-              {shown.map((p) => (
-                <li key={p.id}>
-                  <button type="button" onClick={() => open(p)} className="flex w-full gap-3 p-3 text-left hover:bg-[#F5F9FF]">
-                    {p.imageUrl ? <img src={p.imageUrl} alt="" className="h-14 w-14 flex-none rounded-lg border border-[#DADDE1] object-cover" /> : <span className="h-14 w-14 flex-none rounded-lg bg-[#F0F2F5]" />}
-                    <span className="min-w-0 flex-1 space-y-1">
-                      <span className="block truncate text-[13px] font-semibold text-[#1C2B33]">{p.text || 'No text'}</span>
-                      <span className="flex flex-wrap items-center gap-2 text-[11px] text-[#65676B]"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge>{postDate(p).toLocaleString()} · {p.createdBy}</span>
-                      <Accounts post={p} />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="grid items-start gap-3 bg-[#F0F2F5] p-3 sm:grid-cols-2 lg:grid-cols-3">
+                {shown.map((p) => (
+                  <li key={p.id}>
+                    <button type="button" onClick={() => open(p)} className="block w-full text-left transition hover:brightness-[0.98]" aria-label={`Open post: ${p.text || 'No text'}`}>
+                      <span className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-[#65676B]"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge>{p.createdBy}</span>
+                      {p.targets[0] ? <Preview kind={p.targets[0].kind} name={p.targets[0].name} text={p.text.length > 280 ? p.text.slice(0, 280) + '…' : p.text} link={p.link} image={p.imageUrl} when={whenText(p)} metrics={p.metrics} /> : <span className="block rounded-lg border border-[#DADDE1] bg-white p-4 text-[13px] text-[#1C2B33]">{p.text || 'No text'}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {hasMore && <div className="border-t border-[#DADDE1] p-3 text-center"><Button variant="secondary" size="sm" loading={busy === 'more'} onClick={() => void loadMore()}>Load more</Button></div>}
+            </>
           )}
         </div>
       )}
 
-      {composing && <PostComposer targets={targets} post={composing.post} initialWhen={composing.when} onClose={() => setComposing(null)} onSaved={() => { setComposing(null); void load(); }} onDelete={(p) => void remove(p)} />}
+      {composing && <PostComposer targets={targets} post={composing.post} seed={composing.seed} initialWhen={composing.when} onClose={() => setComposing(null)} onSaved={() => { setComposing(null); void load(); }} onDelete={(p) => void remove(p)} />}
 
       <Modal open={!!details} onClose={() => setDetails(null)} title={details ? STATUS[details.status].label : ''} subtitle={details ? `${postDate(details).toLocaleString()} · ${details.createdBy}` : undefined}
         footer={details && (
           <>
             {details.status === 'failed' && <Button variant="secondary" icon={<Trash2 size={13} />} onClick={() => void remove(details)}>Delete</Button>}
             {(details.status === 'failed' || details.status === 'partial') && <Button icon={<RotateCcw size={13} />} loading={busy === 'retry'} onClick={() => void retry(details)}>Retry</Button>}
+            {targets.length > 0 && <Button variant="secondary" onClick={() => { const seed = details; setDetails(null); setComposing({ seed }); }}>Post again</Button>}
+            {editText !== null ? <Button loading={busy === 'edit'} disabled={!editText.trim()} onClick={() => void saveText(details)}>Save on Facebook</Button> : onePage(details) && <Button variant="secondary" icon={<Pencil size={13} />} onClick={() => setEditText(details.text)}>Edit text</Button>}
             <Button variant="secondary" onClick={() => setDetails(null)}>Close</Button>
           </>
         )}>
         {details && (
           <div className="space-y-3">
-            {details.imageUrl && <img src={details.imageUrl} alt="" className="max-h-64 rounded-lg border border-[#DADDE1] object-contain" />}
-            <p className="whitespace-pre-wrap break-words text-sm text-[#1C2B33]">{details.text}</p>
-            {details.link && <a href={details.link} target="_blank" rel="noopener noreferrer" className="block truncate text-xs font-semibold text-[#0866FF] hover:underline">{details.link}</a>}
+            {editText !== null
+              ? <textarea className="w-full min-h-[140px] rounded-lg border border-[#CED0D4] p-2.5 text-sm text-[#1C2B33] focus:border-[#0866FF] focus:outline-none" aria-label="Post text" value={editText} maxLength={3000} onChange={(e) => setEditText(e.target.value)} />
+              : details.targets[0] && <Preview kind={details.targets[0].kind} name={details.targets[0].name} text={details.text} link={details.link} image={details.imageUrl} when={whenText(details)} metrics={details.metrics} />}
+            <p className="text-[11px] text-[#65676B]">Facebook and Instagram do not let an app replace the picture of a published post. To use a new picture, choose Post again, then remove the old post on the platform (open it from the account below).</p>
             <Accounts post={details} />
             {details.targets.filter((t) => t.status === 'failed').map((t) => <p key={t.key} className="text-xs text-[#B42318]">{KIND[t.kind].label}: {t.error}</p>)}
           </div>

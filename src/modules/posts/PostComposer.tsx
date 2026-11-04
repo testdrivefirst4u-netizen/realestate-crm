@@ -22,7 +22,7 @@ const heading = 'text-[15px] font-bold text-[#1C2B33]';
 const hostOf = (link: string) => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } };
 
 /** Roughly how the post will look; each platform draws it in its own way. */
-const Preview: React.FC<{ kind: PostTargetKind; name: string; text: string; link: string; image: string }> = ({ kind, name, text, link, image }) => {
+export const Preview: React.FC<{ kind: PostTargetKind; name: string; text: string; link: string; image: string; when?: string; metrics?: SocialPost['metrics'] }> = ({ kind, name, text, link, image, when = 'Just now', metrics }) => {
   const initial = (name.replace(/^@/, '')[0] || '?').toUpperCase();
   const avatar = <span className={cx('flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm font-bold text-white', KIND[kind].cls)}>{initial}</span>;
   if (kind === 'instagram') {
@@ -31,7 +31,8 @@ const Preview: React.FC<{ kind: PostTargetKind; name: string; text: string; link
         <div className="flex items-center gap-2 p-2.5">{avatar}<b className="truncate">{name.replace(/^@/, '')}</b></div>
         {image ? <img src={image} alt="" className="aspect-square w-full object-cover" /> : <div className="flex aspect-square w-full items-center justify-center bg-[#F0F2F5] px-6 text-center text-xs text-[#65676B]">Instagram needs an image</div>}
         <div className="flex items-center gap-3 p-2.5"><Heart size={20} /><MessageCircle size={20} /><Send size={20} /><Bookmark size={20} className="ml-auto" /></div>
-        <p className="whitespace-pre-wrap break-words px-2.5 pb-3"><b>{name.replace(/^@/, '')}</b> {text}{link && <span className="block text-[#65676B]">{link}</span>}</p>
+        {metrics && metrics.likes !== null && <p className="px-2.5 pb-1 font-semibold">{metrics.likes.toLocaleString('en-IN')} likes</p>}
+        <p className="whitespace-pre-wrap break-words px-2.5 pb-3"><b>{name.replace(/^@/, '')}</b> {text}{link && <span className="block text-[#65676B]">{link}</span>}{metrics && metrics.comments !== null && metrics.comments > 0 && <span className="mt-1 block text-[#65676B]">View all {metrics.comments.toLocaleString('en-IN')} comments</span>}<span className="mt-1 block text-[10px] uppercase text-[#65676B]">{when}</span></p>
       </div>
     );
   }
@@ -39,22 +40,23 @@ const Preview: React.FC<{ kind: PostTargetKind; name: string; text: string; link
     <div className="rounded-lg border border-[#DADDE1] bg-white text-[13px] text-[#1C2B33]">
       <div className="flex items-center gap-2 p-3">
         {avatar}
-        <span className="min-w-0"><b className="block truncate">{name}</b><span className="inline-flex items-center gap-1 text-[11px] text-[#65676B]">Just now <Globe2 size={10} /></span></span>
+        <span className="min-w-0"><b className="block truncate">{name}</b><span className="inline-flex items-center gap-1 text-[11px] text-[#65676B]">{when} <Globe2 size={10} /></span></span>
       </div>
       {text && <p className="whitespace-pre-wrap break-words px-3 pb-3">{text}</p>}
       {image && <img src={image} alt="" className="w-full object-cover" />}
       {link && !image && <div className="border-y border-[#DADDE1] bg-[#F0F2F5] px-3 py-2"><span className="block text-[10px] uppercase text-[#65676B]">{hostOf(link)}</span><span className="block truncate font-semibold">{link}</span></div>}
+      {kind === 'facebook' && metrics && <div className="flex justify-between px-3 py-2 text-xs text-[#65676B]"><span>{(metrics.likes ?? 0).toLocaleString('en-IN')} likes</span><span>{(metrics.comments ?? 0).toLocaleString('en-IN')} comments · {(metrics.shares ?? 0).toLocaleString('en-IN')} shares</span></div>}
       {kind === 'facebook' && <div className="grid grid-cols-3 border-t border-[#DADDE1] py-1 text-xs font-semibold text-[#65676B]"><span className="inline-flex items-center justify-center gap-1.5 py-1.5"><ThumbsUp size={15} /> Like</span><span className="inline-flex items-center justify-center gap-1.5 py-1.5"><MessageCircle size={15} /> Comment</span><span className="inline-flex items-center justify-center gap-1.5 py-1.5"><Share2 size={15} /> Share</span></div>}
     </div>
   );
 };
 
-export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: SocialPost | null; initialWhen?: Date | null; onClose: () => void; onSaved: () => void; onDelete?: (p: SocialPost) => void }> = ({ targets, post, initialWhen, onClose, onSaved, onDelete }) => {
-  const [text, setText] = useState(post?.text || '');
-  const [link, setLink] = useState(post?.link || '');
+export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: SocialPost | null; seed?: SocialPost | null; initialWhen?: Date | null; onClose: () => void; onSaved: () => void; onDelete?: (p: SocialPost) => void }> = ({ targets, post, seed, initialWhen, onClose, onSaved, onDelete }) => {
+  const [text, setText] = useState(post?.text || seed?.text || '');
+  const [link, setLink] = useState(post?.link || seed?.link || '');
   const [image, setImage] = useState<{ fileId: string; previewUrl: string } | null>(post?.imageFileId ? { fileId: post.imageFileId, previewUrl: post.imageUrl } : null);
   // accounts that are no longer connected are dropped: they could not be posted to
-  const [chosen, setChosen] = useState<string[]>((post?.targets || []).map((t) => t.key).filter((k) => targets.some((t) => t.key === k)));
+  const [chosen, setChosen] = useState<string[]>((post?.targets || seed?.targets || []).map((t) => t.key).filter((k) => targets.some((t) => t.key === k)));
   const [mode, setMode] = useState<Mode>(post?.status === 'draft' ? 'draft' : post || initialWhen ? 'schedule' : 'now');
   const [when, setWhen] = useState(post?.status === 'scheduled' ? localInput(new Date(post.scheduledAt)) : initialWhen ? localInput(initialWhen) : '');
   const [previewKey, setPreviewKey] = useState('');

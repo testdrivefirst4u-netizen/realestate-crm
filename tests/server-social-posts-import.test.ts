@@ -6,7 +6,7 @@ import { col } from '../server/core/db';
 import { encryptSecret } from '../server/core/settings';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
-import { deletePost, listPosts, runPostsCron, updatePost } from '../server/modules/socialPosts';
+import { deletePost, editPublishedPost, listPosts, runPostsCron, updatePost } from '../server/modules/socialPosts';
 import { importOldPosts, runImportPostsCron, syncOldPosts } from '../server/modules/socialPostsImport';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -20,13 +20,18 @@ const inCo = async <T>(fn: () => Promise<T>) => {
 };
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-async function fake(input: any): Promise<Response> {
+let edits: Array<{ path: string; body: string }> = [];
+let refuseCounts = false;
+
+async function fake(input: any, init: any = {}): Promise<Response> {
   const url = new URL(String(input));
   const path = url.pathname.replace(/^\/v\d+\.\d+\//, '/');
+  if (String(init.method || 'GET') === 'POST') { edits.push({ path, body: String(init.body) }); return json(200, { success: true }); }
+  if (refuseCounts && /likes|like_count/.test(url.searchParams.get('fields') || '')) return json(400, { error: { message: 'Missing permission', code: 10 } });
   if (path === '/PAGE1/published_posts') {
     fbPages += 1;
     if (!url.searchParams.get('after')) return json(200, { data: [
-      { id: 'PAGE1_1', message: 'Diwali offer', created_time: '2026-10-20T06:00:00+0000', permalink_url: 'https://www.facebook.com/PAGE1/posts/1', full_picture: 'https://cdn.example/1.jpg' },
+      { id: 'PAGE1_1', message: 'Diwali offer', created_time: '2026-10-20T06:00:00+0000', permalink_url: 'https://www.facebook.com/PAGE1/posts/1', full_picture: 'https://cdn.example/1.jpg', ...(refuseCounts ? {} : { likes: { summary: { total_count: 12 } }, comments: { summary: { total_count: 3 } }, shares: { count: 2 } }) },
       { id: 'PAGE1_CRM', message: 'Made in the CRM', created_time: '2026-10-10T06:00:00+0000' },
     ], paging: { cursors: { after: 'NEXT' }, next: 'https://graph.facebook.com/next' } });
     return json(200, { data: [
@@ -37,7 +42,7 @@ async function fake(input: any): Promise<Response> {
   if (path === '/IG1/media') {
     if (igFails) return json(400, { error: { message: 'Instagram said no', code: 10 } });
     return json(200, { data: [
-      { id: 'M1', caption: 'Tower view', media_type: 'IMAGE', media_url: 'https://cdn.example/m1.jpg', permalink: 'https://www.instagram.com/p/m1/', timestamp: '2026-10-25T06:00:00+0000' },
+      { id: 'M1', like_count: 40, comments_count: 5, caption: 'Tower view', media_type: 'IMAGE', media_url: 'https://cdn.example/m1.jpg', permalink: 'https://www.instagram.com/p/m1/', timestamp: '2026-10-25T06:00:00+0000' },
       { id: 'M2', media_type: 'VIDEO', media_url: 'https://cdn.example/m2.mp4', thumbnail_url: 'https://cdn.example/m2.jpg', permalink: 'https://www.instagram.com/p/m2/', timestamp: '2026-10-26T06:00:00+0000' },
     ] });
   }
@@ -59,6 +64,8 @@ beforeEach(async () => {
   await t.company('test', { socialPosts: true });
   igFails = false;
   fbPages = 0;
+  edits = [];
+  refuseCounts = false;
   vi.stubGlobal('fetch', vi.fn(fake));
   await inCo(async () => {
     await (await col<any>(CFG.COLL.INTEGRATIONS)).insertOne({ _id: 'metaSocial', pages: [{ id: 'PAGE1', name: 'Amaya', token: encryptSecret('PT'), igId: 'IG1', igUsername: 'amaya' }] });
@@ -68,6 +75,53 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('old posts', () => {
+  it('Sync old posts reads the whole history, with likes, comments and shares', async () => {
+    const r = await inCo(() => syncOldPosts({}, ctx));
+    expect(r.imported).toBe(5); // the 2024 post too
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
+    expect(posts.find((p) => p.text === 'Diwali offer')!.metrics).toEqual({ likes: 12, comments: 3, shares: 2 });
+    expect(posts.find((p) => p.text === 'Tower view')!.metrics).toEqual({ likes: 40, comments: 5, shares: null });
+  });
+
+  it('still copies the posts when Meta refuses the counts', async () => {
+    refuseCounts = true;
+    const r = await inCo(() => importOldPosts({ now }));
+    expect(r).toMatchObject({ imported: 4, errors: [] });
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
+    expect(posts.find((p) => p.text === 'Diwali offer')!.metrics).toEqual({ likes: null, comments: null, shares: null });
+  });
+
+  it('the list comes in pages, by status', async () => {
+    await inCo(() => syncOldPosts({}, ctx));
+    const q = { from: '2000-01-01T00:00:00Z', statuses: ['published'], limit: 4 };
+    const first = await inCo(() => listPosts({ ...q, skip: 0 }));
+    expect([first.posts.length, first.hasMore]).toEqual([4, true]);
+    const next = await inCo(() => listPosts({ ...q, skip: 4 }));
+    expect([next.posts.length, next.hasMore]).toEqual([2, false]);
+    expect((await inCo(() => listPosts({ ...q, statuses: ['draft'] }))).posts).toEqual([]);
+  });
+
+  it('changes the text of a post on one Facebook Page, on Facebook first; Instagram is refused', async () => {
+    await inCo(() => importOldPosts({ now }));
+    const p = await inCo(() => editPublishedPost({ id: 'IMP-facebook-PAGE1_1', text: 'New words' }, ctx));
+    expect(p.text).toBe('New words');
+    expect(edits).toHaveLength(1);
+    expect(edits[0].path).toBe('/PAGE1_1');
+    expect(new URLSearchParams(edits[0].body).get('message')).toBe('New words');
+    await expect(inCo(() => editPublishedPost({ id: 'IMP-instagram-M1', text: 'Nope' }, ctx))).rejects.toThrow(/one Facebook Page/);
+    await expect(inCo(() => editPublishedPost({ id: 'IMP-facebook-PAGE1_1', text: ' ' }, ctx))).rejects.toThrow(/Write the post/);
+    expect(edits).toHaveLength(1);
+  });
+
+  it('keeps the old text when Facebook refuses the change', async () => {
+    await inCo(() => importOldPosts({ now }));
+    vi.stubGlobal('fetch', vi.fn(async () => json(400, { error: { message: 'Not allowed', code: 200 } })));
+    await expect(inCo(() => editPublishedPost({ id: 'IMP-facebook-PAGE1_1', text: 'New words' }, ctx))).rejects.toThrow();
+    vi.stubGlobal('fetch', vi.fn(fake));
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
+    expect(posts.some((x) => x.text === 'Diwali offer')).toBe(true);
+  });
+
   it('copies a year of Facebook and Instagram posts, over pages, and stops at the cutoff', async () => {
     const r = await inCo(() => importOldPosts({ now }));
     expect(r).toEqual({ imported: 4, updated: 0, skipped: 1, errors: [] });
