@@ -125,7 +125,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
   [/^(listPosts|getPost|createPost|updatePost|reschedulePost|editPublishedPost|retryPost|deletePost|uploadPostImage|uploadPostVideoPart|finishPostVideo|discardPostVideo|syncOldPosts|getPostComments|getSocialInsights|getPostInsights)$/, 'socialPosts', 'The post scheduler'],
   [/^(listAdCampaigns|listMetaAds|setCampaignStatus|setCampaignBudget|saveAdAlerts)$/, 'adsControl', 'The ads manager'],
-  [/^(listCompetitors|saveCompetitor|deleteCompetitor|recordCompetitorCheck|saveCompetitorAd|deleteCompetitorAd)$/, 'competitorAds', 'Competitor ads'],
+  [/^(listCompetitors|saveCompetitor|deleteCompetitor|recordCompetitorCheck|saveCompetitorAd|deleteCompetitorAd|setCompetitorAdActive)$/, 'competitorAds', 'Competitor ads'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
   [/LeadSource|^listInboundLog$|^retryInbound$/, ['websiteApi', 'googleSheets', 'metaLeads', 'googleAdsLeads', 'linkedin'], 'Website forms & lead API'],
   // googleStatus is not gated (it only says whether the platform is configured and which e-mail to share with)

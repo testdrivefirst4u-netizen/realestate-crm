@@ -7,7 +7,7 @@ import { col } from '../server/core/db';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { dispatch } from '../server/router';
-import { googleAdsUrl, listCompetitors, metaAdLibraryUrl, normalizeWebsite, recordCompetitorCheck } from '../server/modules/competitors';
+import { googleAdsUrl, libraryIdOf, listCompetitors, metaAdLibraryUrl, normalizeWebsite, recordCompetitorCheck } from '../server/modules/competitors';
 import { statFile } from '../server/modules/storage';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -131,6 +131,27 @@ describe('saved ads', () => {
     expect(await inCo(() => statFile(fileId))).toBeNull();
   });
 
+  it('keeps what a library card shows, and reads the Library ID from a Meta link', async () => {
+    expect(libraryIdOf('https://www.facebook.com/ads/library/?id=1234567890')).toBe('1234567890');
+    expect(libraryIdOf('https://evil.example/ads/library/?id=1234567890')).toBe('');
+    expect(libraryIdOf('not a link')).toBe('');
+    const id = await add();
+    expect((await as('Meera', 'saveCompetitorAd', ad(id, { link: 'https://www.facebook.com/ads/library/?id=1234567890', startedOn: '2026-10-01', active: false, placements: ['Facebook', 'Instagram', 'Nowhere'] }))).status).toBe('success');
+    const saved = (await as('Fiona', 'listCompetitors')).data.competitors[0].ads[0];
+    expect(saved).toMatchObject({ libraryId: '1234567890', startedOn: '2026-10-01', active: false, placements: ['Facebook', 'Instagram'] });
+    expect((await as('Asha', 'saveCompetitorAd', ad(id, { startedOn: 'last week' }))).status).toBe('error');
+  });
+
+  it('marks a saved ad active or inactive; older saved ads count as active', async () => {
+    const id = await add();
+    await as('Meera', 'saveCompetitorAd', ad(id));
+    const first = (await as('Fiona', 'listCompetitors')).data.competitors[0].ads[0];
+    expect(first.active).toBe(true);
+    expect((await as('Meera', 'setCompetitorAdActive', { id: first.id, active: false })).status).toBe('success');
+    expect((await as('Fiona', 'listCompetitors')).data.competitors[0].ads[0].active).toBe(false);
+    expect((await as('Asha', 'setCompetitorAdActive', { id: 'missing' })).status).toBe('error');
+  });
+
   it('refuses unsafe links, other file types, and an empty ad', async () => {
     const id = await add();
     expect((await as('Asha', 'saveCompetitorAd', ad(id, { link: 'javascript:alert(1)' }))).status).toBe('error');
@@ -164,6 +185,7 @@ describe('who may do what', () => {
         ['recordCompetitorCheck', { id, platform: 'meta', status: 'running' }],
         ['saveCompetitorAd', { competitorId: id, platform: 'meta', seenOn: '2026-11-04', offer: 'x' }],
         ['deleteCompetitorAd', { id: 'x' }],
+        ['setCompetitorAdActive', { id: 'x' }],
       ] as Array<[string, any]>) {
         const r = await inCo(() => dispatch(action, data, { ...base, token: tokens[who] }));
         expect(r.status, `${who} ${action}`).toBe(403);

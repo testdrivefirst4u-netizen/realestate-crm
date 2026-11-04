@@ -2,8 +2,9 @@
  * Competitor ads (plan feature competitorAds, screen /competitors): the company's list of competitors, one-click links
  * to their ads in Meta's Ad Library and Google's Ads Transparency Center, what the team saw there and when.
  *
- * The CRM does not read those sites: neither offers a usable feed of commercial ads for India, so "running or not"
- * is what a person recorded on the date shown. A competitor is due when a platform was not checked for 7 days.
+ * The CRM does not read those sites: Meta's Ad Library API gives ads that never reached the EU only if they are about
+ * social issues, elections or politics, and Google publishes no such feed, so what shows here is what a person saved, and
+ * "running or not" is what they recorded on the date shown. A competitor is due when a platform was not checked for 7 days.
  * Reading needs leads.viewAll (not RMs); adding and recording needs marketing.manage (Admins, Managers).
  */
 import type { ActionMap } from '../core/actions';
@@ -27,6 +28,7 @@ export type AdFormat = 'image' | 'video' | 'carousel' | 'text' | 'other';
 const PLATFORMS: AdPlatform[] = ['meta', 'google'];
 const STATUSES: AdStatus[] = ['running', 'not_running'];
 const FORMATS: AdFormat[] = ['image', 'video', 'carousel', 'text', 'other'];
+const PLACEMENTS = ['Facebook', 'Instagram', 'Messenger', 'Audience Network', 'Google Search', 'Display', 'YouTube', 'Maps', 'Shopping'];
 
 interface Check { platform: AdPlatform; status: AdStatus; at: Date; by: string }
 interface CompetitorDoc {
@@ -58,6 +60,11 @@ interface CompetitorAdDoc {
   format: AdFormat;
   note: string;
   seenOn: string;
+  /** What the library card says; older saved ads have none of these. */
+  active?: boolean;
+  startedOn?: string;
+  libraryId?: string;
+  placements?: string[];
   createdBy: string;
   createdAt: Date;
 }
@@ -96,7 +103,7 @@ export function googleAdsUrl(c: { website?: string }): string {
 /* ---------------------------------- views --------------------------------- */
 
 export interface CompetitorCheckView { status: AdStatus; at: string; by: string }
-export interface CompetitorAdView { id: string; platform: AdPlatform; link: string; imageUrl: string; offer: string; project: string; price: string; format: AdFormat; note: string; seenOn: string; createdBy: string }
+export interface CompetitorAdView { id: string; platform: AdPlatform; link: string; imageUrl: string; offer: string; project: string; price: string; format: AdFormat; note: string; seenOn: string; active: boolean; startedOn: string; libraryId: string; placements: string[]; createdBy: string }
 export interface CompetitorView {
   id: string; name: string; pageName: string; website: string; area: string; assignedToId: string; assignedToName: string;
   metaUrl: string; googleUrl: string;
@@ -109,10 +116,20 @@ export interface CompetitorView {
 const checkView = (c: Check | null): CompetitorCheckView | null => (c ? { status: c.status, at: c.at.toISOString(), by: c.by } : null);
 const stale = (c: Check | null, now: number) => !c || now - c.at.getTime() >= CHECK_EVERY_DAYS * DAY_MS;
 
+/** The ad's id in a Meta Ad Library link (…/ads/library/?id=123). */
+export function libraryIdOf(link: string): string {
+  try {
+    const u = new URL(link);
+    return /(^|\.)facebook\.com$/.test(u.hostname) && /^\d{5,25}$/.test(u.searchParams.get('id') || '') ? String(u.searchParams.get('id')) : '';
+  } catch {
+    return '';
+  }
+}
+
 function adView(a: CompetitorAdDoc): CompetitorAdView {
   return {
     id: a._id, platform: a.platform, link: a.link, imageUrl: a.imageFileId ? `/api/files/${a.imageFileId}` : '',
-    offer: a.offer, project: a.project, price: a.price, format: a.format, note: a.note, seenOn: a.seenOn, createdBy: a.createdBy,
+    offer: a.offer, project: a.project, price: a.price, format: a.format, note: a.note, seenOn: a.seenOn, active: a.active !== false, startedOn: a.startedOn || '', libraryId: a.libraryId || libraryIdOf(a.link), placements: a.placements || [], createdBy: a.createdBy,
   };
 }
 
@@ -231,9 +248,12 @@ export async function saveCompetitorAd(d: any, ctx: Ctx): Promise<{ id: string }
     if (data.length > MAX_IMAGE) throw fail('VALIDATION', 'The screenshot is larger than 3 MB. Make it smaller first.');
     imageFileId = (await saveFile({ category: COMPETITOR_IMAGE_CATEGORY, name: str(d.image.name) || 'ad.jpg', mime, data, uploadedBy: ctx.user?.name || 'System' })).fileId;
   }
+  const startedOn = str(d?.startedOn);
+  if (startedOn && (!/^\d{4}-\d{2}-\d{2}$/.test(startedOn) || Number.isNaN(Date.parse(startedOn)))) throw fail('VALIDATION', 'Choose the date the ad started running.');
+  const placements = ([...new Set((Array.isArray(d?.placements) ? d.placements : []).map(String))] as string[]).filter((p) => PLACEMENTS.includes(p));
   const id = uuid();
   await (await adsCol()).insertOne({
-    _id: id, competitorId, platform, link, imageFileId, offer, format, note, seenOn,
+    _id: id, competitorId, platform, link, imageFileId, offer, format, note, seenOn, active: d?.active !== false, startedOn, placements, libraryId: libraryIdOf(link),
     project: truncate(str(d?.project), 120), price: truncate(str(d?.price), 120),
     createdBy: ctx.user?.name || 'System', createdAt: new Date(),
   });
@@ -249,7 +269,17 @@ export async function deleteCompetitorAd(d: any, ctx: Ctx): Promise<{ ok: true }
   return { ok: true };
 }
 
+/** The team saw it has stopped (or started again). */
+export async function setCompetitorAdActive(d: any, ctx: Ctx): Promise<{ ok: true }> {
+  const active = d?.active !== false;
+  const r = await (await adsCol()).findOneAndUpdate({ _id: str(d?.id) }, { $set: { active, seenOn: new Date().toISOString().slice(0, 10) } });
+  if (!r) throw fail('NOT_FOUND', 'This saved ad is no longer here.');
+  await auditLog(ctx, active ? 'Competitor Ad Active' : 'Competitor Ad Inactive', 'Competitors', r.competitorId, truncate(r.offer || r.link || r.note, 80));
+  return { ok: true };
+}
+
 export const actions: ActionMap = {
+  setCompetitorAdActive: { fn: (d, ctx) => setCompetitorAdActive(d, ctx), perm: 'marketing.manage' },
   listCompetitors: { fn: () => listCompetitors(), perm: 'leads.viewAll' },
   saveCompetitor: { fn: (d, ctx) => saveCompetitor(d, ctx), perm: 'marketing.manage' },
   deleteCompetitor: { fn: (d, ctx) => deleteCompetitor(d, ctx), perm: 'marketing.manage' },

@@ -272,7 +272,7 @@ export interface SocialPost {
 export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
 /** Competitor ads (server: modules/competitors.ts). */
 export interface CompetitorCheck { status: 'running' | 'not_running'; at: string; by: string }
-export interface CompetitorAd { id: string; platform: 'meta' | 'google'; link: string; imageUrl: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; createdBy: string }
+export interface CompetitorAd { id: string; platform: 'meta' | 'google'; link: string; imageUrl: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; libraryId: string; placements: string[]; createdBy: string }
 export interface CompetitorView { id: string; name: string; pageName: string; website: string; area: string; assignedToId: string; assignedToName: string; metaUrl: string; googleUrl: string; meta: CompetitorCheck | null; google: CompetitorCheck | null; due: boolean; ads: CompetitorAd[] }
 /** Website analytics (server: modules/websiteAnalytics.ts). */
 export interface WebsiteAnalytics {
@@ -600,8 +600,9 @@ export const api = {
     save: (d: { id?: string; name: string; pageName: string; website: string; area: string; assignedToId: string }) => request<{ id: string }>('saveCompetitor', d),
     remove: (id: string) => request<{ ok: true }>('deleteCompetitor', { id }),
     recordCheck: (id: string, platform: 'meta' | 'google', status: 'running' | 'not_running') => request<{ ok: true }>('recordCompetitorCheck', { id, platform, status }),
-    saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
+    saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; placements: string[]; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
+    setAdActive: (id: string, active: boolean) => request<{ ok: true }>('setCompetitorAdActive', { id, active }),
   },
   analytics: {
     report: (d: { report: string; dimension?: string; preset?: string; from?: string; to?: string; compare?: boolean; refresh?: boolean }) => request<AnalyticsReport>('getAnalyticsReport', d, { timeoutMs: 60000 }),
