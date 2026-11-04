@@ -7,7 +7,7 @@ import { encryptSecret } from '../server/core/settings';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { deletePost, editPublishedPost, listPosts, runPostsCron, updatePost } from '../server/modules/socialPosts';
-import { importOldPosts, runImportPostsCron, syncOldPosts } from '../server/modules/socialPostsImport';
+import { getPostComments, importOldPosts, runImportPostsCron, syncOldPosts } from '../server/modules/socialPostsImport';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let igFails = false;
@@ -22,17 +22,21 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 
 let edits: Array<{ path: string; body: string }> = [];
 let refuseCounts = false;
+let refuseComments = false;
 
 async function fake(input: any, init: any = {}): Promise<Response> {
   const url = new URL(String(input));
   const path = url.pathname.replace(/^\/v\d+\.\d+\//, '/');
   if (String(init.method || 'GET') === 'POST') { edits.push({ path, body: String(init.body) }); return json(200, { success: true }); }
-  if (refuseCounts && /likes|like_count/.test(url.searchParams.get('fields') || '')) return json(400, { error: { message: 'Missing permission', code: 10 } });
+  if (refuseCounts && /reactions|like_count/.test(url.searchParams.get('fields') || '')) return json(400, { error: { message: 'Missing permission', code: 10 } });
+  if (refuseComments && /comments\.summary/.test(url.searchParams.get('fields') || '')) return json(400, { error: { message: 'Needs pages_read_user_content', code: 10 } });
+  if (path === '/PAGE1_1/comments') return json(200, { data: [{ id: 'C1', from: { name: 'Neha' }, message: 'Price?', created_time: '2026-10-21T06:00:00+0000' }, { id: 'C2', message: 'Nice', created_time: '2026-10-22T06:00:00+0000' }] });
+  if (path === '/M1/comments') return json(200, { data: [{ id: 'C3', username: 'ravi', text: 'Lovely', timestamp: '2026-10-26T06:00:00+0000' }] });
   if (path === '/PAGE1/published_posts') {
     fbPages += 1;
     if (!url.searchParams.get('after')) return json(200, { data: [
-      { id: 'PAGE1_1', message: 'Diwali offer', created_time: '2026-10-20T06:00:00+0000', permalink_url: 'https://www.facebook.com/PAGE1/posts/1', full_picture: 'https://cdn.example/1.jpg', ...(refuseCounts ? {} : { likes: { summary: { total_count: 12 } }, comments: { summary: { total_count: 3 } }, shares: { count: 2 } }) },
-      { id: 'PAGE1_CRM', message: 'Made in the CRM', created_time: '2026-10-10T06:00:00+0000' },
+      { id: 'PAGE1_1', message: 'Diwali offer', created_time: '2026-10-20T06:00:00+0000', permalink_url: 'https://www.facebook.com/PAGE1/posts/1', full_picture: 'https://cdn.example/1.jpg', ...(refuseCounts ? {} : { reactions: { summary: { total_count: 12 } }, ...(refuseComments ? {} : { comments: { summary: { total_count: 3 } } }), shares: { count: 2 } }) },
+      { id: 'PAGE1_CRM', message: 'Made in the CRM', created_time: '2026-10-10T06:00:00+0000', reactions: { summary: { total_count: 7 } }, comments: { summary: { total_count: 1 } } },
     ], paging: { cursors: { after: 'NEXT' }, next: 'https://graph.facebook.com/next' } });
     return json(200, { data: [
       { id: 'PAGE1_2', message: 'Site visit', created_time: '2026-03-01T06:00:00+0000' },
@@ -66,6 +70,7 @@ beforeEach(async () => {
   fbPages = 0;
   edits = [];
   refuseCounts = false;
+  refuseComments = false;
   vi.stubGlobal('fetch', vi.fn(fake));
   await inCo(async () => {
     await (await col<any>(CFG.COLL.INTEGRATIONS)).insertOne({ _id: 'metaSocial', pages: [{ id: 'PAGE1', name: 'Amaya', token: encryptSecret('PT'), igId: 'IG1', igUsername: 'amaya' }] });
@@ -87,8 +92,33 @@ describe('old posts', () => {
     refuseCounts = true;
     const r = await inCo(() => importOldPosts({ now }));
     expect(r).toMatchObject({ imported: 4, errors: [] });
+    expect(r.warnings).toEqual([expect.stringMatching(/^Amaya: counts are missing. Meta said: .*Missing permission/), expect.stringMatching(/^@amaya: counts are missing. Meta said: .*Missing permission/)]);
     const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
     expect(posts.find((p) => p.text === 'Diwali offer')!.metrics).toEqual({ likes: null, comments: null, shares: null });
+  });
+
+  it('keeps the reactions when only the comment count is refused, and says so', async () => {
+    refuseComments = true;
+    const r = await inCo(() => importOldPosts({ now }));
+    expect(r.warnings).toEqual([expect.stringMatching(/^Amaya: some counts are missing. Meta said: .*Needs pages_read_user_content/)]);
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
+    expect(posts.find((p) => p.text === 'Diwali offer')!.metrics).toEqual({ likes: 12, comments: null, shares: 2 });
+  });
+
+  it('a post made in the CRM gets the counts too, without being copied', async () => {
+    await inCo(() => importOldPosts({ now }));
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
+    expect(posts.filter((p) => p.text === 'Made in the CRM')).toHaveLength(1);
+    expect(posts.find((p) => p.id === 'POST-0001')!.metrics).toMatchObject({ likes: 7, comments: 1 });
+  });
+
+  it('reads the comments of a Facebook or Instagram post when it is opened', async () => {
+    await inCo(() => importOldPosts({ now }));
+    expect((await inCo(() => getPostComments({ id: 'IMP-facebook-PAGE1_1' }))).comments).toEqual([
+      { id: 'C1', author: 'Neha', text: 'Price?', at: '2026-10-21T06:00:00+0000' }, { id: 'C2', author: 'Facebook user', text: 'Nice', at: '2026-10-22T06:00:00+0000' },
+    ]);
+    expect((await inCo(() => getPostComments({ id: 'IMP-instagram-M1' }))).comments).toEqual([{ id: 'C3', author: 'ravi', text: 'Lovely', at: '2026-10-26T06:00:00+0000' }]);
+    expect(await inCo(() => getPostComments({ id: 'missing' }))).toEqual({ comments: [] });
   });
 
   it('the list comes in pages, by status', async () => {
@@ -124,7 +154,7 @@ describe('old posts', () => {
 
   it('copies a year of Facebook and Instagram posts, over pages, and stops at the cutoff', async () => {
     const r = await inCo(() => importOldPosts({ now }));
-    expect(r).toEqual({ imported: 4, updated: 0, skipped: 1, errors: [] });
+    expect(r).toEqual({ imported: 4, updated: 0, skipped: 1, errors: [], warnings: [] });
     expect(fbPages).toBe(2); // the older page ended it; the third was not fetched
     const { posts } = await inCo(() => listPosts({ from: '2024-01-01T00:00:00Z', to: '2027-01-01T00:00:00Z' }));
     expect(posts.map((p) => p.text).sort()).toEqual(['', 'Diwali offer', 'Made in the CRM', 'Site visit', 'Tower view']);

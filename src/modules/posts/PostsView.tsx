@@ -58,6 +58,7 @@ export const PostsView: React.FC = () => {
   const [composing, setComposing] = useState<{ post?: SocialPost | null; seed?: SocialPost | null; when?: Date | null } | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [editText, setEditText] = useState<string | null>(null);
+  const [comments, setComments] = useState<{ id: string; rows: Array<{ id: string; author: string; text: string; at: string }> | null; error: string } | null>(null);
   const [details, setDetails] = useState<SocialPost | null>(null);
   const [busy, setBusy] = useState('');
   const grid = useMemo(() => monthGrid(month), [month]);
@@ -75,6 +76,18 @@ export const PostsView: React.FC = () => {
     }
   }, [tab, grid, filter]);
   useEffect(() => void load(), [load]);
+
+  // the comments of the opened post
+  const openedId = details?.id || '';
+  useEffect(() => {
+    if (!openedId) { setComments(null); return; }
+    let live = true;
+    setComments({ id: openedId, rows: null, error: '' });
+    api.posts.comments(openedId)
+      .then((r) => { if (live) setComments({ id: openedId, rows: r.comments, error: '' }); })
+      .catch((e) => { if (live) setComments({ id: openedId, rows: [], error: errText('posts.comments', e) }); });
+    return () => { live = false; };
+  }, [openedId]);
 
   const retry = async (p: SocialPost) => {
     setBusy('retry');
@@ -129,7 +142,7 @@ export const PostsView: React.FC = () => {
     setBusy('sync');
     try {
       const r = await api.posts.syncOld();
-      const failed = r.errors.map((e) => `${e.account}: ${e.message}`).join(' · ');
+      const failed = [...r.errors.map((e) => `${e.account}: ${e.message}`), ...r.warnings].join(' · ');
       toast(`${r.imported} old post${r.imported === 1 ? '' : 's'} added`, failed || (r.updated ? `${r.updated} already here were refreshed.` : undefined), failed ? 'alert' : 'success');
       await load();
     } catch (e) {
@@ -251,6 +264,22 @@ export const PostsView: React.FC = () => {
             {editText !== null
               ? <textarea className="w-full min-h-[140px] rounded-lg border border-[#CED0D4] p-2.5 text-sm text-[#1C2B33] focus:border-[#0866FF] focus:outline-none" aria-label="Post text" value={editText} maxLength={3000} onChange={(e) => setEditText(e.target.value)} />
               : details.targets[0] && <Preview kind={details.targets[0].kind} name={details.targets[0].name} text={details.text} link={details.link} image={details.imageUrl} when={whenText(details)} metrics={details.metrics} />}
+            {comments && (
+              <div>
+                <h3 className="text-[13px] font-bold text-[#1C2B33]">Comments</h3>
+                {comments.rows === null ? <p className="mt-1 text-xs text-[#65676B]">Loading…</p> : comments.error ? <p className="mt-1 text-xs text-[#B42318]">{comments.error}</p> : !comments.rows.length ? <p className="mt-1 text-xs text-[#65676B]">No comments to show.</p> : (
+                  <ul className="mt-1.5 max-h-56 space-y-2 overflow-y-auto">
+                    {comments.rows.map((c) => (
+                      <li key={c.id} className="rounded-xl bg-[#F0F2F5] px-3 py-2 text-xs text-[#1C2B33]">
+                        <b className="block font-semibold">{c.author}</b>
+                        <span className="whitespace-pre-wrap break-words">{c.text}</span>
+                        {c.at && <span className="mt-0.5 block text-[10px] text-[#65676B]">{new Date(c.at).toLocaleString()}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <p className="text-[11px] text-[#65676B]">Facebook and Instagram do not let an app replace the picture of a published post. To use a new picture, choose Post again, then remove the old post on the platform (open it from the account below).</p>
             <Accounts post={details} />
             {details.targets.filter((t) => t.status === 'failed').map((t) => <p key={t.key} className="text-xs text-[#B42318]">{KIND[t.kind].label}: {t.error}</p>)}

@@ -115,7 +115,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(listInbox|getInboxThread|replyInbox|markInboxRead|inboxCreateLead|refreshInbox)$/, 'socialInbox', 'The social inbox'],
   [/^(get|save|disconnect)LinkedIn$|^syncLinkedInLeads$/, 'linkedin', 'LinkedIn'],
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
-  [/^(listPosts|createPost|updatePost|editPublishedPost|retryPost|deletePost|uploadPostImage|syncOldPosts)$/, 'socialPosts', 'The post scheduler'],
+  [/^(listPosts|createPost|updatePost|editPublishedPost|retryPost|deletePost|uploadPostImage|syncOldPosts|getPostComments)$/, 'socialPosts', 'The post scheduler'],
   [/^(listAdCampaigns|listMetaAds|setCampaignStatus|setCampaignBudget|saveAdAlerts)$/, 'adsControl', 'The ads manager'],
   [/^(listCompetitors|saveCompetitor|deleteCompetitor|recordCompetitorCheck|saveCompetitorAd|deleteCompetitorAd)$/, 'competitorAds', 'Competitor ads'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts

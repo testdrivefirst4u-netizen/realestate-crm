@@ -45,7 +45,7 @@ export const Preview: React.FC<{ kind: PostTargetKind; name: string; text: strin
       {text && <p className="whitespace-pre-wrap break-words px-3 pb-3">{text}</p>}
       {image && <img src={image} alt="" className="w-full object-cover" />}
       {link && !image && <div className="border-y border-[#DADDE1] bg-[#F0F2F5] px-3 py-2"><span className="block text-[10px] uppercase text-[#65676B]">{hostOf(link)}</span><span className="block truncate font-semibold">{link}</span></div>}
-      {kind === 'facebook' && metrics && <div className="flex justify-between px-3 py-2 text-xs text-[#65676B]"><span>{(metrics.likes ?? 0).toLocaleString('en-IN')} likes</span><span>{(metrics.comments ?? 0).toLocaleString('en-IN')} comments · {(metrics.shares ?? 0).toLocaleString('en-IN')} shares</span></div>}
+      {kind === 'facebook' && metrics && (metrics.likes !== null || metrics.comments !== null) && <div className="flex justify-between gap-2 px-3 py-2 text-xs text-[#65676B]"><span>{metrics.likes !== null && `${metrics.likes.toLocaleString('en-IN')} reactions`}</span><span>{[metrics.comments !== null && `${metrics.comments.toLocaleString('en-IN')} comments`, metrics.shares !== null && `${metrics.shares.toLocaleString('en-IN')} shares`].filter(Boolean).join(' · ')}</span></div>}
       {kind === 'facebook' && <div className="grid grid-cols-3 border-t border-[#DADDE1] py-1 text-xs font-semibold text-[#65676B]"><span className="inline-flex items-center justify-center gap-1.5 py-1.5"><ThumbsUp size={15} /> Like</span><span className="inline-flex items-center justify-center gap-1.5 py-1.5"><MessageCircle size={15} /> Comment</span><span className="inline-flex items-center justify-center gap-1.5 py-1.5"><Share2 size={15} /> Share</span></div>}
     </div>
   );
