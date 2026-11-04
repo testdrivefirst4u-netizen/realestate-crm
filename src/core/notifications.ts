@@ -217,17 +217,18 @@ class NotificationBus {
     };
   }
 
-  toast(title: string, message?: string, type: NotificationType = 'info', durationMs = 3500): ToastItem {
+  /** Problems stay longer: they often say what to do next. */
+  toast(title: string, message?: string, type: NotificationType = 'info', durationMs = type === 'alert' || type === 'warning' ? 8000 : 5000): ToastItem {
     const item: ToastItem = {
       id: `tst_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
       title,
       message,
       type,
       createdAt: Date.now(),
+      durationMs,
     };
     this.toasts = [...this.toasts.slice(-4), item];
     this.toastListeners.forEach((l) => l([...this.toasts]));
-    setTimeout(() => this.dismissToast(item.id), durationMs);
     return item;
   }
 

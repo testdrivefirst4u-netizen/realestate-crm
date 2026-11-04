@@ -64,6 +64,11 @@ code, pre, .font-mono {
 @keyframes crm-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes crm-slide-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes crm-slide-in-bottom { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes crm-toast-in { 0% { transform: translateX(110%); } 60% { transform: translateX(-10px); } 80% { transform: translateX(4px); } 100% { transform: translateX(0); } }
+@keyframes crm-toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.crm-toast-in { animation: crm-toast-in 450ms ease-out both; }
+.crm-toast-timer { transform-origin: left; animation-name: crm-toast-timer; animation-timing-function: linear; animation-fill-mode: forwards; }
+@media (prefers-reduced-motion: reduce) { .crm-toast-in { animation: none; } }
 @keyframes crm-zoom-in { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .animate-in { animation-duration: 180ms; animation-timing-function: ease-out; animation-fill-mode: both; animation-name: crm-fade-in; }
 .animate-in.slide-in-from-right { animation-name: crm-slide-in-right; }

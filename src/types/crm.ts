@@ -213,6 +213,8 @@ export interface ToastItem {
   message?: string;
   type: NotificationType;
   createdAt: number;
+  /** How long it shows; the toast's own timer closes it, and hovering pauses it. */
+  durationMs: number;
 }
 
 /** Server event (record in the events collection). Each has a stable ID so clients notify at most once. */
