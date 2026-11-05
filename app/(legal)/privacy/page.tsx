@@ -76,7 +76,7 @@ export default async function PrivacyPage() {
         </li>
         <li>
           <strong>Google Ads lead forms</strong>, <strong>Google Business Profile</strong> (reviews and profile insights) and <strong>Google Analytics</strong>{' '}
-          (visit statistics), only for the accounts a company connects with &ldquo;Connect with Google&rdquo;.
+          (visit statistics), only for the accounts a company connects with &ldquo;Connect with Google&rdquo;, and <strong>Google Search Console</strong> (search figures and page indexing), only for the website a company connects.
         </li>
         <li>
           <strong>LinkedIn and Pinterest</strong> company pages and ad accounts, and LinkedIn Lead Gen Form submissions, only when a company connects them.
@@ -116,6 +116,7 @@ export default async function PrivacyPage() {
         <li><strong>Google Business Profile</strong> (<em>business.manage</em>): reads the company&rsquo;s reviews into its inbox, posts the replies its team writes, and publishes the posts its team writes.</li>
         <li><strong>Google Analytics</strong> (<em>analytics.readonly</em>, read only): shows the company&rsquo;s website visitors, channels and landing pages next to its CRM enquiries.</li>
         <li><strong>Google Sheets</strong> (<em>spreadsheets</em>): reads and writes only the sheets the company links for lead import and export.</li>
+        <li><strong>Google Search Console</strong> (<em>webmasters.readonly</em>, read only, only when the company connects it): shows the company&rsquo;s search clicks, impressions, top searches and pages, sitemaps, and whether its pages are indexed.</li>
       </ul>
       <p>
         {product}&rsquo;s use and transfer of information received from Google APIs to any other app will adhere to the{' '}

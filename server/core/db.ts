@@ -137,6 +137,7 @@ export async function ensureIndexes(db: Db) {
   const specs: Array<[string, Record<string, 1 | -1 | 'text'>, Record<string, unknown>?]> = [
     [C.LEADS, { phoneLast10: 1 }],
     [C.COMPETITORS, { nameKey: 1 }],
+    ['searchConsolePages', { site: 1, checkedAt: 1 }],
     [C.COMPETITOR_ADS, { competitorId: 1, seenOn: -1 }],
     [C.LEADS, { stage: 1 }],
     [C.LEADS, { assignedRm: 1, stage: 1 }],

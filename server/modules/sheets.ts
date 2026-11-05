@@ -695,7 +695,7 @@ export async function runDueSheetJobs(opts: { deadline?: number } = {}): Promise
 /* --------------------------- Google connections -------------------------- */
 
 /** Imports and exports of the current company that use a connection. */
-async function connectionUsage(connectionId: string) {
+export async function connectionUsage(connectionId: string) {
   const [imports, exports] = await Promise.all([
     (await sourcesCol()).find({ type: 'google_sheet', 'config.sheet.auth.mode': 'oauth', 'config.sheet.auth.connectionId': connectionId }, { projection: { name: 1, status: 1 } }).toArray(),
     (await exportsCol()).find({ 'auth.mode': 'oauth', 'auth.connectionId': connectionId }, { projection: { name: 1, status: 1 } }).toArray(),

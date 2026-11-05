@@ -8,15 +8,18 @@ import { ArrowDown, ArrowUp, RefreshCw, Search } from 'lucide-react';
 import { api, type AnalyticsCard, type AnalyticsDay, type AnalyticsMetric, type AnalyticsReport } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
+import { useFeature } from '../../core/tenant';
 import { AnalyticsView } from './AnalyticsView';
+import { LineChart, shortDay, show } from './analyticsCharts';
+import { SearchConsoleReport } from './SearchConsoleReport';
 
 const BLUE = '#1A73E8';
-const GREY = '#80868B';
 const NAV: Array<{ group: string; items: Array<{ id: string; label: string }> }> = [
   { group: '', items: [{ id: 'snapshot', label: 'Reports snapshot' }, { id: 'realtime', label: 'Realtime' }] },
   { group: 'Acquisition', items: [{ id: 'userAcquisition', label: 'User acquisition' }, { id: 'trafficAcquisition', label: 'Traffic acquisition' }] },
   { group: 'Engagement', items: [{ id: 'events', label: 'Events' }, { id: 'pages', label: 'Pages and screens' }, { id: 'landingPages', label: 'Landing page' }] },
   { group: 'User', items: [{ id: 'demographics', label: 'Demographic details' }, { id: 'tech', label: 'Tech details' }] },
+  { group: 'Google Search', items: [{ id: 'search', label: 'Search Console' }] },
   { group: 'CRM', items: [{ id: 'crm', label: 'Website vs CRM' }] },
 ];
 const PRESETS = [
@@ -25,25 +28,6 @@ const PRESETS = [
 ];
 const PAGE = 25;
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
-const shortDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-
-function show(v: number, m: AnalyticsMetric, currency: string): string {
-  if (m.format === 'percent') return `${(v * 100).toFixed(1)}%`;
-  if (m.format === 'decimal') return v.toFixed(2);
-  if (m.format === 'duration') {
-    const s = Math.round(v);
-    const h = Math.floor(s / 3600);
-    return h ? `${h}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
-  }
-  if (m.format === 'money') {
-    try {
-      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR', maximumFractionDigits: 2 }).format(v);
-    } catch {
-      return v.toFixed(2);
-    }
-  }
-  return Math.round(v).toLocaleString('en-IN');
-}
 
 /** Change against the days before, with an arrow as well as the colour. */
 const Delta: React.FC<{ now: number; before: number | undefined }> = ({ now, before }) => {
@@ -52,55 +36,6 @@ const Delta: React.FC<{ now: number; before: number | undefined }> = ({ now, bef
   const change = ((now - before) / before) * 100;
   if (Math.abs(change) < 0.05) return <span className="text-[11px] text-[#5F6368]">no change</span>;
   return <span className={cx('inline-flex items-center gap-0.5 text-[11px] font-medium', change > 0 ? 'text-[#137333]' : 'text-[#A50E0E]')}>{change > 0 ? <ArrowUp size={11} /> : <ArrowDown size={11} />}{Math.abs(change).toFixed(1)}%</span>;
-};
-
-/** One metric through time. The earlier days are dashed and named in the legend, never told apart by colour alone. */
-const LineChart: React.FC<{ days: AnalyticsDay[]; metric: AnalyticsMetric; currency: string; compare: boolean }> = ({ days, metric, currency, compare }) => {
-  const [hover, setHover] = useState<number | null>(null);
-  const W = 800, H = 240, L = 58, R = 12, T = 12, B = 26;
-  const now = days.map((d) => d.values[metric.id] || 0);
-  const before = compare && days[0]?.prev ? days.map((d) => d.prev?.[metric.id] || 0) : null;
-  const top = Math.max(1, ...now, ...(before || []));
-  const x = (i: number) => L + (days.length > 1 ? (i / (days.length - 1)) * (W - L - R) : (W - L - R) / 2);
-  const y = (v: number) => T + (1 - v / top) * (H - T - B);
-  const path = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
-  const every = Math.max(1, Math.ceil(days.length / 7));
-  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const box = e.currentTarget.getBoundingClientRect();
-    const at = ((e.clientX - box.left) / box.width) * W;
-    setHover(Math.min(days.length - 1, Math.max(0, Math.round(((at - L) / (W - L - R)) * (days.length - 1)))));
-  };
-  if (!days.length) return null;
-  const h = hover !== null ? days[hover] : null;
-  return (
-    <figure className="relative m-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`${metric.label} per day, ${shortDay(days[0].day)} to ${shortDay(days[days.length - 1].day)}`} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
-          <g key={f}>
-            <line x1={L} x2={W - R} y1={y(top * f)} y2={y(top * f)} stroke="#E8EAED" />
-            <text x={L - 8} y={y(top * f) + 4} textAnchor="end" fontSize="11" fill="#5F6368">{show(top * f, metric, currency)}</text>
-          </g>
-        ))}
-        {days.map((d, i) => (i % every === 0 ? <text key={d.day} x={x(i)} y={H - 8} textAnchor="middle" fontSize="11" fill="#5F6368">{shortDay(d.day)}</text> : null))}
-        {before && <path d={path(before)} fill="none" stroke={GREY} strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" />}
-        <path d={path(now)} fill="none" stroke={BLUE} strokeWidth="2" strokeLinejoin="round" />
-        {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} stroke="#BDC1C6" />}
-        {hover !== null && <circle cx={x(hover)} cy={y(now[hover])} r="4" fill={BLUE} stroke="#fff" strokeWidth="2" />}
-      </svg>
-      {h && hover !== null && (
-        <div className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#202124] px-2.5 py-1.5 text-[11px] text-white shadow" style={{ left: `${Math.min(82, Math.max(18, (x(hover) / W) * 100))}%` }}>
-          <div>{shortDay(h.day)}: <b>{show(now[hover], metric, currency)}</b></div>
-          {before && <div className="opacity-80">{shortDay(h.prevDay)}: <b>{show(before[hover], metric, currency)}</b></div>}
-        </div>
-      )}
-      {before && (
-        <figcaption className="mt-1 flex flex-wrap gap-4 text-[11px] text-[#5F6368]">
-          <span className="inline-flex items-center gap-1.5"><svg width="20" height="4" aria-hidden="true"><line x1="0" x2="20" y1="2" y2="2" stroke={BLUE} strokeWidth="2" /></svg>This period</span>
-          <span className="inline-flex items-center gap-1.5"><svg width="20" height="4" aria-hidden="true"><line x1="0" x2="20" y1="2" y2="2" stroke={GREY} strokeWidth="2" strokeDasharray="5 4" /></svg>Period before</span>
-        </figcaption>
-      )}
-    </figure>
-  );
 };
 
 /** The figures across the top; choosing one puts it on the chart. */
@@ -213,8 +148,11 @@ const ReportTable: React.FC<{ data: AnalyticsReport; onDimension: (id: string) =
   );
 };
 
-export const AnalyticsReports: React.FC = () => {
-  const [report, setReport] = useState('snapshot');
+export const AnalyticsReports: React.FC<{ canCheckPages?: boolean }> = ({ canCheckPages = false }) => {
+  const analyticsOn = useFeature('websiteAnalytics');
+  const searchOn = useFeature('searchConsole');
+  const nav = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (i.id === 'search' ? searchOn : analyticsOn)) })).filter((g) => g.items.length);
+  const [report, setReport] = useState(analyticsOn ? 'snapshot' : 'search');
   const [dimension, setDimension] = useState('');
   const [preset, setPreset] = useState('last28');
   const [from, setFrom] = useState('');
@@ -228,7 +166,7 @@ export const AnalyticsReports: React.FC = () => {
   const custom = preset === 'custom';
 
   const load = useCallback(async (refresh = false) => {
-    if (report === 'crm' || (custom && (!from || !to))) return;
+    if (report === 'crm' || report === 'search' || (custom && (!from || !to))) return;
     const mine = ++latest.current;
     setLoading(true);
     try {
@@ -258,7 +196,7 @@ export const AnalyticsReports: React.FC = () => {
   return (
     <div className="flex min-h-full flex-col bg-[#F8F9FA] lg:flex-row">
       <nav aria-label="Reports" className="hidden w-52 flex-none border-r border-[#DADCE0] bg-white p-2 lg:block">
-        {NAV.map((g) => (
+        {nav.map((g) => (
           <div key={g.group || 'top'} className="mb-2">
             {g.group && <h3 className="px-3 pb-1 pt-2 text-[11px] font-medium text-[#5F6368]">{g.group}</h3>}
             {g.items.map((i) => <button key={i.id} type="button" aria-current={report === i.id ? 'page' : undefined} onClick={() => open(i.id)} className={cx('block w-full rounded-r-full px-3 py-1.5 text-left text-[13px]', report === i.id ? 'bg-[#E8F0FE] font-medium text-[#1967D2]' : 'text-[#202124] hover:bg-[#F1F3F4]')}>{i.label}</button>)}
@@ -268,10 +206,10 @@ export const AnalyticsReports: React.FC = () => {
 
       <main className="min-w-0 flex-1 space-y-3 p-3 sm:p-5">
         <select className={cx(inputCls, 'lg:hidden')} value={report} onChange={(e) => open(e.target.value)} aria-label="Report">
-          {NAV.flatMap((g) => g.items).map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+          {nav.flatMap((g) => g.items).map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
         </select>
 
-        {report === 'crm' ? <AnalyticsView /> : (
+        {report === 'search' ? <SearchConsoleReport canCheck={canCheckPages} /> : report === 'crm' ? <AnalyticsView /> : (
           <>
             <header className="flex flex-wrap items-center gap-2">
               <div className="min-w-0 flex-1">

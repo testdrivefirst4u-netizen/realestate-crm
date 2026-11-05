@@ -10,7 +10,7 @@ import { col } from '../core/db';
 import { currentTenant } from '../core/tenant';
 
 export interface ConnectedAccount {
-  key: 'meta' | 'facebook' | 'google' | 'linkedin' | 'pinterest';
+  key: 'meta' | 'facebook' | 'google' | 'searchConsole' | 'linkedin' | 'pinterest';
   platform: string;
   account: string;
   connectedBy: string;
@@ -57,6 +57,16 @@ export async function getConnectedAccounts(): Promise<ConnectedAccount[]> {
         [!!f.googleConversions, 'Sends lead results to Google Ads / Analytics'], [!!f.googleAdsSpend, 'Reads Google Ads spend'], [!!f.websiteAnalytics, 'Reads website visitors (Analytics, read only)'],
         [!!(f.socialInbox || f.socialPosts), 'Reads Google reviews, posts replies and your Google posts'], [!!f.adsControl, 'Pauses campaigns / changes budgets when your team clicks'],
       ]),
+    });
+  }
+  const gsc = docs.get('searchConsole');
+  if (gsc?.connectionId) {
+    const conn = await (await col<any>('googleConnections')).findOne({ _id: gsc.connectionId });
+    out.push({
+      key: 'searchConsole', platform: 'Google Search Console', section: 'google', revokeAt: 'Google Account › Security › Third-party connections',
+      account: [gsc.email, String(gsc.siteUrl || '').replace(/^sc-domain:/, '')].filter(Boolean).join(' · '),
+      connectedBy: gsc.updatedBy || '', at: iso(gsc.updatedAt), status: conn && conn.status !== 'Error' ? 'connected' : 'error', note: conn?.status === 'Error' ? conn.lastError || 'Access expired' : gsc.setupError || '',
+      usedFor: ['Reads your website\'s Google search figures and indexing (read only)'],
     });
   }
   const l = docs.get('linkedin');

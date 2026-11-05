@@ -49,6 +49,8 @@ export interface TenantFeatures {
   websiteAnalytics: boolean;
   /** Competitor ads screen: competitors, links to their ads on Meta and Google, what the team saw. */
   competitorAds: boolean;
+  /** Search Console screen: Google search figures and indexed pages. Needs Google's approval of its permission. */
+  searchConsole: boolean;
 }
 
 export interface Tenant {

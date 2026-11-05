@@ -269,7 +269,7 @@ export interface SocialPost {
   targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string; commentError?: string }>;
 }
 /** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
-export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
+export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'searchConsole' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
 /** Competitor ads (server: modules/competitors.ts). */
 export interface CompetitorCheck { status: 'running' | 'not_running'; at: string; by: string }
 export interface CompetitorAd { id: string; platform: 'meta' | 'google'; link: string; imageUrl: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; libraryId: string; placements: string[]; createdBy: string }
@@ -279,6 +279,19 @@ export interface WebsiteAnalytics {
   days: number; from: string; to: string; property: { id: string; name: string } | null; error: string;
   web: { visitors: number; newVisitors: number; sessions: number; daily: Array<{ day: string; visitors: number; sessions: number }>; channels: Array<{ name: string; sessions: number; visitors: number }>; sources: Array<{ name: string; sessions: number }>; pages: Array<{ path: string; sessions: number }> } | null;
   crm: { enquiries: number; siteVisits: number; bookings: number; daily: Array<{ day: string; enquiries: number }>; bySource: Array<{ name: string; enquiries: number; siteVisits: number; bookings: number }> };
+}
+/** Search Console (server: modules/searchConsole.ts). */
+export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
+export interface SearchRow { name: string; clicks: number; impressions: number; ctr: number; position: number }
+export interface SearchPerformance {
+  error: string; siteUrl: string; from: string; to: string; prevFrom: string; prevTo: string; totals: SearchRow | null; prevTotals: SearchRow | null;
+  daily: Array<{ day: string; prevDay: string; values: Record<string, number>; prev: Record<string, number> | null }>;
+  queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[];
+  sitemaps: Array<{ path: string; lastSubmitted: string; lastDownloaded: string; errors: number; warnings: number; submitted: number; pending: boolean }>; sitemapsError: string; fetchedAt: string;
+}
+export interface IndexingSummary {
+  total: number; checked: number; indexed: number; notIndexed: number; unchecked: number; failed: number; lastChecked: string; reasons: Array<{ reason: string; pages: number }>;
+  rows: Array<{ url: string; verdict: string; coverage: string; lastCrawl: string; checkedAt: string; error: string }>; usedToday: number; dailyLimit: number;
 }
 /** Website analytics reports (server: modules/analyticsReports.ts). */
 export interface AnalyticsMetric { id: string; label: string; format: 'number' | 'percent' | 'duration' | 'decimal' | 'money' }
@@ -604,6 +617,15 @@ export const api = {
     saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; placements: string[]; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
     setAdActive: (id: string, active: boolean) => request<{ ok: true }>('setCompetitorAdActive', { id, active }),
+  },
+  searchConsole: {
+    get: () => request<SearchConsoleView>('getSearchConsole'),
+    save: (siteUrl: string) => request<SearchConsoleView>('saveSearchConsole', { siteUrl }),
+    refresh: () => request<SearchConsoleView>('refreshSearchConsole', {}, { timeoutMs: 60000 }),
+    disconnect: () => request<SearchConsoleView>('disconnectSearchConsole'),
+    performance: (d: { preset?: string; refresh?: boolean }) => request<SearchPerformance>('getSearchPerformance', d, { timeoutMs: 60000 }),
+    indexing: () => request<IndexingSummary>('getSearchIndexing'),
+    checkIndexing: () => request<IndexingSummary & { justChecked: number; note: string; more: boolean }>('checkSearchIndexing', {}, { timeoutMs: 280000 }),
   },
   analytics: {
     report: (d: { report: string; dimension?: string; preset?: string; from?: string; to?: string; compare?: boolean; refresh?: boolean }) => request<AnalyticsReport>('getAnalyticsReport', d, { timeoutMs: 60000 }),

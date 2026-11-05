@@ -1,7 +1,9 @@
 'use client';
 
 import { AnalyticsReports } from '@/src/modules/analytics/AnalyticsReports';
+import { useCrm } from '../_components/CrmShell';
 
 export function AnalyticsClient() {
-  return <AnalyticsReports />;
+  const { engine } = useCrm();
+  return <AnalyticsReports canCheckPages={engine.can('marketing.manage')} />;
 }

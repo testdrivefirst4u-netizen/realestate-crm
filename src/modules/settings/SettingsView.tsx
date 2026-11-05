@@ -67,8 +67,8 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const conversionsOn = useFeature('adConversions');
   const adSpendOn = useFeature('adSpend');
   const metaAdsOn = conversionsOn || adSpendOn;
-  const f = { gc: useFeature('googleConversions'), gs: useFeature('googleAdsSpend'), si: useFeature('socialInbox'), sp: useFeature('socialPosts'), ac: useFeature('adsControl'), wa: useFeature('websiteAnalytics') };
-  const googleOn = f.gc || f.gs || f.si || f.sp || f.ac || f.wa;
+  const f = { gc: useFeature('googleConversions'), gs: useFeature('googleAdsSpend'), si: useFeature('socialInbox'), sp: useFeature('socialPosts'), ac: useFeature('adsControl'), wa: useFeature('websiteAnalytics'), sc: useFeature('searchConsole') };
+  const googleOn = f.gc || f.gs || f.si || f.sp || f.ac || f.wa || f.sc;
   const liOn = useFeature('linkedin');
   const pinOn = useFeature('pinterest');
   const socialOn = f.si || f.sp || liOn || pinOn;

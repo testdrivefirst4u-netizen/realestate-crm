@@ -12,6 +12,7 @@ import { useFeature } from '../../core/tenant';
 import { Badge, Button, Card, Field, InlineNotice, inputCls } from '../../components/ui';
 import { Permission } from '../../core/rbac';
 import { ConversionRulesCard } from './ConversionRulesCard';
+import { SearchConsoleCard } from './SearchConsoleCard';
 
 const monthLabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
@@ -24,6 +25,9 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
   const postsOn = useFeature('socialPosts');
   const gbpOn = inboxOn || postsOn;
   const analyticsOn = useFeature('websiteAnalytics');
+  const adsControlOn = useFeature('adsControl');
+  // with only Search Console on, the "Connect with Google" account below does not apply and is not reachable
+  const marketingOn = conversionsOn || spendOn || gbpOn || analyticsOn || adsControlOn;
   const [v, setV] = useState<GoogleMarketingView | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -43,7 +47,7 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
       setError(errText('google.get', e));
     }
   }, [conversionsOn]);
-  useEffect(() => void load(), [load]);
+  useEffect(() => { if (marketingOn) void load(); }, [load, marketingOn]);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -100,7 +104,8 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
     }
   };
 
-  if (error) return <InlineNotice tone="warning">{error}</InlineNotice>;
+  if (!marketingOn) return <SearchConsoleCard editable={editable} />;
+  if (error) return <div className="space-y-5"><InlineNotice tone="warning">{error}</InlineNotice><SearchConsoleCard editable={editable} /></div>;
   if (!v) return <p className="text-xs text-[#5E778C]">Loading…</p>;
   const accounts = v.adsCustomers.filter((c) => !c.manager);
   const actionName = (rn: string) => actions?.find((a) => a.resourceName === rn)?.name || rn.split('/').pop();
@@ -202,6 +207,8 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
           ) : <InlineNotice tone="info">Connect with Google again and allow “See your Google Analytics data”.</InlineNotice>}
         </Card>
       )}
+
+      <SearchConsoleCard editable={editable} />
 
       {editable && v.connected && <div className="flex justify-end"><Button variant="primary" icon={<Save size={13} />} loading={busy === 'save'} onClick={() => void save()}>Save Google settings</Button></div>}
 

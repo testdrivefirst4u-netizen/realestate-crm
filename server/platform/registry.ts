@@ -77,6 +77,7 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   pinterest: false,
   websiteAnalytics: false,
   competitorAds: false,
+  searchConsole: false,
 };
 
 export function normalizeFeatures(f: Partial<TenantFeatures> | null | undefined): TenantFeatures {
