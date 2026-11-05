@@ -210,7 +210,7 @@ export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; s
                 </span>
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Test event code (optional)" hint="While this is filled in, events show only under Events Manager › Test events. Empty it to send real events.">
+                <Field label="Test event code (optional)" hint="Copy it from Events Manager › Test events to use Send a test event below. While this is filled in, events show only under Test events. Empty it to send real events.">
                   <input className={inputCls} value={testCode} disabled={!editable} onChange={(e) => setTestCode(e.target.value.trim().toUpperCase())} placeholder="TEST12345" />
                 </Field>
               </div>
@@ -241,7 +241,7 @@ export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; s
 
           {editable ? (
             <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="secondary" onClick={test} loading={testing} icon={<FlaskConical size={13} />} disabled={!view.tokenSet || !view.datasetId}>Send a test event</Button>
+              <Button variant="secondary" onClick={test} loading={testing} icon={<FlaskConical size={13} />} disabled={!view.tokenSet || !view.datasetId || !/^TEST\d{2,10}$/.test(testCode)} title={/^TEST\d{2,10}$/.test(testCode) ? undefined : 'Enter the test event code first'}>Send a test event</Button>
               <Button variant="primary" onClick={() => void save()} loading={saving} icon={<Save size={13} />}>Save</Button>
             </div>
           ) : (

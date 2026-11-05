@@ -40,6 +40,7 @@ export const SocialAccountsSection: React.FC<{ can: (p: Permission) => boolean }
   const postsOn = useFeature('socialPosts');
   const [v, setV] = useState<SocialAccountsView | null>(null);
   const [busy, setBusy] = useState('');
+  const [peopleNote, setPeopleNote] = useState('');
   useReturnToast([['socialConnected', 'socialError', 'Facebook']]);
 
   const load = useCallback(async () => {
@@ -50,6 +51,28 @@ export const SocialAccountsSection: React.FC<{ can: (p: Permission) => boolean }
     }
   }, []);
   useEffect(() => { if (inboxOn || postsOn) void load(); }, [load, inboxOn, postsOn]);
+  // why the inbox shows initials instead of some people's pictures, if Meta said
+  useEffect(() => {
+    if (inboxOn) api.inbox.list({ limit: 30 }).then((r) => setPeopleNote(r.peopleNote)).catch(() => undefined);
+  }, [inboxOn]);
+
+  /** Ask Meta again now about the people without a picture. */
+  const retryPeople = async () => {
+    setBusy('people');
+    try {
+      const { threads } = await api.inbox.list({ limit: 30 });
+      const ask = threads.filter((t) => t.thread.includes(':dm:') && !t.picture).map((t) => t.thread);
+      if (!ask.length) { setPeopleNote(''); return; }
+      const { people } = await api.inbox.people(ask, true);
+      const got = people.filter((p) => p.picture).length;
+      toast(`${got} of ${people.length} profile pictures found`, undefined, got ? 'success' : 'info');
+      setPeopleNote(people.find((p) => !p.picture && p.reason)?.reason || '');
+    } catch (e) {
+      toast('Could not ask Meta', errText('social.people', e), 'alert');
+    } finally {
+      setBusy('');
+    }
+  };
 
   const disconnect = async (id: string, name: string) => {
     if (!window.confirm(`Disconnect ${name}? Its comments and messages stop coming in and posts can no longer go to it.`)) return;
@@ -84,6 +107,14 @@ export const SocialAccountsSection: React.FC<{ can: (p: Permission) => boolean }
                   ))}
                 </ul>
               ) : <p className="text-[#5E778C]">No Page connected yet.</p>}
+              {peopleNote && (
+                <details className="text-[11px] text-[#5E778C]">
+                  <summary className="cursor-pointer font-semibold">About profile pictures in the inbox</summary>
+                  <p className="mt-1">The inbox shows an initial when Meta gives no picture. Meta said:</p>
+                  <p className="mt-1 break-words">{peopleNote}</p>
+                  {editable && <Button variant="secondary" size="xs" className="mt-1.5" loading={busy === 'people'} onClick={() => void retryPeople()}>Ask Meta again</Button>}
+                </details>
+              )}
             </div>
           )}
         </Card>
