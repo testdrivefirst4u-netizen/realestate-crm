@@ -317,7 +317,7 @@ export async function runPostsCron(now = new Date()): Promise<Record<string, unk
 
 /* ---------------------------------- screen -------------------------------- */
 
-export interface PostView { id: string; text: string; texts: Partial<Record<TargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string; metrics: PostMetrics | null; postType: PostType; videoFileId: string; videoUrl: string }
+export interface PostView { id: string; text: string; texts: Partial<Record<TargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string; metrics: PostMetrics | null; postType: PostType; videoFileId: string; videoUrl: string; imported: boolean }
 /** What the screen may show: a post that is out only with the accounts still connected, and none if it has none left. */
 function shownView(p: PostDoc, keys: string[]): PostView | null {
   if (NOT_OUT_YET.includes(p.status)) return view(p);
@@ -328,7 +328,7 @@ const view = (p: PostDoc): PostView => ({
   id: p._id, text: p.text, texts: p.texts || {}, firstComment: p.firstComment || '', link: p.link, imageFileId: p.imageFileId, imageFileIds: photosOf(p),
   imageUrls: photosOf(p).length ? photosOf(p).map((f) => `/api/files/${f}`) : p.imageExternals?.length ? p.imageExternals : p.imageExternal ? [p.imageExternal] : [], imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
   status: p.status, createdBy: p.createdBy, publishedAt: p.publishedAt ? p.publishedAt.toISOString() : '', metrics: p.metrics || null,
-  postType: p.postType || 'post', videoFileId: p.videoFileId || '', videoUrl: p.videoFileId ? `/api/files/${p.videoFileId}` : p.videoExternal || '',
+  postType: p.postType || 'post', imported: !!p.imported, videoFileId: p.videoFileId || '', videoUrl: p.videoFileId ? `/api/files/${p.videoFileId}` : p.videoExternal || '',
 });
 
 /** Posts in the range (the planner's month; by default from 30 days ago), and every draft. */
@@ -501,7 +501,7 @@ async function removeFromPlatform(t: PostTarget): Promise<void> {
 }
 
 /** Delete a published post from the accounts chosen. Each is saved as it happens; a refusal leaves that account as it was. */
-export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: PostView; deleted: string[]; failed: Array<{ key: string; name: string; error: string }> }> {
+export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: PostView; deleted: string[]; failed: Array<{ key: string; name: string; error: string; url: string }> }> {
   const id = String(d?.id || '');
   if (d?.confirm !== true) throw fail('VALIDATION', 'Confirm the delete first.');
   const c = await postsCol();
@@ -513,7 +513,7 @@ export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: Pos
   const chosen = keys.map((k) => post.targets.find((x) => x.key === k));
   if (chosen.some((x) => !x || x.status !== 'posted' || !x.postId || !['facebook', 'instagram', 'google'].includes(x.kind))) throw fail('VALIDATION', 'One of those accounts cannot be deleted from here. Reload the page.');
   const deleted: string[] = [];
-  const failed: Array<{ key: string; name: string; error: string }> = [];
+  const failed: Array<{ key: string; name: string; error: string; url: string }> = [];
   for (const t of chosen as PostTarget[]) {
     try {
       await removeFromPlatform(t);
@@ -521,7 +521,9 @@ export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: Pos
       deleted.push(t.name);
     } catch (e: any) {
       const said = truncate(String(e?.message || e), 300);
-      failed.push({ key: t.key, name: t.name, error: t.kind === 'instagram' && /permission/i.test(said) ? `${said} Deleting on Instagram needs a Meta permission this app may not have yet.` : said });
+      // Meta's refusal of a post made outside this app reads like a fault; what helps is where to delete it
+      const notOurs = post.imported && t.kind === 'facebook' && /unsupported delete|does not exist/i.test(said);
+      failed.push({ key: t.key, name: t.name, url: t.url || '', error: notOurs ? 'Facebook did not let the CRM delete this post, most likely because it was not published through the CRM. Delete it on Facebook instead.' : t.kind === 'instagram' && /permission/i.test(said) ? `${said} Deleting on Instagram needs a Meta permission this app may not have yet.` : said });
     }
   }
   const now = (await c.findOne({ _id: id })) || post;

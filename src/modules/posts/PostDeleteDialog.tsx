@@ -3,7 +3,7 @@
  * in the CRM, marked Deleted. If a platform refuses, that account stays as it was and the reason shows here.
  */
 import React, { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { api, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Button, InlineNotice, Modal } from '../../components/ui';
@@ -18,7 +18,7 @@ export const PostDeleteDialog: React.FC<{ post: SocialPost; onClose: () => void;
   const [keys, setKeys] = useState<string[]>(targets.map((t) => t.key));
   const [sure, setSure] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<Array<{ name: string; error: string }>>([]);
+  const [failed, setFailed] = useState<Array<{ name: string; error: string; url: string }>>([]);
   const carousel = post.imageFileIds.length > 1 || post.imageUrls.length > 1;
 
   const submit = async () => {
@@ -49,7 +49,8 @@ export const PostDeleteDialog: React.FC<{ post: SocialPost; onClose: () => void;
       </>
     }>
       <div className="space-y-3 text-xs text-[#1C2B33]">
-        {failed.map((f) => <InlineNotice key={f.name} tone="warning">{f.name} refused, so it is still there: {f.error}</InlineNotice>)}
+        {failed.map((f) => <InlineNotice key={f.name} tone="warning">{f.name} is still there. {f.error}{f.url && <> <a href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold underline">Open the post <ExternalLink size={11} /></a></>}</InlineNotice>)}
+        {post.imported && keys.some((k) => k.startsWith('facebook:')) && !failed.length && <p className="text-[#65676B]">This post was copied in from Facebook. Facebook may refuse to delete a post that wasn't published through the CRM. If it does, you'll get a link to delete it there.</p>}
         <ul className="space-y-1.5">
           {targets.map((t) => (
             <li key={t.key}>

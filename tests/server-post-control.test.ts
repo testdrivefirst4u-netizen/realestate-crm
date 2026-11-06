@@ -100,6 +100,24 @@ describe('delete from the platforms', () => {
     expect(r.post.status).toBe('published');
   });
 
+  it('an old post Facebook will not delete says where to delete it, not Meta\'s wording', async () => {
+    await post({ imported: true });
+    refuse['/PAGE1_7'] = "Unsupported delete request. Object with ID 'PAGE1_7' does not exist, cannot be loaded due to missing permissions, or does not support this operation.";
+    const r = await inCo(() => deletePublishedPost({ id: 'POST-1', targets: [FB.key], confirm: true }, ctx));
+    expect(r.failed[0].error).toMatch(/not published through the CRM/);
+    expect(r.failed[0].error).not.toMatch(/Object with ID|advertiser/);
+    expect(r.failed[0].url).toBe(FB.url);
+    expect(r.post.imported).toBe(true);
+    expect(r.post.status).toBe('published');
+  });
+
+  it('a post made in the CRM keeps Facebook\'s own words, so a real fault can be seen', async () => {
+    await post({});
+    refuse['/PAGE1_7'] = 'Unsupported delete request. Object does not exist';
+    const r = await inCo(() => deletePublishedPost({ id: 'POST-1', targets: [FB.key], confirm: true }, ctx));
+    expect(r.failed[0].error).toMatch(/Unsupported delete request/);
+  });
+
   it('nothing logged when everything was refused', async () => {
     await post({});
     refuse['/PAGE1_7'] = 'Nope';
