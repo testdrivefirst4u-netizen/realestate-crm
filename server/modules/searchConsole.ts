@@ -5,7 +5,7 @@
  * Connect  = its own step, asking only for webmasters.readonly, so the verified "Connect with Google" of Settings › Google
  *            is not changed. Returns to the shared /api/integrations/google/callback, told apart by the signed state.
  *            Doc `searchConsole` in `integrations`: { connectionId, email, sites, siteUrl }.
- * Figures  = POST webmasters/v3/sites/<site>/searchAnalytics/query. Kept 15 minutes. Recent days are not final, so the
+ * Figures  = POST webmasters/v3/sites/<site>/searchAnalytics/query, with search type and filters. Kept 15 minutes. Recent days are not final, so the
  *            ranges end 2 days ago, and Google hides some rare searches for privacy.
  * Indexing = Google has no count of indexed pages in its API, so the pages of the sitemaps (else the pages with search
  *            impressions) are checked one by one with urlInspection (verdict PASS = valid) and kept in `searchConsolePages`.
@@ -37,7 +37,8 @@ const STATE_TTL_S = 600;
 const DAY_MS = 86400000;
 const LAG_DAYS = 2;
 const CACHE_MS = 15 * 60000;
-const ROWS = 250;
+const ROWS = 1000;
+const MAX_DAYS = 500;
 const MAX_PAGES = 2000;
 const MAX_CHILD_SITEMAPS = 20;
 const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
@@ -194,9 +195,28 @@ export interface SearchPerformance {
   error: string; siteUrl: string; from: string; to: string; prevFrom: string; prevTo: string;
   totals: SearchRow | null; prevTotals: SearchRow | null;
   daily: Array<{ day: string; prevDay: string; values: Record<string, number>; prev: Record<string, number> | null }>;
-  queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[];
-  sitemaps: Array<{ path: string; lastSubmitted: string; lastDownloaded: string; errors: number; warnings: number; submitted: number; pending: boolean }>;
+  queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[]; appearance: SearchRow[];
+  /** The same tables for the earlier dates, only when comparing. */
+  prevTables: { queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[]; appearance: SearchRow[] } | null;
+  sitemaps: SearchSitemap[];
   sitemapsError: string; fetchedAt: string;
+}
+export interface SearchSitemap { path: string; type: string; lastSubmitted: string; lastDownloaded: string; errors: number; warnings: number; submitted: number; pending: boolean }
+export interface SearchFilter { dimension: string; operator: string; expression: string }
+
+const FILTER_DIMENSIONS = ['query', 'page', 'country', 'device', 'searchAppearance'];
+const FILTER_OPERATORS = ['contains', 'equals', 'notContains', 'notEquals', 'includingRegex', 'excludingRegex'];
+const SEARCH_TYPES = ['web', 'image', 'video', 'news'];
+
+/** The filters of the screen, only in forms Google accepts. */
+export function searchFilters(raw: unknown): SearchFilter[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > 8) throw fail('VALIDATION', 'Too many filters.');
+  return raw.map((f: any) => {
+    const dimension = String(f?.dimension || ''), operator = String(f?.operator || ''), expression = String(f?.expression ?? '').trim();
+    if (!FILTER_DIMENSIONS.includes(dimension) || !FILTER_OPERATORS.includes(operator) || !expression || expression.length > 1000) throw fail('VALIDATION', 'That filter is not valid.');
+    return { dimension, operator, expression };
+  });
 }
 
 const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -211,30 +231,58 @@ export function searchRange(d: any, now = new Date()): { from: string; to: strin
     to = String(d?.to || '');
     if (!re.test(from) || !re.test(to) || Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to)) || from > to) throw fail('VALIDATION', 'Choose a start date on or before the end date.');
   } else {
-    const days = ({ last7: 7, last28: 28, last90: 90, last180: 180, last365: 365 } as Record<string, number>)[String(d?.preset || 'last28')];
+    const days = ({ last7: 7, last28: 28, last90: 90, last180: 180, last365: 365, last480: 480 } as Record<string, number>)[String(d?.preset || 'last28')];
     if (!days) throw fail('VALIDATION', 'Choose a date range.');
     const end = now.getTime() - LAG_DAYS * DAY_MS;
     to = ymd(end);
     from = ymd(end - (days - 1) * DAY_MS);
   }
   const length = Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS) + 1;
-  const prevTo = ymd(Date.parse(from) - DAY_MS);
+  if (length > MAX_DAYS) throw fail('VALIDATION', 'Google keeps 16 months of search figures. Choose a shorter range.');
+  // a year before, on the same days of the week, or the days just before
+  const prevTo = d?.compare === 'year' ? ymd(Date.parse(to) - 364 * DAY_MS) : ymd(Date.parse(from) - DAY_MS);
   return { from, to, prevTo, prevFrom: ymd(Date.parse(prevTo) - (length - 1) * DAY_MS) };
 }
 
 const rowOf = (r: any): SearchRow => ({ name: String(r?.keys?.[0] ?? ''), clicks: Number(r?.clicks) || 0, impressions: Number(r?.impressions) || 0, ctr: Number(r?.ctr) || 0, position: Number(r?.position) || 0 });
 
+async function readSitemaps(site: string, connectionId: string): Promise<{ sitemaps: SearchSitemap[]; sitemapsError: string }> {
+  try {
+    const s = await call<{ sitemap?: any[] }>(`${API}/sites/${site}/sitemaps`, connectionId);
+    return {
+      sitemapsError: '',
+      sitemaps: (s.sitemap || []).map((x) => ({
+        path: String(x.path || ''), type: x.isSitemapsIndex ? 'Sitemap index' : 'Sitemap', lastSubmitted: String(x.lastSubmitted || ''), lastDownloaded: String(x.lastDownloaded || ''), errors: Number(x.errors) || 0, warnings: Number(x.warnings) || 0,
+        submitted: (x.contents || []).reduce((t: number, c: any) => t + (Number(c?.submitted) || 0), 0), pending: !!x.isPending,
+      })),
+    };
+  } catch (e: any) {
+    return { sitemaps: [], sitemapsError: truncate(String(e?.message || e), 240) };
+  }
+}
+
+export async function getSearchSitemaps(): Promise<{ sitemaps: SearchSitemap[]; sitemapsError: string; siteUrl: string; error: string }> {
+  const doc = await loadDoc();
+  if (!doc?.connectionId) return { sitemaps: [], sitemapsError: '', siteUrl: '', error: 'Connect Search Console in Settings › Google.' };
+  if (!doc.siteUrl) return { sitemaps: [], sitemapsError: '', siteUrl: '', error: 'Choose your website in Settings › Google.' };
+  return { ...(await readSitemaps(encodeURIComponent(doc.siteUrl), doc.connectionId)), siteUrl: doc.siteUrl, error: '' };
+}
+
 export async function getSearchPerformance(d: any = {}, now = new Date()): Promise<SearchPerformance> {
   const range = searchRange(d, now);
+  const filters = searchFilters(d?.filters);
+  const type = String(d?.type || 'web');
+  if (!SEARCH_TYPES.includes(type)) throw fail('VALIDATION', 'Choose a search type.');
+  const comparing = d?.compare === 'previous' || d?.compare === 'year';
   const doc = await loadDoc();
-  const empty: SearchPerformance = { error: '', siteUrl: doc?.siteUrl || '', ...range, totals: null, prevTotals: null, daily: [], queries: [], pages: [], countries: [], devices: [], sitemaps: [], sitemapsError: '', fetchedAt: now.toISOString() };
+  const empty: SearchPerformance = { error: '', siteUrl: doc?.siteUrl || '', ...range, totals: null, prevTotals: null, daily: [], queries: [], pages: [], countries: [], devices: [], appearance: [], prevTables: null, sitemaps: [], sitemapsError: '', fetchedAt: now.toISOString() };
   if (!doc?.connectionId) return { ...empty, error: 'Connect Search Console in Settings › Google.' };
   if (!doc.siteUrl) return { ...empty, error: 'Choose your website in Settings › Google.' };
-  const key = `${currentTenant()?.id || ''}:${doc.siteUrl}:${range.from}:${range.to}`;
+  const key = JSON.stringify([currentTenant()?.id || '', doc.siteUrl, range, type, filters, comparing]);
   const hit = cache.get(key);
   if (!d?.refresh && hit && Date.now() - hit.at < CACHE_MS) return hit.data;
   const site = encodeURIComponent(doc.siteUrl);
-  const query = (startDate: string, endDate: string, dimensions: string[], rowLimit = ROWS) => call<{ rows?: any[] }>(`${API}/sites/${site}/searchAnalytics/query`, doc.connectionId, { startDate, endDate, dimensions, rowLimit, type: 'web' });
+  const query = (startDate: string, endDate: string, dimensions: string[], rowLimit = ROWS) => call<{ rows?: any[] }>(`${API}/sites/${site}/searchAnalytics/query`, doc.connectionId, { startDate, endDate, dimensions, rowLimit, type, ...(filters.length ? { dimensionFilterGroups: [{ groupType: 'and', filters }] } : {}) });
   try {
     const [total, prevTotal, days, prevDays, queries, pages, countries, devices] = await Promise.all([
       query(range.from, range.to, []),
@@ -256,23 +304,18 @@ export async function getSearchPerformance(d: any = {}, now = new Date()): Promi
       const prevDay = ymd(Date.parse(range.prevFrom) + i * DAY_MS);
       return { day, prevDay, values: values(nowDays.get(day)), prev: before ? values(before.get(prevDay)) : null };
     });
-    let sitemaps: SearchPerformance['sitemaps'] = [];
-    let sitemapsError = '';
-    try {
-      const s = await call<{ sitemap?: any[] }>(`${API}/sites/${site}/sitemaps`, doc.connectionId);
-      sitemaps = (s.sitemap || []).map((x) => ({
-        path: String(x.path || ''), lastSubmitted: String(x.lastSubmitted || ''), lastDownloaded: String(x.lastDownloaded || ''), errors: Number(x.errors) || 0, warnings: Number(x.warnings) || 0,
-        submitted: (x.contents || []).reduce((t: number, c: any) => t + (Number(c?.submitted) || 0), 0), pending: !!x.isPending,
-      }));
-    } catch (e: any) {
-      sitemapsError = truncate(String(e?.message || e), 240);
-    }
+    const { sitemaps, sitemapsError } = await readSitemaps(site, doc.connectionId);
+    // Google refuses this one for some filters; the others still answer
+    const appearance = await query(range.from, range.to, ['searchAppearance']).catch(() => null);
+    const before2 = (dimension: string) => query(range.prevFrom, range.prevTo, [dimension]).then((r) => (r.rows || []).map(rowOf)).catch(() => [] as SearchRow[]);
+    const prevTables = comparing ? await Promise.all(['query', 'page', 'country', 'device', 'searchAppearance'].map(before2)).then(([q, p, c, dv, a]) => ({ queries: q, pages: p, countries: c, devices: dv, appearance: a })) : null;
     const data: SearchPerformance = {
       ...empty,
       totals: total?.rows?.[0] ? rowOf(total.rows[0]) : { name: '', clicks: 0, impressions: 0, ctr: 0, position: 0 },
       prevTotals: prevTotal ? (prevTotal.rows?.[0] ? rowOf(prevTotal.rows[0]) : { name: '', clicks: 0, impressions: 0, ctr: 0, position: 0 }) : null,
-      daily, queries: (queries.rows || []).map(rowOf), pages: (pages.rows || []).map(rowOf), countries: (countries.rows || []).map(rowOf), devices: (devices.rows || []).map(rowOf), sitemaps, sitemapsError,
+      daily, queries: (queries.rows || []).map(rowOf), pages: (pages.rows || []).map(rowOf), countries: (countries.rows || []).map(rowOf), devices: (devices.rows || []).map(rowOf), appearance: (appearance?.rows || []).map(rowOf), prevTables, sitemaps, sitemapsError,
     };
+    if (cache.size >= 200) cache.clear();
     cache.set(key, { at: Date.now(), data });
     return data;
   } catch (e: any) {
@@ -435,6 +478,33 @@ export async function checkIndexing(_d: any, ctx: Ctx, now = new Date()): Promis
   return { ...summary, justChecked: done, note: [stopped && `Google said: ${stopped}`, limitNote, found.note].filter(Boolean).join(' '), more: remaining > 0 && room > 0 && !stopped };
 }
 
+export interface UrlInspection {
+  url: string; verdict: string; coverage: string; robots: string; indexing: string; lastCrawl: string; pageFetch: string; crawledAs: string;
+  googleCanonical: string; userCanonical: string; sitemaps: string[]; referrers: string[]; link: string;
+}
+
+/** Google's result for one address of the site. Counts towards the same daily limit as Check pages. */
+export async function inspectSearchUrl(d: any, now = new Date()): Promise<UrlInspection> {
+  const doc = await loadDoc();
+  if (!doc?.connectionId) throw fail('VALIDATION', 'Connect Search Console in Settings › Google.');
+  if (!doc.siteUrl) throw fail('VALIDATION', 'Choose your website in Settings › Google.');
+  const url = String(d?.url || '').trim();
+  if (!url || url.length > 2000 || !belongsToSite(url, doc.siteUrl)) throw fail('VALIDATION', `That address is not part of ${doc.siteUrl.replace(/^sc-domain:/, '')}. Enter its full address, starting with https://`);
+  const today = ymd(now.getTime());
+  const used = doc.inspected?.day === today ? doc.inspected.count : 0;
+  if (used >= inspectLimits.perDay) throw fail('VALIDATION', "Today's check limit is used up. Try again tomorrow.");
+  const j = await call<any>(INSPECT_URL, doc.connectionId, { inspectionUrl: url, siteUrl: doc.siteUrl });
+  await (await docCol()).updateOne({ _id: 'searchConsole' }, { $set: { inspected: { day: today, count: used + 1 } } });
+  const r = j?.inspectionResult?.indexStatusResult || {};
+  const link = String(j?.inspectionResult?.inspectionResultLink || '');
+  await (await pagesCol()).updateOne({ _id: `${doc.siteUrl}|${url}` }, { $set: { verdict: String(r.verdict || ''), coverage: truncate(String(r.coverageState || ''), 160), lastCrawl: String(r.lastCrawlTime || ''), checkedAt: now, error: '' } });
+  const list = (v: unknown) => (Array.isArray(v) ? v.map(String).slice(0, 20) : []);
+  return {
+    url, verdict: String(r.verdict || ''), coverage: String(r.coverageState || ''), robots: String(r.robotsTxtState || ''), indexing: String(r.indexingState || ''), lastCrawl: String(r.lastCrawlTime || ''), pageFetch: String(r.pageFetchState || ''), crawledAs: String(r.crawledAs || ''),
+    googleCanonical: String(r.googleCanonical || ''), userCanonical: String(r.userCanonical || ''), sitemaps: list(r.sitemap), referrers: list(r.referringUrls), link: link.startsWith('https://search.google.com/') ? link : '',
+  };
+}
+
 const feature = () => {
   if (!(currentTenant()?.features as any)?.searchConsole) throw fail('FORBIDDEN', "Search Console is not included in your company's plan.");
 };
@@ -446,5 +516,7 @@ export const actions: ActionMap = {
   disconnectSearchConsole: { fn: (_d, ctx) => { feature(); return disconnectSearchConsole(ctx); }, perm: 'integrations.connect' },
   getSearchPerformance: { fn: (d) => { feature(); return getSearchPerformance(d); }, perm: 'reports.view' },
   getSearchIndexing: { fn: () => { feature(); return getIndexing(); }, perm: 'reports.view' },
+  getSearchSitemaps: { fn: () => { feature(); return getSearchSitemaps(); }, perm: 'reports.view' },
+  inspectSearchUrl: { fn: (d) => { feature(); return inspectSearchUrl(d); }, perm: 'marketing.manage' },
   checkSearchIndexing: { fn: (d, ctx) => { feature(); return checkIndexing(d, ctx); }, perm: 'marketing.manage' },
 };

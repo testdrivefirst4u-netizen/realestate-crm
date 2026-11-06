@@ -5,5 +5,5 @@ import { useCrm } from '../_components/CrmShell';
 
 export function SearchConsoleClient() {
   const { engine } = useCrm();
-  return <SearchConsoleReport canCheck={engine.can('marketing.manage')} />;
+  return <SearchConsoleReport canCheck={engine.can('marketing.manage')} canManage={engine.can('integrations.connect')} />;
 }

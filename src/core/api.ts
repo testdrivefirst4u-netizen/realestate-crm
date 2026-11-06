@@ -286,8 +286,16 @@ export interface SearchRow { name: string; clicks: number; impressions: number; 
 export interface SearchPerformance {
   error: string; siteUrl: string; from: string; to: string; prevFrom: string; prevTo: string; totals: SearchRow | null; prevTotals: SearchRow | null;
   daily: Array<{ day: string; prevDay: string; values: Record<string, number>; prev: Record<string, number> | null }>;
-  queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[];
-  sitemaps: Array<{ path: string; lastSubmitted: string; lastDownloaded: string; errors: number; warnings: number; submitted: number; pending: boolean }>; sitemapsError: string; fetchedAt: string;
+  queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[]; appearance: SearchRow[];
+  prevTables: { queries: SearchRow[]; pages: SearchRow[]; countries: SearchRow[]; devices: SearchRow[]; appearance: SearchRow[] } | null;
+  sitemaps: SearchSitemap[]; sitemapsError: string; fetchedAt: string;
+}
+export interface SearchSitemap { path: string; type: string; lastSubmitted: string; lastDownloaded: string; errors: number; warnings: number; submitted: number; pending: boolean }
+export interface SearchFilter { dimension: string; operator: string; expression: string }
+export interface SearchQuery { preset?: string; from?: string; to?: string; compare?: '' | 'previous' | 'year'; type?: string; filters?: SearchFilter[]; refresh?: boolean }
+export interface UrlInspection {
+  url: string; verdict: string; coverage: string; robots: string; indexing: string; lastCrawl: string; pageFetch: string; crawledAs: string;
+  googleCanonical: string; userCanonical: string; sitemaps: string[]; referrers: string[]; link: string;
 }
 export interface IndexingSummary {
   total: number; checked: number; indexed: number; notIndexed: number; unchecked: number; failed: number; lastChecked: string; reasons: Array<{ reason: string; pages: number }>;
@@ -623,7 +631,9 @@ export const api = {
     save: (siteUrl: string) => request<SearchConsoleView>('saveSearchConsole', { siteUrl }),
     refresh: () => request<SearchConsoleView>('refreshSearchConsole', {}, { timeoutMs: 60000 }),
     disconnect: () => request<SearchConsoleView>('disconnectSearchConsole'),
-    performance: (d: { preset?: string; refresh?: boolean }) => request<SearchPerformance>('getSearchPerformance', d, { timeoutMs: 60000 }),
+    performance: (d: SearchQuery) => request<SearchPerformance>('getSearchPerformance', d, { timeoutMs: 60000 }),
+    sitemaps: () => request<{ sitemaps: SearchSitemap[]; sitemapsError: string; siteUrl: string; error: string }>('getSearchSitemaps'),
+    inspect: (url: string) => request<UrlInspection>('inspectSearchUrl', { url }, { timeoutMs: 60000 }),
     indexing: () => request<IndexingSummary>('getSearchIndexing'),
     checkIndexing: () => request<IndexingSummary & { justChecked: number; note: string; more: boolean }>('checkSearchIndexing', {}, { timeoutMs: 280000 }),
   },

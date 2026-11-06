@@ -10,7 +10,7 @@ import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { dispatch } from '../server/router';
 import { resetGoogleOAuthTokenCache } from '../server/modules/googleConnect';
 import { startGoogleMktConnect } from '../server/modules/googleMarketing';
-import { belongsToSite, checkIndexing, clearSearchConsoleCache, disconnectSearchConsole, getIndexing, getSearchPerformance, inspectLimits, locsOf, saveSearchConsole, searchRange, startSearchConsoleConnect } from '../server/modules/searchConsole';
+import { belongsToSite, checkIndexing, clearSearchConsoleCache, disconnectSearchConsole, getIndexing, getSearchSitemaps, inspectSearchUrl, searchFilters, getSearchPerformance, inspectLimits, locsOf, saveSearchConsole, searchRange, startSearchConsoleConnect } from '../server/modules/searchConsole';
 
 vi.mock('dns/promises', () => ({ default: { lookup: vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]) } }));
 
@@ -36,7 +36,7 @@ async function fake(input: any, init: any = {}): Promise<Response> {
   if (url.host === 'searchconsole.googleapis.com') {
     if (inspectFails) return json(429, { error: { message: inspectFails } });
     const page = String(body.inspectionUrl);
-    return json(200, { inspectionResult: { indexStatusResult: page.endsWith('/a') ? { verdict: 'PASS', coverageState: 'Submitted and indexed', lastCrawlTime: '2026-11-01T00:00:00Z' } : { verdict: 'NEUTRAL', coverageState: 'Crawled - currently not indexed' } } });
+    return json(200, { inspectionResult: { inspectionResultLink: 'https://search.google.com/search-console/inspect?x=1', indexStatusResult: page.endsWith('/a') ? { verdict: 'PASS', coverageState: 'Submitted and indexed', lastCrawlTime: '2026-11-01T00:00:00Z' } : { verdict: 'NEUTRAL', coverageState: 'Crawled - currently not indexed' } } });
   }
   if (url.pathname.endsWith('/sitemaps')) return json(200, { sitemap: [{ path: 'https://amaya.example/index.xml', lastSubmitted: '2026-10-01T00:00:00Z', lastDownloaded: '2026-11-01T00:00:00Z', errors: '1', warnings: '2', contents: [{ type: 'web', submitted: '3', indexed: '0' }] }] });
   if (url.pathname.endsWith('/searchAnalytics/query')) {
@@ -147,12 +147,52 @@ describe('figures', () => {
     expect(asked[0].url.pathname).toContain(encodeURIComponent(SITE));
   });
 
+  it('sends the search type and filters, and keeps each combination apart', async () => {
+    const filters = [{ dimension: 'query', operator: 'contains', expression: 'senior' }];
+    await inCo(() => getSearchPerformance({ preset: 'last7', type: 'image', filters }, now));
+    const sent = asked.find((a) => a.url.pathname.endsWith('/searchAnalytics/query'))!.body;
+    expect(sent.type).toBe('image');
+    expect(sent.dimensionFilterGroups).toEqual([{ groupType: 'and', filters }]);
+    const before = asked.length;
+    await inCo(() => getSearchPerformance({ preset: 'last7', type: 'image', filters }, now));
+    expect(asked.length).toBe(before);
+    await inCo(() => getSearchPerformance({ preset: 'last7', type: 'web', filters }, now));
+    expect(asked.length).toBeGreaterThan(before);
+    await expect(inCo(() => getSearchPerformance({ preset: 'last7', type: 'everything' }, now))).rejects.toThrow(/search type/);
+    expect(() => searchFilters([{ dimension: 'password', operator: 'equals', expression: 'x' }])).toThrow(/not valid/);
+    expect(() => searchFilters([{ dimension: 'query', operator: 'equals', expression: '  ' }])).toThrow(/not valid/);
+  });
+
+  it('compares with the days before or a year before, with the tables only when asked', async () => {
+    expect(searchRange({ preset: 'last7', compare: 'year' }, now)).toMatchObject({ prevFrom: '2025-10-29', prevTo: '2025-11-04' });
+    expect((await inCo(() => getSearchPerformance({ preset: 'last7' }, now))).prevTables).toBeNull();
+    const r = await inCo(() => getSearchPerformance({ preset: 'last7', compare: 'previous' }, now));
+    expect(r.prevTables!.queries[0].name).toBe('senior living hyderabad');
+    expect(() => searchRange({ from: '2020-01-01', to: '2026-01-01' }, now)).toThrow(/16 months/);
+  });
+
   it('says what is missing, and passes on what Google says', async () => {
     await inCo(async () => (await col<any>(CFG.COLL.INTEGRATIONS)).updateOne({ _id: 'searchConsole' }, { $set: { siteUrl: '' } }));
     expect((await inCo(() => getSearchPerformance({}, now))).error).toMatch(/Choose your website/);
     await inCo(async () => (await col<any>(CFG.COLL.INTEGRATIONS)).updateOne({ _id: 'searchConsole' }, { $set: { siteUrl: SITE } }));
     vi.stubGlobal('fetch', vi.fn(async (input: any) => (String(input).includes('oauth2') ? json(200, { access_token: 'GAT', expires_in: 3600 }) : json(403, { error: { message: 'User does not have sufficient permission' } }))));
     expect((await inCo(() => getSearchPerformance({ preset: 'last7' }, now))).error).toMatch(/sufficient permission/);
+  });
+});
+
+describe('sitemaps and one address', () => {
+  it('lists sitemaps on their own', async () => {
+    const r = await inCo(() => getSearchSitemaps());
+    expect(r.sitemaps[0]).toMatchObject({ path: 'https://amaya.example/index.xml', type: 'Sitemap', submitted: 3 });
+  });
+
+  it('gives Google\'s result for an address of the site, counted in the daily limit', async () => {
+    const r = await inCo(() => inspectSearchUrl({ url: 'https://amaya.example/a' }, now));
+    expect(r).toMatchObject({ verdict: 'PASS', coverage: 'Submitted and indexed', link: 'https://search.google.com/search-console/inspect?x=1' });
+    expect((await inCo(() => getIndexing(now))).usedToday).toBe(1);
+    await expect(inCo(() => inspectSearchUrl({ url: 'https://evil.example/a' }, now))).rejects.toThrow(/not part of/);
+    inspectLimits.perDay = 1;
+    await expect(inCo(() => inspectSearchUrl({ url: 'https://amaya.example/a' }, now))).rejects.toThrow(/limit is used up/);
   });
 });
 
@@ -224,5 +264,7 @@ describe('indexing', () => {
     expect((await inCo(() => dispatch('checkSearchIndexing', {}, { ...base, token: rm }))).status).toBe(403);
     expect((await inCo(() => dispatch('checkSearchIndexing', {}, { ...base, token: viewer }))).status).toBe(403);
     expect((await inCo(() => dispatch('getSearchIndexing', {}, { ...base, token: viewer }))).status).toBe(200);
+    expect((await inCo(() => dispatch('getSearchSitemaps', {}, { ...base, token: viewer }))).status).toBe(200);
+    expect((await inCo(() => dispatch('inspectSearchUrl', { url: 'https://amaya.example/a' }, { ...base, token: viewer }))).status).toBe(403);
   });
 });
