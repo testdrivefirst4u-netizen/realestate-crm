@@ -307,6 +307,8 @@ export interface BusinessPhoto { name: string; format: string; category: string;
 export interface BusinessReview { id: string; author: string; anonymous: boolean; photo: string; stars: number; comment: string; createdAt: string; updatedAt: string; reply: string; repliedAt: string }
 export interface BusinessReviews { error: string; location: string; reviews: BusinessReview[]; average: number; total: number; nextPage: string }
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
+/** Post scheduler › Instagram view (server: modules/instagramProfile.ts). */
+export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
 export interface SearchRow { name: string; clicks: number; impressions: number; ctr: number; position: number }
@@ -626,6 +628,7 @@ export const api = {
   posts: {
     reschedule: (id: string, scheduledAt: string) => request<SocialPost>('reschedulePost', { id, scheduledAt }),
     list: (range: { from?: string; to?: string; statuses?: string[]; skip?: number; limit?: number; q?: string; account?: string } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[]; hasMore: boolean }>('listPosts', range),
+    instagramProfile: (account: string, refresh = false) => request<InstagramProfile>('getInstagramProfile', { account, refresh }, { timeoutMs: 60000 }),
     editPublished: (id: string, text: string, target?: string) => request<SocialPost>('editPublishedPost', { id, text, target }, { timeoutMs: 60000 }),
     deletePublished: (id: string, targets: string[]) => request<{ post: SocialPost; deleted: string[]; failed: Array<{ key: string; name: string; error: string }> }>('deletePublishedPost', { id, targets, confirm: true }, { timeoutMs: 120000 }),
     create: (d: { text: string; link?: string; imageFileIds?: string[]; targets: string[]; scheduledAt?: string; draft?: boolean; texts?: Record<string, string>; firstComment?: string; postType?: PostType; videoFileId?: string }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),

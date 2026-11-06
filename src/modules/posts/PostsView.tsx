@@ -10,12 +10,13 @@ import { ChevronLeft, ChevronRight, ExternalLink, FileText, Pencil, Plus, Refres
 import { api, type InsightValue, type PostTargetOption, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
+import { InstagramView } from './InstagramView';
 import { PostComposer, Preview } from './PostComposer';
 import { deletableTargets, PostDeleteDialog } from './PostDeleteDialog';
 import { PostInsights, insightText } from './PostInsights';
 import { KIND, STATUS, errText, postDate } from './postShared';
 
-type Tab = 'calendar' | 'list' | 'insights';
+type Tab = 'calendar' | 'list' | 'instagram' | 'insights';
 type CalendarView = 'week' | 'month';
 type CalendarStatus = '' | 'scheduled' | 'published' | 'failed';
 type Filter = 'scheduled' | 'published' | 'draft' | 'failed' | 'deleted';
@@ -103,6 +104,7 @@ export const PostsView: React.FC = () => {
   const [editText, setEditText] = useState<string | null>(null);
   const [editKey, setEditKey] = useState('');
   const [deleting, setDeleting] = useState<SocialPost | null>(null);
+  const [rev, setRev] = useState(0);
   const [comments, setComments] = useState<{ id: string; rows: Array<{ id: string; author: string; text: string; at: string }> | null; error: string } | null>(null);
   const [details, setDetails] = useState<SocialPost | null>(null);
   const [figures, setFigures] = useState<{ id: string; targets: Array<{ key: string; name: string; metrics: InsightValue[]; refused: string[] }> | null; error: string } | null>(null);
@@ -171,6 +173,7 @@ export const PostsView: React.FC = () => {
       await api.posts.remove(p.id);
       setComposing(null);
       setDetails(null);
+      setRev((n) => n + 1);
       await load();
     } catch (e) {
       toast('Could not delete', errText('posts.delete', e), 'alert');
@@ -256,7 +259,7 @@ export const PostsView: React.FC = () => {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="View" className="inline-flex rounded-lg bg-[#E4E6EB] p-0.5">
-          {([['calendar', 'Planner'], ['list', 'Content'], ['insights', 'Insights']] as Array<[Tab, string]>).map(([id, label]) => (
+          {([['calendar', 'Planner'], ['list', 'Content'], ['instagram', 'Instagram'], ['insights', 'Insights']] as Array<[Tab, string]>).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cx('rounded-md px-3.5 py-1.5 text-[13px] font-semibold', tab === id ? 'bg-white text-[#0866FF] shadow-sm' : 'text-[#44505C]')}>{label}</button>
           ))}
         </div>
@@ -265,7 +268,7 @@ export const PostsView: React.FC = () => {
         <button type="button" disabled={!targets.length} title={targets.length ? undefined : 'Connect an account first'} onClick={() => setComposing({})} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0866FF] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={15} /> Create post</button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {tab !== 'instagram' && <div className="flex flex-wrap items-center gap-2">
         {tab !== 'insights' && <label className="relative min-w-[180px] flex-1">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input className={cx(inputCls, 'pl-8')} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search posts" aria-label="Search posts" />
@@ -282,11 +285,11 @@ export const PostsView: React.FC = () => {
             <option value="failed">Failed</option>
           </select>
         )}
-      </div>
+      </div>}
 
       {posts && !targets.length && <InlineNotice tone="warning">No account connected yet. An Admin connects Facebook, Instagram, Google Business Profile, LinkedIn and Pinterest in Settings.</InlineNotice>}
 
-      {tab === 'insights' ? <PostInsights account={account} onOpenPost={(id) => void openById(id)} /> : tab === 'calendar' ? (
+      {tab === 'instagram' ? <InstagramView targets={targets} rev={rev} onCreate={() => setComposing({})} onEdit={(p) => setComposing({ post: p })} onAgain={(p) => setComposing({ seed: p })} onDelete={(p) => setDeleting(p)} onDetails={(p) => open(p)} /> : tab === 'insights' ? <PostInsights account={account} onOpenPost={(id) => void openById(id)} /> : tab === 'calendar' ? (
         <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
           <div className="rounded-xl border border-[#DADDE1] bg-white">
             <div className="flex flex-wrap items-center gap-2 border-b border-[#DADDE1] p-3">
@@ -372,7 +375,7 @@ export const PostsView: React.FC = () => {
         </div>
       )}
 
-      {composing && <PostComposer targets={targets} post={composing.post} seed={composing.seed} initialWhen={composing.when} onClose={() => setComposing(null)} onSaved={() => { setComposing(null); void load(); }} onDelete={(p) => void remove(p)} />}
+      {composing && <PostComposer targets={targets} post={composing.post} seed={composing.seed} initialWhen={composing.when} onClose={() => setComposing(null)} onSaved={() => { setComposing(null); setRev((n) => n + 1); void load(); }} onDelete={(p) => void remove(p)} />}
 
       <Modal open={!!details} onClose={() => setDetails(null)} title={details ? STATUS[details.status].label : ''} subtitle={details ? `${postDate(details).toLocaleString()} · ${details.createdBy}` : undefined}
         footer={details && (
@@ -431,7 +434,7 @@ export const PostsView: React.FC = () => {
           </div>
         )}
       </Modal>
-      {deleting && <PostDeleteDialog post={deleting} onClose={() => { setDeleting(null); void load(); }} onDone={(p) => { setDeleting(null); setDetails(p); void load(); }} />}
+      {deleting && <PostDeleteDialog post={deleting} onClose={() => { setDeleting(null); setRev((n) => n + 1); void load(); }} onDone={(p) => { setDeleting(null); if (tab !== 'instagram') setDetails(p); setRev((n) => n + 1); void load(); }} />}
     </div>
   );
 };
