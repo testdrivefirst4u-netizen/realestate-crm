@@ -145,3 +145,45 @@ describe('who may read', () => {
     expect((await as('Asha', 'Admin')).status).toBe(403);
   });
 });
+
+describe('comparing two periods', () => {
+  const ranges = () => asked.filter((a) => a.path === '/act_1/insights').map((a) => a.q.get('time_range'));
+
+  it('reads the earlier period once, for the same campaigns, without reading the campaigns again', async () => {
+    await connect();
+    const r = await inCo(() => listMetaAds({ level: 'campaign', since: '2026-11-01', until: '2026-11-06', compareSince: '2026-10-01', compareUntil: '2026-10-06' }));
+    expect(ranges().sort()).toEqual([JSON.stringify({ since: '2026-10-01', until: '2026-10-06' }), JSON.stringify({ since: '2026-11-01', until: '2026-11-06' })]);
+    expect(r.previous!.map((x) => x.id).sort()).toEqual(r.rows.map((x) => x.id).sort());
+    expect(asked.filter((a) => a.path === '/act_1/campaigns' && !a.q.get('after'))).toHaveLength(1);
+  });
+
+  it('asks nothing extra when not comparing', async () => {
+    await connect();
+    const r = await inCo(() => listMetaAds({ level: 'campaign', preset: 'last_month' }));
+    expect(r.previous).toBeUndefined();
+    expect(ranges()).toHaveLength(1);
+  });
+
+  it('keeps the main figures if only the earlier period fails', async () => {
+    await connect();
+    vi.stubGlobal('fetch', vi.fn(async (input: any, init: any) => {
+      const url = new URL(String(input));
+      if ((url.searchParams.get('time_range') || '').includes('2026-10')) return json(400, { error: { message: 'Too far back', code: 100 } });
+      return fake(input);
+    }));
+    const r = await inCo(() => listMetaAds({ level: 'campaign', since: '2026-11-01', until: '2026-11-06', compareSince: '2026-10-01', compareUntil: '2026-10-06' }));
+    expect(r.rows.length).toBeGreaterThan(0);
+    expect(r.previous).toEqual([]);
+    expect(r.errors[0].message).toMatch(/earlier period could not be read/);
+  });
+
+  it('refuses dates the wrong way round', async () => {
+    await connect();
+    await expect(inCo(() => listMetaAds({ level: 'campaign', compareSince: '2026-10-09', compareUntil: '2026-10-01' }))).rejects.toThrow(/start date/);
+    await expect(inCo(() => listMetaAds({ level: 'campaign', compareSince: '2026-10-09' }))).rejects.toThrow(/start date/);
+  });
+
+  it('knows the 90 day choice', () => {
+    expect(dateParams({ preset: 'last_90d' })).toEqual({ date_preset: 'last_90d' });
+  });
+});

@@ -15,7 +15,7 @@ import { graph } from '../integrations/meta';
 import { metaAdsAccess } from './adConversions';
 
 export type AdsLevel = 'campaign' | 'adset' | 'ad';
-const DATE_PRESETS = ['today', 'yesterday', 'last_7d', 'last_14d', 'last_30d', 'this_month', 'last_month', 'maximum'];
+const DATE_PRESETS = ['today', 'yesterday', 'last_7d', 'last_14d', 'last_30d', 'last_90d', 'this_month', 'last_month', 'maximum'];
 const SHOWN_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'PENDING_REVIEW', 'DISAPPROVED', 'PREAPPROVED', 'PENDING_BILLING_INFO', 'WITH_ISSUES', 'IN_PROCESS'];
 const PAGE_SIZE = 200;
 const MAX_PAGES = 10;
@@ -143,30 +143,46 @@ export function dateParams(d: any): Record<string, string> {
   return { date_preset: preset };
 }
 
-export async function listMetaAds(d: any): Promise<{ connected: boolean; accounts: Array<{ id: string; name: string; currency: string }>; rows: MetaAdsRow[]; errors: Array<{ account: string; message: string }> }> {
+export async function listMetaAds(d: any): Promise<{ connected: boolean; accounts: Array<{ id: string; name: string; currency: string }>; rows: MetaAdsRow[]; previous?: MetaAdsRow[]; errors: Array<{ account: string; message: string }> }> {
   const level = d?.level as AdsLevel;
   if (!['campaign', 'adset', 'ad'].includes(level)) throw fail('VALIDATION', 'Choose campaigns, ad sets or ads.');
   const dates = dateParams(d);
+  // the same campaigns and ads over a second period, to compare
+  const comparing = !!(d?.compareSince || d?.compareUntil);
+  const earlier = comparing ? dateParams({ since: d.compareSince, until: d.compareUntil }) : null;
   const acc = await metaAdsAccess();
   if (!acc) return { connected: false, accounts: [], rows: [], errors: [] };
   const edge = level === 'campaign' ? 'campaigns' : level === 'adset' ? 'adsets' : 'ads';
   const idKey = `${level}_id`;
   const rows: MetaAdsRow[] = [];
+  const previous: MetaAdsRow[] = [];
   const errors: Array<{ account: string; message: string }> = [];
+  const metricFields = `${idKey},${METRICS}${level === 'ad' ? ',' + RANKINGS : ''}`;
   await Promise.all(acc.accounts.map(async (a) => {
     try {
-      const [objects, metrics] = await Promise.all([
+      const [objects, metrics, metricsBefore] = await Promise.all([
         allPages(`${a.id}/${edge}`, acc.token, { fields: OBJECT_FIELDS[level], effective_status: JSON.stringify(SHOWN_STATUSES), limit: PAGE_SIZE }),
-        allPages(`${a.id}/insights`, acc.token, { level, fields: `${idKey},${METRICS}${level === 'ad' ? ',' + RANKINGS : ''}`, use_unified_attribution_setting: 'true', limit: PAGE_SIZE, ...dates }),
+        allPages(`${a.id}/insights`, acc.token, { level, fields: metricFields, use_unified_attribution_setting: 'true', limit: PAGE_SIZE, ...dates }),
+        // the main figures still show if the earlier period cannot be read
+        earlier
+          ? allPages(`${a.id}/insights`, acc.token, { level, fields: metricFields, use_unified_attribution_setting: 'true', limit: PAGE_SIZE, ...earlier }).catch((e: any) => {
+              errors.push({ account: a.name, message: `The earlier period could not be read: ${truncate(e?.message || String(e), 260)}` });
+              return null;
+            })
+          : Promise.resolve(null),
       ]);
       const byId = new Map(metrics.map((m) => [String(m[idKey]), m]));
       for (const o of objects) rows.push(buildRow(o, byId.get(String(o.id)), level, a));
+      if (metricsBefore) {
+        const before = new Map(metricsBefore.map((m) => [String(m[idKey]), m]));
+        for (const o of objects) previous.push(buildRow(o, before.get(String(o.id)), level, a));
+      }
     } catch (e: any) {
       errors.push({ account: a.name, message: truncate(e?.message || String(e), 300) });
     }
   }));
   rows.sort((x, y) => Number(y.delivery === 'ACTIVE') - Number(x.delivery === 'ACTIVE') || (y.spend || 0) - (x.spend || 0) || x.name.localeCompare(y.name));
-  return { connected: true, accounts: acc.accounts, rows, errors };
+  return { connected: true, accounts: acc.accounts, rows, ...(comparing ? { previous } : {}), errors };
 }
 
 export const actions: ActionMap = {

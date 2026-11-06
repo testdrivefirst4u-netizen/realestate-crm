@@ -4,17 +4,19 @@
  * rows, shows what is inside them on the next tab. New campaigns and ads are made in Meta (Open in Meta).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Columns3, ExternalLink, Pencil, RefreshCw, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Columns3, Download, ExternalLink, Pencil, RefreshCw, Search, X } from 'lucide-react';
 import { api, type MetaAdsLevel, type MetaAdsResult, type MetaAdsRow } from '../../core/api';
-import { formatDate } from '../../core/dates';
+import { formatDate, todayKey } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
+import { downloadXlsx } from '../../core/xlsx';
 import { Button, EmptyState, InlineNotice, cx, inputCls } from '../../components/ui';
+import { adsFileName, buildAdsSheet, changeOf, compareNote, compareRange, metricOf, rangeOfPreset, totalsOf, validRange, type Better, type CompareMode, type DayRange, type Metric } from './adsCompare';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const LEVELS: Array<{ id: MetaAdsLevel; label: string }> = [{ id: 'campaign', label: 'Campaigns' }, { id: 'adset', label: 'Ad sets' }, { id: 'ad', label: 'Ads' }];
 const PRESETS = [
-  { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'last_7d', label: 'Last 7 days' }, { id: 'last_14d', label: 'Last 14 days' }, { id: 'last_30d', label: 'Last 30 days' },
+  { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'last_7d', label: 'Last 7 days' }, { id: 'last_14d', label: 'Last 14 days' }, { id: 'last_30d', label: 'Last 30 days' }, { id: 'last_90d', label: 'Last 90 days' },
   { id: 'this_month', label: 'This month' }, { id: 'last_month', label: 'Last month' }, { id: 'maximum', label: 'Maximum' }, { id: 'custom', label: 'Custom' },
 ];
 const DELIVERY: Record<string, { label: string; dot: string }> = {
@@ -88,15 +90,52 @@ function savedColumns(): string[] {
   }
 }
 
+const shortDay = (key: string) => {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+};
+const rangeText = (r: DayRange) => (r.since === r.until ? shortDay(r.since) : `${shortDay(r.since)} to ${shortDay(r.until)}`);
+const metricText = (m: Pick<Metric, 'kind'>, n: number | null, currency: string) => {
+  if (n === null) return '—';
+  if (m.kind === 'money') return currency ? cash(n, currency) : dec(n);
+  if (m.kind === 'percent') return pct(n);
+  if (m.kind === 'number') return dec(n);
+  return count(n);
+};
+const TONE = { good: 'text-[#067647]', bad: 'text-[#B42318]', flat: 'text-[#5E6C7B]' };
+
+/** How a figure moved: the arrow and words carry it, the colour only says whether that is good. */
+const ChangeText: React.FC<{ now: number | null; before: number | null; better: Better }> = ({ now, before, better }) => {
+  const c = changeOf(now, before, better);
+  if (!c) return null;
+  return (
+    <span className={cx('inline-flex items-center gap-0.5 font-semibold', TONE[c.tone])}>
+      {c.arrow === 'up' && <ArrowUp size={10} aria-label="Up" />}{c.arrow === 'down' && <ArrowDown size={10} aria-label="Down" />}{c.text}
+    </span>
+  );
+};
+
+const SummaryTile: React.FC<{ label: string; kind: Metric['kind']; better: Better; now: number | null; before: number | null; currency: string }> = ({ label, kind, better, now, before, currency }) => (
+  <div className="min-w-0 rounded-lg border border-[#DADDE1] bg-white px-3 py-2">
+    <p className="truncate text-[11px] text-[#5E6C7B]">{label}</p>
+    <p className="truncate text-base font-bold tabular-nums text-[#1C2B33]">{metricText({ kind }, now, currency)}</p>
+    <p className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-[#5E6C7B]"><span className="tabular-nums">was {metricText({ kind }, before, currency)}</span><ChangeText now={now} before={before} better={better} /></p>
+  </div>
+);
+
 const th = 'px-3 py-2 text-[11px] font-semibold text-[#44505C] whitespace-nowrap select-none';
 const td = 'px-3 py-2 text-xs text-[#1C2B33] align-middle';
 
-export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) => {
+export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }> = ({ canChange, canExport }) => {
   const [level, setLevel] = useState<MetaAdsLevel>('campaign');
   const [preset, setPreset] = useState('last_7d');
   const [since, setSince] = useState('');
   const [until, setUntil] = useState('');
+  const [compareMode, setCompareMode] = useState<CompareMode>('off');
+  const [otherSince, setOtherSince] = useState('');
+  const [otherUntil, setOtherUntil] = useState('');
   const [data, setData] = useState<MetaAdsResult | null>(null);
+  const [dataFor, setDataFor] = useState('');
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState('');
   const [search, setSearch] = useState('');
@@ -113,21 +152,32 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
 
   useEffect(() => setColumns(savedColumns()), []);
   const custom = preset === 'custom';
+  const today = todayKey();
+  const main: DayRange | null = custom ? (validRange({ since, until }) ? { since, until } : null) : rangeOfPreset(preset, today);
+  const other: DayRange | null = !main || compareMode === 'off' ? null
+    : compareMode === 'custom' ? (validRange({ since: otherSince, until: otherUntil }) ? { since: otherSince, until: otherUntil } : null)
+    : compareRange(compareMode, main, today);
+  const compareOff = compareMode === 'off';
+  const waitingForDates = !compareOff && !other && !!main;
+  const mainSince = main?.since, mainUntil = main?.until, otherFrom = other?.since, otherTo = other?.until;
+  const compareKey = otherFrom ? [mainSince, mainUntil, otherFrom, otherTo].join(':') : '';
   const load = useCallback(async () => {
     if (custom && (!since || !until)) return;
+    if (!compareOff && !otherFrom) return; // comparing, and the other dates are not chosen yet
     const mine = ++latest.current;
     setLoading(true);
     try {
-      const r = await api.ads.meta({ level, ...(custom ? { since, until } : { preset }) });
+      const r = await api.ads.meta({ level, ...(otherFrom ? { since: mainSince, until: mainUntil, compareSince: otherFrom, compareUntil: otherTo } : custom ? { since, until } : { preset }) });
       if (mine !== latest.current) return;
       setData(r);
+      setDataFor(compareKey);
       setFailed('');
     } catch (e) {
       if (mine === latest.current) setFailed(errText('ads.meta', e));
     } finally {
       if (mine === latest.current) setLoading(false);
     }
-  }, [level, preset, since, until, custom]);
+  }, [level, preset, since, until, custom, compareOff, mainSince, mainUntil, otherFrom, otherTo, compareKey]);
   useEffect(() => void load(), [load]);
 
   const chooseColumns = (id: string, on: boolean) => {
@@ -156,29 +206,30 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
 
   const currencies = new Set(rows.map((r) => r.currency));
   const currency = currencies.size === 1 ? [...currencies][0] : '';
-  const sum = (f: (r: MetaAdsRow) => number | null) => rows.reduce((t, r) => t + (f(r) || 0), 0);
-  const totals: Record<string, string> = {};
-  if (rows.length) {
-    const spend = sum((r) => r.spend), impressions = sum((r) => r.impressions), linkClicks = sum((r) => r.linkClicks), clicks = sum((r) => r.clicks);
-    const labels = new Set(rows.filter((r) => r.results !== null).map((r) => r.resultLabel));
-    if (labels.size === 1) {
-      const results = sum((r) => r.results);
-      totals.results = count(results);
-      if (currency && results) totals.cpr = cash(spend / results, currency);
-    }
-    totals.impressions = count(impressions);
-    totals.linkClicks = count(linkClicks);
-    totals.clicks = count(clicks);
-    totals.leads = count(sum((r) => r.leads));
-    totals.landing = count(sum((r) => r.landingPageViews));
-    if (impressions) { totals.linkCtr = pct(linkClicks / impressions * 100); totals.ctr = pct(clicks / impressions * 100); }
-    if (currency) {
-      totals.spend = cash(spend, currency);
-      if (linkClicks) totals.linkCpc = cash(spend / linkClicks, currency);
-      if (clicks) totals.cpc = cash(spend / clicks, currency);
-      if (impressions) totals.cpm = cash(spend / impressions * 1000, currency);
-    }
-  }
+  // the earlier figures: only when they are for the dates now chosen, so nothing is shown under the wrong heading
+  const before = useMemo(() => (data?.previous && compareKey && dataFor === compareKey ? new Map(data.previous.map((r) => [r.id, r])) : null), [data, compareKey, dataFor]);
+  const totals = totalsOf(rows);
+  const totalsBefore = before ? totalsOf(rows.map((r) => before.get(r.id)).filter((x): x is MetaAdsRow => !!x)) : null;
+  // money needs one currency to be added up; counts do not
+  const canTotal = (id: string) => metricOf(id)?.kind !== 'money' || !!currency;
+  const note = main && other && before ? compareNote(main, other, today) : '';
+  const levelLabel = LEVELS.find((l) => l.id === level)!.label;
+
+  const exportExcel = () => {
+    const accountName = (r: MetaAdsRow) => data?.accounts.find((a) => a.id === r.accountId)?.name || r.accountId;
+    const sheet = buildAdsSheet({
+      nameLabel: levelLabel.replace(/s$/, ''), level, rows, before, accountName,
+      mainLabel: main ? rangeText(main) : '', otherLabel: other ? rangeText(other) : '',
+      columns: shown.map((c) => {
+        const m = metricOf(c.id);
+        if (m) return { label: c.label, metric: m.id, value: m.get };
+        if (c.id === 'delivery') return { label: c.label, value: (r: MetaAdsRow) => DELIVERY[r.delivery]?.label || words(r.delivery) };
+        return { label: c.label, value: (r: MetaAdsRow) => String(c.text(r)) };
+      }),
+    });
+    downloadXlsx(adsFileName(levelLabel, main, preset, before ? other : null), sheet.headers, sheet.rows, levelLabel);
+    toast('Excel downloaded', `${rows.length} ${levelLabel.toLowerCase()}`, 'success');
+  };
 
   const levelName = (r: MetaAdsRow) => (r.level === 'campaign' ? 'campaign' : r.level === 'adset' ? 'ad set' : 'ad');
   const switchRow = async (r: MetaAdsRow) => {
@@ -237,18 +288,31 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
           <input className={cx(inputCls, 'pl-8')} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name" aria-label="Search by name" />
         </label>
         {(data?.accounts.length || 0) > 1 && (
-          <select className={cx(inputCls, 'w-auto')} value={account} onChange={(e) => setAccount(e.target.value)} aria-label="Ad account">
+          <select className={cx(inputCls, '!w-auto')} value={account} onChange={(e) => setAccount(e.target.value)} aria-label="Ad account">
             <option value="">All ad accounts</option>
             {data!.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         )}
-        <select className={cx(inputCls, 'w-auto')} value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Date range">
+        <select className={cx(inputCls, '!w-auto')} value={preset} onChange={(e) => { const v = e.target.value; setPreset(v); if (v === 'maximum') setCompareMode('off'); }} aria-label="Date range">
           {PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         {custom && (
           <>
-            <input type="date" className={cx(inputCls, 'w-auto')} value={since} max={until || undefined} onChange={(e) => setSince(e.target.value)} aria-label="From" />
-            <input type="date" className={cx(inputCls, 'w-auto')} value={until} min={since || undefined} onChange={(e) => setUntil(e.target.value)} aria-label="To" />
+            <input type="date" className={cx(inputCls, '!w-auto')} value={since} max={until || undefined} onChange={(e) => setSince(e.target.value)} aria-label="From" />
+            <input type="date" className={cx(inputCls, '!w-auto')} value={until} min={since || undefined} onChange={(e) => setUntil(e.target.value)} aria-label="To" />
+          </>
+        )}
+        <select className={cx(inputCls, '!w-auto')} value={compareMode} disabled={preset === 'maximum'} title={preset === 'maximum' ? 'Maximum has no fixed dates to compare' : undefined} onChange={(e) => setCompareMode(e.target.value as CompareMode)} aria-label="Compare with">
+          <option value="off">No comparison</option>
+          <option value="previous">{main ? `Previous period (${rangeText(compareRange('previous', main, today))})` : 'Previous period'}</option>
+          <option value="sameDays">{main ? `A month earlier (${rangeText(compareRange('sameDays', main, today))})` : 'A month earlier'}</option>
+          <option value="lastMonth">Whole of last month ({rangeText(rangeOfPreset('last_month', today)!)})</option>
+          <option value="custom">Custom dates</option>
+        </select>
+        {compareMode === 'custom' && (
+          <>
+            <input type="date" className={cx(inputCls, '!w-auto')} value={otherSince} max={otherUntil || undefined} onChange={(e) => setOtherSince(e.target.value)} aria-label="Compare from" />
+            <input type="date" className={cx(inputCls, '!w-auto')} value={otherUntil} min={otherSince || undefined} onChange={(e) => setOtherUntil(e.target.value)} aria-label="Compare to" />
           </>
         )}
         <label className="inline-flex items-center gap-1.5 text-xs text-[#1C2B33]"><input type="checkbox" className="h-4 w-4 accent-[#0866FF]" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only</label>
@@ -266,6 +330,7 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
           )}
         </div>
         <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load()}>Refresh</Button>
+        {canExport && <Button variant="secondary" size="sm" icon={<Download size={13} />} disabled={!rows.length || loading} title="Download what is on screen as Excel" onClick={exportExcel}>Export</Button>}
         <a href={metaLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-[#0866FF] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110">Create in Meta <ExternalLink size={12} /></a>
       </div>
 
@@ -285,6 +350,21 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
         <div className="flex items-center gap-2 border-b border-[#DADDE1] px-3 py-1.5 text-[11px] text-[#44505C]">
           Showing only what you selected.
           <button type="button" className="inline-flex items-center gap-1 font-semibold text-[#0866FF] hover:underline" onClick={clearFilter}><X size={11} /> Clear</button>
+        </div>
+      )}
+      {waitingForDates && <p className="border-b border-[#DADDE1] px-3 py-2 text-xs text-[#44505C]">Choose the dates to compare with.</p>}
+      {before && main && other && rows.length > 0 && (
+        <div className="border-b border-[#DADDE1] bg-[#F7F8FA] p-3">
+          <p className="text-xs font-semibold text-[#1C2B33]">{rangeText(main)} <span className="font-normal text-[#5E6C7B]">compared with</span> {rangeText(other)}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+            {currency && <SummaryTile label="Amount spent" kind="money" better="none" now={totals.spend} before={totalsBefore!.spend} currency={currency} />}
+            <SummaryTile label="Leads" kind="count" better="up" now={totals.leads} before={totalsBefore!.leads} currency={currency} />
+            {currency && <SummaryTile label="Cost per lead" kind="money" better="down" now={totals.costPerLead} before={totalsBefore!.costPerLead} currency={currency} />}
+            <SummaryTile label="Clicks" kind="count" better="up" now={totals.clicks} before={totalsBefore!.clicks} currency={currency} />
+            <SummaryTile label="CTR" kind="percent" better="up" now={totals.ctr} before={totalsBefore!.ctr} currency={currency} />
+            <SummaryTile label="Impressions" kind="count" better="up" now={totals.impressions} before={totalsBefore!.impressions} currency={currency} />
+          </div>
+          {note && <p className="mt-2 text-[11px] text-[#8A5A00]">{note}</p>}
         </div>
       )}
       {failed && <InlineNotice tone="warning" className="m-3">{failed}</InlineNotice>}
@@ -345,7 +425,13 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
                         </span>
                       ) : c.id === 'budget' && canChange && r.dailyBudget !== null ? (
                         <span className="inline-flex items-center gap-1">{budgetText(r)}<button type="button" aria-label={`Change the budget of ${r.name}`} className="text-[#0866FF]" onClick={() => setEditing({ id: r.id, value: String(r.dailyBudget) })}><Pencil size={12} /></button></span>
-                      ) : c.text(r)}
+                      ) : (() => {
+                        const m = before && metricOf(c.id);
+                        if (!m) return c.text(r);
+                        const was = before!.get(r.id);
+                        const earlier = was ? m.get(was) : null;
+                        return <>{c.text(r)}<span className="mt-0.5 flex items-center justify-end gap-1.5 text-[10.5px] font-normal text-[#5E6C7B]"><span title="Earlier period">{metricText(m, earlier, r.currency)}</span><ChangeText now={m.get(r)} before={earlier} better={m.better} /></span></>;
+                      })()}
                     </td>
                   ))}
                 </tr>
@@ -355,7 +441,17 @@ export const MetaAdsTable: React.FC<{ canChange: boolean }> = ({ canChange }) =>
               <tr className="border-t-2 border-[#DADDE1] bg-[#F5F6F7]">
                 <td /><td />
                 <td className={cx(td, 'font-semibold')}>{rows.length} {rows.length === 1 ? LEVELS.find((l) => l.id === level)!.label.replace(/s$/, '').toLowerCase() : LEVELS.find((l) => l.id === level)!.label.toLowerCase()}</td>
-                {shown.map((c) => <td key={c.id} className={cx(td, 'font-semibold whitespace-nowrap', c.right && 'text-right tabular-nums')} title={c.id === 'reach' || c.id === 'frequency' ? 'One person can be in several rows, so these do not add up.' : undefined}>{totals[c.id] || ''}</td>)}
+                {shown.map((c) => {
+                  const m = metricOf(c.id);
+                  const n = m && canTotal(c.id) ? totals[c.id] ?? null : null;
+                  const was = m && totalsBefore && canTotal(c.id) ? totalsBefore[c.id] ?? null : null;
+                  return (
+                    <td key={c.id} className={cx(td, 'font-semibold whitespace-nowrap', c.right && 'text-right tabular-nums')} title={c.id === 'reach' || c.id === 'frequency' ? 'One person can be in several rows, so these do not add up.' : undefined}>
+                      {m && n !== null ? metricText(m, n, currency) : ''}
+                      {m && totalsBefore && (n !== null || was !== null) && <span className="mt-0.5 flex items-center justify-end gap-1.5 text-[10.5px] font-normal text-[#5E6C7B]"><span>{metricText(m, was, currency)}</span><ChangeText now={n} before={was} better={m.better} /></span>}
+                    </td>
+                  );
+                })}
               </tr>
             </tfoot>
           </table>

@@ -357,7 +357,7 @@ export interface MetaAdsRow {
   clicks: number | null; ctr: number | null; cpc: number | null; cpm: number | null; linkClicks: number | null; linkCtr: number | null; linkCpc: number | null; leads: number | null; landingPageViews: number | null;
   qualityRanking: string; engagementRanking: string; conversionRanking: string;
 }
-export interface MetaAdsResult { connected: boolean; accounts: Array<{ id: string; name: string; currency: string }>; rows: MetaAdsRow[]; errors: Array<{ account: string; message: string }> }
+export interface MetaAdsResult { connected: boolean; accounts: Array<{ id: string; name: string; currency: string }>; rows: MetaAdsRow[]; previous?: MetaAdsRow[]; errors: Array<{ account: string; message: string }> }
 export interface LinkedInView { available: boolean; connected: boolean; leadAccess: boolean; orgs: Array<{ urn: string; name: string }>; orgUrn: string; adAccounts: Array<{ urn: string; name: string }>; leadAccount: string; leadsSince: string; leadsError: string; expiresAt: string; connectUrl: string }
 export interface PinterestView { available: boolean; connected: boolean; username: string; boards: Array<{ id: string; name: string }>; boardId: string; connectUrl: string }
 
@@ -706,7 +706,7 @@ export const api = {
     get: (days: 7 | 30 | 90, refresh = false) => request<WebsiteAnalytics>('getWebsiteAnalytics', { days, refresh }, { timeoutMs: 60000 }),
   },
   ads: {
-    meta: (d: { level: MetaAdsLevel; preset?: string; since?: string; until?: string }) => request<MetaAdsResult>('listMetaAds', d, { timeoutMs: 60000 }),
+    meta: (d: { level: MetaAdsLevel; preset?: string; since?: string; until?: string; compareSince?: string; compareUntil?: string }) => request<MetaAdsResult>('listMetaAds', d, { timeoutMs: 60000 }),
     setMetaStatus: (id: string, name: string, status: 'ACTIVE' | 'PAUSED') => request<{ ok: true }>('setCampaignStatus', { platform: 'meta', id, name, status }),
     setMetaBudget: (id: string, name: string, daily: number) => request<{ ok: true }>('setCampaignBudget', { platform: 'meta', id, name, daily }),
     list: () => request<{ campaigns: AdCampaign[]; errors: Partial<Record<'meta' | 'google', string>>; alerts: { enabled: boolean; minSpend: number } }>('listAdCampaigns', {}, { timeoutMs: 60000 }),

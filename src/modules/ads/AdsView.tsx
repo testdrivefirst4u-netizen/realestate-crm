@@ -15,7 +15,7 @@ const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e))
 const th = 'px-3 py-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-[#7E93A6] whitespace-nowrap';
 const td = 'px-3 py-2.5 text-xs text-[#0B2A44] align-middle';
 
-export const AdsView: React.FC<{ canChange: boolean }> = ({ canChange }) => {
+export const AdsView: React.FC<{ canChange: boolean; canExport?: boolean }> = ({ canChange, canExport }) => {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.ads.list>> | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState('');
@@ -87,7 +87,7 @@ export const AdsView: React.FC<{ canChange: boolean }> = ({ canChange }) => {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
       <Tabs tabs={[{ id: 'meta', label: 'Meta ads' }, { id: 'overview', label: 'Overview (Meta + Google)' }]} value={tab} onChange={(v) => setTab(v as 'meta' | 'overview')} />
-      {tab === 'meta' ? <MetaAdsTable canChange={canChange} /> : (<>
+      {tab === 'meta' ? <MetaAdsTable canChange={canChange} canExport={canExport} /> : (<>
       <Card title="Campaigns · last 7 days" subtitle="Spend from Meta and Google Ads; leads are the CRM leads that came from each campaign."
         actions={<Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load()}>Refresh</Button>}>
         {data?.errors.meta && <InlineNotice tone="warning" className="mb-2">Meta: {data.errors.meta}</InlineNotice>}

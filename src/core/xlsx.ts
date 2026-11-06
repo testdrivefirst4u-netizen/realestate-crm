@@ -22,6 +22,8 @@ export function colName(i: number): string {
 }
 
 function cellXml(ref: string, value: unknown, style: number): string {
+  // a number stays a number, so Excel can add it up
+  if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${ref}"${style ? ` s="${style}"` : ''}><v>${value}</v></c>`;
   const text = value === null || value === undefined ? '' : String(value);
   if (!text) return '';
   const t = text.length > MAX_CELL ? text.slice(0, MAX_CELL) : text;
