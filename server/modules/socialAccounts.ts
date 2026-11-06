@@ -180,6 +180,7 @@ export async function disconnectSocialPage(d: any, ctx: Ctx): Promise<SocialAcco
   await (await socialClaimsCol()).deleteMany({ _id: { $in: [`fb:${pg.id}`, `ig:${pg.igId}`] }, companyId: tenant.id });
   await c.updateOne({ _id: 'metaSocial' }, { $set: { pages: (cur?.pages || []).filter((p) => p.id !== id), updatedAt: new Date() } });
   await auditLog(ctx, 'Social Account Disconnected', 'Settings', 'metaSocial', pg.name);
+  (await import('./socialInsights')).clearInsightsCache();
   return getSocialAccounts();
 }
 

@@ -17,6 +17,7 @@ import { currentTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
 import { graph } from '../integrations/meta';
 import { socialPages, type SocialPage } from './socialAccounts';
+import { connectedAccountKeys } from './socialPosts';
 
 const CACHE_MS = 15 * 60000;
 const DAY_MS = 86400000;
@@ -110,8 +111,9 @@ async function facebookAccount(p: SocialPage, days: number, now: Date): Promise<
 }
 
 async function topPosts(cutoff: Date, account: string): Promise<TopPost[]> {
+  const keys = await connectedAccountKeys();
   const rows = await (await col<any>('socialPosts')).find({
-    status: { $in: ['published', 'partial'] }, scheduledAt: { $gte: cutoff }, metrics: { $exists: true, $ne: null }, ...(account ? { 'targets.key': account } : {}),
+    status: { $in: ['published', 'partial'] }, scheduledAt: { $gte: cutoff }, metrics: { $exists: true, $ne: null }, 'targets.key': account ? { $in: keys.filter((k) => k === account) } : { $in: keys },
   }, { projection: { text: 1, imageFileId: 1, imageExternal: 1, targets: 1, postType: 1, scheduledAt: 1, publishedAt: 1, metrics: 1 } }).limit(500).toArray();
   const score = (p: any) => (p.metrics?.likes || 0) + (p.metrics?.comments || 0) + (p.metrics?.shares || 0);
   return rows.sort((a, b) => score(b) - score(a)).slice(0, TOP_POSTS).map((p) => ({

@@ -75,7 +75,7 @@ export const SocialAccountsSection: React.FC<{ can: (p: Permission) => boolean }
   };
 
   const disconnect = async (id: string, name: string) => {
-    if (!window.confirm(`Disconnect ${name}? Its comments and messages stop coming in and posts can no longer go to it.`)) return;
+    if (!window.confirm(`Disconnect ${name}? Its comments and messages stop coming in, and posts can no longer go to it. Its posts, comments and messages are hidden in the CRM until you connect it again. Leads already in the CRM stay.`)) return;
     setBusy(id);
     try {
       setV(await api.socialAccounts.disconnectPage(id));

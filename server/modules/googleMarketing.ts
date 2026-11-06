@@ -255,7 +255,7 @@ async function listGbpLocations(): Promise<GbpLocation[]> {
 export async function gbpLocationPath(): Promise<{ path: string; title: string } | null> {
   const d = await loadDoc();
   const l = d?.gbpLocation;
-  if (!l?.name || !l.account) return null;
+  if (!d?.connectionId || !l?.name || !l.account) return null;
   return { path: `${l.account}/${l.name}`, title: l.title };
 }
 

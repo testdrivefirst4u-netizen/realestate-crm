@@ -126,7 +126,7 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
               </span>
               {editable && <Button variant="secondary" size="sm" icon={<RefreshCw size={13} />} loading={busy === 'refresh'} onClick={() => void run('refresh', 'google.refresh', () => api.googleMarketing.refresh(), 'Accounts refreshed')}>Refresh accounts</Button>}
               {editable && <a href={v.connectUrl} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#D3E3F0] bg-white font-semibold text-[#0B2A44] hover:bg-[#F2F7FB]"><Plug size={13} />Connect again</a>}
-              {editable && <Button variant="secondary" size="sm" icon={<Unplug size={13} />} loading={busy === 'disconnect'} onClick={() => window.confirm('Disconnect Google? Lead results, spend and reviews from Google stop.') && void run('disconnect', 'google.disconnect', () => api.googleMarketing.disconnect(), 'Disconnected')}>Disconnect</Button>}
+              {editable && <Button variant="secondary" size="sm" icon={<Unplug size={13} />} loading={busy === 'disconnect'} onClick={() => window.confirm('Disconnect Google? Lead results, spend and reviews from Google stop. Its posts and reviews are hidden in the CRM until you connect it again.') && void run('disconnect', 'google.disconnect', () => api.googleMarketing.disconnect(), 'Disconnected')}>Disconnect</Button>}
             </div>
           ) : editable && v.available ? (
             <div className="rounded-xl border border-[#BFD9EE] bg-[#F5FAFE] p-4 flex flex-wrap items-center gap-3">

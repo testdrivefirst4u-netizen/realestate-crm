@@ -13,6 +13,8 @@
  *          after the post; if it fails the post still counts as posted and the target says why.
  * Types   = post (photos and text), video (Facebook), reel and story (Facebook and Instagram): modules/socialPostVideo.ts.
  *          A video Instagram is still processing keeps its target pending and the post is looked at again 5 minutes later.
+ * Shown   = what is out shows only while its account is connected: disconnecting hides it, connecting again brings it back,
+ *          nothing is deleted. Drafts and scheduled posts always show, so someone can fix them.
  * Publish = "Post now" publishes at once; scheduled posts are published by the Meta cron (every 10 minutes) once due.
  *          A failed target can be retried; posted ones are never posted twice, and deleted ones never come back.
  * After   = text of a published post can change on Facebook (only posts this app made, says Meta) and Google, for each account.
@@ -130,6 +132,12 @@ export async function listPostTargets(): Promise<TargetOption[]> {
   }
   return out;
 }
+
+/** The accounts connected now, as target keys: what is out on any other account stays hidden. */
+export const connectedAccountKeys = async () => (await listPostTargets()).map((o) => o.key);
+/** The account ids of those, as the inbox keeps them. */
+export const connectedInboxAccounts = async () => (await connectedAccountKeys()).filter((k) => /^(facebook|instagram|google):/.test(k)).map((k) => k.slice(k.indexOf(':') + 1));
+const NOT_OUT_YET: PostStatus[] = ['draft', 'scheduled', 'publishing'];
 
 /* -------------------------------- publishing ------------------------------ */
 
@@ -307,6 +315,12 @@ export async function runPostsCron(now = new Date()): Promise<Record<string, unk
 /* ---------------------------------- screen -------------------------------- */
 
 export interface PostView { id: string; text: string; texts: Partial<Record<TargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; targets: PostTarget[]; scheduledAt: string; status: PostStatus; createdBy: string; publishedAt: string; metrics: PostMetrics | null; postType: PostType; videoFileId: string; videoUrl: string }
+/** What the screen may show: a post that is out only with the accounts still connected, and none if it has none left. */
+function shownView(p: PostDoc, keys: string[]): PostView | null {
+  if (NOT_OUT_YET.includes(p.status)) return view(p);
+  const targets = p.targets.filter((t) => keys.includes(t.key));
+  return targets.length ? view({ ...p, targets }) : null;
+}
 const view = (p: PostDoc): PostView => ({
   id: p._id, text: p.text, texts: p.texts || {}, firstComment: p.firstComment || '', link: p.link, imageFileId: p.imageFileId, imageFileIds: photosOf(p),
   imageUrls: photosOf(p).length ? photosOf(p).map((f) => `/api/files/${f}`) : p.imageExternal ? [p.imageExternal] : [], imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
@@ -330,8 +344,10 @@ export async function listPosts(d: any = {}): Promise<{ posts: PostView[]; targe
     ...(q ? { text: { $regex: escapeRegex(q), $options: 'i' } } : {}),
     ...(account ? { 'targets.key': account } : {}),
   };
-  const rows = await (await postsCol()).find(filter as any).sort({ scheduledAt: -1 }).skip(skip).limit(limit + 1).toArray();
-  return { posts: rows.slice(0, limit).map(view), targets: await listPostTargets(), hasMore: rows.length > limit };
+  const targets = await listPostTargets();
+  const keys = targets.map((o) => o.key);
+  const rows = await (await postsCol()).find({ $and: [filter, { $or: [{ status: { $in: NOT_OUT_YET } }, { 'targets.key': { $in: account ? keys.filter((k) => k === account) : keys } }] }] } as any).sort({ scheduledAt: -1 }).skip(skip).limit(limit + 1).toArray();
+  return { posts: rows.slice(0, limit).map((p) => shownView(p, keys)).filter((p): p is PostView => !!p), targets, hasMore: rows.length > limit };
 }
 
 const LINK_RE = /^https:\/\/[^\s]+$/i;
@@ -529,8 +545,9 @@ export async function reschedulePost(d: any, ctx: Ctx): Promise<PostView> {
 
 export async function getPost(d: any): Promise<{ post: PostView }> {
   const p = await (await postsCol()).findOne({ _id: String(d?.id || '') });
-  if (!p) throw fail('NOT_FOUND', 'Post not found');
-  return { post: view(p) };
+  const post = p ? shownView(p, await connectedAccountKeys()) : null;
+  if (!post) throw fail('NOT_FOUND', 'Post not found');
+  return { post };
 }
 
 export async function retryPost(d: any, ctx: Ctx): Promise<PostView> {

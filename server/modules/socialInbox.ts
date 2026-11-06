@@ -30,6 +30,7 @@ import { gbpFetch, gbpLocationPath } from './googleMarketing';
 import { addLead } from './leads';
 import { sendPush } from './push';
 import { companyOfSocial, pageFor, refreshSocialSubscriptions } from './socialAccounts';
+import { connectedInboxAccounts } from './socialPosts';
 
 export type InboxPlatform = 'facebook' | 'instagram' | 'google';
 export type InboxKind = 'comment' | 'message' | 'review';
@@ -363,7 +364,9 @@ async function readPost(id: string, platform: InboxPlatform, account: string): P
 
 export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; unread: number; hasMore: boolean; peopleNote: string }> {
   const limit = Math.min(Math.max(Number(d?.limit) || 100, 1), 2000);
-  const match: Record<string, unknown> = {};
+  // a disconnected account's conversations stay hidden until it is connected again
+  const accounts = await connectedInboxAccounts();
+  const match: Record<string, unknown> = { account: { $in: accounts } };
   if (['facebook', 'instagram', 'google'].includes(d?.platform)) match.platform = d.platform;
   if (['comment', 'message', 'review'].includes(d?.kind)) match.kind = d.kind;
   if (d?.parent) match.parent = String(d.parent);
@@ -392,14 +395,14 @@ export async function listInbox(d: any = {}): Promise<{ threads: InboxThread[]; 
     thread: r._id, platform: r.platform, kind: r.kind, authorName: r.lastIn?.name || r.partner || people.get(personKey(String(r._id)))?.name || '', text: r.lastDir === 'out' ? `You: ${r.lastText}` : r.lastIn?.text || r.lastText || '',
     rating: r.lastIn?.rating, at: new Date(r.at).toISOString(), unread: r.unread, count: r.count, leadId: r.leadId || '', answered: r.lastDir === 'out',
   }));
-  const unread = (await (await inboxCol()).distinct('thread', { direction: 'in', read: false })).length;
+  const unread = (await (await inboxCol()).distinct('thread', { direction: 'in', read: false, account: { $in: accounts } })).length;
   return { threads, unread, hasMore: rows.length > limit, peopleNote: [...people.values()].find((p) => !p.picture && p.reason)?.reason || '' };
 }
 
 export async function getInboxThread(d: any): Promise<{ thread: string; post: InboxPost | null; items: Array<Omit<InboxItem, 'at' | '_id'> & { id: string; at: string; media: InboxMedia[] }> }> {
   const thread = String(d?.thread || '');
   const items = await (await inboxCol()).find({ thread }).sort({ at: 1 }).limit(500).toArray();
-  if (!items.length) throw fail('NOT_FOUND', 'Conversation not found');
+  if (!items.length || !(await connectedInboxAccounts()).includes(items[0].account)) throw fail('NOT_FOUND', 'Conversation not found');
   await (await inboxCol()).updateMany({ thread, direction: 'in', read: false }, { $set: { read: true } });
   const on = items.find((i) => i.parent);
   const post = on?.parent ? (await knownPosts([on.parent])).get(on.parent) || await readPost(on.parent, on.platform, on.account) : null;
