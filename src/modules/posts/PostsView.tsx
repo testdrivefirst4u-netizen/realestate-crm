@@ -11,6 +11,7 @@ import { api, type InsightValue, type PostTargetOption, type SocialPost } from '
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
 import { InstagramView } from './InstagramView';
+import { PostCard } from './PostCard';
 import { PostComposer, Preview } from './PostComposer';
 import { deletableTargets, PostDeleteDialog } from './PostDeleteDialog';
 import { PostInsights, insightText } from './PostInsights';
@@ -56,7 +57,6 @@ const textTargets = (p: SocialPost) => (p.postType === 'story' ? [] : p.targets.
 const textOf = (p: SocialPost, t: SocialPost['targets'][number]) => t.text || p.texts[t.kind] || p.text;
 const PAGE_SIZE = 60;
 const listQuery = (filter: Filter, skip: number, q: string, account: string) => ({ from: '2000-01-01T00:00:00.000Z', statuses: FILTERS.find((f) => f.id === filter)!.has, skip, limit: PAGE_SIZE, q: q || undefined, account: account || undefined });
-const shortText = (t: string) => (t.length > 280 ? t.slice(0, 280) + '…' : t);
 const whenText = (p: SocialPost) => postDate(p).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 const Accounts: React.FC<{ post: SocialPost }> = ({ post }) => (
@@ -359,12 +359,12 @@ export const PostsView: React.FC = () => {
             <EmptyState className="py-10" icon={<Send size={20} />} title={`No ${FILTERS.find((f) => f.id === filter)!.label.toLowerCase()} posts`} description="Posts you create appear here." />
           ) : (
             <>
-              <ul className="grid items-start gap-3 bg-[#F0F2F5] p-3 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="grid gap-3 bg-[#F0F2F5] p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {shown.map((p) => (
-                  <li key={p.id}>
-                    <button type="button" onClick={() => open(p)} className="block w-full text-left transition hover:brightness-[0.98]" aria-label={`Open post: ${p.text || 'No text'}`}>
+                  <li key={p.id} className="min-w-0">
+                    <button type="button" onClick={() => open(p)} className="flex h-full w-full flex-col text-left transition hover:brightness-[0.98]" aria-label={`Open post: ${p.text || 'No text'}`}>
                       <span className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-[#65676B]"><Badge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</Badge>{p.createdBy}</span>
-                      {p.targets[0] ? <Preview kind={p.targets[0].kind} name={p.targets[0].name} text={shortText(p.texts[p.targets[0].kind] || p.text)} link={p.link} images={p.imageUrls} when={whenText(p)} metrics={p.metrics} postType={p.postType} video={p.videoUrl} /> : <span className="block rounded-lg border border-[#DADDE1] bg-white p-4 text-[13px] text-[#1C2B33]">{p.text || 'No text'}</span>}
+                      <span className="block min-h-0 flex-1"><PostCard post={p} when={whenText(p)} /></span>
                     </button>
                   </li>
                 ))}
