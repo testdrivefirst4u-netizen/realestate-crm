@@ -287,6 +287,7 @@ export const FEATURES = {
   competitorAds: false,
   searchConsole: false,
   businessProfile: false,
+  dripCampaigns: false,
   csvImport: true,
   documents: true,
   templates: true,

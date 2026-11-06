@@ -12,6 +12,7 @@ import { runConversionsCron } from '@/server/modules/adConversions';
 import { runInboxCron } from '@/server/modules/socialInbox';
 import { runLinkedInCron } from '@/server/modules/linkedin';
 import { runPostsCron } from '@/server/modules/socialPosts';
+import { runDripCron } from '@/server/modules/dripCampaigns';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,7 +38,9 @@ export async function GET(req: Request) {
     const linkedin = await runLinkedInCron().catch((e) => { console.error('[cron:meta] linkedin', e); return { error: 'failed' }; });
     // scheduled social posts that are due
     const posts = await runPostsCron().catch((e) => { console.error('[cron:meta] posts', e); return { error: 'failed' }; });
-    const extra = { ...(Object.keys(conversions).length ? { conversions } : {}), ...(Object.keys(inbox).length ? { inbox } : {}), ...(Object.keys(linkedin).length ? { linkedin } : {}), ...(Object.keys(posts).length ? { posts } : {}) };
+    // drip campaign steps that are due
+    const drip = await runDripCron().catch((e) => { console.error('[cron:meta] drip', e); return { error: 'failed' }; });
+    const extra = { ...(Object.keys(drip).length ? { drip } : {}), ...(Object.keys(conversions).length ? { conversions } : {}), ...(Object.keys(inbox).length ? { inbox } : {}), ...(Object.keys(linkedin).length ? { linkedin } : {}), ...(Object.keys(posts).length ? { posts } : {}) };
     const data = Object.keys(extra).length ? { ...meta, ...extra } : meta;
     await recordJobRun('meta', started, true, summarize(data));
     return NextResponse.json({ status: 'success', data });

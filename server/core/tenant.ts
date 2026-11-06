@@ -53,6 +53,8 @@ export interface TenantFeatures {
   searchConsole: boolean;
   /** Business Profile screen: the Google listing as customers see it, and its figures. */
   businessProfile: boolean;
+  /** Drip campaigns: WhatsApp, e-mail and RM task steps for new leads. */
+  dripCampaigns: boolean;
 }
 
 export interface Tenant {

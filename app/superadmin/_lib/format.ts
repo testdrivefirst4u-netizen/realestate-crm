@@ -99,6 +99,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   competitorAds: 'Competitor ads (links to Meta and Google ad libraries)',
   searchConsole: 'Search Console (Google search figures and indexed pages)',
   businessProfile: 'Business Profile (Google listing and its figures)',
+  dripCampaigns: 'Drip campaigns (WhatsApp, e-mail and RM task steps for new leads)',
 };
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
 

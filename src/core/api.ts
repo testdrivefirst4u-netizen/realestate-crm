@@ -309,6 +309,11 @@ export interface BusinessReviews { error: string; location: string; reviews: Bus
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
 /** Post scheduler › Instagram view (server: modules/instagramProfile.ts). */
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
+/** Drip campaigns (server: modules/dripCampaigns.ts). */
+export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
+export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number } }
+export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
+export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; at: string }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
 export interface SearchRow { name: string; clicks: number; impressions: number; ctr: number; position: number }
@@ -656,6 +661,14 @@ export const api = {
     saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; placements: string[]; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
     setAdActive: (id: string, active: boolean) => request<{ ok: true }>('setCompetitorAdActive', { id, active }),
+  },
+  drip: {
+    get: () => request<DripOverview>('getDrip'),
+    save: (d: { id?: string; name: string; sources: string[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; steps: DripStepInput[] }) => request<{ id: string }>('saveDripCampaign', d),
+    test: (d: { id: string; phone: string; email: string }) => request<{ results: Array<{ step: number; channel: string; ok: boolean; message: string }>; passed: boolean }>('testDripCampaign', d, { timeoutMs: 120000 }),
+    setStatus: (id: string, status: 'active' | 'paused' | 'archived') => request<{ ok: true }>('setDripStatus', { id, status }),
+    activity: (id: string) => request<{ rows: DripActivityRow[] }>('getDripActivity', { id }),
+    saveEmail: (d: { host: string; port: number; user: string; pass: string; fromName: string; fromEmail: string }) => request<{ ok: true }>('saveDripEmail', d, { timeoutMs: 30000 }),
   },
   businessProfile: {
     get: (d: { location?: string; refresh?: boolean }) => request<BusinessProfileData>('getBusinessProfile', d, { timeoutMs: 60000 }),

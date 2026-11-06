@@ -148,6 +148,7 @@ export default async function PrivacyPage() {
         <li>Lead and account data: for as long as the company uses the CRM, or until it is deleted.</li>
         <li>Records of incoming form, webhook and Facebook submissions: 180 days.</li>
         <li>Comments, messages and reviews received from connected pages: for as long as the company keeps them, and deleted with the company&rsquo;s data.</li>
+        <li>Drip campaigns: when a company runs one, leads&rsquo; names, phone numbers and e-mail addresses are used to send its WhatsApp messages through Chat360 and its e-mails through the company&rsquo;s own mail account. People can stop them by replying STOP on WhatsApp or with the unsubscribe link in any e-mail.</li>
         <li>When a company disconnects an account, its access token is deleted immediately and no further data is received from it. Posts, comments and messages already received are hidden in the CRM but kept, so they return if the company connects the account again, until the company asks us to delete them. Leads stay in the company&rsquo;s CRM.</li>
         <li>When a company account is deleted, its entire database is deleted.</li>
       </ul>

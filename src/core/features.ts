@@ -29,6 +29,7 @@ export type FeatureName =
   | 'competitorAds'
   | 'searchConsole'
   | 'businessProfile'
+  | 'dripCampaigns'
   | 'unitLocator'
   | 'projectLibrary'
   | 'reports'
@@ -93,6 +94,7 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   competitorAds: 'Competitor ads',
   searchConsole: 'Search Console',
   businessProfile: 'Business Profile',
+  dripCampaigns: 'Drip campaigns',
 };
 
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */

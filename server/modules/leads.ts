@@ -309,6 +309,7 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
   scheduleLeadAlerts(lead, 'created'); // e-mail / phone alert to the RM, after the response
   void import('./salesOps').then((m) => m.scheduleWelcome(id)).catch(() => undefined); // WhatsApp welcome template, when switched on
+  await (await import('./dripCampaigns')).enrollNewLead(lead); // a drip campaign that fits; never fails the save
   if (await getSecret('JUSTCONNECT_API_KEY')) void import('./jcSync').then((m) => m.scheduleContactPush(id), () => undefined); // caller name in JustConnect
   // calls from this number before it was a lead (a new caller): onto the lead, with their recording and AI notes
   try {
