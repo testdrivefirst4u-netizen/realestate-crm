@@ -1,15 +1,16 @@
 /**
  * Business Profile (/businessprofile; server: modules/businessProfile.ts): the profile as customers see it, a preview card,
- * the state of each detail with Edit (gbpEdit.tsx), and the figures. The preview is our drawing, so the screen says so and
+ * the state of each detail with Edit (gbpEdit.tsx), photos (gbpPhotos.tsx), and the figures. The preview is our drawing, so the screen says so and
  * links to the real listing.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, Pencil, RefreshCw } from 'lucide-react';
-import { api, type AnalyticsMetric, type BusinessPerformance, type BusinessProfileData } from '../../core/api';
+import { api, type AnalyticsMetric, type BusinessPerformance, type BusinessPhoto, type BusinessProfileData } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
 import { LineChart } from '../analytics/analyticsCharts';
 import { EditDialog, SECTION_OF, type EditSection } from './gbpEdit';
+import { coverOf, PhotosTab } from './gbpPhotos';
 import { Preview } from './gbpPreview';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
@@ -26,7 +27,7 @@ const STATE = {
   changed: { label: 'Changed by Google', cls: 'bg-[#E8F0FE] text-[#1967D2]' },
 };
 
-const ProfileTab: React.FC<{ data: BusinessProfileData; canEdit: boolean; onEdit: (s: EditSection) => void }> = ({ data, canEdit, onEdit }) => {
+const ProfileTab: React.FC<{ data: BusinessProfileData; canEdit: boolean; photo: string; onEdit: (s: EditSection) => void }> = ({ data, canEdit, photo, onEdit }) => {
   const changed = data.fields.filter((f) => f.state === 'changed');
   const shown = data.live || data.profile;
   if (!shown) return null;
@@ -36,7 +37,7 @@ const ProfileTab: React.FC<{ data: BusinessProfileData; canEdit: boolean; onEdit
       {data.duplicate && <InlineNotice tone="warning">Google has marked this location as a duplicate of another listing.</InlineNotice>}
       {data.liveError && <InlineNotice tone="warning">The public version could not be read, so your own details are shown. Google said: {data.liveError}</InlineNotice>}
       <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-        <Preview p={shown} rating={data.rating} mapsUri={data.mapsUri} />
+        <Preview p={shown} rating={data.rating} mapsUri={data.mapsUri} photo={photo} />
         <div className="min-w-0 space-y-3">
           {changed.length > 0 && (
             <section className="rounded-lg border border-[#DADCE0] bg-white">
@@ -156,7 +157,8 @@ const PerformanceTab: React.FC<{ location: string }> = ({ location }) => {
 
 export const BusinessProfileView: React.FC<{ canManage: boolean }> = ({ canManage }) => {
   const [location, setLocation] = useState('');
-  const [tab, setTab] = useState<'profile' | 'performance'>('profile');
+  const [tab, setTab] = useState<'profile' | 'photos' | 'performance'>('profile');
+  const [photo, setPhoto] = useState('');
   const [editing, setEditing] = useState<EditSection | null>(null);
   const [opening, setOpening] = useState(false);
   const [data, setData] = useState<BusinessProfileData | null>(null);
@@ -178,6 +180,15 @@ export const BusinessProfileView: React.FC<{ canManage: boolean }> = ({ canManag
     }
   }, [location]);
   useEffect(() => void load(), [load]);
+  // the picture for the preview; the screen works without it
+  const location_ = data?.location || '';
+  useEffect(() => {
+    if (!location_) return;
+    let live = true;
+    api.businessProfile.photos(location_).then((r) => { if (live) setPhoto(coverOf(r.photos)); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [location_]);
+  const photosChanged = useCallback((rows: BusinessPhoto[]) => setPhoto(coverOf(rows)), []);
   // the form starts from Google's details as they are now, not from what was kept for 15 minutes
   const openEditor = async (s: EditSection) => {
     setOpening(true);
@@ -211,11 +222,13 @@ export const BusinessProfileView: React.FC<{ canManage: boolean }> = ({ canManag
       {data && !data.error && data.profile && (
         <>
           <div role="tablist" aria-label="Business Profile" className="flex border-b border-[#DADCE0]">
-            {(['profile', 'performance'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium capitalize', tab === t ? 'border-[#1A73E8] text-[#1967D2]' : 'border-transparent text-[#5F6368] hover:bg-white')}>{t}</button>)}
+            {(['profile', 'photos', 'performance'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium capitalize', tab === t ? 'border-[#1A73E8] text-[#1967D2]' : 'border-transparent text-[#5F6368] hover:bg-white')}>{t}</button>)}
           </div>
           {opening && <p className="text-xs text-[#5F6368]">Reading the latest details from Google…</p>}
-          {tab === 'profile' ? <ProfileTab data={data} canEdit={canManage} onEdit={(s) => void openEditor(s)} /> : <PerformanceTab location={data.location} />}
-          {editing && data.edit && <EditDialog section={editing} data={data} onClose={() => setEditing(null)} onSaved={(fresh) => { setData(fresh); setEditing(null); }} />}
+          {tab === 'profile' && <ProfileTab data={data} canEdit={canManage} photo={photo} onEdit={(s) => void openEditor(s)} />}
+          {tab === 'photos' && <PhotosTab location={data.location} canEdit={canManage} onChanged={photosChanged} />}
+          {tab === 'performance' && <PerformanceTab location={data.location} />}
+          {editing && data.edit && <EditDialog section={editing} data={data} photo={photo} onClose={() => setEditing(null)} onSaved={(fresh) => { setData(fresh); setEditing(null); }} />}
         </>
       )}
     </div>

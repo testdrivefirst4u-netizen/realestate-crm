@@ -47,6 +47,7 @@ import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
 import { actions as searchConsoleActions } from './modules/searchConsole';
 import { actions as businessProfileActions } from './modules/businessProfile';
+import { actions as businessPhotoActions } from './modules/businessPhotos';
 import { actions as socialInsightsActions } from './modules/socialInsights';
 import { actions as socialPostVideoActions } from './modules/socialPostVideo';
 import { actions as analyticsReportActions } from './modules/analyticsReports';
@@ -89,6 +90,7 @@ export const registry: ActionMap = {
   ...competitorActions,
   ...searchConsoleActions,
   ...businessProfileActions,
+  ...businessPhotoActions,
   ...socialInsightsActions,
   ...socialPostVideoActions,
   ...analyticsReportActions,
@@ -149,7 +151,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
-  'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'listCompetitors', 'listMetaAds',
+  'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'getBusinessPhotos', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

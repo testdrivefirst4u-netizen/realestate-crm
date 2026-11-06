@@ -59,7 +59,7 @@ export interface BusinessPerformance {
   keywords: Array<{ keyword: string; value: number; below: boolean }>; keywordsFrom: string; keywordsTo: string; keywordsError: string; fetchedAt: string;
 }
 
-const safeLink = (v: unknown, schemes = ['https:', 'http:']): string => {
+export const safeLink = (v: unknown, schemes = ['https:', 'http:']): string => {
   try {
     const u = new URL(String(v || ''));
     return schemes.includes(u.protocol) ? u.toString() : '';
@@ -111,14 +111,14 @@ const FIELDS: Array<{ id: string; label: string; show: (p: ProfileView) => strin
 ];
 const topFields = (mask: unknown) => new Set(String(mask || '').split(',').map((s) => s.trim().split('.')[0]).filter(Boolean));
 
-async function connection() {
+export async function connection() {
   const d = await (await col<any>(CFG.COLL.INTEGRATIONS)).findOne({ _id: 'google' });
   if (!d?.connectionId) return { error: 'Connect your Google account in Settings › Google.', d };
   if (!(d.scopes || []).includes(BUSINESS_SCOPE)) return { error: 'Google access to the Business Profile was not given. Connect again in Settings › Google and tick the permission.', d };
   return { error: '', d };
 }
 /** The location asked for must be one this connection reaches. */
-function pick(d: any, wanted: unknown): { name: string; title: string; account: string } | null {
+export function pick(d: any, wanted: unknown): { name: string; title: string; account: string } | null {
   const list: any[] = d?.gbpLocations || [];
   if (wanted) {
     const hit = list.find((l) => l.name === String(wanted));
@@ -128,7 +128,7 @@ function pick(d: any, wanted: unknown): { name: string; title: string; account: 
   return d?.gbpLocation?.name ? d.gbpLocation : list[0] || null;
 }
 const key = (...parts: unknown[]) => JSON.stringify([currentTenant()?.id || '', ...parts]);
-const short = (e: any) => truncate(String(e?.message || e), 300);
+export const short = (e: any) => truncate(String(e?.message || e), 300);
 function remember<T extends object>(k: string, data: T): T {
   if (cache.size >= 200) cache.clear();
   cache.set(k, { at: Date.now(), data });

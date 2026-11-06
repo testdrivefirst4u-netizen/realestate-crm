@@ -11,3 +11,7 @@ next-env.d.ts
 # one-off data import (customer names, local paths) — kept out of git
 scripts/import-sales-tracker.ts
 tsconfig.tsbuildinfo
+
+# lead exports dropped here must never be published
+/public/*.xlsx
+/public/*.csv

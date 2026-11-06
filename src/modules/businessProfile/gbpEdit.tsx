@@ -55,7 +55,7 @@ const CategoryPicker: React.FC<{ regionCode: string; onPick: (c: { name: string;
   );
 };
 
-export const EditDialog: React.FC<{ section: EditSection; data: BusinessProfileData; onClose: () => void; onSaved: (fresh: BusinessProfileData) => void }> = ({ section, data, onClose, onSaved }) => {
+export const EditDialog: React.FC<{ section: EditSection; data: BusinessProfileData; photo?: string; onClose: () => void; onSaved: (fresh: BusinessProfileData) => void }> = ({ section, data, photo, onClose, onSaved }) => {
   const [d, setD] = useState<ProfileEdit>(() => JSON.parse(JSON.stringify(data.edit)));
   const [busy, setBusy] = useState<'' | 'check' | 'send'>('');
   const [problem, setProblem] = useState('');
@@ -191,7 +191,7 @@ export const EditDialog: React.FC<{ section: EditSection; data: BusinessProfileD
           )}
           <p className="text-[11px] text-[#5F6368]">Check with Google tests this without changing anything. Send to Google publishes it after Google's review.</p>
         </div>
-        {data.profile && <Preview p={draftView(data.profile, d)} rating={data.rating} mapsUri={data.mapsUri} />}
+        {data.profile && <Preview p={draftView(data.profile, d)} rating={data.rating} mapsUri={data.mapsUri} photo={photo} />}
       </div>
     </Modal>
   );

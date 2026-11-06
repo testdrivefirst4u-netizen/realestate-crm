@@ -303,6 +303,8 @@ export interface BusinessPerformance {
   daily: Array<{ day: string; prevDay: string; values: Record<string, number>; prev: Record<string, number> | null }>;
   keywords: Array<{ keyword: string; value: number; below: boolean }>; keywordsFrom: string; keywordsTo: string; keywordsError: string; fetchedAt: string;
 }
+export interface BusinessPhoto { name: string; format: string; category: string; url: string; thumbnail: string; createdAt: string; author: string; authorUrl: string; removalUrl: string }
+export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
 export interface SearchRow { name: string; clicks: number; impressions: number; ctr: number; position: number }
@@ -655,6 +657,9 @@ export const api = {
     performance: (d: { preset?: string; location?: string; refresh?: boolean }) => request<BusinessPerformance>('getBusinessPerformance', d, { timeoutMs: 60000 }),
     update: (d: { location: string; version: string; changes: Partial<ProfileEdit>; validateOnly: boolean; confirm: boolean }) => request<{ validated: boolean; changed: string[]; profile: BusinessProfileData | null }>('updateBusinessProfile', d, { timeoutMs: 60000 }),
     categories: (q: string, regionCode: string) => request<Array<{ name: string; displayName: string }>>('searchBusinessCategories', { q, regionCode }),
+    photos: (location: string) => request<BusinessPhotos>('getBusinessPhotos', { location }, { timeoutMs: 60000 }),
+    addPhoto: (d: { location: string; category: string; name: string; mime: string; base64: string }) => request<BusinessPhoto>('addBusinessPhoto', d, { timeoutMs: 120000 }),
+    deletePhoto: (location: string, name: string) => request<{ ok: true }>('deleteBusinessPhoto', { location, name, confirm: true }, { timeoutMs: 60000 }),
   },
   searchConsole: {
     get: () => request<SearchConsoleView>('getSearchConsole'),

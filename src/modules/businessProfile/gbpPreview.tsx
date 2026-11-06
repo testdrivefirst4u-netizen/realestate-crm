@@ -27,12 +27,13 @@ export function draftView(p: ProfileView, d: ProfileEdit): ProfileView {
   };
 }
 
-export const Preview: React.FC<{ p: ProfileView; rating: BusinessProfileData['rating']; mapsUri: string }> = ({ p, rating, mapsUri }) => {
+export const Preview: React.FC<{ p: ProfileView; rating: BusinessProfileData['rating']; mapsUri: string; photo?: string }> = ({ p, rating, mapsUri, photo }) => {
   const line = (icon: React.ReactNode, body: React.ReactNode) => <div className="flex gap-3 border-t border-[#F1F3F4] py-2.5 text-[13px] text-[#202124]"><span className="mt-0.5 flex-none text-[#1A73E8]">{icon}</span><div className="min-w-0 break-words">{body}</div></div>;
   const action = (href: string, icon: React.ReactNode, label: string) => <a href={href} target={href.startsWith('tel:') ? undefined : '_blank'} rel="noopener noreferrer" className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg p-2 text-[11px] font-medium text-[#1967D2] hover:bg-[#E8F0FE]"><span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#DADCE0]">{icon}</span>{label}</a>;
   return (
     <section className="overflow-hidden rounded-lg border border-[#DADCE0] bg-white" aria-label="Preview of the listing">
-      <p className="bg-[#F1F3F4] px-4 py-1.5 text-[11px] text-[#5F6368]">Preview. The real listing can look different, and also shows photos and other details.</p>
+      <p className="bg-[#F1F3F4] px-4 py-1.5 text-[11px] text-[#5F6368]">Preview. The real listing can look different, and also shows other details.</p>
+      {photo && <img src={photo} alt="" referrerPolicy="no-referrer" className="aspect-[16/9] w-full object-cover" />}
       <div className="p-4">
         <h2 className="break-words text-[22px] font-normal leading-tight text-[#202124]">{p.title || 'No name'}</h2>
         {rating && rating.total > 0 && (

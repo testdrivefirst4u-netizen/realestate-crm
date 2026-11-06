@@ -30,6 +30,7 @@ export const MetaSyncSection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [days, setDays] = useState(7);
 
   const load = useCallback(async (compare: boolean) => {
     setError(null);
@@ -51,7 +52,7 @@ export const MetaSyncSection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => 
     setBusy(sourceId);
     setNotice(null);
     try {
-      const r = await api.meta.backfill(sourceId, 7);
+      const r = await api.meta.backfill(sourceId, days);
       setNotice(`Sync finished: ${r.message}.`);
       await load(true);
     } catch (e) {
@@ -94,7 +95,12 @@ export const MetaSyncSection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => 
             title={p.pageName || p.name}
             subtitle={<>Last lead {ago(p.lastLeadAt)} · backup check {ago(p.lastQuickSyncAt)} · daily check {ago(p.lastBackfillAt)}</>}
             actions={canEdit && p.status === 'Active' ? (
-              <Button variant="primary" onClick={() => void syncNow(p.sourceId)} loading={busy === p.sourceId} disabled={!!busy && busy !== p.sourceId} icon={<RefreshCw size={13} />}>Sync now</Button>
+              <span className="flex flex-wrap items-center gap-2">
+                <select aria-label="How far back to sync" title="How far back to look on Facebook. Leads keep the date they came in. Leads Facebook already sent are not added again, but one added by Excel import can come in again as a re-enquiry." value={days} disabled={!!busy} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-[#D3E3F0] bg-white px-2 py-1.5 text-xs text-[#0B2A44]">
+                  {[7, 14, 30].map((n) => <option key={n} value={n}>Last {n} days</option>)}
+                </select>
+                <Button variant="primary" onClick={() => void syncNow(p.sourceId)} loading={busy === p.sourceId} disabled={!!busy && busy !== p.sourceId} icon={<RefreshCw size={13} />}>Sync now</Button>
+              </span>
             ) : undefined}
           >
             <div role="status" className={cx('flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm mb-4', st.ok ? 'border-[#ABEFC6] bg-[#ECFDF3] text-[#067647]' : 'border-[#FEDF89] bg-[#FFFAEB] text-[#93370D]')}>

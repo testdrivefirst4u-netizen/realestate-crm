@@ -92,10 +92,11 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'social', label: 'Social accounts', icon: <Share2 size={14} />, show: socialOn && can('integrations.connect') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
       { id: 'backups', label: 'Backups', icon: <DatabaseBackup size={14} />, show: can('settings.edit') },
-      { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view'), badge: trashedLeads.length || undefined },
+      // Admins have no other settings, but may restore a lead (leads.trash)
+      { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view') || currentUser?.role === 'Admin', badge: trashedLeads.length || undefined },
     ];
     return list.filter((s) => s.show);
-  }, [can, trashedLeads.length, metaOn, metaAdsOn, googleOn, socialOn]);
+  }, [can, currentUser?.role, trashedLeads.length, metaOn, metaAdsOn, googleOn, socialOn]);
 
   const [active, setActive] = useState<SectionId>(() => initialSettingsSection<SectionId>(link, SECTION_IDS, 'profile'));
   useEffect(() => {
@@ -165,7 +166,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'social' && socialOn && can('integrations.connect') && <SocialAccountsSection can={can} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}
           {active === 'backups' && can('settings.edit') && <BackupsSection />}
-          {active === 'recycle' && can('settings.view') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
+          {active === 'recycle' && (can('settings.view') || currentUser?.role === 'Admin') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
         </div>
       </div>
     </div>
