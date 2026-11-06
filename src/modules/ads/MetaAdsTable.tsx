@@ -11,7 +11,9 @@ import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { downloadXlsx } from '../../core/xlsx';
 import { Button, EmptyState, InlineNotice, cx, inputCls } from '../../components/ui';
-import { adsFileName, buildAdsSheet, changeOf, compareNote, compareRange, metricOf, rangeOfPreset, totalsOf, validRange, type Better, type CompareMode, type DayRange, type Metric } from './adsCompare';
+import { AdsSideBySide } from './AdsSideBySide';
+import { ChangeText, DELIVERY, cash, count, dec, metricText, pct, rangeText, words } from './adsCells';
+import { MAX_SIDE_BY_SIDE, adsFileName, buildAdsSheet, compareNote, compareRange, metricOf, rangeOfPreset, totalsOf, validRange, type Better, type CompareMode, type DayRange, type Metric } from './adsCompare';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const LEVELS: Array<{ id: MetaAdsLevel; label: string }> = [{ id: 'campaign', label: 'Campaigns' }, { id: 'adset', label: 'Ad sets' }, { id: 'ad', label: 'Ads' }];
@@ -19,25 +21,7 @@ const PRESETS = [
   { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'last_7d', label: 'Last 7 days' }, { id: 'last_14d', label: 'Last 14 days' }, { id: 'last_30d', label: 'Last 30 days' }, { id: 'last_90d', label: 'Last 90 days' },
   { id: 'this_month', label: 'This month' }, { id: 'last_month', label: 'Last month' }, { id: 'maximum', label: 'Maximum' }, { id: 'custom', label: 'Custom' },
 ];
-const DELIVERY: Record<string, { label: string; dot: string }> = {
-  ACTIVE: { label: 'Active', dot: 'bg-[#31A24C]' }, PAUSED: { label: 'Off', dot: 'bg-[#A7B4C0]' }, CAMPAIGN_PAUSED: { label: 'Campaign off', dot: 'bg-[#A7B4C0]' }, ADSET_PAUSED: { label: 'Ad set off', dot: 'bg-[#A7B4C0]' },
-  PENDING_REVIEW: { label: 'In review', dot: 'bg-[#F0A92E]' }, PREAPPROVED: { label: 'Pre-approved', dot: 'bg-[#F0A92E]' }, IN_PROCESS: { label: 'Processing', dot: 'bg-[#F0A92E]' },
-  DISAPPROVED: { label: 'Rejected', dot: 'bg-[#E0483E]' }, WITH_ISSUES: { label: 'Has issues', dot: 'bg-[#E0483E]' }, PENDING_BILLING_INFO: { label: 'Billing needed', dot: 'bg-[#E0483E]' },
-};
 const BID: Record<string, string> = { LOWEST_COST_WITHOUT_CAP: 'Highest volume', LOWEST_COST_WITH_BID_CAP: 'Bid cap', COST_CAP: 'Cost per result goal', LOWEST_COST_WITH_MIN_ROAS: 'ROAS goal' };
-const words = (s: string) => s.replace(/^OUTCOME_/, '').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
-
-const count = (n: number | null) => (n === null ? '—' : Math.round(n).toLocaleString('en-IN'));
-const dec = (n: number | null, digits = 2) => (n === null ? '—' : n.toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits }));
-const pct = (n: number | null) => (n === null ? '—' : `${dec(n)}%`);
-function cash(n: number | null, currency: string) {
-  if (n === null) return '—';
-  try {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n);
-  } catch {
-    return dec(n);
-  }
-}
 const day = (s: string, none: string) => (s ? formatDate(s) : none);
 const budgetText = (r: MetaAdsRow) => {
   if (r.dailyBudget !== null) return `${cash(r.dailyBudget, r.currency)}/day`;
@@ -80,6 +64,7 @@ const COLUMNS: Column[] = [
 ];
 const DEFAULT_COLUMNS = ['delivery', 'bid', 'budget', 'results', 'reach', 'impressions', 'cpr', 'spend', 'end', 'clicks', 'ctr'];
 const COLUMNS_KEY = 'crm.metaAds.columns';
+const PERIODS_KEY = 'crm.metaAds.periodsSideBySide';
 
 function savedColumns(): string[] {
   try {
@@ -89,31 +74,6 @@ function savedColumns(): string[] {
     return DEFAULT_COLUMNS;
   }
 }
-
-const shortDay = (key: string) => {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-};
-const rangeText = (r: DayRange) => (r.since === r.until ? shortDay(r.since) : `${shortDay(r.since)} to ${shortDay(r.until)}`);
-const metricText = (m: Pick<Metric, 'kind'>, n: number | null, currency: string) => {
-  if (n === null) return '—';
-  if (m.kind === 'money') return currency ? cash(n, currency) : dec(n);
-  if (m.kind === 'percent') return pct(n);
-  if (m.kind === 'number') return dec(n);
-  return count(n);
-};
-const TONE = { good: 'text-[#067647]', bad: 'text-[#B42318]', flat: 'text-[#5E6C7B]' };
-
-/** How a figure moved: the arrow and words carry it, the colour only says whether that is good. */
-const ChangeText: React.FC<{ now: number | null; before: number | null; better: Better }> = ({ now, before, better }) => {
-  const c = changeOf(now, before, better);
-  if (!c) return null;
-  return (
-    <span className={cx('inline-flex items-center gap-0.5 font-semibold', TONE[c.tone])}>
-      {c.arrow === 'up' && <ArrowUp size={10} aria-label="Up" />}{c.arrow === 'down' && <ArrowDown size={10} aria-label="Down" />}{c.text}
-    </span>
-  );
-};
 
 const SummaryTile: React.FC<{ label: string; kind: Metric['kind']; better: Better; now: number | null; before: number | null; currency: string }> = ({ label, kind, better, now, before, currency }) => (
   <div className="min-w-0 rounded-lg border border-[#DADDE1] bg-white px-3 py-2">
@@ -146,11 +106,21 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
   const [sort, setSort] = useState<{ id: string; desc: boolean } | null>(null);
   const [pickedCampaigns, setPickedCampaigns] = useState<string[]>([]);
   const [pickedAdsets, setPickedAdsets] = useState<string[]>([]);
+  const [pickedAds, setPickedAds] = useState<string[]>([]);
+  const [comparingRows, setComparingRows] = useState(false);
+  const [periodsApart, setPeriodsApart] = useState(true);
   const [busy, setBusy] = useState('');
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
   const latest = useRef(0);
 
   useEffect(() => setColumns(savedColumns()), []);
+  useEffect(() => {
+    try { if (window.localStorage.getItem(PERIODS_KEY) === 'off') setPeriodsApart(false); } catch { /* the default then */ }
+  }, []);
+  const choosePeriodsApart = (on: boolean) => {
+    setPeriodsApart(on);
+    try { window.localStorage.setItem(PERIODS_KEY, on ? 'on' : 'off'); } catch { /* the choice lasts this visit */ }
+  };
   const custom = preset === 'custom';
   const today = todayKey();
   const main: DayRange | null = custom ? (validRange({ since, until }) ? { since, until } : null) : rangeOfPreset(preset, today);
@@ -214,6 +184,9 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
   const canTotal = (id: string) => metricOf(id)?.kind !== 'money' || !!currency;
   const note = main && other && before ? compareNote(main, other, today) : '';
   const levelLabel = LEVELS.find((l) => l.id === level)!.label;
+  // the two periods in columns of their own, for this figure?
+  const apart = (id: string) => (periodsApart && before && main && other ? metricOf(id) : undefined);
+  const stickyName = periodsApart && !!before;
 
   const exportExcel = () => {
     const accountName = (r: MetaAdsRow) => data?.accounts.find((a) => a.id === r.accountId)?.name || r.accountId;
@@ -268,12 +241,14 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
     if (r.level === 'campaign') { setPickedCampaigns([r.id]); setPickedAdsets([]); setLevel('adset'); }
     else if (r.level === 'adset') { setPickedAdsets([r.id]); setLevel('ad'); }
   };
-  const picked = level === 'campaign' ? pickedCampaigns : level === 'adset' ? pickedAdsets : [];
+  const picked = level === 'campaign' ? pickedCampaigns : level === 'adset' ? pickedAdsets : pickedAds;
   const togglePick = (id: string, on: boolean) => {
-    const set = level === 'campaign' ? setPickedCampaigns : setPickedAdsets;
+    const set = level === 'campaign' ? setPickedCampaigns : level === 'adset' ? setPickedAdsets : setPickedAds;
     set((v) => (on ? [...v, id] : v.filter((x) => x !== id)));
   };
-  const clearFilter = () => { setPickedCampaigns([]); setPickedAdsets([]); };
+  const clearFilter = () => { setPickedCampaigns([]); setPickedAdsets([]); setPickedAds([]); };
+  const pickedRows = rows.filter((r) => picked.includes(r.id));
+  const clearPicked = () => (level === 'campaign' ? setPickedCampaigns : level === 'adset' ? setPickedAdsets : setPickedAds)([]);
   const clickSort = (id: string) => setSort((s) => (s?.id === id ? { id, desc: !s.desc } : { id, desc: true }));
   const metaAccount = account || data?.accounts[0]?.id || '';
   const metaLink = `https://adsmanager.facebook.com/adsmanager/manage/campaigns${metaAccount ? `?act=${metaAccount.replace(/^act_/, '')}` : ''}`;
@@ -315,6 +290,7 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
             <input type="date" className={cx(inputCls, '!w-auto')} value={otherUntil} min={otherSince || undefined} onChange={(e) => setOtherUntil(e.target.value)} aria-label="Compare to" />
           </>
         )}
+        {!compareOff && <label className="inline-flex items-center gap-1.5 text-xs text-[#1C2B33]"><input type="checkbox" className="h-4 w-4 accent-[#0866FF]" checked={periodsApart} onChange={(e) => choosePeriodsApart(e.target.checked)} /> Side by side</label>}
         <label className="inline-flex items-center gap-1.5 text-xs text-[#1C2B33]"><input type="checkbox" className="h-4 w-4 accent-[#0866FF]" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} /> Active only</label>
         <div className="relative">
           <Button variant="secondary" size="sm" icon={<Columns3 size={13} />} aria-expanded={picking} onClick={() => setPicking((v) => !v)}>Columns</Button>
@@ -346,6 +322,15 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
         })}
       </div>
 
+      {pickedRows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#DADDE1] bg-[#EEF4FF] px-3 py-2 text-xs text-[#1C2B33]">
+          <b>{pickedRows.length} ticked</b>
+          <Button variant="primary" size="xs" disabled={pickedRows.length < 2 || pickedRows.length > MAX_SIDE_BY_SIDE} onClick={() => setComparingRows(true)}>Compare side by side</Button>
+          {pickedRows.length < 2 && <span className="text-[11px] text-[#44505C]">Tick at least 2 to compare.</span>}
+          {pickedRows.length > MAX_SIDE_BY_SIDE && <span className="text-[11px] text-[#44505C]">Tick up to {MAX_SIDE_BY_SIDE} to compare.</span>}
+          <button type="button" className="inline-flex items-center gap-1 font-semibold text-[#0866FF] hover:underline" onClick={clearPicked}><X size={11} /> Clear ticks</button>
+        </div>
+      )}
       {(pickedCampaigns.length > 0 || pickedAdsets.length > 0) && (
         <div className="flex items-center gap-2 border-b border-[#DADDE1] px-3 py-1.5 text-[11px] text-[#44505C]">
           Showing only what you selected.
@@ -379,13 +364,22 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
               <tr className="border-b border-[#DADDE1] bg-[#F5F6F7]">
                 <th className="w-8 px-2" aria-label="Select" />
                 <th className="w-10 px-1 text-[11px] font-semibold text-[#44505C]">{level === 'ad' ? '' : 'Off/On'}</th>
-                <th className={cx(th, 'min-w-[240px] text-left')}>{LEVELS.find((l) => l.id === level)!.label}</th>
+                <th className={cx(th, 'min-w-[240px] text-left', stickyName && 'sticky left-0 z-10 bg-[#F5F6F7]')}>{LEVELS.find((l) => l.id === level)!.label}</th>
                 {shown.map((c) => (
-                  <th key={c.id} className={cx(th, c.right ? 'text-right' : 'text-left')} aria-sort={sort?.id === c.id ? (sort.desc ? 'descending' : 'ascending') : undefined}>
-                    <button type="button" className="inline-flex items-center gap-1 hover:text-[#0866FF]" onClick={() => clickSort(c.id)}>
-                      {c.label}{sort?.id === c.id && (sort.desc ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}
-                    </button>
-                  </th>
+                  <React.Fragment key={c.id}>
+                    <th className={cx(th, c.right ? 'text-right' : 'text-left')} aria-sort={sort?.id === c.id ? (sort.desc ? 'descending' : 'ascending') : undefined}>
+                      <button type="button" className="inline-flex items-center gap-1 hover:text-[#0866FF]" onClick={() => clickSort(c.id)}>
+                        {c.label}{sort?.id === c.id && (sort.desc ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}
+                      </button>
+                      {apart(c.id) && <span className="block text-[10px] font-normal text-[#5E6C7B]">{rangeText(main!)}</span>}
+                    </th>
+                    {apart(c.id) && (
+                      <>
+                        <th className={cx(th, 'text-right')}>{c.label}<span className="block text-[10px] font-normal text-[#5E6C7B]">{rangeText(other!)}</span></th>
+                        <th className={cx(th, 'border-r border-[#DADDE1] text-right')}>Change</th>
+                      </>
+                    )}
+                  </React.Fragment>
                 ))}
               </tr>
             </thead>
@@ -393,7 +387,7 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
               {rows.map((r) => (
                 <tr key={r.id} className={cx('hover:bg-[#F5F9FF]', picked.includes(r.id) && 'bg-[#EEF4FF]')}>
                   <td className="px-2 text-center">
-                    {level !== 'ad' && <input type="checkbox" className="h-3.5 w-3.5 accent-[#0866FF]" aria-label={`Select ${r.name}`} checked={picked.includes(r.id)} onChange={(e) => togglePick(r.id, e.target.checked)} />}
+                    <input type="checkbox" className="h-3.5 w-3.5 accent-[#0866FF]" aria-label={`Select ${r.name}`} checked={picked.includes(r.id)} onChange={(e) => togglePick(r.id, e.target.checked)} />
                   </td>
                   <td className="px-1 text-center">
                     <button type="button" role="switch" aria-checked={r.status === 'ACTIVE'} aria-label={`${r.name}: ${r.status === 'ACTIVE' ? 'on' : 'off'}`} disabled={!canChange || busy === r.id} title={canChange ? undefined : 'Only Admins and Managers can change this'} onClick={() => void switchRow(r)}
@@ -401,7 +395,7 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
                       <span className={cx('absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all', r.status === 'ACTIVE' ? 'left-4' : 'left-0.5')} />
                     </button>
                   </td>
-                  <td className={td}>
+                  <td className={cx(td, stickyName && 'sticky left-0 z-10 bg-white')}>
                     <div className="flex items-center gap-2">
                       {r.thumbnail && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -416,7 +410,8 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
                     </div>
                   </td>
                   {shown.map((c) => (
-                    <td key={c.id} className={cx(td, 'whitespace-nowrap', c.right && 'text-right tabular-nums')}>
+                    <React.Fragment key={c.id}>
+                    <td className={cx(td, 'whitespace-nowrap', c.right && 'text-right tabular-nums')}>
                       {c.id === 'budget' && editing?.id === r.id ? (
                         <span className="inline-flex items-center gap-1">
                           <input className={cx(inputCls, 'w-24 text-right')} type="number" min={100} step={100} value={editing.value} onChange={(e) => setEditing({ id: r.id, value: e.target.value })} aria-label="Daily budget" autoFocus />
@@ -426,13 +421,26 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
                       ) : c.id === 'budget' && canChange && r.dailyBudget !== null ? (
                         <span className="inline-flex items-center gap-1">{budgetText(r)}<button type="button" aria-label={`Change the budget of ${r.name}`} className="text-[#0866FF]" onClick={() => setEditing({ id: r.id, value: String(r.dailyBudget) })}><Pencil size={12} /></button></span>
                       ) : (() => {
-                        const m = before && metricOf(c.id);
+                        const m = before && !apart(c.id) ? metricOf(c.id) : undefined;
                         if (!m) return c.text(r);
                         const was = before!.get(r.id);
                         const earlier = was ? m.get(was) : null;
                         return <>{c.text(r)}<span className="mt-0.5 flex items-center justify-end gap-1.5 text-[10.5px] font-normal text-[#5E6C7B]"><span title="Earlier period">{metricText(m, earlier, r.currency)}</span><ChangeText now={m.get(r)} before={earlier} better={m.better} /></span></>;
                       })()}
                     </td>
+                    {(() => {
+                      const m = apart(c.id);
+                      if (!m) return null;
+                      const was = before!.get(r.id);
+                      const earlier = was ? m.get(was) : null;
+                      return (
+                        <>
+                          <td className={cx(td, 'whitespace-nowrap text-right tabular-nums text-[#44505C]')}>{metricText(m, earlier, r.currency)}</td>
+                          <td className={cx(td, 'whitespace-nowrap border-r border-[#EBEDF0] text-right tabular-nums')}><ChangeText now={m.get(r)} before={earlier} better={m.better} /></td>
+                        </>
+                      );
+                    })()}
+                    </React.Fragment>
                   ))}
                 </tr>
               ))}
@@ -440,22 +448,34 @@ export const MetaAdsTable: React.FC<{ canChange: boolean; canExport?: boolean }>
             <tfoot>
               <tr className="border-t-2 border-[#DADDE1] bg-[#F5F6F7]">
                 <td /><td />
-                <td className={cx(td, 'font-semibold')}>{rows.length} {rows.length === 1 ? LEVELS.find((l) => l.id === level)!.label.replace(/s$/, '').toLowerCase() : LEVELS.find((l) => l.id === level)!.label.toLowerCase()}</td>
+                <td className={cx(td, 'font-semibold', stickyName && 'sticky left-0 z-10 bg-[#F5F6F7]')}>{rows.length} {rows.length === 1 ? LEVELS.find((l) => l.id === level)!.label.replace(/s$/, '').toLowerCase() : LEVELS.find((l) => l.id === level)!.label.toLowerCase()}</td>
                 {shown.map((c) => {
                   const m = metricOf(c.id);
                   const n = m && canTotal(c.id) ? totals[c.id] ?? null : null;
                   const was = m && totalsBefore && canTotal(c.id) ? totalsBefore[c.id] ?? null : null;
+                  const separate = !!apart(c.id);
                   return (
-                    <td key={c.id} className={cx(td, 'font-semibold whitespace-nowrap', c.right && 'text-right tabular-nums')} title={c.id === 'reach' || c.id === 'frequency' ? 'One person can be in several rows, so these do not add up.' : undefined}>
-                      {m && n !== null ? metricText(m, n, currency) : ''}
-                      {m && totalsBefore && (n !== null || was !== null) && <span className="mt-0.5 flex items-center justify-end gap-1.5 text-[10.5px] font-normal text-[#5E6C7B]"><span>{metricText(m, was, currency)}</span><ChangeText now={n} before={was} better={m.better} /></span>}
-                    </td>
+                    <React.Fragment key={c.id}>
+                      <td className={cx(td, 'font-semibold whitespace-nowrap', c.right && 'text-right tabular-nums')} title={c.id === 'reach' || c.id === 'frequency' ? 'One person can be in several rows, so these do not add up.' : undefined}>
+                        {m && n !== null ? metricText(m, n, currency) : ''}
+                        {m && totalsBefore && !separate && (n !== null || was !== null) && <span className="mt-0.5 flex items-center justify-end gap-1.5 text-[10.5px] font-normal text-[#5E6C7B]"><span>{metricText(m, was, currency)}</span><ChangeText now={n} before={was} better={m.better} /></span>}
+                      </td>
+                      {separate && m && (
+                        <>
+                          <td className={cx(td, 'font-semibold whitespace-nowrap text-right tabular-nums text-[#44505C]')}>{was !== null ? metricText(m, was, currency) : ''}</td>
+                          <td className={cx(td, 'font-semibold whitespace-nowrap border-r border-[#DADDE1] text-right tabular-nums')}>{(n !== null || was !== null) && <ChangeText now={n} before={was} better={m.better} />}</td>
+                        </>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tr>
             </tfoot>
           </table>
         </div>
+      )}
+      {comparingRows && pickedRows.length >= 2 && (
+        <AdsSideBySide rows={pickedRows.slice(0, MAX_SIDE_BY_SIDE)} before={before} levelLabel={levelLabel} period={main ? rangeText(main) : PRESETS.find((p) => p.id === preset)?.label || ''} earlier={other ? rangeText(other) : ''} onClose={() => setComparingRows(false)} />
       )}
     </div>
   );

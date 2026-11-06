@@ -1,6 +1,6 @@
 /** Ads manager: which dates each choice means, comparing two periods fairly, and the Excel sheet. */
 import { describe, expect, it } from 'vitest';
-import { adsFileName, buildAdsSheet, changeOf, changePercent, compareNote, compareRange, daysIn, metricOf, rangeOfPreset, totalsOf, validRange } from '../src/modules/ads/adsCompare';
+import { SIDE_BY_SIDE, adsFileName, bestIndexes, buildAdsSheet, changeOf, changePercent, compareNote, compareRange, daysIn, metricOf, metricsComparable, rangeOfPreset, totalsOf, validRange } from '../src/modules/ads/adsCompare';
 
 const TODAY = '2026-11-06';
 const row = (id: string, p: Record<string, unknown> = {}) => ({ id, name: id, level: 'campaign', accountId: 'act_1', currency: 'INR', campaignName: 'C', adsetName: 'S', results: null, resultLabel: '', costPerResult: null, spend: null, reach: null, impressions: null, frequency: null, clicks: null, ctr: null, cpc: null, cpm: null, linkClicks: null, linkCtr: null, linkCpc: null, leads: null, landingPageViews: null, ...p }) as any;
@@ -146,5 +146,40 @@ describe('the Excel sheet', () => {
     expect(adsFileName('Ad sets', { since: '2026-11-01', until: '2026-11-06' }, 'this_month')).toBe('Ads_Ad_sets_2026-11-01_to_2026-11-06.xlsx');
     expect(adsFileName('Ads', null, 'maximum')).toBe('Ads_Ads_maximum.xlsx');
     expect(adsFileName('Ads', { since: 'a', until: 'b' }, 'x', { since: 'c', until: 'd' })).toBe('Ads_Ads_a_to_b_vs_c_to_d.xlsx');
+  });
+});
+
+describe('side by side', () => {
+  it('marks the most of what should be high, and the least of what should be low', () => {
+    expect(bestIndexes([10, 30, 20], 'up')).toEqual([1]);
+    expect(bestIndexes([300, 100, 200], 'down')).toEqual([1]);
+  });
+  it('marks a tie on both', () => {
+    expect(bestIndexes([5, 9, 9], 'up')).toEqual([1, 2]);
+  });
+  it('marks nothing when it would say nothing', () => {
+    expect(bestIndexes([5, 9], 'none')).toEqual([]);
+    expect(bestIndexes([7, 7], 'up')).toEqual([]);
+    expect(bestIndexes([7, null], 'up')).toEqual([]);
+    expect(bestIndexes([null, null], 'down')).toEqual([]);
+  });
+  it('a cost of zero means nothing happened, so it is not the best cost', () => {
+    expect(bestIndexes([0, 100, 200], 'down')).toEqual([1]);
+  });
+  it('does not rank different currencies or different kinds of result', () => {
+    const inr = { currency: 'INR', resultLabel: 'Leads', results: 5 };
+    expect(metricsComparable('spend', [inr, { ...inr, currency: 'USD' }])).toBe(false);
+    expect(metricsComparable('clicks', [inr, { ...inr, currency: 'USD' }])).toBe(true);
+    expect(metricsComparable('results', [inr, { ...inr, resultLabel: 'Reach' }])).toBe(false);
+    expect(metricsComparable('cpr', [inr, { ...inr, resultLabel: 'Reach' }])).toBe(false);
+    expect(metricsComparable('leads', [inr, { ...inr, resultLabel: 'Reach' }])).toBe(true);
+    expect(metricsComparable('costPerLead', [inr, inr])).toBe(true);
+  });
+  it('works out cost per lead from the row, and only when there are leads', () => {
+    const m = SIDE_BY_SIDE.find((x) => x.id === 'costPerLead')!;
+    expect(m.get(row('a', { spend: 1000, leads: 4 }))).toBe(250);
+    expect(m.get(row('a', { spend: 1000, leads: 0 }))).toBeNull();
+    expect(m.get(row('a', { leads: 4 }))).toBeNull();
+    expect(SIDE_BY_SIDE.every(Boolean)).toBe(true);
   });
 });

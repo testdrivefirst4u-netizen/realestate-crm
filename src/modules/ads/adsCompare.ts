@@ -136,6 +136,33 @@ export function totalsOf(rows: MetaAdsRow[]): Record<string, number | null> {
   };
 }
 
+/* ------------------------------ side by side ------------------------------ */
+
+const costPerLead: Metric = { id: 'costPerLead', label: 'Cost per lead', kind: 'money', better: 'down', get: (r) => (r.leads && r.spend !== null ? r.spend / r.leads : null) };
+/** The figures in the side-by-side view, in reading order. */
+export const SIDE_BY_SIDE: Metric[] = ['spend', 'results', 'cpr', 'leads', 'costPerLead', 'impressions', 'reach', 'frequency', 'clicks', 'ctr', 'cpc', 'cpm', 'linkClicks', 'linkCtr', 'linkCpc', 'landing']
+  .map((id) => (id === 'costPerLead' ? costPerLead : metricOf(id)!));
+export const MAX_SIDE_BY_SIDE = 4;
+
+/** Which columns hold the best figure. None when it says nothing: too few to compare, all equal, or no better direction. A cost of zero is no cost, not the best one. */
+export function bestIndexes(values: Array<number | null>, better: Better): number[] {
+  if (better === 'none') return [];
+  const real = values.filter((v): v is number => v !== null && v > 0);
+  if (real.length < 2) return [];
+  const best = better === 'up' ? Math.max(...real) : Math.min(...real);
+  if (real.every((v) => v === best)) return [];
+  return values.flatMap((v, i) => (v === best ? [i] : []));
+}
+
+/** Can these be ranked at all? Not money in different currencies, and not results of different kinds (leads against reach). */
+export function metricsComparable(id: string, rows: Array<Pick<MetaAdsRow, 'currency' | 'resultLabel' | 'results'>>): boolean {
+  const metric = id === 'costPerLead' ? costPerLead : metricOf(id);
+  if (!metric) return false;
+  if (metric.kind === 'money' && new Set(rows.map((r) => r.currency)).size > 1) return false;
+  if ((id === 'results' || id === 'cpr') && new Set(rows.filter((r) => r.results !== null).map((r) => r.resultLabel)).size > 1) return false;
+  return true;
+}
+
 /* ---------------------------------- Excel --------------------------------- */
 
 export interface SheetColumn { label: string; metric?: string; value: (r: MetaAdsRow) => unknown }
