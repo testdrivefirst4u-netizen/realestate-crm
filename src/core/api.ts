@@ -515,8 +515,9 @@ export const api = {
   chat360: {
     contacts: () => request<Chat360Contact[]>('chat360GetContacts'),
     messages: (phone: string) => request<Chat360Message[]>('chat360GetMessages', { phone }),
-    send: (payload: { leadId?: string; phone: string; text?: string; templateName?: string; params?: string[] }) =>
-      request<{ message: Chat360Message }>('chat360Send', payload),
+    send: (payload: { leadId?: string; phone: string; text?: string; templateName?: string; params?: string[]; fileId?: string }) =>
+      request<{ message: Chat360Message }>('chat360Send', payload, payload.fileId ? { timeoutMs: 60000 } : undefined),
+    uploadFile: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; name: string; mime: string; kind: string }>('chat360UploadFile', d, { timeoutMs: 90000 }),
     test: () => request<{ ok: boolean; message: string }>('chat360Test'),
     /** Which webhook events Chat360 has sent (count, first / last time, payload shape). */
     webhookStats: () => request<Array<{ event: string; count: number; firstAt: string; lastAt: string; shape: string; payload: string }>>('chat360WebhookStats'),

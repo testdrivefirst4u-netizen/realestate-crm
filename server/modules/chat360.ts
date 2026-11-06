@@ -1072,6 +1072,30 @@ export async function messagesWithSync(phone: string): Promise<any[]> {
 
 /* --------------------------------- outbound -------------------------------- */
 
+export const WHATSAPP_FILE_CATEGORY = 'WhatsApp files';
+/** What WhatsApp itself takes, by the kind of message it becomes. */
+const WHATSAPP_FILE_KINDS: Record<string, 'image' | 'video' | 'document'> = {
+  'image/jpeg': 'image', 'image/png': 'image', 'video/mp4': 'video', 'application/pdf': 'document', 'text/plain': 'document',
+  'application/msword': 'document', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
+  'application/vnd.ms-excel': 'document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'document',
+  'application/vnd.ms-powerpoint': 'document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'document',
+};
+/** One request can carry about this much once encoded. */
+const WHATSAPP_FILE_MAX = 3 * 1024 * 1024;
+
+/** A file for a WhatsApp message. It stays in the company's files; WhatsApp fetches it from a signed link when it is sent. */
+export async function uploadWhatsappFile(d: any, ctx: Ctx): Promise<{ fileId: string; name: string; mime: string; kind: string }> {
+  const mime = String(d?.mime || '').toLowerCase();
+  const kind = WHATSAPP_FILE_KINDS[mime];
+  if (!kind) throw fail('VALIDATION', 'WhatsApp can send JPG and PNG photos, MP4 videos, and PDF, Word, Excel, PowerPoint or text documents.');
+  const { decodeBase64, saveFile } = await import('./storage');
+  const data = decodeBase64(d?.base64);
+  if (data.length > WHATSAPP_FILE_MAX) throw fail('VALIDATION', 'This file is larger than 3 MB, so it cannot be sent from here yet.');
+  const name = truncate(String(d?.name || 'file').replace(/[\\/\r\n]+/g, ' ').trim(), 150) || 'file';
+  const saved = await saveFile({ category: WHATSAPP_FILE_CATEGORY, name, mime, data, uploadedBy: ctx.user?.name || 'System' });
+  return { fileId: saved.fileId, name, mime, kind };
+}
+
 export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   const cfg = await chatCfg();
   if (!cfg.apiKey) throw fail('NOT_CONFIGURED', 'Chat360 API key is not configured. Add it under Settings → Integrations → Chat360.');
@@ -1083,7 +1107,13 @@ export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   const text = String(d.text || '').trim();
   const templateName = d.templateName ? String(d.templateName).trim() : '';
   const isTemplate = !!templateName;
-  if (!text && !isTemplate) throw fail('VALIDATION', 'Message text or template is required');
+  // a file the screen uploaded: only one of the company's WhatsApp files, sent by its own kind
+  const fileId = !isTemplate && d.fileId ? String(d.fileId) : '';
+  const { publicMediaUrl } = fileId ? await import('./socialPosts') : { publicMediaUrl: null };
+  const file = fileId ? await (await import('./storage')).statFile(fileId) : null;
+  if (fileId && (!file || file.category !== WHATSAPP_FILE_CATEGORY || !WHATSAPP_FILE_KINDS[file.mime])) throw fail('VALIDATION', 'Attach the file again.');
+  const fileKind = file ? WHATSAPP_FILE_KINDS[file.mime] : '';
+  if (!text && !isTemplate && !file) throw fail('VALIDATION', 'Message text or template is required');
   if (text.length > 4096) throw fail('VALIDATION', 'Message is too long (max 4096 characters)');
   const params: string[] = Array.isArray(d.params) ? d.params.slice(0, 20).map((p: unknown) => truncate(String(p ?? ''), 1000)) : [];
 
@@ -1097,7 +1127,9 @@ export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
         task_name: 'whatsapp_push_notification', extra: '',
         task_body: [{ client_number: cfg.businessNumber, receiver_number: phone, template_data: { template_id: await templateIdFor(cfg, templateName), param_data: templateParamData(params), button_param_data: {} } }],
       }
-    : { api_key: cfg.apiKey, from: cfg.businessNumber, recipient_type: 'individual', to: phone, type: 'text', text: { body: text } };
+    : file
+      ? { api_key: cfg.apiKey, from: cfg.businessNumber, recipient_type: 'individual', to: phone, type: fileKind, [fileKind]: { link: publicMediaUrl!(fileId), ...(text ? { caption: text } : {}), ...(fileKind === 'document' ? { filename: file.name } : {}) } }
+      : { api_key: cfg.apiKey, from: cfg.businessNumber, recipient_type: 'individual', to: phone, type: 'text', text: { body: text } };
 
   const post = async (headers: Record<string, string>) => {
     const res = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(body) });
@@ -1124,11 +1156,11 @@ export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
   }
   const providerId = truncate(str(parsed.message_id || parsed.m_id || parsed.messages?.[0]?.id || parsed.id || (parsed.data && (parsed.data.message_id || parsed.data.id)) || ''), 200);
   const lead = d.leadId ? await getLead(String(d.leadId)) : await findLeadByPhone(phone);
-  const msgText = isTemplate ? `[Template: ${templateName}] ${params.join(' | ')}` : text;
+  const msgText = isTemplate ? `[Template: ${templateName}] ${params.join(' | ')}` : file ? [fileKind === 'document' ? `📄 ${file.name}` : '', text].filter(Boolean).join('\n') : text;
   let msg = await record({
     id: providerId || undefined, eventId: providerId, dedupeKey: providerId || undefined, direction: 'Outbound', phone,
     contactName: lead ? lead[L.NAME] || '' : truncate(String(d.contactName || ''), 120), leadId: lead ? lead[L.ID] || '' : '',
-    text: msgText, status: 'sent', agent: ctx.user?.name || '', type: isTemplate ? 'template' : 'text', raw: parsed,
+    text: msgText, status: 'sent', agent: ctx.user?.name || '', type: isTemplate ? 'template' : fileKind || 'text', mediaUrl: fileId ? `/api/files/${fileId}` : '', raw: parsed,
   });
   if (!msg) {
     // The provider id was already recorded (e.g. its webhook arrived first) — return that row.
@@ -1217,6 +1249,7 @@ export const actions: ActionMap = {
   chat360GetContacts: { fn: async (_d, ctx) => filterContacts(ctx.user, await contacts()), perm: 'chat.view' },
   // the chat's messages, with the whole conversation (chatbot and agents) brought in from Chat360 first
   chat360GetMessages: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return messagesWithSync(d.phone); }, perm: 'chat.view' },
+  chat360UploadFile: { fn: (d, ctx) => uploadWhatsappFile(d, ctx), perm: 'chat.send' },
   chat360Send: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); await assertLeadAccess(ctx, d.leadId); return send(d, ctx); }, perm: 'chat.send' },
   chat360Test: { fn: () => test(), perm: 'settings.view' },
   chat360WebhookStats: { fn: () => webhookStats(), perm: 'settings.view' },

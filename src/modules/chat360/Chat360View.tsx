@@ -13,7 +13,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, ArrowLeft, CalendarClock, Check, CheckCheck, Clock, ExternalLink, Link2, ListPlus, MessageSquare, NotebookPen, Paperclip, RefreshCw, Search, Send, Settings, Sparkles, UserCheck, UserPlus, Wand2, X,
+  AlertTriangle, ArrowLeft, CalendarClock, Check, CheckCheck, Clock, Download, ExternalLink, FileText, Image as ImageIcon, Link2, ListPlus, MessageSquare, NotebookPen, Paperclip, RefreshCw, Search, Send, Settings, Smile, Sparkles, UserCheck, UserPlus, Wand2, X,
 } from 'lucide-react';
 import { Chat360Contact, Chat360Message, Lead, MessageTemplate, TaskItem, UserAccount } from '../../types/crm';
 import { F, STAGES } from '../../core/config';
@@ -31,6 +31,11 @@ import { useCompany, useFeature } from '../../core/tenant';
 import type { OpenCopilot } from '../ai/copilotContext';
 import { ListSkeleton, ChatSkeleton } from '../../components/Skeletons';
 import { personName } from '../../core/leadName';
+
+import { EmojiPicker } from './EmojiPicker';
+
+/** The chat background: our own faint pattern on WhatsApp's beige, drawn here. */
+const WALLPAPER = { backgroundColor: '#EFEAE2', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23C9C2B6' stroke-opacity='.35' stroke-width='1.2'%3E%3Cpath d='M18 22h16v12H22l-4 4zM78 14l4 8 8 1-6 6 2 8-8-4-8 4 2-8-6-6 8-1zM24 80a8 8 0 1 0 16 0 8 8 0 1 0-16 0M82 78h18v14H82zM82 78l9 7 9-7M52 50l6 6 10-12'/%3E%3C/g%3E%3C/svg%3E")` };
 
 export interface Chat360ViewProps {
   leads: Lead[];
@@ -321,6 +326,12 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
+  const [attachment, setAttachment] = useState<{ file: File; preview: string } | null>(null);
+  const composeRef = useRef<HTMLTextAreaElement>(null);
+  const docInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   // Conversations opened this session (by last 10 digits): who wrote last and when they started — feeds Unreplied / New today.
@@ -518,7 +529,53 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
 
   /* -------------------------------- send -------------------------------- */
 
+  const readBase64 = (f: File) => new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = () => reject(new Error('The file could not be read.'));
+    r.readAsDataURL(f);
+  });
+  const pickFile = (f: File | undefined) => {
+    if (!f) return;
+    setShowAttach(false);
+    if (f.size > 3 * 1024 * 1024) { setSendError('This file is larger than 3 MB, so it cannot be sent from here yet.'); return; }
+    if (attachment?.preview) URL.revokeObjectURL(attachment.preview);
+    setAttachment({ file: f, preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : '' });
+    setSendError(null);
+  };
+  const clearAttachment = () => {
+    if (attachment?.preview) URL.revokeObjectURL(attachment.preview);
+    setAttachment(null);
+  };
+  const addEmoji = (e: string) => {
+    const el = composeRef.current;
+    const at = el ? el.selectionStart : draft.length;
+    const end = el ? el.selectionEnd : draft.length;
+    setDraft(draft.slice(0, at) + e + draft.slice(end));
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(at + e.length, at + e.length); });
+  };
+  /** A photo, video or document, with what is typed as its caption. */
+  const sendFile = async () => {
+    if (!attachment || !selectedPhone || !canSend || !configured || sending) return;
+    const caption = draft.trim();
+    setSending(true);
+    setSendError(null);
+    try {
+      const up = await api.chat360.uploadFile({ name: attachment.file.name, mime: attachment.file.type, base64: await readBase64(attachment.file) });
+      const res = await api.chat360.send({ leadId: selectedContact?.leadId || undefined, phone: selectedPhone, text: caption, fileId: up.fileId });
+      setMessages((prev) => [...prev, res.message]);
+      setDraft('');
+      clearAttachment();
+      setContacts((prev) => (prev ? prev.map((c) => (samePhone(c.phone, selectedPhone) ? { ...c, lastMessage: truncate(res.message.text || attachment.file.name, 200), lastMessageAt: res.message.timestamp || nowIso() } : c)) : prev));
+    } catch (e) {
+      setSendError(reportError('chat360.sendFile', e).userMessage);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const send = async (override?: string) => {
+    if (attachment && override === undefined) { void sendFile(); return; }
     const text = (override ?? draft).trim();
     if (!text || !selectedPhone || !canSend || !configured || sending) return;
     const temp: Chat360Message = {
@@ -751,11 +808,12 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
         <Card padded={false} className="overflow-hidden">
           <div className="flex h-[calc(100vh-13rem)] min-h-[520px]">
             {/* Contacts */}
-            <aside className={cx('w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-[#D3E3F0] flex flex-col bg-[#FFFFFF]', selectedPhone && 'hidden md:flex')}>
-              <div className="p-3 border-b border-[#E6EFF6] space-y-2">
+            <aside className={cx('w-full md:w-80 lg:w-[400px] flex-shrink-0 border-r border-[#D1D7DB] flex flex-col bg-white', selectedPhone && 'hidden md:flex')}>
+              <div className="p-3 space-y-2">
+                <h2 className="text-[20px] font-bold text-[#111B21]">Chats</h2>
                 <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7E93A6]" />
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, enquiry ID…" className={cx(inputCls, 'pl-8')} />
+                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#54656F]" />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, enquiry ID…" aria-label="Search chats" className="w-full rounded-lg bg-[#F0F2F5] py-2 pl-10 pr-3 text-sm text-[#111B21] placeholder:text-[#54656F] focus:bg-white focus:outline focus:outline-1 focus:outline-[#00A884]" />
                 </div>
                 {contacts && contacts.length > 0 && (
                   <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Filter conversations">
@@ -771,12 +829,12 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                           aria-pressed={active}
                           title={f.title}
                           className={cx(
-                            'inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-[10px] font-bold border transition',
-                            active ? 'bg-[#0B2A44] text-white border-[#0B2A44]' : 'bg-white text-[#5E778C] border-[#D3E3F0] hover:border-[#0B6BB0] hover:text-[#0B2A44]'
+                            'inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-medium transition',
+                            active ? 'bg-[#D9FDD3] text-[#15603E]' : 'bg-[#F0F2F5] text-[#54656F] hover:bg-[#E9EDEF]'
                           )}
                         >
                           {f.label}
-                          <span className={cx('tabular-nums rounded-full px-1 min-w-[16px] text-center', active ? 'bg-white/20 text-white' : attention ? 'bg-[#0B6BB0] text-white' : 'bg-[#E6EFF6] text-[#0F2233]')}>{n}</span>
+                          <span className={cx('tabular-nums rounded-full px-1 min-w-[16px] text-center', attention ? 'bg-[#25D366] text-[#07361F]' : 'text-[#667781]')}>{n}</span>
                         </button>
                       );
                     })}
@@ -807,7 +865,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                     />
                   )
                 ) : (
-                  <ul className="divide-y divide-[#E6EFF6]">
+                  <ul>
                     {filteredContacts.map((c) => {
                       const lead = c.leadId ? leadById.get(c.leadId) : undefined;
                       // the lead's own name (with its salutation) first: the contact keeps what WhatsApp first gave ("WhatsApp +91…")
@@ -817,22 +875,22 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                       const awaitingReply = !unread && flagsOf(c).unreplied;
                       return (
                         <li key={c.phone}>
-                          <button type="button" onClick={() => selectContact(c.phone)} className={cx('w-full text-left px-3 py-2.5 flex items-start gap-3 hover:bg-[#F2F7FB] transition', active && 'bg-[#E6EFF6]')}>
-                            <div className={cx('w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', unread ? 'bg-[#0B6BB0] text-white' : 'bg-[#0B2A44]/10 text-[#0B2A44]')}>{initials(name || formatPhone(c.phone))}</div>
-                            <div className="min-w-0 flex-1">
+                          <button type="button" onClick={() => selectContact(c.phone)} className={cx('w-full text-left pl-3 flex items-center gap-3 transition', active ? 'bg-[#F0F2F5]' : 'hover:bg-[#F5F6F6]')}>
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 bg-[#DFE5E7] text-[#54656F]">{initials(name || formatPhone(c.phone))}</div>
+                            <div className="min-w-0 flex-1 border-b border-[#E9EDEF] py-2.5 pr-3">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="min-w-0 flex items-baseline gap-1.5">
-                                  <span className={cx('text-sm truncate', unread ? 'font-bold text-[#0B2A44]' : 'font-semibold text-[#0B2A44]')}>{name || formatPhone(c.phone)}</span>
-                                  {name && <span className="text-[10.5px] text-[#7E93A6] whitespace-nowrap">{formatPhone(c.phone)}</span>}
+                                  <span className={cx('text-[15px] truncate text-[#111B21]', unread && 'font-semibold')}>{name || formatPhone(c.phone)}</span>
                                 </span>
-                                <span className="text-[10px] text-[#7E93A6] flex-shrink-0 whitespace-nowrap">{formatRelative(c.lastMessageAt, '')}</span>
+                                <span className={cx('text-[11.5px] flex-shrink-0 whitespace-nowrap', unread ? 'font-medium text-[#1DAA61]' : 'text-[#667781]')}>{formatRelative(c.lastMessageAt, '')}</span>
                               </div>
                               <div className="flex items-center justify-between gap-2 mt-0.5">
-                                <span className={cx('text-[11px] truncate', unread ? 'text-[#0F2233] font-medium' : 'text-[#5E778C]')}>{c.lastMessage || formatPhone(c.phone)}</span>
-                                {unread > 0 && <span className="text-[10px] font-bold bg-[#0B6BB0] text-white rounded-full px-1.5 min-w-[18px] text-center flex-shrink-0">{unread}</span>}
+                                <span className={cx('text-[13px] truncate', unread ? 'text-[#111B21]' : 'text-[#667781]')}>{c.lastMessage || formatPhone(c.phone)}</span>
+                                {unread > 0 && <span className="text-[11px] font-semibold bg-[#25D366] text-[#07361F] rounded-full px-1.5 min-w-[20px] h-5 leading-5 text-center flex-shrink-0">{unread}</span>}
                               </div>
                               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                {c.leadId ? <span className="text-[10px] font-mono text-[#0B6BB0]">{c.leadId}</span> : <Badge tone="muted">Unlinked</Badge>}
+                                {name && <span className="text-[10.5px] text-[#667781] whitespace-nowrap">{formatPhone(c.phone)}</span>}
+                                {c.leadId ? <span className="text-[10px] font-mono text-[#54656F]">{c.leadId}</span> : <Badge tone="muted">Unlinked</Badge>}
                                 {lead && <StageBadge stage={lead[F.STAGE]} />}
                                 {c.assignedRM && <span className="text-[10px] text-[#7E93A6] truncate">RM {c.assignedRM}</span>}
                                 {awaitingReply && <span className="text-[10px] font-semibold text-[#B06A55]" title="The customer wrote last">Awaiting reply</span>}
@@ -848,24 +906,25 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
             </aside>
 
             {/* Conversation */}
-            <section className={cx('flex-1 min-w-0 flex flex-col bg-[#F5F9FC]', !selectedPhone && 'hidden md:flex')}>
+            <section className={cx('flex-1 min-w-0 flex flex-col bg-[#F0F2F5]', !selectedPhone && 'hidden md:flex')}>
               {!selectedPhone ? (
-                <EmptyState icon={<MessageSquare size={22} />} title="Select a conversation" description="Pick a contact on the left to read the conversation, reply, link it to an enquiry or schedule the next step." className="my-auto" />
+                <EmptyState icon={<MessageSquare size={22} />} title="Select a chat" description="Pick a contact on the left to read the conversation, reply, link it to an enquiry or schedule the next step." className="my-auto" />
               ) : (
                 <>
                   {/* Conversation header */}
-                  <header className="bg-white border-b border-[#D3E3F0] p-3 space-y-2">
-                    <div className="flex items-start gap-3">
+                  <header className="bg-[#F0F2F5] border-b border-[#D1D7DB] px-4 py-2 space-y-2">
+                    <div className="flex items-center gap-3">
                       <button type="button" onClick={() => setSelectedPhone(null)} className="md:hidden p-1.5 -ml-1 rounded-md text-[#5E778C] hover:bg-[#F2F7FB]" aria-label="Back to conversations"><ArrowLeft size={16} /></button>
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-semibold flex-shrink-0 bg-[#DFE5E7] text-[#54656F]">{initials(personName(linkedLead, selectedContact?.contactName || '') || formatPhone(selectedPhone))}</div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           {(() => {
                             // the real name beside the number; no made-up "WhatsApp +91…" (just the number until the name is known)
                             const who = personName(linkedLead, selectedContact?.contactName || '');
                             return who ? (
-                              <><h3 className="text-sm font-bold text-[#0B2A44] truncate">{who}</h3><span className="text-xs text-[#5E778C]">{formatPhone(selectedPhone)}</span></>
+                              <><h3 className="text-[15px] font-medium text-[#111B21] truncate">{who}</h3><span className="text-xs text-[#667781]">{formatPhone(selectedPhone)}</span></>
                             ) : (
-                              <><h3 className="text-sm font-bold text-[#0B2A44] truncate">{formatPhone(selectedPhone)}</h3><span className="text-[11px] italic text-[#7E93A6]">name not known yet</span></>
+                              <><h3 className="text-[15px] font-medium text-[#111B21] truncate">{formatPhone(selectedPhone)}</h3><span className="text-[11px] italic text-[#7E93A6]">name not known yet</span></>
                             );
                           })()}
                           {linkedLead ? (
@@ -952,7 +1011,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                   <MessageList groups={groups} loading={messagesLoading && messages.length === 0} error={messagesError} onRetry={() => loadMessages(selectedPhone)} />
 
                   {/* Compose */}
-                  <footer className="bg-white border-t border-[#D3E3F0] p-3 space-y-2">
+                  <footer className="bg-[#F0F2F5] px-3 py-2 space-y-2">
                     {sendError && (
                       <InlineNotice tone="warning">
                         <div className="flex items-start gap-2"><AlertTriangle size={14} className="flex-shrink-0 mt-0.5" /><span>{sendError}</span><button type="button" className="ml-auto" onClick={() => setSendError(null)} aria-label="Dismiss"><X size={12} /></button></div>
@@ -997,8 +1056,28 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                             </Button>
                           )}
                         </div>
-                        <div className="flex items-end gap-2">
+                        {attachment && (
+                          <div className="flex items-center gap-3 rounded-lg bg-white p-2 shadow-sm">
+                            {attachment.preview ? <img src={attachment.preview} alt="" className="h-14 w-14 flex-none rounded object-cover" /> : <span className="flex h-14 w-14 flex-none items-center justify-center rounded bg-[#F0F2F5] text-[#54656F]"><FileText size={24} aria-hidden="true" /></span>}
+                            <div className="min-w-0 flex-1 text-xs"><b className="block truncate font-medium text-[#111B21]">{attachment.file.name}</b><span className="text-[#667781]">{(attachment.file.size / 1024 / 1024).toFixed(1)} MB. What you type goes with it as a caption.</span></div>
+                            <button type="button" aria-label="Remove attachment" disabled={sending} onClick={clearAttachment} className="flex-none rounded-full p-1.5 text-[#54656F] hover:bg-[#F0F2F5]"><X size={16} /></button>
+                          </div>
+                        )}
+                        <div className="relative flex items-end gap-1">
+                          {showEmoji && <EmojiPicker onPick={addEmoji} onClose={() => setShowEmoji(false)} />}
+                          {showAttach && (
+                            <div className="absolute bottom-full left-10 z-20 mb-2 w-52 overflow-hidden rounded-lg border border-[#D1D7DB] bg-white py-1 shadow-lg">
+                              <button type="button" onClick={() => docInput.current?.click()} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[#111B21] hover:bg-[#F5F6F6]"><FileText size={18} className="text-[#7F66FF]" aria-hidden="true" />Document</button>
+                              <button type="button" onClick={() => photoInput.current?.click()} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[#111B21] hover:bg-[#F5F6F6]"><ImageIcon size={18} className="text-[#007BFC]" aria-hidden="true" />Photos and videos</button>
+                            </div>
+                          )}
+                          <input ref={docInput} type="file" className="sr-only" tabIndex={-1} aria-label="Choose a document" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} />
+                          <input ref={photoInput} type="file" className="sr-only" tabIndex={-1} aria-label="Choose a photo or video" accept="image/jpeg,image/png,video/mp4" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} />
+                          <button type="button" aria-label="Emoji" aria-expanded={showEmoji} disabled={sending || suggesting} onMouseDown={(e) => e.stopPropagation()} onClick={() => { setShowEmoji((v) => !v); setShowAttach(false); }} className="flex-none rounded-full p-2 text-[#54656F] hover:bg-[#E9EDEF] disabled:opacity-50"><Smile size={22} /></button>
+                          <button type="button" aria-label="Attach a file" aria-expanded={showAttach} disabled={sending || suggesting} onClick={() => { setShowAttach((v) => !v); setShowEmoji(false); }} className="flex-none rounded-full p-2 text-[#54656F] hover:bg-[#E9EDEF] disabled:opacity-50"><Paperclip size={22} /></button>
                           <textarea
+                            ref={composeRef}
+                            aria-label="Type a message"
                             value={draft}
                             onChange={(e) => {
                               setDraft(e.target.value);
@@ -1010,13 +1089,13 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                                 send();
                               }
                             }}
-                            rows={aiDraft !== null ? 4 : 2}
-                            placeholder={suggesting ? 'Drafting a reply…' : 'Type a WhatsApp message… (Enter to send, Shift+Enter for a new line)'}
-                            className={cx(inputCls, 'resize-none', aiDraftUntouched && 'border-[#0B6BB0] bg-[#FFFFFF]')}
+                            rows={aiDraft !== null ? 4 : Math.min(5, Math.max(1, draft.split('\n').length))}
+                            placeholder={suggesting ? 'Drafting a reply…' : attachment ? 'Add a caption' : 'Type a message'}
+                            className={cx('min-w-0 flex-1 resize-none rounded-lg bg-white px-3 py-2.5 text-[15px] text-[#111B21] placeholder:text-[#667781] focus:outline-none', aiDraftUntouched && 'ring-1 ring-[#00A884]')}
                             disabled={sending || suggesting}
                             aria-busy={suggesting || undefined}
                           />
-                          <Button variant="primary" size="md" onClick={() => send()} loading={sending} disabled={!draft.trim() || suggesting} icon={<Send size={14} />}>Send</Button>
+                          <button type="button" aria-label="Send" onClick={() => void send()} disabled={sending || suggesting || (!draft.trim() && !attachment)} className="ml-1 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-[#00A884] text-white hover:bg-[#008F6F] disabled:bg-[#D1D7DB] disabled:text-white">{sending ? <RefreshCw size={18} className="animate-spin" aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}</button>
                         </div>
                         {aiDraftUntouched && (
                           <div className="flex items-center gap-2 text-[10px] font-semibold text-[#0B5E9C] bg-[#0B6BB0]/10 border border-[#0B6BB0]/30 rounded-md px-2 py-1">
@@ -1051,11 +1130,39 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
 
 const StatusTicks: React.FC<{ status?: string }> = ({ status }) => {
   const s = String(status || '').toLowerCase();
-  if (s === 'sending') return <Clock size={11} className="opacity-70" aria-label="Sending" />;
-  if (s === 'read') return <CheckCheck size={13} className="text-[#8EC5E8]" aria-label="Read" />;
-  if (s === 'delivered') return <CheckCheck size={13} className="opacity-80" aria-label="Delivered" />;
-  if (s === 'failed' || s === 'error') return <AlertTriangle size={11} className="text-[#F3B3A3]" aria-label="Failed" />;
-  return <Check size={13} className="opacity-80" aria-label="Sent" />;
+  if (s === 'sending') return <Clock size={12} className="text-[#667781]" aria-label="Sending" />;
+  if (s === 'read') return <CheckCheck size={15} className="text-[#53BDEB]" aria-label="Read" />;
+  if (s === 'delivered') return <CheckCheck size={15} className="text-[#667781]" aria-label="Delivered" />;
+  if (s === 'failed' || s === 'error') return <AlertTriangle size={12} className="text-[#D93025]" aria-label="Failed" />;
+  return <Check size={15} className="text-[#667781]" aria-label="Sent" />;
+};
+
+/** What a message's attachment is: from the message type, else the file's ending. */
+function mediaKind(m: Chat360Message): 'image' | 'video' | 'audio' | 'document' {
+  const type = String(m.messageType || '').toLowerCase();
+  const url = String(m.mediaUrl || '').split('?')[0].toLowerCase();
+  if (type === 'image' || type === 'sticker' || /\.(jpe?g|png|webp|gif)$/.test(url)) return 'image';
+  if (type === 'video' || /\.(mp4|3gp|mov)$/.test(url)) return 'video';
+  if (type === 'audio' || type === 'voice' || /\.(mp3|ogg|opus|m4a|aac|amr)$/.test(url)) return 'audio';
+  return 'document';
+}
+
+/** The attachment in the bubble. If the provider's link has gone, it says so rather than showing a broken picture. */
+const MediaBlock: React.FC<{ m: Chat360Message }> = ({ m }) => {
+  const [broken, setBroken] = useState(false);
+  const url = String(m.mediaUrl || '');
+  const kind = mediaKind(m);
+  const fileName = (String(m.text || '').match(/📄\s*([^\n]+)/)?.[1] || decodeURIComponent(url.split('?')[0].split('/').pop() || '') || 'Document').trim();
+  if (!broken && kind === 'image') return <a href={url} target="_blank" rel="noopener noreferrer" aria-label="Open photo"><img src={url} alt="Photo" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="mb-1 max-h-80 w-full rounded-md object-cover" /></a>;
+  if (!broken && kind === 'video') return <video src={url} controls preload="metadata" playsInline onError={() => setBroken(true)} className="mb-1 max-h-80 w-full rounded-md bg-black" />;
+  if (!broken && kind === 'audio') return <audio src={url} controls preload="metadata" onError={() => setBroken(true)} className="mb-1 w-64 max-w-full" />;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="mb-1 flex items-center gap-3 rounded-md bg-black/[0.05] p-2.5 hover:bg-black/[0.08]">
+      <span className="flex h-10 w-8 flex-none items-center justify-center rounded bg-[#7F66FF] text-white"><FileText size={17} aria-hidden="true" /></span>
+      <span className="min-w-0 flex-1"><b className="block truncate text-[13.5px] font-medium text-[#111B21]">{broken ? 'Open attachment' : fileName}</b><span className="text-[11px] uppercase text-[#667781]">{broken ? 'Preview not available' : fileName.split('.').pop()?.slice(0, 6) || 'File'}</span></span>
+      <Download size={17} className="flex-none text-[#54656F]" aria-hidden="true" />
+    </a>
+  );
 };
 
 const MessageList: React.FC<{ groups: Array<{ key: string; label: string; items: Chat360Message[] }>; loading: boolean; error: string | null; onRetry: () => void }> = ({ groups, loading, error, onRetry }) => {
@@ -1075,25 +1182,23 @@ const MessageList: React.FC<{ groups: Array<{ key: string; label: string; items:
   if (error && count === 0) return <div className="flex-1 p-4"><ErrorState title="Could not load messages" message={error} onRetry={onRetry} /></div>;
   if (count === 0) return <div className="flex-1 flex"><EmptyState icon={<MessageSquare size={20} />} title="No messages yet" description="Say hello — the first message starts the conversation history for this contact." className="m-auto" /></div>;
   return (
-    <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div ref={ref} onScroll={onScroll} style={WALLPAPER} className="flex-1 overflow-y-auto px-[5%] py-4 space-y-3">
       {error && <ErrorState compact title="Live refresh failed" message={error} onRetry={onRetry} />}
       {groups.map((g) => (
-        <div key={g.key} className="space-y-2">
-          <div className="flex items-center justify-center"><span className="text-[10px] font-bold uppercase tracking-wider text-[#5E778C] bg-white border border-[#E6EFF6] rounded-full px-2.5 py-0.5">{g.label}</span></div>
+        <div key={g.key} className="space-y-1">
+          <div className="flex items-center justify-center"><span className="text-[12px] text-[#54656F] bg-white rounded-lg px-3 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]">{g.label}</span></div>
           {g.items.map((m) => {
             const out = m.direction === 'Outbound';
             const type = String(m.messageType || 'text').toLowerCase();
+            // a document's name is on its card, and "📷 Photo" says nothing the picture doesn't
+            const caption = m.mediaUrl ? String(m.text || '').split('\n').filter((l) => !/^(📄|📷|🎥|🎤)/u.test(l.trim())).join('\n').trim() : m.text;
             return (
               <div key={m.id} className={cx('flex', out ? 'justify-end' : 'justify-start')}>
-                <div className={cx('max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-2xs', out ? 'bg-[#0B2A44] text-white rounded-br-md' : 'bg-white text-[#0B2A44] border border-[#E6EFF6] rounded-bl-md')}>
-                  {type !== 'text' && type !== 'template' && <div className={cx('text-[10px] uppercase font-bold tracking-wider mb-1', out ? 'text-[#C4D8EA]' : 'text-[#0B6BB0]')}>{type}</div>}
-                  {m.text && <div className="whitespace-pre-wrap break-words leading-relaxed">{m.text}</div>}
-                  {m.mediaUrl && (
-                    <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" className={cx('inline-flex items-center gap-1 text-xs underline mt-1', out ? 'text-[#C4D8EA]' : 'text-[#0B6BB0]')}>
-                      <Paperclip size={11} /> Open attachment
-                    </a>
-                  )}
-                  <div className={cx('flex items-center justify-end gap-1.5 mt-1 text-[10px]', out ? 'text-[#C4D8EA]/80' : 'text-[#7E93A6]')}>
+                <div className={cx('max-w-[78%] md:max-w-[65%] rounded-lg px-2 py-1.5 text-[14.2px] text-[#111B21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)]', out ? 'bg-[#D9FDD3] rounded-tr-none' : 'bg-white rounded-tl-none')}>
+                  {m.mediaUrl && <MediaBlock m={m} />}
+                  {!m.mediaUrl && type !== 'text' && type !== 'template' && <div className="mb-0.5 text-[11px] text-[#667781] capitalize">{type}</div>}
+                  {caption && <div className="whitespace-pre-wrap break-words leading-[19px] px-0.5">{caption}</div>}
+                  <div className="flex items-center justify-end gap-1 mt-0.5 text-[11px] text-[#667781]">
                     {out && m.agent && <span className="truncate max-w-[120px]">{m.agent}</span>}
                     <span>{formatTime(m.timestamp, '')}</span>
                     {out && <StatusTicks status={m.status} />}

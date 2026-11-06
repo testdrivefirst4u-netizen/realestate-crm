@@ -1,6 +1,6 @@
 /**
- * GET /api/public/media/<company>/<file>?sig=… — a social post image or video for the platforms to fetch.
- * Only files of the post scheduler and only with the signature the CRM made for them. Videos can be asked for in ranges.
+ * GET /api/public/media/<company>/<file>?sig=… — a social post image or video, or a WhatsApp attachment, for the platforms to fetch.
+ * Only those files and only with the signature the CRM made for them. Videos can be asked for in ranges.
  */
 import { Readable } from 'node:stream';
 import { NextResponse } from 'next/server';
@@ -8,6 +8,7 @@ import { runWithTenant } from '@/server/core/tenant';
 import { getTenantById } from '@/server/platform/registry';
 import { mediaSigOk, POST_IMAGE_CATEGORY } from '@/server/modules/socialPosts';
 import { POST_VIDEO_CATEGORY } from '@/server/modules/socialPostVideo';
+import { WHATSAPP_FILE_CATEGORY } from '@/server/modules/chat360';
 import { openFileStream, statFile } from '@/server/modules/storage';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ companyId: stri
     const info = await statFile(fileId);
     const image = info?.category === POST_IMAGE_CATEGORY && /^image\//.test(info.mime);
     const video = info?.category === POST_VIDEO_CATEGORY && /^video\//.test(info.mime);
-    if (!info || (!image && !video)) return notFound();
+    const whatsapp = info?.category === WHATSAPP_FILE_CATEGORY;
+    if (!info || (!image && !video && !whatsapp)) return notFound();
     const headers = { 'Content-Type': info.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=86400' };
     const asked = /^bytes=(\d+)-(\d*)$/.exec(req.headers.get('range') || '');
     if (asked) {
