@@ -18,6 +18,8 @@
  *           updateLead → queueConversions (insert, duplicates ignored) → sent after the response (next/server
  *           `after`); a failure retries with back-off from the Meta cron (every 10 min) and the daily cron while
  *           the event is under 7 days old (Meta refuses older ones).
+ * Catch up = "Send last 7 days": steps leads reached while this was off, from their activity history, with the real date of
+ *           each step. Same queue, so nothing already reported goes twice, and Meta refuses anything older.
  * Payload = action_source 'system_generated', user_data { lead_id (Facebook lead forms), ph / em as SHA-256 },
  *           custom_data { event_source 'crm', lead_event_source }. Phone and e-mail are never sent in plain text.
  */
@@ -196,6 +198,53 @@ function scheduleSend(tenant: Tenant, ids: string[]) {
 }
 
 const backoff = (attempts: number) => Math.min(6 * 3600000, 10 * 60000 * 2 ** Math.max(0, attempts - 1));
+
+const CATCH_UP_MS = 7 * DAY_MS - 3600000; // an hour short of Meta's limit, so none is refused on the way
+const CATCH_UP_MAX = 2000;
+
+/** Steps in the activity history of the last 7 days that match a rule and were never queued: oldest first, one per lead and event. */
+async function missedSteps(rules: ConversionRule[], now: Date): Promise<Array<{ leadId: string; event: string; at: Date; id: string }>> {
+  const rows = await (await col<any>(CFG.COLL.TIMELINE)).find({ type: { $in: ['stage_changed', 'site_visit_completed', 'site_visit_status', 'site_visit_scheduled'] }, timestamp: { $gte: new Date(now.getTime() - CATCH_UP_MS), $lte: now } }, { projection: { leadId: 1, type: 1, title: 1, timestamp: 1 } }).sort({ timestamp: 1 }).limit(CATCH_UP_MAX * 5).toArray();
+  const found = new Map<string, { leadId: string; event: string; at: Date; id: string }>();
+  for (const r of rows) {
+    const title = String(r.title || '');
+    const change = r.type === 'stage_changed' ? { stage: /→\s*(.+)$/.exec(title)?.[1]?.trim() } : { siteVisit: /^Site visit:\s*(.+)$/.exec(title)?.[1]?.trim() };
+    for (const rule of rules) {
+      if (!ruleMatches(rule, change)) continue;
+      const id = `meta:${r.leadId}:${rule.event}`;
+      if (!found.has(id)) found.set(id, { leadId: String(r.leadId), event: rule.event, at: new Date(r.timestamp), id });
+    }
+  }
+  const list = [...found.values()];
+  if (!list.length) return list;
+  const done = new Set((await (await queueCol()).find({ _id: { $in: list.map((x) => x.id) } }, { projection: { _id: 1 } }).toArray()).map((d) => d._id));
+  return list.filter((x) => !done.has(x.id)).slice(0, CATCH_UP_MAX);
+}
+
+/** Tell Meta the steps reached in the last 7 days that it never heard about. With preview, only counts them. */
+export async function sendRecentAdConversions(d: any, ctx: Ctx, now = new Date()): Promise<{ found: number; byEvent: Record<string, number>; sent: number; left: number; results: Record<string, number> }> {
+  const cfg = await loadConfig();
+  if (!cfg?.enabled || !cfg.datasetId || !cfg.token) throw fail('VALIDATION', 'Switch on "Send lead results to Meta", with a dataset connected, and Save first.');
+  if (cfg.testCode) throw fail('VALIDATION', 'Clear the test event code and Save first, so these go out as real events.');
+  const missed = await missedSteps(cfg.rules, now);
+  const byEvent: Record<string, number> = {};
+  for (const m of missed) byEvent[m.event] = (byEvent[m.event] || 0) + 1;
+  if (d?.preview === true || !missed.length) return { found: missed.length, byEvent, sent: 0, left: 0, results: {} };
+  const q = await queueCol();
+  const queued: string[] = [];
+  for (const m of missed) {
+    try {
+      await q.insertOne({ _id: m.id, platform: 'meta', leadId: m.leadId, event: m.event, status: 'pending', attempts: 0, eventTime: m.at, createdAt: now, nextAt: now } as QueueDoc);
+      queued.push(m.id);
+    } catch (e: any) {
+      if (e?.code !== 11000) throw e; // reported meanwhile
+    }
+  }
+  // as many as a request can do; the rest stay pending and the cron sends them
+  const results = await sendDue({ ids: queued.slice(0, 100), now });
+  await auditLog(ctx, 'Lead Results Sent For Last 7 Days', 'Settings', 'metaCapi', `${queued.length} queued: ${Object.entries(byEvent).map(([e, n]) => `${e} ${n}`).join(', ')}`);
+  return { found: missed.length, byEvent, sent: results.sent || 0, left: Math.max(0, queued.length - 100), results };
+}
 
 /** Send queued events (the given ones, or every due one): returns how many ended in each status. */
 export async function sendDue(opts: { ids?: string[]; now?: Date; limit?: number } = {}): Promise<Record<string, number>> {
@@ -718,4 +767,5 @@ export const actions: ActionMap = {
   saveAdSpendAccounts: { fn: (d, ctx) => saveAdSpendAccounts(d, ctx), perm: 'integrations.connect' },
   saveAdConversions: { fn: (d, ctx) => saveAdConversions(d, ctx), perm: 'integrations.connect' },
   testAdConversion: { fn: (d, ctx) => testAdConversion(d, ctx), perm: 'integrations.connect' },
+  sendRecentAdConversions: { fn: (d, ctx) => sendRecentAdConversions(d, ctx), perm: 'integrations.connect' },
 };

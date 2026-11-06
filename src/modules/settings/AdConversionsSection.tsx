@@ -29,6 +29,7 @@ export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; s
   const [datasetId, setDatasetId] = useState('');
   const [token, setToken] = useState('');
   const [testCode, setTestCode] = useState('');
+  const [catchingUp, setCatchingUp] = useState(false);
   const [rules, setRules] = useState<AdConversionRule[]>([]);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -113,6 +114,24 @@ export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; s
       toast('Test failed', toAppError(reportError('adConversions.test', e)).userMessage, 'alert');
     } finally {
       setTesting(false);
+    }
+  };
+
+  const sendRecent = async () => {
+    setCatchingUp(true);
+    try {
+      const p = await api.adConversions.sendRecent(true);
+      if (!p.found) { toast('Nothing to send', 'No lead reached one of these steps in the last 7 days without being reported.', 'info'); return; }
+      const list = Object.entries(p.byEvent).map(([e, n]) => `${e}: ${n}`).join(', ');
+      if (!window.confirm(`Send ${p.found} lead result${p.found === 1 ? '' : 's'} from the last 7 days to Meta?\n\n${list}\n\nEach is sent once with its real date, and can't be taken back.`)) return;
+      const r = await api.adConversions.sendRecent(false);
+      const failed = (r.results.failed || 0) + (r.results.skipped || 0) + (r.results.expired || 0);
+      toast(`${r.sent} sent to Meta`, [r.left ? `${r.left} more will go out with the background job.` : '', failed ? `${failed} not sent: see the list below.` : ''].filter(Boolean).join(' ') || undefined, failed ? 'alert' : 'success');
+      apply(await api.adConversions.get());
+    } catch (e) {
+      toast('Not sent', toAppError(reportError('adConversions.sendRecent', e)).userMessage, 'alert');
+    } finally {
+      setCatchingUp(false);
     }
   };
 
@@ -248,7 +267,8 @@ export const AdConversionsSection: React.FC<{ can: (p: Permission) => boolean; s
             <InlineNotice tone="info">Only an administrator can change these settings.</InlineNotice>
           )}
 
-          <Card title="Recently sent" subtitle={`Last 30 days: ${view.last30.sent} sent · ${view.last30.failed} retrying · ${view.last30.skipped + view.last30.expired} not sent`}>
+          <Card title="Recently sent" subtitle={`Last 30 days: ${view.last30.sent} sent · ${view.last30.failed} retrying · ${view.last30.skipped + view.last30.expired} not sent`}
+            actions={editable ? <Button variant="secondary" size="sm" loading={catchingUp} disabled={!view.enabled || !!view.testCode} title={!view.enabled ? 'Switch on Send lead results to Meta and Save first' : view.testCode ? 'Clear the test event code and Save first' : 'Send steps leads reached in the last 7 days that Meta has not heard about'} onClick={() => void sendRecent()}>Send last 7 days</Button> : undefined}>
             {view.recent.length ? (
               <ul className="divide-y divide-[#EEF4F9] text-xs">
                 {view.recent.map((r) => (

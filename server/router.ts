@@ -124,7 +124,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],
   [/^library(Get|Save|SetEditors|UploadPart|Import)$/, 'projectLibrary', 'The project library'],
-  [/^(save|test)AdConversions?$/, 'adConversions', 'Ad conversions'],
+  [/^(save|test)AdConversions?$|^sendRecentAdConversions$/, 'adConversions', 'Ad conversions'],
   [/^(get|disconnect)AdConversions$|^chooseAdConversionDataset$/, ['adConversions', 'adSpend', 'googleConversions'], 'Meta ads features'],
   [/^(get|save)ConversionRules$/, ['adConversions', 'googleConversions'], 'Lead results to ad platforms'],
   [/^(get|save|refresh|disconnect)GoogleMarketing$|^listGoogleConversionActions$|^testGa4$|^syncGoogleSpend$/, ['googleConversions', 'googleAdsSpend', 'socialInbox', 'socialPosts', 'adsControl', 'websiteAnalytics', 'businessProfile'], 'Google marketing features'],

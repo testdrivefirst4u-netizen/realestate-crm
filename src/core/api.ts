@@ -724,6 +724,7 @@ export const api = {
     get: () => request<AdConversionsView>('getAdConversions'),
     save: (d: { enabled?: boolean; datasetId?: string; token?: string; clearToken?: boolean; testCode?: string; rules?: AdConversionRule[] }) => request<AdConversionsView>('saveAdConversions', d),
     test: (testCode?: string) => request<{ ok: boolean; message: string }>('testAdConversion', { testCode }, { timeoutMs: 30000 }),
+    sendRecent: (preview: boolean) => request<{ found: number; byEvent: Record<string, number>; sent: number; left: number; results: Record<string, number> }>('sendRecentAdConversions', { preview }, { timeoutMs: 280000 }),
     chooseDataset: (datasetId: string) => request<AdConversionsView>('chooseAdConversionDataset', { datasetId }),
     disconnect: () => request<AdConversionsView>('disconnectAdConversions'),
     /** Read Meta ad spend now (also runs every morning). */

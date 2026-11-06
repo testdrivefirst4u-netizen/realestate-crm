@@ -8,7 +8,7 @@ import { col } from '../server/core/db';
 import { CFG } from '../server/core/config';
 import { addLead, updateLead } from '../server/modules/leads';
 import { inboundCol } from '../server/modules/intake';
-import { getAdConversions, normalisePhone, saveAdConversions, sendDue, testAdConversion } from '../server/modules/adConversions';
+import { getAdConversions, normalisePhone, saveAdConversions, sendDue, sendRecentAdConversions, testAdConversion } from '../server/modules/adConversions';
 import { dispatch } from '../server/router';
 import type { Ctx } from '../server/core/auth';
 
@@ -147,5 +147,83 @@ describe('sending', () => {
     expect(normalisePhone('09876501234')).toBe('919876501234');
     expect(normalisePhone('9876501234')).toBe('919876501234');
     expect(normalisePhone('12')).toBe('');
+  });
+});
+
+describe('send last 7 days', () => {
+  const when = (daysAgo: number) => new Date(Date.now() - daysAgo * 86400000);
+  /** A lead whose step happened while sending was off: its history has it, the queue does not. */
+  const stepWhileOff = async (daysAgo: number, stage = 'Qualified') => {
+    const id = await newLead({ 'Phone Number': `98765 ${String(Math.floor(Math.random() * 90000) + 10000)}` });
+    await inCo(async () => (await col<any>(CFG.COLL.TIMELINE)).insertOne({ _id: `TL-${id}-${stage}` as any, leadId: id, timestamp: when(daysAgo), type: 'stage_changed', title: `Stage changed: Open → ${stage}`, details: '', actor: 'x' }));
+    return id;
+  };
+
+  it('sends what was missed with its real date, once, and logs it', async () => {
+    await turnOn();
+    const id = await stepWhileOff(3);
+    const preview = await inCo(() => sendRecentAdConversions({ preview: true }, admin));
+    expect(preview).toMatchObject({ found: 1, byEvent: { Qualified: 1 }, sent: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    const r = await inCo(() => sendRecentAdConversions({}, admin));
+    expect(r).toMatchObject({ found: 1, sent: 1, left: 0 });
+    const body = sentBodies()[0].data[0];
+    expect(body.event_name).toBe('Qualified');
+    expect(Math.abs(body.event_time - Math.floor(when(3).getTime() / 1000))).toBeLessThan(60);
+    const q = await queue();
+    expect(q.map((x: any) => x._id)).toEqual([`meta:${id}:Qualified`]);
+    expect(q[0].status).toBe('sent');
+    expect((await inCo(() => sendRecentAdConversions({}, admin))).found).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await inCo(async () => (await col<any>(CFG.COLL.AUDIT_LOG)).countDocuments({ action: 'Lead Results Sent For Last 7 Days' }))).toBe(1);
+  });
+
+  it('leaves what Meta would refuse, stages with no rule, and what was already sent', async () => {
+    await turnOn();
+    await stepWhileOff(8);
+    await stepWhileOff(2, 'Lost');
+    const sentAlready = await newLead();
+    await move(sentAlready, { 'Lead Stage': 'Qualified' });
+    fetchMock.mockClear();
+    expect((await inCo(() => sendRecentAdConversions({ preview: true }, admin))).found).toBe(0);
+  });
+
+  it('reads site visits too', async () => {
+    await turnOn();
+    const id = await newLead();
+    await inCo(async () => (await col<any>(CFG.COLL.TIMELINE)).insertOne({ _id: 'TL-SV' as any, leadId: id, timestamp: when(1), type: 'site_visit_completed', title: 'Site visit: Site Visit - Completed', details: '', actor: 'x' }));
+    expect((await inCo(() => sendRecentAdConversions({ preview: true }, admin))).byEvent).toEqual({ 'Site Visit Done': 1 });
+  });
+
+  it('a lead reaching a step twice counts once, with the first date', async () => {
+    await turnOn();
+    const id = await stepWhileOff(5);
+    await inCo(async () => (await col<any>(CFG.COLL.TIMELINE)).insertOne({ _id: 'TL-AGAIN' as any, leadId: id, timestamp: when(1), type: 'stage_changed', title: 'Stage changed: Warm → Qualified', details: '', actor: 'x' }));
+    await inCo(() => sendRecentAdConversions({}, admin));
+    expect(sentBodies()).toHaveLength(1);
+    expect(Math.abs(sentBodies()[0].data[0].event_time - Math.floor(when(5).getTime() / 1000))).toBeLessThan(60);
+  });
+
+  it('refuses while off or in test mode, sending nothing', async () => {
+    await stepWhileOff(1);
+    await expect(inCo(() => sendRecentAdConversions({}, admin))).rejects.toThrow(/Switch on/);
+    await turnOn({ testCode: 'TEST12345' });
+    await expect(inCo(() => sendRecentAdConversions({}, admin))).rejects.toThrow(/test event code/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a failure stays in the queue to retry', async () => {
+    await turnOn();
+    await stepWhileOff(2);
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ error: { message: 'Down', code: 2 } }), { status: 500 }));
+    const r = await inCo(() => sendRecentAdConversions({}, admin));
+    expect(r.sent).toBe(0);
+    expect((await queue())[0].status).toBe('failed');
+  });
+
+  it('needs the feature and the connect permission', async () => {
+    await turnOn();
+    await t.company('test', { adConversions: false });
+    expect((await inCo(() => dispatch('sendRecentAdConversions', {}, { userAgent: 'vitest', ip: '10.9.9.9', token: admin.token }))).status).toBe(403);
   });
 });
