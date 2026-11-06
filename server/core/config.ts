@@ -164,9 +164,9 @@ export const CFG = {
       'users.*', 'audit.*', 'records.*', 'storage.*', 'marketing.*', 'integrations.*'],
     Manager: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*', 'audit.view',
       'users.manageAgents', 'records.*', 'storage.*', 'marketing.*'],
-    RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'tasks.*', 'inventory.view', 'reports.view',
+    RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'tasks.*', 'inventory.view', 'reports.view',
       'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*'],
-    Viewer: ['leads.view', 'leads.viewAll', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
+    Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
   } as Record<string, string[]>,
 
   /** Secret keys (stored encrypted in the `secrets` collection; an env var of the same name wins). */

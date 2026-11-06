@@ -35,6 +35,8 @@ import { SourceLogo } from './SourceLogo';
 import { LeadSortKey, sortLeads } from './sorting';
 import { PageSkeleton } from '../../components/Skeletons';
 import { DuplicatesModal, findDuplicateGroups } from './DuplicatesModal';
+import { SlowLeadsBanner } from './SlowLeadsBanner';
+import { api } from '../../core/api';
 import { leadDisplayName } from '../../core/leadName';
 
 export interface LeadsViewProps {
@@ -149,6 +151,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
 
   // every column of the filtered list (CRM + extra columns + each remark with its date), as a real Excel file
   const exportExcel = () => {
+    void api.leads.logExport(sorted.length, 'Leads screen').catch(() => {});
     exportLeadsToXlsx(sorted);
   };
 
@@ -376,6 +379,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
 
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto">
+      <SlowLeadsBanner onOpenLead={onOpenLead} />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">{DEFAULT_CUSTOMIZATION.leadsViewTitle}</h2>
@@ -542,7 +546,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
           canAssign={canBulkAssign}
           canTrash={canBulkTrash}
           canExport={canExport}
-          onExport={() => exportLeadsToXlsx(leads.filter((l) => picked.has(String(l[F.ID]))))}
+          onExport={() => {
+            const chosen = leads.filter((l) => picked.has(String(l[F.ID])));
+            void api.leads.logExport(chosen.length, 'Leads screen, ticked leads').catch(() => {});
+            exportLeadsToXlsx(chosen);
+          }}
           onClear={() => setPicked(new Set())}
           onApply={async (op, value) => {
             const ok = await onBulk([...picked], op, value);

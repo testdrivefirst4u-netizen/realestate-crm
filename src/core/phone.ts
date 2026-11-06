@@ -1,5 +1,10 @@
 /** Phone-number helpers (India-first). One implementation for the whole app. */
 
+/** A number the server hid from this user's role (server/core/phoneMask.ts). It can be shown and sent back, not dialled. */
+export function isMaskedPhone(phone: unknown): boolean {
+  return String(phone ?? '').includes('•');
+}
+
 /** Digits only. */
 export function digitsOnly(phone: string | undefined | null): string {
   return String(phone || '').replace(/\D/g, '');
@@ -7,12 +12,14 @@ export function digitsOnly(phone: string | undefined | null): string {
 
 /** Last 10 digits — the stable key for matching the same customer across systems. */
 export function last10(phone: string | undefined | null): string {
+  if (isMaskedPhone(phone)) return String(phone).trim(); // still one person's key: the server gives each person one hidden form
   const d = digitsOnly(phone);
   return d.length >= 10 ? d.slice(-10) : d;
 }
 
 /** E.164 without '+', e.g. 919849012345. Assumes India when 10 digits. */
 export function toE164Digits(phone: string | undefined | null): string {
+  if (isMaskedPhone(phone)) return String(phone).trim();
   let d = digitsOnly(phone);
   if (d.startsWith('0') && d.length === 11) d = d.slice(1);
   if (d.length === 10) return '91' + d;
@@ -32,10 +39,11 @@ export function formatPhone(phone: string | undefined | null): string {
 
 export function samePhone(a: string | undefined | null, b: string | undefined | null): boolean {
   const la = last10(a), lb = last10(b);
-  return !!la && la.length === 10 && la === lb;
+  return !!la && (la.length === 10 || isMaskedPhone(la)) && la === lb;
 }
 
 export function telLink(phone: string | undefined | null): string {
+  if (isMaskedPhone(phone)) return '#';
   const e = toE164Digits(phone);
   return e ? `tel:+${e}` : '#';
 }
@@ -45,6 +53,7 @@ export function fillTemplate(template: string, vars: Record<string, string | und
 }
 
 export function whatsappLink(phone: string | undefined | null, text?: string): string {
+  if (isMaskedPhone(phone)) return '#';
   const e = toE164Digits(phone);
   if (!e) return '#';
   return `https://wa.me/${e}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
@@ -64,6 +73,7 @@ export function mailtoLink(email: string | undefined | null, subject?: string, b
  * Indian mobile (10 digits, or 91 + 10) that does not start with 6, 7, 8 or 9. A landline with a leading 0 is fine.
  */
 export function phoneProblem(value: unknown): string {
+  if (isMaskedPhone(value)) return ''; // left as it was: the server has the real one
   let d = String(value ?? '').replace(/\D/g, '');
   if (d.startsWith('00')) d = d.slice(2);
   if (d.length < 10 || d.length > 15) return 'Enter a valid phone number (10 digits, or with the country code).';

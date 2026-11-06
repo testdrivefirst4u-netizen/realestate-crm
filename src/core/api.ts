@@ -312,7 +312,7 @@ export interface BusinessPhotos { error: string; location: string; photos: Busin
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
 export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
-export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number } }
+export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
 export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
 export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; at: string }
 /** Search Console (server: modules/searchConsole.ts). */
@@ -426,6 +426,8 @@ export const api = {
     appendRemark: (id: string, remark: string, nextFollowup?: string) =>
       request<{ index: number; timestamp: string; value: string; lead: Lead; version: string }>('appendRemark', { id, remark, nextFollowup }),
     setStage: (id: string, stage: string) => request<{ lead: Lead; version: string }>('setLeadStage', { id, stage }),
+    slow: () => request<{ minutes: number; rows: Array<{ id: string; name: string; rm: string; minutes: number }> }>('getSlowLeads', {}),
+    logExport: (count: number, what: string) => request<{ logged: boolean }>('logLeadExport', { count, what }),
     trash: (id: string) => request<{ version: string }>('trashLead', { id }),
     restore: (id: string) => request<{ version: string }>('restoreLead', { id }),
     remove: (id: string) => request<{ version: string }>('deleteLead', { id }),

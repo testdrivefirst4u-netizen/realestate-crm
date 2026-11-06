@@ -32,6 +32,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'leads.edit', group: 'Leads', label: 'Edit leads', perms: ['leads.edit'], writes: true },
   { id: 'leads.import', group: 'Leads', label: 'Import leads', perms: ['leads.import'], writes: true },
   { id: 'leads.export', group: 'Leads', label: 'Export leads', perms: ['leads.export'] },
+  { id: 'leads.phones', group: 'Leads', label: 'See phone numbers', perms: ['leads.phones'], note: 'Off: numbers show as 98•••••34 everywhere, including exports. They can still call through JustConnect and send WhatsApp from the CRM, but cannot call from their own phone.' },
   { id: 'reports.view', group: 'Reports', label: 'See reports and analytics', perms: ['reports.view'] },
   { id: 'reports.export', group: 'Reports', label: 'Export reports', perms: ['reports.export'], needs: 'reports.view' },
   { id: 'audit.view', group: 'Reports', label: 'See the audit log', perms: ['audit.view'] },
@@ -58,9 +59,9 @@ export const ACCESS_ITEMS: AccessItem[] = [
 
 /** What a role can have before anything is chosen. Kept with the list: both sides must start from the same answer. */
 const STARTS: Record<ConfigurableRole, string[]> = {
-  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'reports.view', 'reports.export', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.other', 'tasks', 'ai'],
-  RM: ['leads.create', 'leads.edit', 'leads.export', 'reports.view', 'inventory.view', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'tasks', 'ai'],
-  Viewer: ['leads.all', 'reports.view', 'audit.view', 'inventory.view', 'chat.view', 'calls.view'],
+  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.other', 'tasks', 'ai'],
+  RM: ['leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'reports.view', 'inventory.view', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'tasks', 'ai'],
+  Viewer: ['leads.all', 'leads.phones', 'reports.view', 'audit.view', 'inventory.view', 'chat.view', 'calls.view'],
 };
 
 export const itemOffered = (role: ConfigurableRole, item: AccessItem) => !(role === 'Viewer' && item.writes);

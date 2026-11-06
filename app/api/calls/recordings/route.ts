@@ -103,7 +103,7 @@ async function handle(req: Request, token: string): Promise<Response> {
     }
     if (next < allowed.length) {
       const r = allowed[next++];
-      const who = clean(String(r.customerName || '')) || clean(String(r.phone || '')) || 'Call';
+      const who = clean(String(r.customerName || '')) || (can(session.user, 'leads.phones') ? clean(String(r.phone || '')) : '') || 'Call';
       const label = `${who} ${stamp(r.startTime || r.callDate || r.createdAt, timeZone)}`.trim();
       try {
         const info = await statFile(String(r.recordingFileId));

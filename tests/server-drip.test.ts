@@ -354,3 +354,25 @@ describe('small rules and who', () => {
     expect((await call('getDrip', {}, admin)).status).toBe(403);
   });
 });
+
+describe('results', () => {
+  it('counts replies after joining, site visits and bookings, per campaign', async () => {
+    const id = await running([WA]);
+    const a = await newLead();
+    const b = await newLead();
+    const c = await newLead();
+    const stats = async () => (await inCo(() => getDrip(ctx))).campaigns.find((x: any) => x.id === id)!.stats;
+    expect(await stats()).toMatchObject({ entered: 3, replied: 0, visits: 0, bookings: 0 });
+    const enA = await enrollment(a);
+    await inCo(async () => {
+      const chats = await col<any>(CFG.COLL.CHAT_MESSAGES);
+      await chats.insertOne({ _id: 'R1', phoneLast10: enA.phoneLast10, direction: 'Inbound', text: 'Yes please', timestamp: new Date(enA.enrolledAt.getTime() + 60000) });
+      const enB = await (await col<any>('dripEnrollments')).findOne({ leadId: b });
+      await chats.insertOne({ _id: 'R2', phoneLast10: enB.phoneLast10, direction: 'Inbound', text: 'Before joining', timestamp: new Date(enB.enrolledAt.getTime() - 60000) });
+      const leads = await col<any>(CFG.COLL.LEADS);
+      await leads.updateOne({ _id: b }, { $set: { siteVisitStatus: CFG.SITE_VISIT.COMPLETED } });
+      await leads.updateOne({ _id: c }, { $set: { stage: CFG.STAGES.BOOKED } });
+    });
+    expect(await stats()).toMatchObject({ entered: 3, replied: 1, visits: 1, bookings: 1 });
+  });
+});

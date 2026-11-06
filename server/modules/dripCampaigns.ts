@@ -429,6 +429,41 @@ export async function setDripStatus(d: any, ctx: Ctx): Promise<{ ok: true }> {
   return { ok: true };
 }
 
+/**
+ * What became of the leads in each campaign: who wrote back on WhatsApp after joining it, and who has visited or booked since.
+ * These are the leads' results, not proof the messages caused them: an RM may have called the same lead.
+ */
+async function dripResults(ids: string[]) {
+  const out = new Map<string, { entered: number; replied: number; visits: number; bookings: number }>();
+  for (const id of ids) out.set(id, { entered: 0, replied: 0, visits: 0, bookings: 0 });
+  if (!ids.length) return out;
+  const enrolled = await (await enrollCol()).find({ campaignId: { $in: ids } }, { projection: { campaignId: 1, leadId: 1, phoneLast10: 1, enrolledAt: 1 } }).toArray();
+  if (!enrolled.length) return out;
+  const leads = await (await col<any>(CFG.COLL.LEADS)).find({ _id: { $in: [...new Set(enrolled.map((e) => e.leadId))] } }, { projection: { stage: 1, siteVisitStatus: 1, bookingDate: 1 } }).toArray();
+  const leadById = new Map(leads.map((l) => [String(l._id), l]));
+  const phones = [...new Set(enrolled.map((e) => e.phoneLast10).filter((p) => p?.length === 10))];
+  const lastReply = new Map<string, Date>();
+  if (phones.length) {
+    const rows = await (await col<any>(CFG.COLL.CHAT_MESSAGES)).aggregate<{ _id: string; last: Date }>([{ $match: { phoneLast10: { $in: phones }, direction: 'Inbound' } }, { $group: { _id: '$phoneLast10', last: { $max: '$timestamp' } } }]).toArray();
+    for (const r of rows) lastReply.set(r._id, new Date(r.last));
+  }
+  const counted = new Set<string>(); // two leads merged into one count once
+  for (const e of enrolled) {
+    const seen = `${e.campaignId}:${e.leadId}`;
+    if (counted.has(seen)) continue;
+    counted.add(seen);
+    const r = out.get(e.campaignId)!;
+    r.entered++;
+    const replied = lastReply.get(e.phoneLast10);
+    if (replied && replied >= new Date(e.enrolledAt)) r.replied++;
+    const l = leadById.get(e.leadId);
+    if (!l) continue;
+    if ([CFG.SITE_VISIT.COMPLETED, CFG.SITE_VISIT.WALK_IN].includes(l.siteVisitStatus)) r.visits++;
+    if (l.stage === S.BOOKED || l.bookingDate) r.bookings++;
+  }
+  return out;
+}
+
 export async function getDrip(ctx: Ctx) {
   const rows = await (await campaignsCol()).find({ status: { $ne: 'archived' } }).sort({ createdAt: -1 }).toArray();
   const ids = rows.map((r) => r._id);
@@ -437,10 +472,11 @@ export async function getDrip(ctx: Ctx) {
   const logged = await counts(await logsCol());
   const n = (list: Array<{ _id: { c: string; s: string }; n: number }>, c: string, s: string) => list.find((x) => x._id.c === c && x._id.s === s)?.n || 0;
   const m = await loadMail();
+  const results = await dripResults(ids);
   return {
     campaigns: rows.map((r) => ({
       id: r._id, name: r.name, status: r.status, sources: r.sources, steps: r.steps, hoursFrom: r.hoursFrom, hoursTo: r.hoursTo, dailyLimit: r.dailyLimit, stopOnVisit: r.stopOnVisit, tested: !!r.testedAt, createdBy: r.createdBy,
-      stats: { running: n(entered, r._id, 'active'), finished: n(entered, r._id, 'completed'), stopped: n(entered, r._id, 'stopped'), sent: n(logged, r._id, 'sent'), skipped: n(logged, r._id, 'skipped'), failed: n(logged, r._id, 'failed') },
+      stats: { running: n(entered, r._id, 'active'), finished: n(entered, r._id, 'completed'), stopped: n(entered, r._id, 'stopped'), sent: n(logged, r._id, 'sent'), skipped: n(logged, r._id, 'skipped'), failed: n(logged, r._id, 'failed'), ...results.get(r._id)! },
     })),
     whatsapp: await whatsappSetup(),
     email: await emailSetup(),

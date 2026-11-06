@@ -16,6 +16,8 @@ export type Permission =
   | 'leads.delete'
   | 'leads.import'
   | 'leads.export'
+  /** See customers' full phone numbers; without it they arrive hidden (server/core/phoneMask.ts). */
+  | 'leads.phones'
   | 'tasks.manage'
   | 'inventory.view'
   | 'inventory.edit'
@@ -51,7 +53,7 @@ export type Permission =
   | `view.${string}`;
 
 const ALL: Permission[] = [
-  'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export',
+  'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export', 'leads.phones',
   'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export',
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
@@ -65,12 +67,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   // Managers: full lead access and the audit log; may add and manage Agents.
   Manager: ALL.filter((p) => !p.startsWith('settings.') && p !== 'secrets.manage' && !p.startsWith('developer.') && p !== 'users.manage' && p !== 'integrations.connect'),
   RM: [
-    'leads.view', 'leads.create', 'leads.edit', 'leads.export',
+    'leads.view', 'leads.create', 'leads.edit', 'leads.export', 'leads.phones',
     'tasks.manage', 'inventory.view', 'reports.view',
     'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   ],
   // View only (e.g. founders): every lead, report, chat and call — no changes.
-  Viewer: ['leads.view', 'leads.viewAll', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
+  Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
 };
 
 /** Map legacy role names stored in older builds. */

@@ -369,6 +369,47 @@ const VISIT_SET: string[] = [SITE_VISIT.SCHEDULED, ...SITE_VISIT_DONE];
  * Qualified leads, by lead stage: Qualified, Warm, HOT, Booked (and a lost lead after a visit), or a New / Open lead
  * whose site visit is scheduled or done.
  */
+export type AdLevel = 'campaign' | 'adset' | 'ad';
+export interface AdResultRow { key: string; name: string; under: string; spend: number | null; leads: MisLead[]; qualified: MisLead[]; visits: MisLead[]; booked: MisLead[] }
+
+/**
+ * Ad spend from Meta beside what its leads went on to do. Leads carry the ad's names, not its id, so they are matched by name:
+ * inside the same campaign and ad set where the lead has them, else by the name alone when only one ad has it. An ad renamed
+ * since the lead came in shows on a row of its own with no spend.
+ */
+export function adResultRows(leads: MisLead[], spendRows: Array<{ name: string; campaignName: string; adsetName: string; spend: number | null }>, level: AdLevel, visited: (l: MisLead) => boolean): AdResultRow[] {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const full = (c: string, a: string, n: string) => (level === 'campaign' ? norm(n) : level === 'adset' ? `${norm(c)}|${norm(n)}` : `${norm(c)}|${norm(a)}|${norm(n)}`);
+  const under = (c: string, a: string) => (level === 'ad' ? [c, a].filter(Boolean).join(' › ') : level === 'adset' ? c : '');
+  const rows = new Map<string, AdResultRow>();
+  const byName = new Map<string, Set<string>>();
+  for (const s of spendRows) {
+    const key = full(s.campaignName, s.adsetName, s.name);
+    const row = rows.get(key) || { key, name: s.name, under: under(s.campaignName, s.adsetName), spend: 0, leads: [], qualified: [], visits: [], booked: [] };
+    row.spend = (row.spend || 0) + (s.spend || 0);
+    rows.set(key, row);
+    (byName.get(norm(s.name)) || byName.set(norm(s.name), new Set()).get(norm(s.name))!).add(key);
+  }
+  for (const l of leads) {
+    const name = level === 'campaign' ? l.campaign : level === 'adset' ? l.adSet : l.ad;
+    if (!name?.trim()) continue;
+    let key = full(l.campaign, l.adSet, name);
+    if (!rows.has(key)) {
+      const same = byName.get(norm(name));
+      if (same?.size === 1) key = [...same][0];
+    }
+    const row = rows.get(key) || { key, name, under: under(l.campaign, l.adSet), spend: null, leads: [], qualified: [], visits: [], booked: [] };
+    rows.set(key, row);
+    row.leads.push(l);
+    if (misQualified(l)) row.qualified.push(l);
+    if (visited(l)) row.visits.push(l);
+    if (l.stage === 'booked') row.booked.push(l);
+  }
+  return [...rows.values()]
+    .filter((r) => r.leads.length || (r.spend || 0) > 0)
+    .sort((a, b) => (b.spend || 0) - (a.spend || 0) || b.leads.length - a.leads.length || a.name.localeCompare(b.name));
+}
+
 export const misQualified = (l: MisLead) => ['qualified', 'warm', 'hot', 'booked', 'ni'].includes(l.stage) || ((l.stage === 'new' || l.stage === 'open') && VISIT_SET.includes(l.sv));
 const passed = misQualified;
 

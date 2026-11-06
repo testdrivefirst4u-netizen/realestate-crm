@@ -11,6 +11,7 @@ import { compareDates, formatDate, formatDateTime, inRange } from '../../core/da
 import { formatNumber } from '../../core/format';
 import { toast } from '../../core/notifications';
 import { Button, Card, DataTable, DateFilterValue, DateRangeFilter, Field, Select, StageBadge, resolveDateFilter } from '../../components/ui';
+import { api } from '../../core/api';
 import { ReportTable, downloadTable, row, table, useRegisterTables } from './reportShared';
 
 interface Props {
@@ -86,6 +87,7 @@ export const ExportTab: React.FC<Props> = ({ leads, config, rm, onRmChange, onOp
 
   const download = () => {
     if (!filtered.length) return;
+    void api.leads.logExport(filtered.length, 'Reports export').catch(() => {});
     downloadTable(tables[0]);
     toast('CSV downloaded', `${formatNumber(filtered.length)} leads`, 'success');
   };

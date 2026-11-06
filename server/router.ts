@@ -7,8 +7,9 @@
  * real HTTP status codes, and the Developer Mode actions are gone.
  */
 import { ActionMap } from './core/actions';
-import { Ctx, normalizeRole, requirePerm, sessionEndReason, validateSession } from './core/auth';
+import { can, Ctx, normalizeRole, requirePerm, sessionEndReason, validateSession } from './core/auth';
 import { ApiError, errEnvelope, fail, ok } from './core/errors';
+import { hidePhonesDeep, hidePhonesInText, revealPhonesDeep } from './core/phoneMask';
 import { isTestMode } from './core/db';
 import { currentTenant, runWithTenant, type TenantFeatures } from './core/tenant';
 import { companyIdForEmail, getTenantById } from './platform/registry';
@@ -16,6 +17,7 @@ import { logError } from './core/events';
 
 import { actions as systemActions } from './modules/system';
 import { actions as leadActions } from './modules/leads';
+import { actions as leadExportActions } from './modules/leadExports';
 import { actions as leadMergeActions } from './modules/leadMerge';
 import { actions as backupActions } from './modules/backups';
 import { actions as taskActions } from './modules/tasks';
@@ -63,6 +65,7 @@ import { actions as connectedAccountActions } from './modules/connectedAccounts'
 export const registry: ActionMap = {
   ...systemActions,
   ...leadActions,
+  ...leadExportActions,
   ...leadMergeActions,
   ...backupActions,
   ...taskActions,
@@ -157,11 +160,15 @@ const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', '
  */
 const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
-  'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
+  'getBootstrap', 'getEvents', 'getAllLeads', 'getSlowLeads', 'logLeadExport', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
   'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'getBusinessPhotos', 'getBusinessReviews', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
+/** The person's own account: their own number is theirs to see, whatever they may see of customers'. */
+const OWN_ACCOUNT_ACTIONS = new Set(['login', 'me', 'updateProfile']);
+const phonesHiddenFrom = (ctx: Ctx) => !!ctx.user && !can(ctx.user, 'leads.phones');
+
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';
 
 async function run(action: string, data: any, ctx: Ctx, started: number): Promise<RouteResult> {
@@ -184,8 +191,10 @@ async function run(action: string, data: any, ctx: Ctx, started: number): Promis
     }
     if (ctx.user && normalizeRole(ctx.user.role) === 'Viewer' && !VIEWER_ACTIONS.has(action)) throw fail('FORBIDDEN', VIEW_ONLY_MESSAGE);
     if (!def.public) requirePerm(ctx, def.perm);
-    const result = await def.fn(data && typeof data === 'object' ? data : {}, ctx);
-    return { status: 200, body: ok(result), companyId: t?.id };
+    const hidden = phonesHiddenFrom(ctx);
+    const input = data && typeof data === 'object' ? (hidden ? revealPhonesDeep(data) : data) : {};
+    const result = await def.fn(input, ctx);
+    return { status: 200, body: ok(hidden && !OWN_ACCOUNT_ACTIONS.has(action) ? hidePhonesDeep(result) : result), companyId: t?.id };
   } catch (err: any) {
     const code: string = err instanceof ApiError ? err.code : 'INTERNAL';
     if (!['AUTH_REQUIRED', 'AUTH_FAILED', 'FORBIDDEN', 'VALIDATION', 'NOT_FOUND', 'CONFLICT', 'RATE_LIMIT'].includes(code)) {
@@ -195,7 +204,9 @@ async function run(action: string, data: any, ctx: Ctx, started: number): Promis
     // Internal errors are logged in full but never echoed to the browser.
     const message = code === 'INTERNAL' ? 'Something went wrong on the server. The error has been logged.' : err?.message || String(err);
     const outCode = code === 'AUTH_FAILED' ? 'VALIDATION' : code;
-    return { status: code === 'AUTH_FAILED' ? 401 : STATUS[code] || 500, body: errEnvelope(outCode, message, err instanceof ApiError ? err.details : undefined) };
+    const hidden = phonesHiddenFrom(ctx); // "a lead with this number exists" must not hand the number over either
+    const details = err instanceof ApiError ? err.details : undefined;
+    return { status: code === 'AUTH_FAILED' ? 401 : STATUS[code] || 500, body: errEnvelope(outCode, hidden ? hidePhonesInText(message) : message, hidden ? hidePhonesDeep(details) : details) };
   }
 }
 

@@ -17,6 +17,7 @@ export function MisClient() {
       onShowLeads={showLeads}
       canSeeSpend={engine.can('reports.view')}
       canEditSpend={engine.can('settings.edit')}
+      canSeeAdResults={on('adsControl') && engine.can('leads.viewAll')}
     />
   );
 }

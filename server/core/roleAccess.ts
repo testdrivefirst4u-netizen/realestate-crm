@@ -3,7 +3,7 @@
  * need another read: a change reaches other server instances within that time. If it cannot be read, people keep what their
  * role has by default rather than being locked out.
  */
-import { accessFor, type RoleAccessConfig, type UserAccess } from '../../src/core/roleAccess';
+import { accessFor, CONFIGURABLE_ROLES, type RoleAccessConfig, type UserAccess } from '../../src/core/roleAccess';
 import { CFG } from './config';
 import { col } from './db';
 import { currentTenant } from './tenant';
@@ -28,6 +28,20 @@ export async function accessOfRole(role: string): Promise<UserAccess | null> {
   } catch (e: any) {
     console.error('[roleAccess]', e?.message);
     return null;
+  }
+}
+
+/**
+ * Is the company hiding phone numbers from any role? Alerts go to mixed groups by push and e-mail, past the router's mask, so
+ * they then leave the number out. If the choice cannot be read they leave it out too: an alert still says who to open.
+ */
+export async function phonesHiddenFromSomeone(): Promise<boolean> {
+  try {
+    const config = await loadRoleAccess();
+    return CONFIGURABLE_ROLES.some((r) => accessFor(r.id, config)?.deny.includes('leads.phones'));
+  } catch (e: any) {
+    console.error('[roleAccess]', e?.message);
+    return true;
   }
 }
 

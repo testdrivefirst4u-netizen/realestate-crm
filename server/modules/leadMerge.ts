@@ -25,6 +25,7 @@ const archiveCol = () => col<ArchivedLeadDoc & { mergedInto?: string }>(CFG.COLL
 export const LEAD_REFS: Array<[string, string]> = [
   ['activities', 'leadId'], ['activities', 'refId'], ['calls', 'leadId'], ['documents', 'leadId'], ['inboundLeads', 'leadId'],
   ['waContacts', 'leadId'], ['waMessages', 'leadId'], ['units', 'leadId'], ['events', 'recordId'],
+  ['dripEnrollments', 'leadId'], ['dripLogs', 'leadId'],
 ];
 
 const TEXT_FIELDS: Array<keyof LeadDoc> = [
@@ -53,6 +54,15 @@ export function mergeDocs(keep: LeadDoc, others: LeadDoc[], actor: string, now =
   }
   for (const o of others) for (const [k, v] of Object.entries(o.extra || {})) if (str(v) && !str(out.extra[k])) out.extra[k] = v;
   out.phoneLast10 = last10(out.phone);
+  // the same person on another number or address: it stays on the lead, not only in the archive
+  const also = (label: string, values: string[], same: (a: string, b: string) => boolean, kept: string) => {
+    const known = [kept, ...str(out.extra[label]).split(',').map((x) => x.trim())].filter(Boolean);
+    for (const v of values) if (v && !known.some((k) => same(k, v))) known.push(v);
+    const more = known.filter((k) => k !== kept);
+    if (more.length) out.extra[label] = more.join(', ');
+  };
+  also('Other phone', others.map((o) => str(o.phone)), (a, b) => last10(a) === last10(b), str(out.phone));
+  also('Other e-mail', others.map((o) => str(o.email)), (a, b) => a.toLowerCase() === b.toLowerCase(), str(out.email));
   out.enquiryDate = minDate(all.map((d) => d.enquiryDate)) || keep.enquiryDate;
   out.createdAt = minDate(all.map((d) => d.createdAt)) || keep.createdAt;
   out.lastFollowupAt = maxDate(all.map((d) => d.lastFollowupAt));
@@ -91,13 +101,23 @@ export async function mergeLeads(keepId: unknown, mergeIds: unknown, ctx: Ctx | 
     if (!d) throw fail('NOT_FOUND', 'Lead not found: ' + id);
     return d;
   });
-  // only the same person: same phone (last 10 digits), or the same e-mail
-  const p = keep.phoneLast10 && keep.phoneLast10.length === 10 ? keep.phoneLast10 : '';
-  const e = str(keep.email).toLowerCase();
+  // only the same person: each lead shares a phone (last 10 digits) or an e-mail with the kept lead, directly or through another
+  // lead here (A and B share a phone, B and C an e-mail)
+  const phones = new Set<string>();
+  const emails = new Set<string>();
+  const learn = (d: LeadDoc) => {
+    if (d.phoneLast10?.length === 10) phones.add(d.phoneLast10);
+    if (str(d.email)) emails.add(str(d.email).toLowerCase());
+  };
+  const linked = (d: LeadDoc) => (d.phoneLast10?.length === 10 && phones.has(d.phoneLast10)) || (!!str(d.email) && emails.has(str(d.email).toLowerCase()));
+  learn(keep);
+  const waiting = new Set(others);
+  for (let found = true; found;) {
+    found = false;
+    for (const o of [...waiting]) if (linked(o)) { learn(o); waiting.delete(o); found = true; }
+  }
   for (const o of others) {
-    const samePhone = !!p && o.phoneLast10 === p;
-    const sameEmail = !!e && str(o.email).toLowerCase() === e;
-    if (!samePhone && !sameEmail) throw fail('VALIDATION', `${o._id} has a different phone number and e-mail than ${kid} — only duplicates of the same person can be merged`);
+    if (waiting.has(o)) throw fail('VALIDATION', `${o._id} has a different phone number and e-mail than ${kid} — only duplicates of the same person can be merged`);
     if (o.stage === S.DELETED) throw fail('VALIDATION', `${o._id} is already deleted`);
   }
   others.sort((a, b) => (time(a.createdAt) ?? 0) - (time(b.createdAt) ?? 0));

@@ -37,6 +37,7 @@ import {
   parseAndAnalyzeCSV,
   parseCsvText,
 } from '../services/csvService';
+import { api } from '../core/api';
 import { downloadXlsx, readXlsxRows, rowsToCsv } from '../core/xlsx';
 import { sound } from '../services/sound';
 
@@ -302,10 +303,10 @@ export const CsvImportExportModal: React.FC<CsvImportExportModalProps> = ({ isOp
                 Every remark gets its own date and text columns, dates read “01 Oct 2026, 05:30 PM”, and phone numbers stay exactly as typed.
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Button variant="primary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => exportLeadsToXlsx(leads)}>
+                <Button variant="primary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => { void api.leads.logExport(leads.length, 'Import / export window').catch(() => {}); exportLeadsToXlsx(leads); }}>
                   Download Excel ({leads.length} lead{leads.length === 1 ? '' : 's'})
                 </Button>
-                <Button variant="secondary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => exportLeadsToCSV(leads)}>
+                <Button variant="secondary" size="md" icon={<Download size={14} />} disabled={!leads.length} onClick={() => { void api.leads.logExport(leads.length, 'Import / export window').catch(() => {}); exportLeadsToCSV(leads); }}>
                   CSV
                 </Button>
                 {!leads.length && <span className="text-[#7E93A6]">No leads to export yet.</span>}

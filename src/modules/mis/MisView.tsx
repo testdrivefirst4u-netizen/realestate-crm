@@ -7,14 +7,14 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CallRecord, Lead, SyncState } from '../../types/crm';
-import { api } from '../../core/api';
+import { api, type MetaAdsResult } from '../../core/api';
 import { dateKey } from '../../core/dates';
 import { reportError } from '../../core/errors';
 import { Button, Select, cx } from '../../components/ui';
 import { PageSkeleton } from '../../components/Skeletons';
 import { SourceLogo } from '../leads/SourceLogo';
 import {
-  BLANK, CallDay, FUNNEL_STEPS, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_PLANNED_COLOR, UNASSIGNED, misQualified,
+  AdLevel, BLANK, CallDay, FUNNEL_STEPS, adResultRows, MIS_STAGE, MIS_STAGES, MisLead, MisStageId, NO_REASON, PERIOD_NAME, PeriodId, Range, SV_PLANNED_COLOR, UNASSIGNED, misQualified,
   addDaysKey, avgResp, callDays, changePct, funnelCounts, funnelStep, previousRange, dqReasons, firstCallByLead, fmtAvgCall, fmtDur, fmtKey, fmtKeyShort, fmtTalk, inRange, monthNameOf,
   pct, periodRange, rangeLabel, sourceColour, sourceOrder, speedBuckets, speedTone, stageCounts, toMisLeads, uniq, weekStartKey,
 } from './misData';
@@ -34,6 +34,8 @@ export interface MisViewProps {
   /** May see / enter ad spend per campaign (reports.view / settings.edit). */
   canSeeSpend?: boolean;
   canEditSpend?: boolean;
+  /** Meta ad results: the ads feature on, and allowed to read the ad accounts. */
+  canSeeAdResults?: boolean;
 }
 
 const CALL_POLL_MS = 60_000;
@@ -118,7 +120,7 @@ const foot = 'px-2.5 py-2 text-right whitespace-nowrap tabular-nums font-bold bo
 
 /* --------------------------------- view ---------------------------------- */
 
-export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads, canSeeSpend, canEditSpend }) => {
+export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCalls, onRefresh, onShowLeads, canSeeSpend, canEditSpend, canSeeAdResults }) => {
   const jcOn = !!(useTenantSettings() as { justconnectConfigured?: boolean } | null)?.justconnectConfigured;
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [callsState, setCallsState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -281,6 +283,7 @@ export const MisView: React.FC<MisViewProps> = ({ leads, sources, sync, canSeeCa
       <DqBySource list={list} order={order} period={period} rangeText={rangeText} reasons={dqReasons(all)} show={show} />
 
       {canSeeSpend && all.some((l) => l.campaign) && <CampaignCost all={all} today={today} canEdit={!!canEditSpend} show={show} />}
+      {canSeeSpend && canSeeAdResults && all.some((l) => l.campaign) && <AdResults all={all} today={today} show={show} />}
 
       <SourceByStage list={list} order={source ? (source === BLANK ? [] : [source]) : order} show={show} />
 
@@ -991,6 +994,93 @@ const CampaignCost: React.FC<{ all: MisLead[]; today: string; canEdit: boolean; 
           {state === 'error' && <span className="text-xs text-[#B54708]">Saved spend could not be loaded.</span>}
           <Button variant="primary" onClick={() => void save()} loading={state === 'saving'} disabled={!dirty || state === 'saving'}>Save spend</Button>
         </div>
+      )}
+    </Panel>
+  );
+};
+
+const AD_LEVELS: Array<{ id: AdLevel; label: string }> = [{ id: 'campaign', label: 'Campaign' }, { id: 'adset', label: 'Ad set' }, { id: 'ad', label: 'Ad' }];
+
+/** Cost per Qualified lead, visit and booking for each Meta campaign, ad set or ad. Read from Meta when asked, not on every visit. */
+const AdResults: React.FC<{ all: MisLead[]; today: string; show: (label: string, ls: MisLead[]) => void }> = ({ all, today, show }) => {
+  const months = useMemo(() => uniq([today.slice(0, 7), ...all.filter((l) => l.campaign && l.day).map((l) => l.day.slice(0, 7))]).sort().reverse(), [all, today]);
+  const [month, setMonth] = useState(() => today.slice(0, 7));
+  const [level, setLevel] = useState<AdLevel>('ad');
+  const [got, setGot] = useState<Record<string, MetaAdsResult>>({});
+  const [asked, setAsked] = useState(false);
+  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [failure, setFailure] = useState('');
+  const key = month + ':' + level;
+  const result = got[key];
+
+  useEffect(() => {
+    if (!asked || got[key]) return;
+    let live = true;
+    setState('loading');
+    const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    api.ads.meta({ level, since: month + '-01', until: lastDay < today ? lastDay : today }).then(
+      (r) => { if (live) { setGot((g) => ({ ...g, [key]: r })); setState('idle'); } },
+      (e) => { if (live) { setFailure(reportError('mis.adResults', e).userMessage); setState('error'); } },
+    );
+    return () => { live = false; };
+  }, [asked, key, month, level, today, got]);
+
+  const inMonth = useMemo(() => all.filter((l) => l.day.startsWith(month)), [all, month]);
+  const rows = useMemo(() => (result ? adResultRows(inMonth, result.rows, level, (l) => SITE_VISIT_DONE.includes(l.sv)) : []), [result, inMonth, level]);
+  const cost = (amt: number | null, n: number) => (amt && n > 0 ? inr(amt / n) : '—');
+  const pick = 'text-xs px-2.5 py-1.5 rounded-lg border border-[#A9BDCD] bg-white text-[#0B2A44]';
+  const levelName = AD_LEVELS.find((x) => x.id === level)!.label;
+  const noSpend = rows.filter((r) => r.spend === null).length;
+  return (
+    <Panel
+      title="Results by ad"
+      hint="Meta spend beside what the month's leads went on to do. Leads by enquiry month; a lead's visit or booking counts even if it came later. Meta only."
+      actions={
+        <span className="flex flex-wrap items-center gap-2">
+          <select className={pick} value={level} onChange={(e) => setLevel(e.target.value as AdLevel)} aria-label="Show by">{AD_LEVELS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
+          <select className={pick} value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">{months.map((m) => <option key={m} value={m}>{monthNameOf(m + '-01')} {m.slice(0, 4)}</option>)}</select>
+        </span>
+      }
+    >
+      {!asked ? (
+        <div className="text-center py-5"><Button variant="secondary" onClick={() => setAsked(true)}>Load from Meta</Button></div>
+      ) : state === 'error' ? (
+        <div className="text-center py-5">
+          <p className="text-sm text-[#B54708]">{failure}</p>
+          <Button variant="secondary" className="mt-2" onClick={() => { setState('idle'); setAsked(false); }}>Try again</Button>
+        </div>
+      ) : !result ? (
+        <p className="text-center text-sm text-[#7E93A6] py-6">Loading from Meta…</p>
+      ) : !result.connected ? (
+        <p className="text-center text-sm text-[#7E93A6] py-6">No Meta ad account is connected, so there is no spend to show.</p>
+      ) : (
+        <>
+          {result.errors.length > 0 && <p className="text-xs text-[#B54708] mb-2">Some ad accounts could not be read, so their spend is missing.</p>}
+          {!rows.length ? <p className="text-center text-sm text-[#7E93A6] py-6">No spend or leads from Meta ads in this month.</p> : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead><tr><th className={cx(th, first)}>{levelName}</th><th className={th}>Ad spend</th><th className={th}>Leads</th><th className={th}>Cost per lead</th><th className={th}>Qualified</th><th className={th}>Cost per Qualified</th><th className={th}>Site visits</th><th className={th}>Cost per visit</th><th className={th}>Bookings</th><th className={th}>Cost per booking</th></tr></thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.key} className="hover:bg-[#F7FAFD]">
+                      <td className={cx(td, first, 'max-w-[280px] !whitespace-normal')}><span className="block truncate" title={r.name}>{r.name}</span>{r.under && <span className="block truncate text-[10.5px] text-[#7E93A6]" title={r.under}>{r.under}</span>}</td>
+                      <td className={td}>{r.spend === null ? '—' : inr(r.spend)}</td>
+                      <td className={td}><NumBtn n={r.leads.length} onClick={() => show(`${levelName}: ${r.name}`, r.leads)} /></td>
+                      <td className={td}>{cost(r.spend, r.leads.length)}</td>
+                      <td className={td}><NumBtn n={r.qualified.length} onClick={() => show(`Qualified · ${r.name}`, r.qualified)} /></td>
+                      <td className={cx(td, 'font-semibold')}>{cost(r.spend, r.qualified.length)}</td>
+                      <td className={td}><NumBtn n={r.visits.length} onClick={() => show(`Site visits · ${r.name}`, r.visits)} /></td>
+                      <td className={td}>{cost(r.spend, r.visits.length)}</td>
+                      <td className={td}><NumBtn n={r.booked.length} onClick={() => show(`Bookings · ${r.name}`, r.booked)} /></td>
+                      <td className={cx(td, 'font-semibold')}>{cost(r.spend, r.booked.length)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {noSpend > 0 && <p className="text-[11px] text-[#5E778C] mt-2">A row with no spend has leads whose name no longer matches Meta, usually an ad renamed or deleted since.</p>}
+        </>
       )}
     </Panel>
   );

@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { Check, Copy, Download, Info, MessageCircle, Share2, Trees } from 'lucide-react';
 import type { InventoryUnit, Lead } from '../../types/crm';
 import { F } from '../../core/config';
-import { formatPhone, toE164Digits } from '../../core/phone';
+import { formatPhone, isMaskedPhone, toE164Digits } from '../../core/phone';
 import { Badge, Button, InlineNotice, Modal } from '../../components/ui';
 import { statusTone } from './inventoryUtils';
 import {
@@ -813,7 +813,7 @@ export const UnitLocator: React.FC<UnitLocatorProps> = ({ unit, inventory, leads
   const scene = useMemo(() => buildScene(inventory, unit, config), [inventory, unit, config]);
   const caption = useMemo(() => shareCaption(scene), [scene]);
   const lead = useMemo(() => (unit.leadId && leads ? leads.find((l) => String(l[F.ID] || '') === unit.leadId) : undefined), [leads, unit.leadId]);
-  const phone = lead ? toE164Digits(lead[F.PHONE]) : '';
+  const phone = lead && !isMaskedPhone(lead[F.PHONE]) ? toE164Digits(lead[F.PHONE]) : '';
   const leadName = lead ? String(lead[F.NAME] || '').trim() : '';
   const customerName = String(unit.customerName ?? '').trim();
 

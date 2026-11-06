@@ -220,6 +220,15 @@ export const DripCampaignsView: React.FC = () => {
           <dl className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
             {([['In progress', c.stats.running], ['Finished', c.stats.finished], ['Stopped', c.stats.stopped], ['Sent', c.stats.sent], ['Skipped', c.stats.skipped], ['Failed', c.stats.failed]] as Array<[string, number]>).map(([label, v]) => <div key={label}><dt className="text-[10.5px] text-[#5E778C]">{label}</dt><dd className="text-base font-semibold text-[#0B2A44]">{v.toLocaleString('en-IN')}</dd></div>)}
           </dl>
+          {c.stats.entered > 0 && (
+            <div className="mt-3 rounded-lg bg-[#F7FBFE] border border-[#E3EDF5] px-3 py-2">
+              <p className="text-[11px] font-semibold text-[#0B2A44]">Results for these {c.stats.entered} lead{c.stats.entered === 1 ? '' : 's'}</p>
+              <dl className="mt-1.5 grid grid-cols-3 gap-2">
+                {([['Replied on WhatsApp', c.stats.replied], ['Site visits', c.stats.visits], ['Bookings', c.stats.bookings]] as Array<[string, number]>).map(([label, v]) => <div key={label}><dt className="text-[10.5px] text-[#5E778C]">{label}</dt><dd className="text-sm font-bold text-[#0B2A44] tabular-nums">{v} <span className="text-[11px] font-normal text-[#5E778C]">{Math.round((v / c.stats.entered) * 100)}%</span></dd></div>)}
+              </dl>
+              <p className="mt-1.5 text-[10.5px] text-[#5E778C]">Everything these leads did after joining, including after a call from an RM.</p>
+            </div>
+          )}
           {c.status !== 'active' && !c.tested && c.steps.some((s) => s.channel !== 'task') && <p className="mt-2 text-[11px] text-[#8A5A00]">Send a test before starting this campaign.</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {c.status !== 'active' && <Button variant="secondary" size="xs" icon={<Pencil size={12} />} onClick={() => setEditing(toDraft(c))}>Edit</Button>}

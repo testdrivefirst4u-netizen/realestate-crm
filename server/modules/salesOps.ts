@@ -22,6 +22,8 @@ import { fail } from '../core/errors';
 import { addEvent, addTimeline, logError } from '../core/events';
 import type { LeadDoc } from '../core/leadShape';
 import { settingSet, settingsAll } from '../core/settings';
+import { phonesHiddenFromSomeone } from '../core/roleAccess';
+import { leadFilter } from '../core/scope';
 import { after } from 'next/server';
 import { currentTenant, runWithTenant } from '../core/tenant';
 import { dateKey, fmtDate, fmtTime, localHour, makeZoned, safeJsonParse } from '../core/utils';
@@ -62,12 +64,19 @@ export interface SalesOps {
   missedAlertMin: number;
   /** Who is told (e-mails of active users); empty = every Admin and Manager. */
   missedAlertTo: string;
+  /** A New lead nobody has called or messaged after this many working minutes: its RM and the managers are warned; 0 = off. */
+  responseAlertMin: number;
+  /** Who else is told (e-mails of active users); empty = every Admin and Manager. */
+  responseAlertTo: string;
+  /** Admins are told when one person has downloaded this many leads in a day; 0 = off. */
+  exportAlertAt: number;
 }
 
 export const SALES_OPS_DEFAULTS: SalesOps = {
   reassignAfterMin: 0, reassignMax: 1, workStartHour: 9, workEndHour: 20,
   visitReminders: true, summaryPush: false, summaryHour: 19, summaryTo: '',
   welcomeTemplate: '', welcomeValues: '', visitTemplate: '', visitValues: '', hotFromAi: false, missedAlertMin: 0, missedAlertTo: '',
+  responseAlertMin: 0, responseAlertTo: '', exportAlertAt: 100,
 };
 
 const int = (v: unknown, d: number, lo: number, hi: number) => {
@@ -97,6 +106,9 @@ export function parseSalesOps(raw: unknown): SalesOps {
     hotFromAi: bool(o.hotFromAi),
     missedAlertMin: int(o.missedAlertMin, D.missedAlertMin, 0, 24 * 60),
     missedAlertTo: s('missedAlertTo'),
+    responseAlertMin: int(o.responseAlertMin, D.responseAlertMin, 0, 24 * 60),
+    responseAlertTo: s('responseAlertTo'),
+    exportAlertAt: int(o.exportAlertAt, D.exportAlertAt, 0, 1000000),
   };
 }
 
@@ -110,6 +122,8 @@ export async function validateSalesOps(raw: unknown): Promise<string> {
   for (const e of to) if (!active.has(e)) throw fail('VALIDATION', `Summary recipients must be active CRM users (${e} is not)`);
   if (c.summaryPush && !to.length) throw fail('VALIDATION', 'Choose who gets the evening summary');
   if (c.missedAlertMin && c.missedAlertMin < 5) throw fail('VALIDATION', 'Give the team at least 5 minutes to call a missed caller back');
+  if (c.responseAlertMin && c.responseAlertMin < 5) throw fail('VALIDATION', 'Give the RM at least 5 minutes to call a new lead');
+  for (const e of EMAILS(c.responseAlertTo)) if (!active.has(e)) throw fail('VALIDATION', `New-lead alert recipients must be active CRM users (${e} is not)`);
   const missedTo = EMAILS(c.missedAlertTo);
   for (const e of missedTo) if (!active.has(e)) throw fail('VALIDATION', `Missed-call alert recipients must be active CRM users (${e} is not)`);
   const valueSpecs: Array<[string, string]> = [['welcomeValues', String(c.welcomeValues || '')], ['visitValues', String(c.visitValues || '')]];
@@ -305,9 +319,10 @@ export async function sendVisitReminders(cfg: SalesOps, now = new Date()): Promi
     if (!cfg.visitReminders) continue;
     const ids = idsByName([l.assignedRm], users);
     if (!ids.length || !(await claimOnce(`visit:${l._id}:${at.toISOString()}:${kind}`))) continue;
+    const hidePhone = await phonesHiddenFromSomeone();
     const r = await sendPush(ids, {
       title: kind === 'h2' ? `Site visit at ${fmtTime(at)}: ${l.name}` : `Tomorrow: site visit with ${l.name}`,
-      body: [kind === 'h2' ? 'In about 2 hours' : `${fmtDate(at)} at ${fmtTime(at)}`, l.unitType, l.phone ? `Call ${l.phone}` : ''].filter(Boolean).join(' · '),
+      body: [kind === 'h2' ? 'In about 2 hours' : `${fmtDate(at)} at ${fmtTime(at)}`, l.unitType, l.phone && !hidePhone ? `Call ${l.phone}` : ''].filter(Boolean).join(' · '),
       url: `/leads?lead=${encodeURIComponent(l._id)}`,
       tag: `visit-${l._id}`,
     });
@@ -396,13 +411,14 @@ export async function alertUnreturnedMissed(cfg: SalesOps, now = new Date()): Pr
     if (handled) continue;
     if (!(await claimOnce(`missedalert:${c._id}`))) continue;
     const lead = c.leadId ? await (await leadsCol()).findOne({ _id: c.leadId }) : null;
-    const who = lead?.name || c.customerName || c.phone;
+    const hidePhone = await phonesHiddenFromSomeone();
+    const who = lead?.name || c.customerName || (hidePhone ? 'A caller' : c.phone);
     const ids = [...new Set([...managersOr(cfg.missedAlertTo, users), ...(lead?.assignedRm ? idsByName([lead.assignedRm], users) : [])])];
     if (!ids.length) continue;
     const mins = Math.round((now.getTime() - new Date(c.startTime).getTime()) / 60000);
     const r = await sendPush(ids, {
       title: `Not called back: ${who}`,
-      body: `Missed call ${mins} min ago${lead?.assignedRm ? ` · RM ${lead.assignedRm}` : ''} · ${c.phone}`,
+      body: `Missed call ${mins} min ago${lead?.assignedRm ? ` · RM ${lead.assignedRm}` : ''}${hidePhone ? '' : ` · ${c.phone}`}`,
       url: lead ? `/leads?lead=${encodeURIComponent(lead._id)}` : '/calls',
       tag: `missed-back-${c.phoneLast10}`,
     });
@@ -410,6 +426,56 @@ export async function alertUnreturnedMissed(cfg: SalesOps, now = new Date()): Pr
     if (lead) await addTimeline(lead._id, 'automation', 'Missed call not called back', `Managers told after ${mins} minutes`, 'Automation', 'Call', String(c._id));
   }
   return out;
+}
+
+/* --------------------------- slow first response -------------------------- */
+
+/** New leads nobody has called or messaged within the company's time, longest waiting first. Optionally only some leads. */
+export async function slowNewLeads(cfg: SalesOps, now = new Date(), scope: Record<string, unknown> | null = null): Promise<Array<{ lead: LeadDoc; assignedAt: Date; minutes: number }>> {
+  if (!cfg.responseAlertMin) return [];
+  const found = await (await leadsCol())
+    .find({ ...(scope ? { $and: [scope] } : {}), stage: S.NEW, assignedRm: { $nin: ['', null] }, assignedAt: { $gte: new Date(now.getTime() - 48 * HOUR), $lte: new Date(now.getTime() - cfg.responseAlertMin * 60000) } } as any)
+    .sort({ assignedAt: 1 })
+    .limit(100)
+    .toArray();
+  const out: Array<{ lead: LeadDoc; assignedAt: Date; minutes: number }> = [];
+  for (const l of found) {
+    const at = new Date(l.assignedAt!);
+    if (reassignDue(at, { reassignAfterMin: cfg.responseAlertMin, workStartHour: cfg.workStartHour, workEndHour: cfg.workEndHour }) > now || (await touchedSince(l, at))) continue;
+    out.push({ lead: l, assignedAt: at, minutes: Math.round((now.getTime() - at.getTime()) / 60000) });
+  }
+  return out;
+}
+
+/** Warn once each time a lead is given out and then left waiting: its RM and the managers, on their phones and the bell. */
+export async function alertSlowResponse(cfg: SalesOps, now = new Date()): Promise<{ alerted: number }> {
+  const out = { alerted: 0 };
+  if (!cfg.responseAlertMin) return out;
+  const h = localHour(now);
+  if (h < cfg.workStartHour || h >= cfg.workEndHour) return out;
+  const slow = await slowNewLeads(cfg, now);
+  if (!slow.length) return out;
+  const users = await listUsers();
+  for (const { lead: l, assignedAt, minutes } of slow) {
+    if (!(await claimOnce(`slowlead:${l._id}:${assignedAt.getTime()}`))) continue;
+    const name = l.name || l._id;
+    const ids = [...new Set([...managersOr(cfg.responseAlertTo, users), ...idsByName([l.assignedRm], users)])];
+    const title = `Not called yet: ${name}`;
+    const detail = `New lead waiting ${minutes} min · RM ${l.assignedRm}`;
+    if (ids.length) await sendPush(ids, { title, body: detail, url: `/leads?lead=${encodeURIComponent(l._id)}`, tag: `slow-lead-${l._id}` });
+    await addEvent('lead_not_called', 'Lead', l._id, title, detail, 'Automation');
+    await addTimeline(l._id, 'automation', 'New lead not called yet', `${l.assignedRm} and the managers told after ${minutes} minutes`, 'Automation');
+    out.alerted++;
+  }
+  return out;
+}
+
+/** For the Leads screen: it does not wait for the background check, and shows each person only the leads they may see. */
+export async function getSlowLeads(ctx: Ctx, now = new Date()) {
+  const cfg = parseSalesOps((await settingsAll()).salesOps);
+  if (!cfg.responseAlertMin) return { minutes: 0, rows: [] };
+  const rows = await slowNewLeads(cfg, now, await leadFilter(ctx));
+  return { minutes: cfg.responseAlertMin, rows: rows.map((r) => ({ id: r.lead._id, name: r.lead.name, rm: r.lead.assignedRm, minutes: r.minutes })) };
 }
 
 /* ----------------------------- evening summary --------------------------- */
@@ -493,12 +559,14 @@ export async function sendPaymentReminders(now = new Date()): Promise<{ sent: nu
 /** One watch run (inside a company). */
 export async function runLeadWatch(now = new Date()) {
   const cfg = parseSalesOps((await settingsAll()).salesOps);
+  // warn before moving: a lead moved on by this same run starts a new clock with its new RM
+  const slow = await alertSlowResponse(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
   const reassigned = await reassignStale(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { moved: 0, stuck: 0 }; });
   const visits = await sendVisitReminders(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0, failed: 0 }; });
   const summary = await sendEveningSummary(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
   const missed = await alertUnreturnedMissed(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
   const payments = await sendPaymentReminders(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
-  return { reassigned, visits, summary, missed, payments };
+  return { slow, reassigned, visits, summary, missed, payments };
 }
 
 /* ------------------------------- leaderboard ----------------------------- */
@@ -580,6 +648,7 @@ export async function replaceSpend(source: SpendSource, months: string[], rows: 
 
 export const actions: ActionMap = {
   leaderboard: { fn: (d) => leaderboard(d), perm: 'leads.view' },
+  getSlowLeads: { fn: (_d, ctx) => getSlowLeads(ctx), perm: 'leads.view' },
   getCampaignSpend: { fn: () => getCampaignSpend(), perm: 'reports.view' },
   saveCampaignSpend: { fn: (d, ctx) => saveCampaignSpend(d, ctx), perm: 'settings.edit' },
 };

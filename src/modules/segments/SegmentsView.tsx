@@ -4,7 +4,7 @@ import { ClientSegment, CRMConfig, Lead, SegmentOperator, SegmentRule } from '..
 import { DEFAULT_SETTINGS, F, STAGES } from '../../core/config';
 import { formatDate, formatDateTime, formatRelative } from '../../core/dates';
 import { downloadText, toCsv } from '../../core/format';
-import { fillTemplate, formatPhone, toE164Digits, whatsappLink } from '../../core/phone';
+import { fillTemplate, formatPhone, isMaskedPhone, toE164Digits, whatsappLink } from '../../core/phone';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, InlineNotice, Modal, Select, StageBadge, inputCls, labelCls } from '../../components/ui';
 import { CallButton } from '../calls/CallButton';
@@ -130,7 +130,7 @@ export const SegmentsView: React.FC<SegmentsViewProps> = ({ segments, leads, con
   /* ------------------------------ actions ------------------------------- */
 
   const copyPhones = async () => {
-    const phones = Array.from(new Set(segmentLeads.map((l) => toE164Digits(l[F.PHONE])).filter((p) => p.length >= 10)));
+    const phones = Array.from(new Set(segmentLeads.map((l) => toE164Digits(l[F.PHONE])).filter((p) => p.length >= 10 && !isMaskedPhone(p))));
     if (!phones.length) return toast('No phone numbers', 'None of the clients in this segment has a valid phone number.', 'warning');
     try {
       await navigator.clipboard.writeText(phones.map((p) => `+${p}`).join(', '));

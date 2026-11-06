@@ -40,10 +40,14 @@ interface SalesOps {
   hotFromAi: boolean;
   missedAlertMin: number;
   missedAlertTo: string;
+  responseAlertMin: number;
+  responseAlertTo: string;
+  exportAlertAt: number;
 }
 const OPS_DEFAULTS: SalesOps = {
   reassignAfterMin: 0, reassignMax: 1, workStartHour: 9, workEndHour: 20, visitReminders: true, summaryPush: false, summaryHour: 19, summaryTo: '',
   welcomeTemplate: '', welcomeValues: '', visitTemplate: '', visitValues: '', hotFromAi: false, missedAlertMin: 0, missedAlertTo: '',
+  responseAlertMin: 0, responseAlertTo: '', exportAlertAt: 100,
 };
 /** What a WhatsApp template's values may name (server: salesOps.TEMPLATE_FIELDS). */
 const TEMPLATE_FIELDS = '{salutation}, {first_name}, {name}, {rm}, {unit}, {visit_date}, {visit_time}, {company}';
@@ -193,6 +197,23 @@ export const LeadAlertsSection: React.FC<SectionBaseProps & { users: UserAccount
           />
 
           <div className="space-y-2">
+            <Field label="New lead not called → warn the RM and managers after" hint="A lead still at New that nobody has called, followed up or messaged. Only working hours count. The Leads screen shows it straight away; phone and bell alerts come from a background check that runs about every 5 minutes and can start late. 0 = off.">
+              <div className="flex items-center gap-2">
+                <input className={inputCls + ' !w-24'} type="number" min={0} max={1440} value={ops.responseAlertMin} disabled={!editable} onChange={(e) => setOp('responseAlertMin', Number(e.target.value))} aria-label="Minutes before warning about a new lead" />
+                <span className="text-xs text-[#5E778C]">minutes</span>
+              </div>
+            </Field>
+            {ops.responseAlertMin > 0 && (
+              <Field label="Tell, besides the lead's RM" hint="Nobody ticked = every Admin and Manager.">
+                <UserPicker users={active} chosen={new Set(list(ops.responseAlertTo))} disabled={!editable} onToggle={(e, on) => setOp('responseAlertTo', toggleIn(ops.responseAlertTo, e, on))} />
+              </Field>
+            )}
+            <Field label="Large lead export → tell the Admins at" hint="Leads one person downloads in a day, added up. Every download goes in the audit log. 0 = no alert.">
+              <div className="flex items-center gap-2">
+                <input className={inputCls + ' !w-24'} type="number" min={0} value={ops.exportAlertAt} disabled={!editable} onChange={(e) => setOp('exportAlertAt', Number(e.target.value))} aria-label="Leads downloaded in a day before Admins are told" />
+                <span className="text-xs text-[#5E778C]">leads</span>
+              </div>
+            </Field>
             <Field label="Missed call not called back → tell the managers after" hint="An incoming call that was missed, where nobody has called the number since. One alert per number per day; the RM is told too. 0 = off.">
               <div className="flex items-center gap-2">
                 <input className={inputCls + ' !w-24'} type="number" min={0} max={1440} value={ops.missedAlertMin} disabled={!editable} onChange={(e) => setOp('missedAlertMin', Number(e.target.value) || 0)} />

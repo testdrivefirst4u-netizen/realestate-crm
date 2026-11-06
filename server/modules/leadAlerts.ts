@@ -11,6 +11,7 @@ import nodemailer from 'nodemailer';
 import { after } from 'next/server';
 import { listUsers, type PublicUser } from '../core/auth';
 import { CFG } from '../core/config';
+import { phonesHiddenFromSomeone } from '../core/roleAccess';
 import { fail } from '../core/errors';
 import { addTimeline, logError } from '../core/events';
 import { appUrl, settingsAll } from '../core/settings';
@@ -74,24 +75,24 @@ export function pushRecipients(cfg: LeadAlertConfig, rm: string, users: PublicUs
 }
 
 /** The phone notification for a lead. */
-export function alertPush(lead: Record<string, string>, kind: 'created' | 'assigned') {
+export function alertPush(lead: Record<string, string>, kind: 'created' | 'assigned', hidePhone = false) {
   const name = lead[L.NAME] || 'Lead';
   const bits = [lead[L.SOURCE], lead[L.UNIT_TYPE], lead[L.RM] ? `RM ${lead[L.RM]}` : 'Unassigned'].filter(Boolean);
   return {
     title: kind === 'created' ? `New lead: ${name}` : `Lead assigned to you: ${name}`,
-    body: [bits.join(' · '), lead[L.PHONE] ? `Call ${lead[L.PHONE]}` : ''].filter(Boolean).join('\n'),
+    body: [bits.join(' · '), lead[L.PHONE] && !hidePhone ? `Call ${lead[L.PHONE]}` : ''].filter(Boolean).join('\n'),
     url: `/leads?lead=${encodeURIComponent(lead[L.ID] || '')}`,
     tag: `lead-${lead[L.ID] || ''}`,
   };
 }
 
-export function alertEmail(lead: Record<string, string>, kind: 'created' | 'assigned', link: string, company: string) {
+export function alertEmail(lead: Record<string, string>, kind: 'created' | 'assigned', link: string, company: string, hidePhone = false) {
   const name = lead[L.NAME] || 'Lead';
   const subject = kind === 'created'
     ? `New lead: ${name}${lead[L.SOURCE] ? ` · ${lead[L.SOURCE]}` : ''}`
     : `Lead assigned to you: ${name}`;
   const rows: Array<[string, string]> = [
-    ['Name', name], ['Phone', lead[L.PHONE] || ''], ['E-mail', lead[L.EMAIL] || ''], ['Interested in', lead[L.UNIT_TYPE] || ''],
+    ['Name', name], ['Phone', hidePhone ? '' : lead[L.PHONE] || ''], ['E-mail', lead[L.EMAIL] || ''], ['Interested in', lead[L.UNIT_TYPE] || ''],
     ['Source', lead[L.SOURCE] || ''], ['Stage', lead[L.STAGE] || ''], ['Assigned RM', lead[L.RM] || 'Unassigned'],
   ];
   const notes = truncate(String(lead[L.NOTES] || ''), 600);
@@ -114,10 +115,11 @@ export async function sendLeadAlerts(lead: Record<string, string>, kind: 'create
     const cfg = parseLeadAlerts((await settingsAll()).leadAlerts);
     const users = await listUsers();
     const rm = String(lead[L.RM] || '');
+    const hidePhone = await phonesHiddenFromSomeone();
 
     // 1. phone notifications (free)
     const ids = pushRecipients(cfg, rm, users);
-    if (ids.length) result.pushed = (await sendPush(ids, alertPush(lead, kind))).sent;
+    if (ids.length) result.pushed = (await sendPush(ids, alertPush(lead, kind, hidePhone))).sent;
 
     // 2. e-mail
     const smtp = process.env.SMTP_URL?.trim();
@@ -126,7 +128,7 @@ export async function sendLeadAlerts(lead: Record<string, string>, kind: 'create
       const to = alertRecipients(cfg, rm, users);
       if (to.length) {
         try {
-          const { subject, text } = alertEmail(lead, kind, `${appUrl()}/leads?lead=${encodeURIComponent(id)}`, currentTenant()?.name || '');
+          const { subject, text } = alertEmail(lead, kind, `${appUrl()}/leads?lead=${encodeURIComponent(id)}`, currentTenant()?.name || '', hidePhone);
           await nodemailer.createTransport(smtp).sendMail({ from, to: to.join(', '), subject, text });
           result.emailed = to.length;
           await addTimeline(id, 'alert_sent', 'Lead alert e-mailed', to.join(', '), 'System');

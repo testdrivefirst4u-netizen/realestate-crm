@@ -6,7 +6,7 @@
 import { CRMSettings, CallRecord, Lead } from '../../types/crm';
 import { F, STAGES } from '../../core/config';
 import { dateKey, todayKey } from '../../core/dates';
-import { fillTemplate, last10, telLink, toE164Digits } from '../../core/phone';
+import { fillTemplate, isMaskedPhone, last10, telLink, toE164Digits } from '../../core/phone';
 import { loadUiPref, saveUiPref } from '../../core/persistence';
 import { blobToBase64 } from '../../services/audioRecorder';
 
@@ -334,7 +334,7 @@ export function validateDialerTemplate(template: string | undefined | null): str
 export function dialerHref(settings: Pick<CRMSettings, 'dialerTemplate'> | undefined, phone: string): string {
   const tpl = String(settings?.dialerTemplate || '').trim();
   const e164 = toE164Digits(phone);
-  if (!e164) return '#';
+  if (!e164 || isMaskedPhone(phone)) return '#';
   if (isTelTemplate(tpl) || UNSAFE_DIALER_SCHEME.test(tpl)) return telLink(phone);
   return fillTemplate(tpl, { phone: `+${e164}`, digits: e164 });
 }

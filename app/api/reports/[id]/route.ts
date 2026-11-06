@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { can, validateSession } from '@/server/core/auth';
 import { errEnvelope } from '@/server/core/errors';
 import { requestBase, withRequestTenant } from '@/server/core/request';
+import { hidePhonesDeep } from '@/server/core/phoneMask';
 import { csvSafe, dateKey } from '@/server/core/utils';
 import { getReportSnapshot } from '@/server/modules/reports';
 import { restrictionFor } from '@/server/core/scope';
@@ -35,7 +36,9 @@ async function handle(_req: Request, { params }: { params: Promise<{ id: string 
   const own = (await restrictionFor(session.user)) === null || (snap && String(snap.generatedBy).trim().toLowerCase() === session.user.name.trim().toLowerCase());
   if (!snap || !own) return json(404, 'NOT_FOUND', 'Report not found');
 
-  const lines = [csvLine(snap.headers), ...snap.rows.map((r) => csvLine(r))];
+  // a file downloaded directly, past the router's mask
+  const rows = can(session.user, 'leads.phones') ? snap.rows : snap.rows.map((r) => r.map((cell, i) => hidePhonesDeep(cell, String(snap.headers[i] ?? ''))));
+  const lines = [csvLine(snap.headers), ...rows.map((r) => csvLine(r))];
   const csv = '﻿' + lines.join('\r\n') + '\r\n';
   const name = `${snap.title} ${dateKey(snap.generatedAt)}`.replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.csv';
   const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/[";]/g, '_');

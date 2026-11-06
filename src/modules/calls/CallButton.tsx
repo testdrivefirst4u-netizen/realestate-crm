@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { api } from '../../core/api';
 import { toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { telLink } from '../../core/phone';
+import { isMaskedPhone, telLink } from '../../core/phone';
 import { useTenantSettings } from '../../core/tenant';
 import { outgoingCall } from './callWindowStore';
 import { softphone } from './softphone';
@@ -56,7 +56,7 @@ async function followCall(key: number, requestId: string, mode: 'app' | 'mobile'
 /** Start a JustConnect call and report how it goes (agent ringing → answered / not answered) in the call window. */
 export async function startJustConnectCall(d: { leadId?: string; phone?: string; name?: string }): Promise<boolean> {
   // the phone inside the CRM is on: dial from here (JustConnect still shows the business number, records and logs it)
-  if (softphone.ready() && d.phone) {
+  if (softphone.ready() && d.phone && !isMaskedPhone(d.phone)) {
     if (softphone.get().call) {
       toast('Call not started', 'Finish the call in progress first.', 'alert');
       return false;
@@ -70,7 +70,7 @@ export async function startJustConnectCall(d: { leadId?: string; phone?: string;
   } catch (e) {
     const err = toAppError(e);
     // JustConnect cannot ring this person (app signed out, no mobile saved): on a phone, dial the customer directly
-    if (err.details?.fallback === 'dial' && d.phone && isPhoneDevice()) {
+    if (err.details?.fallback === 'dial' && d.phone && !isMaskedPhone(d.phone) && isPhoneDevice()) {
       toast('Calling from your phone', 'JustConnect could not ring you, so your phone dials the customer directly (they see your number). Save your mobile number in My profile to call through JustConnect next time.', 'info');
       window.location.href = telLink(d.phone);
       return true;
@@ -118,8 +118,13 @@ export const CallButton: React.FC<{
   const settings = useTenantSettings() as { justconnectConfigured?: boolean } | null;
   const via = useContext(CallViaContext);
   const [busy, setBusy] = useState(false);
+  const hidden = isMaskedPhone(phone);
+  // the number is hidden from this role, so only the CRM can place the call
+  if (hidden && !settings?.justconnectConfigured) {
+    return <button type="button" className={className} title={title} aria-label={rest['aria-label']} onClick={(e) => { e.stopPropagation(); toast('Call not started', 'Phone numbers are hidden for your role, and this company has no CRM calling connected. Ask your Admin.', 'alert'); }}>{children}</button>;
+  }
   // direct: the phone's own dialer calls the customer straight away (they see this phone's number)
-  if (!settings?.justconnectConfigured || via === 'direct') {
+  if (!hidden && (!settings?.justconnectConfigured || via === 'direct')) {
     return <a href={telLink(phone)} className={className} title={title} aria-label={rest['aria-label']} onClick={(e) => e.stopPropagation()}>{children}</a>;
   }
   return (
