@@ -6,7 +6,7 @@ import { col } from '../server/core/db';
 import { encryptSecret } from '../server/core/settings';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
-import { deletePost, editPublishedPost, listPosts, runPostsCron, updatePost } from '../server/modules/socialPosts';
+import { deletePost, deletePublishedPost, editPublishedPost, listPosts, runPostsCron, updatePost } from '../server/modules/socialPosts';
 import { getPostComments, importOldPosts, runImportPostsCron, syncOldPosts } from '../server/modules/socialPostsImport';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -27,6 +27,7 @@ let refuseComments = false;
 async function fake(input: any, init: any = {}): Promise<Response> {
   const url = new URL(String(input));
   const path = url.pathname.replace(/^\/v\d+\.\d+\//, '/');
+  if (String(init.method || 'GET') === 'DELETE') return json(200, { success: true });
   if (String(init.method || 'GET') === 'POST') { edits.push({ path, body: String(init.body) }); return json(200, { success: true }); }
   if (refuseCounts && /reactions|like_count/.test(url.searchParams.get('fields') || '')) return json(400, { error: { message: 'Missing permission', code: 10 } });
   if (refuseComments && /comments\.summary/.test(url.searchParams.get('fields') || '')) return json(400, { error: { message: 'Needs pages_read_user_content', code: 10 } });
@@ -138,9 +139,18 @@ describe('old posts', () => {
     expect(edits).toHaveLength(1);
     expect(edits[0].path).toBe('/PAGE1_1');
     expect(new URLSearchParams(edits[0].body).get('message')).toBe('New words');
-    await expect(inCo(() => editPublishedPost({ id: 'IMP-instagram-M1', text: 'Nope' }, ctx))).rejects.toThrow(/one Facebook Page/);
+    await expect(inCo(() => editPublishedPost({ id: 'IMP-instagram-M1', text: 'Nope' }, ctx))).rejects.toThrow(/Instagram does not let/);
     await expect(inCo(() => editPublishedPost({ id: 'IMP-facebook-PAGE1_1', text: ' ' }, ctx))).rejects.toThrow(/Write the post/);
     expect(edits).toHaveLength(1);
+  });
+
+  it('a post deleted from here stays deleted, even if the platform still lists it at the next sync', async () => {
+    await inCo(() => importOldPosts({ now }));
+    const r = await inCo(() => deletePublishedPost({ id: 'IMP-facebook-PAGE1_1', targets: ['facebook:PAGE1'], confirm: true }, ctx));
+    expect(r.post.status).toBe('deleted');
+    await inCo(() => importOldPosts({ now }));
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['deleted'] }));
+    expect(posts.map((p) => p.id)).toEqual(['IMP-facebook-PAGE1_1']);
   });
 
   it('keeps the old text when Facebook refuses the change', async () => {

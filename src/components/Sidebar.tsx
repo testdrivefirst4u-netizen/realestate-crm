@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, MessageCircle, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  Inbox, Send, Megaphone, Globe2, SearchCheck, Binoculars, type LucideIcon,
+  Inbox, Send, Megaphone, Globe2, SearchCheck, Binoculars, Store, type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
@@ -68,7 +68,7 @@ function buildGroups(counts: SidebarCounts): Group[] {
       { id: 'inbox', label: 'Social Inbox', icon: Inbox, count: counts.unreadSocial, urgent: true },
     ] },
     { id: 'marketing', label: 'Marketing', items: [
-      { id: 'posts', label: 'Post Scheduler', icon: Send }, { id: 'ads', label: 'Ads Manager', icon: Megaphone }, { id: 'competitors', label: 'Competitor Ads', icon: Binoculars },
+      { id: 'posts', label: 'Post Scheduler', icon: Send }, { id: 'ads', label: 'Ads Manager', icon: Megaphone }, { id: 'competitors', label: 'Competitor Ads', icon: Binoculars }, { id: 'businessprofile', label: 'Business Profile', icon: Store },
     ] },
     { id: 'work', label: 'Workspace', items: [
       { id: 'inventory', label: 'Inventory', icon: Building2 }, { id: 'tasks', label: 'Tasks & Notes', icon: CheckSquare, count: counts.tasksPending },

@@ -105,7 +105,9 @@ export async function importOldPosts(opts: { days?: number; now?: Date } = {}): 
   // posts made in the CRM are not copied, but show the counts too (one account only: the counts would differ between accounts)
   const counted = found.filter((f) => made.has(f.postId));
   if (counted.length) await c.bulkWrite(counted.map((f) => ({ updateOne: { filter: { imported: { $ne: true }, targets: { $size: 1 }, 'targets.postId': f.postId }, update: { $set: { metrics: f.metrics } } } })));
-  const fresh = found.filter((f) => !made.has(f.postId) && !Number.isNaN(f.at.getTime()));
+  // a platform can still list a post just deleted from here: it must not come back as live
+  const gone = new Set((await c.distinct('_id', { imported: true, status: 'deleted' })).map(String));
+  const fresh = found.filter((f) => !made.has(f.postId) && !gone.has(`IMP-${f.kind}-${f.postId}`) && !Number.isNaN(f.at.getTime()));
   if (!fresh.length) return { imported: 0, updated: 0, skipped: found.length, errors, warnings };
   const r = await c.bulkWrite(fresh.map((f) => ({
     updateOne: {

@@ -29,7 +29,7 @@ const STATE_TTL_S = 600;
 export const SOCIAL_SCOPES = [
   'pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'pages_read_user_content', 'pages_manage_engagement',
   'pages_manage_posts', 'pages_messaging', 'instagram_basic', 'instagram_manage_comments', 'instagram_manage_messages',
-  'instagram_content_publish', 'business_management', 'read_insights', 'instagram_manage_insights',
+  'instagram_content_publish', 'instagram_manage_contents', 'business_management', 'read_insights', 'instagram_manage_insights',
 ].join(',');
 /** Page webhook fields the inbox needs (leadgen is kept for lead ads). */
 const SOCIAL_FIELDS = ['feed', 'messages'];

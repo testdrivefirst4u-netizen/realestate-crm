@@ -78,7 +78,7 @@ const by = (ctx: Ctx | null) => ctx?.user?.name || 'System';
 export const googleMktRedirect = (params: Record<string, string>) => `${appUrl()}/settings?${new URLSearchParams({ section: 'google', ...params }).toString()}`;
 
 /** Which plan features use this connection. */
-export const usesGoogleMarketing = (f: Record<string, boolean>) => !!(f.googleConversions || f.googleAdsSpend || f.socialInbox || f.socialPosts || f.adsControl || f.websiteAnalytics);
+export const usesGoogleMarketing = (f: Record<string, boolean>) => !!(f.googleConversions || f.googleAdsSpend || f.socialInbox || f.socialPosts || f.adsControl || f.websiteAnalytics || f.businessProfile);
 
 /* -------------------------------- connect -------------------------------- */
 
@@ -234,7 +234,10 @@ export async function googleApiFetch<T = any>(url: string, init: { method?: stri
     signal: AbortSignal.timeout(30000),
   });
   const j: any = await res.json().catch(() => ({}));
-  if (!res.ok) throw fail(res.status === 401 || res.status === 403 ? 'VALIDATION' : 'SERVER', truncate(`${label}: ${j?.error?.message || `answered ${res.status}`}`, 300));
+  if (!res.ok) {
+    const why = (Array.isArray(j?.error?.details) ? j.error.details : []).flatMap((x: any) => (Array.isArray(x?.fieldViolations) ? x.fieldViolations : [])).map((v: any) => [v?.field, v?.description].filter(Boolean).join(': ')).filter(Boolean).join('; ');
+    throw fail(res.status === 401 || res.status === 403 ? 'VALIDATION' : 'SERVER', truncate(`${label}: ${j?.error?.message || `answered ${res.status}`}${why ? ` (${why})` : ''}`, 300));
+  }
   return j as T;
 }
 

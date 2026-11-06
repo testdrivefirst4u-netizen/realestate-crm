@@ -11,22 +11,24 @@ import { api, type InsightValue, type PostTargetOption, type SocialPost } from '
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
 import { PostComposer, Preview } from './PostComposer';
+import { deletableTargets, PostDeleteDialog } from './PostDeleteDialog';
 import { PostInsights, insightText } from './PostInsights';
 import { KIND, STATUS, errText, postDate } from './postShared';
 
 type Tab = 'calendar' | 'list' | 'insights';
 type CalendarView = 'week' | 'month';
 type CalendarStatus = '' | 'scheduled' | 'published' | 'failed';
-type Filter = 'scheduled' | 'published' | 'draft' | 'failed';
+type Filter = 'scheduled' | 'published' | 'draft' | 'failed' | 'deleted';
 const FILTERS: Array<{ id: Filter; label: string; has: Array<SocialPost['status']> }> = [
   { id: 'scheduled', label: 'Scheduled', has: ['scheduled', 'publishing'] },
   { id: 'published', label: 'Published', has: ['published', 'partial'] },
   { id: 'draft', label: 'Drafts', has: ['draft'] },
   { id: 'failed', label: 'Failed', has: ['failed'] },
+  { id: 'deleted', label: 'Deleted', has: ['deleted'] },
 ];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const CHIP: Record<SocialPost['status'], string> = {
-  draft: 'border-[#CED0D4] bg-[#F5F6F7]', scheduled: 'border-[#BFD4FF] bg-[#E7F0FF]', publishing: 'border-[#F2D49B] bg-[#FFF6E5]', published: 'border-[#BFE3CF] bg-[#F1FAF5]', partial: 'border-[#F2D49B] bg-[#FFF6E5]', failed: 'border-[#F5C2B8] bg-[#FEF3F2]',
+  draft: 'border-[#CED0D4] bg-[#F5F6F7]', scheduled: 'border-[#BFD4FF] bg-[#E7F0FF]', publishing: 'border-[#F2D49B] bg-[#FFF6E5]', published: 'border-[#BFE3CF] bg-[#F1FAF5]', partial: 'border-[#F2D49B] bg-[#FFF6E5]', failed: 'border-[#F5C2B8] bg-[#FEF3F2]', deleted: 'border-[#DADDE1] bg-[#F5F6F7] opacity-60',
 };
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -48,7 +50,9 @@ const rangeTitle = (view: CalendarView, days: Date[], anchor: Date) => {
   return `${a.toLocaleDateString(undefined, a.getMonth() === b.getMonth() ? { day: 'numeric' } : { day: 'numeric', month: 'short' })} – ${end}`;
 };
 const editable = (p: SocialPost) => p.status === 'draft' || p.status === 'scheduled';
-const onePage = (p: SocialPost) => p.targets.length === 1 && p.targets[0].kind === 'facebook' && p.targets[0].status === 'posted' && !!p.targets[0].postId;
+/** The accounts whose text can change after posting; Instagram has no caption editing, a story has no text. */
+const textTargets = (p: SocialPost) => (p.postType === 'story' ? [] : p.targets.filter((t) => t.status === 'posted' && !!t.postId && (t.kind === 'facebook' || t.kind === 'google')));
+const textOf = (p: SocialPost, t: SocialPost['targets'][number]) => t.text || p.texts[t.kind] || p.text;
 const PAGE_SIZE = 60;
 const listQuery = (filter: Filter, skip: number, q: string, account: string) => ({ from: '2000-01-01T00:00:00.000Z', statuses: FILTERS.find((f) => f.id === filter)!.has, skip, limit: PAGE_SIZE, q: q || undefined, account: account || undefined });
 const shortText = (t: string) => (t.length > 280 ? t.slice(0, 280) + '…' : t);
@@ -58,8 +62,8 @@ const Accounts: React.FC<{ post: SocialPost }> = ({ post }) => (
   <div className="flex flex-wrap gap-1.5">
     {post.targets.map((t) => (
       <span key={t.key} title={t.error || ''} className={cx('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold', t.status === 'posted' ? 'border-[#BFE3CF] bg-[#F1FAF5] text-[#067647]' : t.status === 'failed' ? 'border-[#F5C2B8] bg-[#FEF3F2] text-[#B42318]' : 'border-[#DADDE1] text-[#65676B]')}>
-        <span className={cx('h-2 w-2 rounded-full', KIND[t.kind].cls)} />{t.name}
-        {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" aria-label={`Open on ${KIND[t.kind].label}`}><ExternalLink size={10} /></a>}
+        <span className={cx('h-2 w-2 rounded-full', KIND[t.kind].cls)} /><span className={t.status === 'deleted' ? 'line-through' : undefined}>{t.name}</span>{t.status === 'deleted' && ' · deleted'}
+        {t.url && t.status !== 'deleted' && <a href={t.url} target="_blank" rel="noopener noreferrer" aria-label={`Open on ${KIND[t.kind].label}`}><ExternalLink size={10} /></a>}
       </span>
     ))}
   </div>
@@ -97,6 +101,8 @@ export const PostsView: React.FC = () => {
   const [composing, setComposing] = useState<{ post?: SocialPost | null; seed?: SocialPost | null; when?: Date | null } | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [editText, setEditText] = useState<string | null>(null);
+  const [editKey, setEditKey] = useState('');
+  const [deleting, setDeleting] = useState<SocialPost | null>(null);
   const [comments, setComments] = useState<{ id: string; rows: Array<{ id: string; author: string; text: string; at: string }> | null; error: string } | null>(null);
   const [details, setDetails] = useState<SocialPost | null>(null);
   const [figures, setFigures] = useState<{ id: string; targets: Array<{ key: string; name: string; metrics: InsightValue[]; refused: string[] }> | null; error: string } | null>(null);
@@ -185,10 +191,10 @@ export const PostsView: React.FC = () => {
   const saveText = async (p: SocialPost) => {
     setBusy('edit');
     try {
-      const r = await api.posts.editPublished(p.id, editText || '');
+      const r = await api.posts.editPublished(p.id, editText || '', editKey);
       setDetails(r);
       setEditText(null);
-      toast('Post changed on Facebook', undefined, 'success');
+      toast(`Post changed on ${KIND[p.targets.find((t) => t.key === editKey)?.kind || 'facebook'].label}`, undefined, 'success');
       await load();
     } catch (e) {
       toast('Not changed', errText('posts.edit', e), 'alert');
@@ -371,18 +377,25 @@ export const PostsView: React.FC = () => {
       <Modal open={!!details} onClose={() => setDetails(null)} title={details ? STATUS[details.status].label : ''} subtitle={details ? `${postDate(details).toLocaleString()} · ${details.createdBy}` : undefined}
         footer={details && (
           <>
-            {details.status === 'failed' && <Button variant="secondary" icon={<Trash2 size={13} />} onClick={() => void remove(details)}>Delete</Button>}
+            {(details.status === 'failed' || details.status === 'deleted') && <Button variant="secondary" icon={<Trash2 size={13} />} onClick={() => void remove(details)}>{details.status === 'deleted' ? 'Remove from CRM' : 'Delete'}</Button>}
+            {(details.status === 'published' || details.status === 'partial') && deletableTargets(details).length > 0 && <Button variant="secondary" icon={<Trash2 size={13} />} onClick={() => setDeleting(details)}>Delete from platforms</Button>}
             {(details.status === 'failed' || details.status === 'partial') && <Button icon={<RotateCcw size={13} />} loading={busy === 'retry'} onClick={() => void retry(details)}>Retry</Button>}
             {targets.length > 0 && <Button variant="secondary" onClick={() => { const seed = details; setDetails(null); setComposing({ seed }); }}>Post again</Button>}
-            {editText !== null ? <Button loading={busy === 'edit'} disabled={!editText.trim()} onClick={() => void saveText(details)}>Save on Facebook</Button> : onePage(details) && <Button variant="secondary" icon={<Pencil size={13} />} onClick={() => setEditText(details.text)}>Edit text</Button>}
+            {editText !== null ? <Button loading={busy === 'edit'} disabled={!editText.trim() || !editKey} onClick={() => void saveText(details)}>Save on {KIND[details.targets.find((t) => t.key === editKey)?.kind || 'facebook'].label}</Button> : textTargets(details).length > 0 && <Button variant="secondary" icon={<Pencil size={13} />} onClick={() => { const t = textTargets(details)[0]; setEditKey(t.key); setEditText(textOf(details, t)); }}>Edit text</Button>}
             <Button variant="secondary" onClick={() => setDetails(null)}>Close</Button>
           </>
         )}>
         {details && (
           <div className="space-y-3">
             {editText !== null
-              ? <textarea className="w-full min-h-[140px] rounded-lg border border-[#CED0D4] p-2.5 text-sm text-[#1C2B33] focus:border-[#0866FF] focus:outline-none" aria-label="Post text" value={editText} maxLength={3000} onChange={(e) => setEditText(e.target.value)} />
-              : details.targets[0] && <Preview kind={details.targets[0].kind} name={details.targets[0].name} text={details.texts[details.targets[0].kind] || details.text} link={details.link} images={details.imageUrls} when={whenText(details)} metrics={details.metrics} postType={details.postType} video={details.videoUrl} controls />}
+              ? (
+                <div className="space-y-2">
+                  {textTargets(details).length > 1 && <select className={inputCls} value={editKey} aria-label="Account to change" onChange={(e) => { const t = details.targets.find((x) => x.key === e.target.value)!; setEditKey(t.key); setEditText(textOf(details, t)); }}>{textTargets(details).map((t) => <option key={t.key} value={t.key}>{KIND[t.kind].label}: {t.name}</option>)}</select>}
+                  <textarea className="w-full min-h-[140px] rounded-lg border border-[#CED0D4] p-2.5 text-sm text-[#1C2B33] focus:border-[#0866FF] focus:outline-none" aria-label="Post text" value={editText} maxLength={3000} onChange={(e) => setEditText(e.target.value)} />
+                  <p className="text-[11px] text-[#65676B]">Only this account changes. Facebook only lets an app change posts that the same app published, so a post made directly on Facebook may be refused.</p>
+                </div>
+              )
+              : details.targets[0] && <Preview kind={details.targets[0].kind} name={details.targets[0].name} text={textOf(details, details.targets[0])} link={details.link} images={details.imageUrls} when={whenText(details)} metrics={details.metrics} postType={details.postType} video={details.videoUrl} controls />}
             {figures && (
               <div>
                 <h3 className="text-[13px] font-bold text-[#1C2B33]">Insights</h3>
@@ -411,13 +424,14 @@ export const PostsView: React.FC = () => {
                 )}
               </div>
             )}
-            <p className="text-[11px] text-[#65676B]">Facebook and Instagram do not let an app replace the picture of a published post. To use a new picture, choose Post again, then remove the old post on the platform (open it from the account below).</p>
+            <p className="text-[11px] text-[#65676B]">Facebook and Instagram do not let an app replace the picture of a published post, and Instagram does not let an app change a caption. To change those, delete the post and choose Post again, which loses its likes and comments.</p>
             <Accounts post={details} />
             {details.targets.filter((t) => t.status === 'failed').map((t) => <p key={t.key} className="text-xs text-[#B42318]">{KIND[t.kind].label}: {t.error}</p>)}
             {details.targets.filter((t) => t.commentError).map((t) => <p key={t.key} className="text-xs text-[#9A3412]">{KIND[t.kind].label} first comment was not added: {t.commentError}</p>)}
           </div>
         )}
       </Modal>
+      {deleting && <PostDeleteDialog post={deleting} onClose={() => { setDeleting(null); void load(); }} onDone={(p) => { setDeleting(null); setDetails(p); void load(); }} />}
     </div>
   );
 };

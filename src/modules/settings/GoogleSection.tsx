@@ -23,7 +23,8 @@ export const GoogleSection: React.FC<{ can: (p: Permission) => boolean; stageOpt
   const spendOn = useFeature('googleAdsSpend');
   const inboxOn = useFeature('socialInbox');
   const postsOn = useFeature('socialPosts');
-  const gbpOn = inboxOn || postsOn;
+  const profileOn = useFeature('businessProfile');
+  const gbpOn = inboxOn || postsOn || profileOn;
   const analyticsOn = useFeature('websiteAnalytics');
   const adsControlOn = useFeature('adsControl');
   // with only Search Console on, the "Connect with Google" account below does not apply and is not reachable

@@ -46,6 +46,7 @@ import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
 import { actions as searchConsoleActions } from './modules/searchConsole';
+import { actions as businessProfileActions } from './modules/businessProfile';
 import { actions as socialInsightsActions } from './modules/socialInsights';
 import { actions as socialPostVideoActions } from './modules/socialPostVideo';
 import { actions as analyticsReportActions } from './modules/analyticsReports';
@@ -87,6 +88,7 @@ export const registry: ActionMap = {
   ...websiteAnalyticsActions,
   ...competitorActions,
   ...searchConsoleActions,
+  ...businessProfileActions,
   ...socialInsightsActions,
   ...socialPostVideoActions,
   ...analyticsReportActions,
@@ -119,13 +121,13 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^(save|test)AdConversions?$/, 'adConversions', 'Ad conversions'],
   [/^(get|disconnect)AdConversions$|^chooseAdConversionDataset$/, ['adConversions', 'adSpend', 'googleConversions'], 'Meta ads features'],
   [/^(get|save)ConversionRules$/, ['adConversions', 'googleConversions'], 'Lead results to ad platforms'],
-  [/^(get|save|refresh|disconnect)GoogleMarketing$|^listGoogleConversionActions$|^testGa4$|^syncGoogleSpend$/, ['googleConversions', 'googleAdsSpend', 'socialInbox', 'socialPosts', 'adsControl', 'websiteAnalytics'], 'Google marketing features'],
+  [/^(get|save|refresh|disconnect)GoogleMarketing$|^listGoogleConversionActions$|^testGa4$|^syncGoogleSpend$/, ['googleConversions', 'googleAdsSpend', 'socialInbox', 'socialPosts', 'adsControl', 'websiteAnalytics', 'businessProfile'], 'Google marketing features'],
   [/^(syncAdSpend|saveAdSpendAccounts)$/, 'adSpend', 'Ad spend from Meta'],
   [/^(getSocialAccounts|disconnectSocialPage)$/, ['socialInbox', 'socialPosts'], 'The social inbox and post scheduler'],
   [/^(listInbox|getInboxThread|refreshInboxPeople|replyInbox|markInboxRead|inboxCreateLead|refreshInbox|syncOldInbox)$/, 'socialInbox', 'The social inbox'],
   [/^(get|save|disconnect)LinkedIn$|^syncLinkedInLeads$/, 'linkedin', 'LinkedIn'],
   [/^(get|save|disconnect)Pinterest$/, 'pinterest', 'Pinterest'],
-  [/^(listPosts|getPost|createPost|updatePost|reschedulePost|editPublishedPost|retryPost|deletePost|uploadPostImage|uploadPostVideoPart|finishPostVideo|discardPostVideo|syncOldPosts|getPostComments|getSocialInsights|getPostInsights)$/, 'socialPosts', 'The post scheduler'],
+  [/^(listPosts|getPost|createPost|updatePost|reschedulePost|editPublishedPost|deletePublishedPost|retryPost|deletePost|uploadPostImage|uploadPostVideoPart|finishPostVideo|discardPostVideo|syncOldPosts|getPostComments|getSocialInsights|getPostInsights)$/, 'socialPosts', 'The post scheduler'],
   [/^(listAdCampaigns|listMetaAds|setCampaignStatus|setCampaignBudget|saveAdAlerts)$/, 'adsControl', 'The ads manager'],
   [/^(listCompetitors|saveCompetitor|deleteCompetitor|recordCompetitorCheck|saveCompetitorAd|deleteCompetitorAd|setCompetitorAdActive)$/, 'competitorAds', 'Competitor ads'],
   // lead sources serve website/webhook (websiteApi) and Google Sheet imports (googleSheets); per-type check in modules/leadSources.ts
@@ -147,7 +149,7 @@ const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
-  'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'listCompetitors', 'listMetaAds',
+  'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 export const VIEW_ONLY_MESSAGE = 'You have view-only access. Ask an administrator if something needs to change.';

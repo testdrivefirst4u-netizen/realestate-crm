@@ -51,6 +51,8 @@ export interface TenantFeatures {
   competitorAds: boolean;
   /** Search Console screen: Google search figures and indexed pages. */
   searchConsole: boolean;
+  /** Business Profile screen: the Google listing as customers see it, and its figures. */
+  businessProfile: boolean;
 }
 
 export interface Tenant {

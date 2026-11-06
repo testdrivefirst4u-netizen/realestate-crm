@@ -44,6 +44,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   websiteAnalytics: 'Website analytics (Google Analytics)',
   competitorAds: 'Competitor ads (links to Meta and Google ad libraries)',
   searchConsole: 'Search Console (Google search figures and indexed pages)',
+  businessProfile: 'Business Profile (Google listing and its figures)',
 };
 
 export interface SuperAdmin {

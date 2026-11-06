@@ -10,7 +10,7 @@ export const KIND: Record<PostTargetKind, { label: string; cls: string }> = {
   pinterest: { label: 'Pinterest', cls: 'bg-[#E60023]' },
 };
 export const STATUS: Record<SocialPost['status'], { label: string; tone: 'sage' | 'amber' | 'rust' | 'muted' | 'navy' }> = {
-  draft: { label: 'Draft', tone: 'muted' }, scheduled: { label: 'Scheduled', tone: 'navy' }, publishing: { label: 'Posting…', tone: 'amber' }, published: { label: 'Posted', tone: 'sage' }, partial: { label: 'Partly posted', tone: 'amber' }, failed: { label: 'Failed', tone: 'rust' },
+  draft: { label: 'Draft', tone: 'muted' }, scheduled: { label: 'Scheduled', tone: 'navy' }, publishing: { label: 'Posting…', tone: 'amber' }, published: { label: 'Posted', tone: 'sage' }, partial: { label: 'Partly posted', tone: 'amber' }, failed: { label: 'Failed', tone: 'rust' }, deleted: { label: 'Deleted', tone: 'muted' },
 };
 export const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 export const localInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);

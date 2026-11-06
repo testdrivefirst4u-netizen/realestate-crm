@@ -286,6 +286,7 @@ export const FEATURES = {
   websiteAnalytics: false,
   competitorAds: false,
   searchConsole: false,
+  businessProfile: false,
   csvImport: true,
   documents: true,
   templates: true,

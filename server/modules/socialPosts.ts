@@ -14,7 +14,10 @@
  * Types   = post (photos and text), video (Facebook), reel and story (Facebook and Instagram): modules/socialPostVideo.ts.
  *          A video Instagram is still processing keeps its target pending and the post is looked at again 5 minutes later.
  * Publish = "Post now" publishes at once; scheduled posts are published by the Meta cron (every 10 minutes) once due.
- *          A failed target can be retried; posted ones are never posted twice.
+ *          A failed target can be retried; posted ones are never posted twice, and deleted ones never come back.
+ * After   = text of a published post can change on Facebook (only posts this app made, says Meta) and Google, for each account.
+ *          Delete removes it from Facebook, Instagram (whole carousel) or Google, each account on its own; the copy stays
+ *          here marked deleted. Instagram has no caption editing; LinkedIn and Pinterest stay on the platform.
  */
 import crypto from 'crypto';
 import type { ActionMap } from '../core/actions';
@@ -43,8 +46,8 @@ const PROCESSING_LIMIT_MS = 60 * 60000;
 
 export interface PostMetrics { likes: number | null; comments: number | null; shares: number | null }
 export type TargetKind = 'facebook' | 'instagram' | 'google' | 'linkedin' | 'pinterest';
-export interface PostTarget { key: string; kind: TargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string; commentError?: string; containerId?: string; processingSince?: string }
-export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed';
+export interface PostTarget { key: string; kind: TargetKind; name: string; status: 'pending' | 'posted' | 'failed' | 'deleted'; postId?: string; url?: string; error?: string; commentError?: string; containerId?: string; processingSince?: string; /** This account's text after an edit, when the post went to several. */ text?: string; deletedAt?: string; deletedBy?: string }
+export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed' | 'deleted';
 interface PostDoc {
   _id: string;
   text: string;
@@ -240,7 +243,7 @@ export async function publishPost(id: string, opts: { now?: Date; retry?: boolea
   if (!post) return c.findOne({ _id: id });
   const targets: PostTarget[] = [];
   for (const t of post.targets) {
-    if (t.status === 'posted') { targets.push(t); continue; }
+    if (t.status === 'posted' || t.status === 'deleted') { targets.push(t); continue; }
     try {
       const r = await publishTarget(post, t);
       const commentError = await addFirstComment(post, t, r.postId);
@@ -264,7 +267,8 @@ export async function publishPost(id: string, opts: { now?: Date; retry?: boolea
     return c.findOne({ _id: id });
   }
   const ok = targets.filter((t) => t.status === 'posted').length;
-  const status: PostStatus = ok === targets.length ? 'published' : ok ? 'partial' : 'failed';
+  const failedCount = targets.filter((t) => t.status === 'failed').length;
+  const status: PostStatus = !failedCount ? 'published' : ok ? 'partial' : 'failed';
   await c.updateOne({ _id: id }, { $set: { targets, status, updatedAt: new Date(), ...(ok ? { publishedAt: new Date() } : {}) } });
   // posted everywhere: the platforms have the video now, and it would only take up the company's storage
   if (status === 'published' && post.videoFileId) {
@@ -422,7 +426,13 @@ export async function updatePost(d: any, ctx: Ctx): Promise<PostView> {
   return view(out || r);
 }
 
-/** Change the text of a post already on Facebook. The platforms do not let an app change a published picture, or Instagram captions. */
+const accountOf = (t: PostTarget) => t.key.slice(t.kind.length + 1);
+const isGoogleName = (t: PostTarget) => !!t.postId && t.postId.startsWith(`${accountOf(t)}/localPosts/`);
+
+/**
+ * Change the text of a post already out, on one account: Facebook (Meta allows only posts this app made) or Google.
+ * Instagram has no caption editing. With several accounts, the others keep their text.
+ */
 export async function editPublishedPost(d: any, ctx: Ctx): Promise<PostView> {
   const id = String(d?.id || '');
   const text = String(d?.text || '').trim();
@@ -431,14 +441,77 @@ export async function editPublishedPost(d: any, ctx: Ctx): Promise<PostView> {
   const c = await postsCol();
   const post = await c.findOne({ _id: id });
   if (!post) throw fail('NOT_FOUND', 'Post not found');
-  const t = post.targets[0];
-  if (post.targets.length !== 1 || t.kind !== 'facebook' || t.status !== 'posted' || !t.postId) throw fail('VALIDATION', 'Only a post on one Facebook Page can be changed here. Change others on the platform itself.');
-  const page = (await socialPages()).find((p) => p.id === t.key.slice('facebook:'.length));
-  if (!page) throw fail('VALIDATION', 'This Facebook Page is no longer connected.');
-  await graph(t.postId, { token: page.token, method: 'POST', params: { message: text } });
-  const r = await c.findOneAndUpdate({ _id: id }, { $set: { text, updatedAt: new Date() } }, { returnDocument: 'after' });
-  await auditLog(ctx, 'Published Post Edited', 'Post', id, truncate(text, 80));
+  const live = post.targets.filter((x) => x.status === 'posted' && x.postId);
+  const t = d?.target ? live.find((x) => x.key === String(d.target)) : live.length === 1 ? live[0] : null;
+  if (!t) throw fail('VALIDATION', 'Choose which account to change.');
+  if (t.kind === 'instagram') throw fail('VALIDATION', 'Instagram does not let an app change a caption. Delete the post and post it again, which loses its likes and comments.');
+  if (t.kind !== 'facebook' && t.kind !== 'google') throw fail('VALIDATION', 'Change this one on the platform itself.');
+  if (post.postType === 'story') throw fail('VALIDATION', 'A story has no text to change.');
+  if (t.kind === 'facebook') {
+    const page = (await socialPages()).find((p) => p.id === accountOf(t));
+    if (!page) throw fail('VALIDATION', 'This Facebook Page is no longer connected.');
+    // on a photo post the link is part of the text, so it stays there
+    const keepLink = post.link && photosOf(post).length && !text.includes(post.link);
+    await graph(t.postId!, { token: page.token, method: 'POST', params: { message: keepLink ? `${text}\n\n${post.link}` : text } });
+  } else {
+    if (text.length > 1500) throw fail('VALIDATION', 'Google Business Profile posts can be up to 1500 characters.');
+    if (!isGoogleName(t)) throw fail('VALIDATION', 'This Google post cannot be changed here.');
+    await gbpFetch(`https://mybusiness.googleapis.com/v4/${t.postId}?updateMask=summary`, { method: 'PATCH', body: { summary: text } });
+  }
+  const now = new Date();
+  // one account: the post's text is that text. Several: only this account's, the others keep theirs
+  const r = post.targets.length === 1
+    ? await c.findOneAndUpdate({ _id: id }, { $set: { text, updatedAt: now }, $unset: { [`texts.${t.kind}`]: '' } }, { returnDocument: 'after' })
+    : await c.findOneAndUpdate({ _id: id, 'targets.key': t.key }, { $set: { 'targets.$.text': text, updatedAt: now } }, { returnDocument: 'after' });
+  await auditLog(ctx, 'Published Post Edited', 'Post', id, `${t.name}: ${truncate(text, 80)}`);
   return view(r || post);
+}
+
+/** Remove it from one account. Throws what the platform says, so that account stays as it was. */
+async function removeFromPlatform(t: PostTarget): Promise<void> {
+  if (t.kind === 'google') {
+    if (!isGoogleName(t)) throw new Error('This Google post cannot be deleted here.');
+    await gbpFetch(`https://mybusiness.googleapis.com/v4/${t.postId}`, { method: 'DELETE' });
+    return;
+  }
+  const id = accountOf(t);
+  const page = (await socialPages()).find((p) => (t.kind === 'facebook' ? p.id === id : p.igId === id));
+  if (!page) throw new Error('This account is no longer connected.');
+  const r = await graph<{ success?: boolean }>(t.postId!, { token: page.token, method: 'DELETE' });
+  if (r?.success === false) throw new Error(`${t.kind === 'facebook' ? 'Facebook' : 'Instagram'} did not delete it.`);
+}
+
+/** Delete a published post from the accounts chosen. Each is saved as it happens; a refusal leaves that account as it was. */
+export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: PostView; deleted: string[]; failed: Array<{ key: string; name: string; error: string }> }> {
+  const id = String(d?.id || '');
+  if (d?.confirm !== true) throw fail('VALIDATION', 'Confirm the delete first.');
+  const c = await postsCol();
+  const post = await c.findOne({ _id: id });
+  if (!post) throw fail('NOT_FOUND', 'Post not found');
+  if (post.status !== 'published' && post.status !== 'partial') throw fail('VALIDATION', 'Only a post that is out can be deleted from the platforms.');
+  const keys = [...new Set((Array.isArray(d?.targets) ? d.targets : []).map(String))] as string[];
+  if (!keys.length) throw fail('VALIDATION', 'Choose where to delete it from.');
+  const chosen = keys.map((k) => post.targets.find((x) => x.key === k));
+  if (chosen.some((x) => !x || x.status !== 'posted' || !x.postId || !['facebook', 'instagram', 'google'].includes(x.kind))) throw fail('VALIDATION', 'One of those accounts cannot be deleted from here. Reload the page.');
+  const deleted: string[] = [];
+  const failed: Array<{ key: string; name: string; error: string }> = [];
+  for (const t of chosen as PostTarget[]) {
+    try {
+      await removeFromPlatform(t);
+      await c.updateOne({ _id: id, 'targets.key': t.key }, { $set: { 'targets.$.status': 'deleted', 'targets.$.deletedAt': new Date().toISOString(), 'targets.$.deletedBy': ctx.user?.name || 'System', updatedAt: new Date() } });
+      deleted.push(t.name);
+    } catch (e: any) {
+      const said = truncate(String(e?.message || e), 300);
+      failed.push({ key: t.key, name: t.name, error: t.kind === 'instagram' && /permission/i.test(said) ? `${said} Deleting on Instagram needs a Meta permission this app may not have yet.` : said });
+    }
+  }
+  const now = (await c.findOne({ _id: id })) || post;
+  const posted = now.targets.filter((x) => x.status === 'posted').length;
+  const bad = now.targets.filter((x) => x.status === 'failed').length;
+  const status: PostStatus = now.targets.every((x) => x.status === 'deleted') ? 'deleted' : !bad ? 'published' : posted ? 'partial' : 'failed';
+  const r = await c.findOneAndUpdate({ _id: id }, { $set: { status, updatedAt: new Date() } }, { returnDocument: 'after' });
+  if (deleted.length) await auditLog(ctx, 'Published Post Deleted', 'Post', id, truncate(`${deleted.join(', ')}${failed.length ? ` · refused by ${failed.map((f) => f.name).join(', ')}` : ''} · ${post.text}`, 300));
+  return { post: view(r || now), deleted, failed };
 }
 
 /** Move a scheduled post to another time (the planner's drag), keeping everything else. */
@@ -470,8 +543,8 @@ export async function retryPost(d: any, ctx: Ctx): Promise<PostView> {
 export async function deletePost(d: any, ctx: Ctx): Promise<{ ok: true }> {
   const id = String(d?.id || '');
   const video = (await (await postsCol()).findOne({ _id: id }, { projection: { videoFileId: 1 } }))?.videoFileId;
-  const r = await (await postsCol()).deleteOne({ _id: id, status: { $in: ['draft', 'scheduled', 'failed'] } });
-  if (!r.deletedCount) throw fail('VALIDATION', 'Only a draft, a scheduled post, or one that failed everywhere, can be deleted here. Published posts are removed on the platform itself.');
+  const r = await (await postsCol()).deleteOne({ _id: id, status: { $in: ['draft', 'scheduled', 'failed', 'deleted'] } });
+  if (!r.deletedCount) throw fail('VALIDATION', 'Only a draft, a scheduled post, or one that failed everywhere, can be removed here. To remove a published post, use Delete from platforms.');
   if (video) await deleteFile(video);
   await auditLog(ctx, 'Post Deleted', 'Post', id, '');
   return { ok: true };
@@ -484,6 +557,7 @@ export const actions: ActionMap = {
   updatePost: { fn: (d, ctx) => updatePost(d, ctx), perm: 'marketing.manage' },
   reschedulePost: { fn: (d, ctx) => reschedulePost(d, ctx), perm: 'marketing.manage' },
   editPublishedPost: { fn: (d, ctx) => editPublishedPost(d, ctx), perm: 'marketing.manage' },
+  deletePublishedPost: { fn: (d, ctx) => deletePublishedPost(d, ctx), perm: 'marketing.manage' },
   retryPost: { fn: (d, ctx) => retryPost(d, ctx), perm: 'marketing.manage' },
   deletePost: { fn: (d, ctx) => deletePost(d, ctx), perm: 'marketing.manage' },
   uploadPostImage: { fn: (d, ctx) => uploadPostImage(d, ctx), perm: 'marketing.manage' },

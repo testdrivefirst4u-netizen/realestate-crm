@@ -265,8 +265,8 @@ export interface InsightsAccount { key: string; kind: 'facebook' | 'instagram'; 
 export interface InsightsOverview { days: number; accounts: InsightsAccount[]; topPosts: Array<{ id: string; text: string; imageUrl: string; url: string; kind: string; account: string; postType: string; at: string; likes: number | null; comments: number | null; shares: number | null }>; fetchedAt: string }
 export interface PostTargetOption { key: string; kind: PostTargetKind; name: string; needsImage: boolean }
 export interface SocialPost {
-  id: string; text: string; texts: Partial<Record<PostTargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null; postType: PostType; videoFileId: string; videoUrl: string;
-  targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed'; postId?: string; url?: string; error?: string; commentError?: string }>;
+  id: string; text: string; texts: Partial<Record<PostTargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed' | 'deleted'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null; postType: PostType; videoFileId: string; videoUrl: string;
+  targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed' | 'deleted'; postId?: string; url?: string; error?: string; commentError?: string; text?: string; deletedAt?: string; deletedBy?: string }>;
 }
 /** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
 export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'searchConsole' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
@@ -279,6 +279,29 @@ export interface WebsiteAnalytics {
   days: number; from: string; to: string; property: { id: string; name: string } | null; error: string;
   web: { visitors: number; newVisitors: number; sessions: number; daily: Array<{ day: string; visitors: number; sessions: number }>; channels: Array<{ name: string; sessions: number; visitors: number }>; sources: Array<{ name: string; sessions: number }>; pages: Array<{ path: string; sessions: number }> } | null;
   crm: { enquiries: number; siteVisits: number; bookings: number; daily: Array<{ day: string; enquiries: number }>; bySource: Array<{ name: string; enquiries: number; siteVisits: number; bookings: number }> };
+}
+/** Business Profile (server: modules/businessProfile.ts). */
+export interface ProfileView {
+  name: string; title: string; phone: string; otherPhones: string[]; category: string; otherCategories: string[]; address: string; website: string; description: string; status: string;
+  hours: Array<{ day: string; text: string }>; specialHours: Array<{ day: string; text: string }>; serviceAreas: string[];
+}
+export interface BusinessProfileData {
+  error: string; locations: Array<{ name: string; title: string }>; location: string; profile: ProfileView | null; live: ProfileView | null; liveError: string;
+  fields: Array<{ id: string; label: string; value: string; live: string; state: 'live' | 'pending' | 'changed' }>;
+  mapsUri: string; reviewUri: string; managed: boolean; duplicate: boolean; rating: { average: number; total: number } | null; fetchedAt: string;
+  edit: ProfileEdit | null; version: string;
+}
+export interface ProfileEdit {
+  title: string; phone: string; otherPhones: string[]; website: string; description: string; status: string; regionCode: string;
+  category: { name: string; displayName: string } | null; otherCategories: Array<{ name: string; displayName: string }>;
+  address: { lines: string[]; sublocality: string; locality: string; administrativeArea: string; postalCode: string };
+  hours: Array<{ day: string; open: string; close: string }>;
+  specialHours: Array<{ date: string; closed: boolean; open: string; close: string }>;
+}
+export interface BusinessPerformance {
+  error: string; location: string; from: string; to: string; prevFrom: string; prevTo: string; totals: Record<string, number>; prevTotals: Record<string, number> | null;
+  daily: Array<{ day: string; prevDay: string; values: Record<string, number>; prev: Record<string, number> | null }>;
+  keywords: Array<{ keyword: string; value: number; below: boolean }>; keywordsFrom: string; keywordsTo: string; keywordsError: string; fetchedAt: string;
 }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
@@ -599,7 +622,8 @@ export const api = {
   posts: {
     reschedule: (id: string, scheduledAt: string) => request<SocialPost>('reschedulePost', { id, scheduledAt }),
     list: (range: { from?: string; to?: string; statuses?: string[]; skip?: number; limit?: number; q?: string; account?: string } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[]; hasMore: boolean }>('listPosts', range),
-    editPublished: (id: string, text: string) => request<SocialPost>('editPublishedPost', { id, text }, { timeoutMs: 60000 }),
+    editPublished: (id: string, text: string, target?: string) => request<SocialPost>('editPublishedPost', { id, text, target }, { timeoutMs: 60000 }),
+    deletePublished: (id: string, targets: string[]) => request<{ post: SocialPost; deleted: string[]; failed: Array<{ key: string; name: string; error: string }> }>('deletePublishedPost', { id, targets, confirm: true }, { timeoutMs: 120000 }),
     create: (d: { text: string; link?: string; imageFileIds?: string[]; targets: string[]; scheduledAt?: string; draft?: boolean; texts?: Record<string, string>; firstComment?: string; postType?: PostType; videoFileId?: string }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),
     update: (d: { id: string; text: string; link?: string; imageFileIds?: string[]; targets: string[]; scheduledAt?: string; draft?: boolean; texts?: Record<string, string>; firstComment?: string; postType?: PostType; videoFileId?: string }) => request<SocialPost>('updatePost', d, { timeoutMs: 120000 }),
     retry: (id: string) => request<SocialPost>('retryPost', { id }, { timeoutMs: 120000 }),
@@ -625,6 +649,12 @@ export const api = {
     saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; placements: string[]; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
     setAdActive: (id: string, active: boolean) => request<{ ok: true }>('setCompetitorAdActive', { id, active }),
+  },
+  businessProfile: {
+    get: (d: { location?: string; refresh?: boolean }) => request<BusinessProfileData>('getBusinessProfile', d, { timeoutMs: 60000 }),
+    performance: (d: { preset?: string; location?: string; refresh?: boolean }) => request<BusinessPerformance>('getBusinessPerformance', d, { timeoutMs: 60000 }),
+    update: (d: { location: string; version: string; changes: Partial<ProfileEdit>; validateOnly: boolean; confirm: boolean }) => request<{ validated: boolean; changed: string[]; profile: BusinessProfileData | null }>('updateBusinessProfile', d, { timeoutMs: 60000 }),
+    categories: (q: string, regionCode: string) => request<Array<{ name: string; displayName: string }>>('searchBusinessCategories', { q, regionCode }),
   },
   searchConsole: {
     get: () => request<SearchConsoleView>('getSearchConsole'),
