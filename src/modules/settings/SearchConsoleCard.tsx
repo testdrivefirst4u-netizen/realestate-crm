@@ -56,7 +56,7 @@ export const SearchConsoleCard: React.FC<{ editable: boolean }> = ({ editable })
 
   return (
     <Card title={<span className="inline-flex items-center gap-2"><Search size={16} className="text-[#0B6BB0]" /> Search Console</span>}
-      subtitle="Your website's Google search clicks, top searches and indexed pages, on the Website Analytics screen. Read only."
+      subtitle="Your website's Google search clicks, top searches and indexed pages, on the Search Console screen. Read only."
       actions={editable ? connect || undefined : undefined}>
       {!v ? <p className="text-xs text-[#5E778C]">Loading…</p> : (
         <div className="space-y-3 text-xs text-[#0B2A44]">

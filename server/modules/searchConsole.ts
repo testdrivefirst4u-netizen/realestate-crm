@@ -1,5 +1,5 @@
 /**
- * Search Console (plan feature searchConsole, off by default; screen /analytics): Google search clicks, impressions, CTR
+ * Search Console (plan feature searchConsole, off by default; screen /searchconsole): Google search clicks, impressions, CTR
  * and position of the company's website, its sitemaps, and which of its pages Google has indexed.
  *
  * Connect  = its own step, asking only for webmasters.readonly, so the verified "Connect with Google" of Settings › Google

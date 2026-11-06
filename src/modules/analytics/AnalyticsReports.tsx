@@ -8,10 +8,8 @@ import { ArrowDown, ArrowUp, RefreshCw, Search } from 'lucide-react';
 import { api, type AnalyticsCard, type AnalyticsDay, type AnalyticsMetric, type AnalyticsReport } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
-import { useFeature } from '../../core/tenant';
 import { AnalyticsView } from './AnalyticsView';
 import { LineChart, shortDay, show } from './analyticsCharts';
-import { SearchConsoleReport } from './SearchConsoleReport';
 
 const BLUE = '#1A73E8';
 const NAV: Array<{ group: string; items: Array<{ id: string; label: string }> }> = [
@@ -19,7 +17,6 @@ const NAV: Array<{ group: string; items: Array<{ id: string; label: string }> }>
   { group: 'Acquisition', items: [{ id: 'userAcquisition', label: 'User acquisition' }, { id: 'trafficAcquisition', label: 'Traffic acquisition' }] },
   { group: 'Engagement', items: [{ id: 'events', label: 'Events' }, { id: 'pages', label: 'Pages and screens' }, { id: 'landingPages', label: 'Landing page' }] },
   { group: 'User', items: [{ id: 'demographics', label: 'Demographic details' }, { id: 'tech', label: 'Tech details' }] },
-  { group: 'Google Search', items: [{ id: 'search', label: 'Search Console' }] },
   { group: 'CRM', items: [{ id: 'crm', label: 'Website vs CRM' }] },
 ];
 const PRESETS = [
@@ -148,11 +145,8 @@ const ReportTable: React.FC<{ data: AnalyticsReport; onDimension: (id: string) =
   );
 };
 
-export const AnalyticsReports: React.FC<{ canCheckPages?: boolean }> = ({ canCheckPages = false }) => {
-  const analyticsOn = useFeature('websiteAnalytics');
-  const searchOn = useFeature('searchConsole');
-  const nav = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (i.id === 'search' ? searchOn : analyticsOn)) })).filter((g) => g.items.length);
-  const [report, setReport] = useState(analyticsOn ? 'snapshot' : 'search');
+export const AnalyticsReports: React.FC = () => {
+  const [report, setReport] = useState('snapshot');
   const [dimension, setDimension] = useState('');
   const [preset, setPreset] = useState('last28');
   const [from, setFrom] = useState('');
@@ -166,7 +160,7 @@ export const AnalyticsReports: React.FC<{ canCheckPages?: boolean }> = ({ canChe
   const custom = preset === 'custom';
 
   const load = useCallback(async (refresh = false) => {
-    if (report === 'crm' || report === 'search' || (custom && (!from || !to))) return;
+    if (report === 'crm' || (custom && (!from || !to))) return;
     const mine = ++latest.current;
     setLoading(true);
     try {
@@ -196,7 +190,7 @@ export const AnalyticsReports: React.FC<{ canCheckPages?: boolean }> = ({ canChe
   return (
     <div className="flex min-h-full flex-col bg-[#F8F9FA] lg:flex-row">
       <nav aria-label="Reports" className="hidden w-52 flex-none border-r border-[#DADCE0] bg-white p-2 lg:block">
-        {nav.map((g) => (
+        {NAV.map((g) => (
           <div key={g.group || 'top'} className="mb-2">
             {g.group && <h3 className="px-3 pb-1 pt-2 text-[11px] font-medium text-[#5F6368]">{g.group}</h3>}
             {g.items.map((i) => <button key={i.id} type="button" aria-current={report === i.id ? 'page' : undefined} onClick={() => open(i.id)} className={cx('block w-full rounded-r-full px-3 py-1.5 text-left text-[13px]', report === i.id ? 'bg-[#E8F0FE] font-medium text-[#1967D2]' : 'text-[#202124] hover:bg-[#F1F3F4]')}>{i.label}</button>)}
@@ -206,10 +200,10 @@ export const AnalyticsReports: React.FC<{ canCheckPages?: boolean }> = ({ canChe
 
       <main className="min-w-0 flex-1 space-y-3 p-3 sm:p-5">
         <select className={cx(inputCls, 'lg:hidden')} value={report} onChange={(e) => open(e.target.value)} aria-label="Report">
-          {nav.flatMap((g) => g.items).map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+          {NAV.flatMap((g) => g.items).map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
         </select>
 
-        {report === 'search' ? <SearchConsoleReport canCheck={canCheckPages} /> : report === 'crm' ? <AnalyticsView /> : (
+        {report === 'crm' ? <AnalyticsView /> : (
           <>
             <header className="flex flex-wrap items-center gap-2">
               <div className="min-w-0 flex-1">

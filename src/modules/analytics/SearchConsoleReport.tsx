@@ -1,5 +1,5 @@
 /**
- * Website analytics › Search Console (server: modules/searchConsole.ts): clicks, impressions, CTR and position, the top
+ * Search Console, /searchconsole (server: modules/searchConsole.ts): clicks, impressions, CTR and position, the top
  * searches, pages, countries and devices, sitemaps, and which pages Google has indexed. Google gives no total of indexed
  * pages, so that figure counts the pages checked one by one, and the screen says what it covers.
  */
@@ -170,7 +170,6 @@ export const SearchConsoleReport: React.FC<{ canCheck: boolean }> = ({ canCheck 
     <div className="space-y-3">
       <header className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[20px] font-normal text-[#202124]">Search Console</h2>
           {data?.siteUrl && <p className="truncate text-[11px] text-[#5F6368]">{data.siteUrl.replace(/^sc-domain:/, '')} · {shortDate(data.from)} to {shortDate(data.to)}</p>}
         </div>
         <select className={cx(inputCls, 'w-auto')} value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Date range">{PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
