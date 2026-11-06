@@ -22,6 +22,8 @@ export interface AccessItem {
   needs?: string;
   /** What it means, when the label is not enough. */
   note?: string;
+  /** The older single switch this came from: a choice saved under it still counts. */
+  was?: string;
 }
 
 export const ACCESS_ITEMS: AccessItem[] = [
@@ -39,7 +41,10 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'chat.send', group: 'Messages and calls', label: 'Send messages', perms: ['chat.send'], writes: true, needs: 'chat.view' },
   { id: 'calls.view', group: 'Messages and calls', label: 'See call history', perms: ['calls.view'] },
   { id: 'calls.log', group: 'Messages and calls', label: 'Log calls', perms: ['calls.log'], writes: true, needs: 'calls.view' },
-  { id: 'marketing', group: 'Marketing', label: 'Post Scheduler, Ads and Drip Campaigns', perms: ['marketing.manage'], writes: true, note: 'Can publish posts, change ads and start campaigns.' },
+  { id: 'marketing.posts', group: 'Marketing', label: 'Post Scheduler', perms: ['marketing.posts'], writes: true, was: 'marketing', note: 'Can publish, change and delete posts on your accounts.' },
+  { id: 'marketing.ads', group: 'Marketing', label: 'Change ads', perms: ['marketing.ads'], writes: true, was: 'marketing', needs: 'leads.all', note: 'Can pause campaigns and change budgets, which spends money. The Ads screen needs "See all leads".' },
+  { id: 'marketing.drip', group: 'Marketing', label: 'Drip Campaigns', perms: ['marketing.drip'], writes: true, was: 'marketing', note: 'Can start campaigns that message real leads.' },
+  { id: 'marketing.other', group: 'Marketing', label: 'Competitor Ads, review replies and page checks', perms: ['marketing.manage'], writes: true, was: 'marketing', note: 'Adds competitors, replies to Google reviews in public, and runs Search Console page checks.' },
   { id: 'tasks', group: 'Work', label: 'Tasks', perms: ['tasks.manage'], writes: true },
   { id: 'ai', group: 'Work', label: 'AI assistant', perms: ['ai.use', 'ai.actions'], writes: true },
   { id: 'screen.mis', group: 'Screens', label: 'Sales MIS', perms: [], screen: 'mis' },
@@ -53,7 +58,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
 
 /** What a role can have before anything is chosen. Kept with the list: both sides must start from the same answer. */
 const STARTS: Record<ConfigurableRole, string[]> = {
-  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'reports.view', 'reports.export', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing', 'tasks', 'ai'],
+  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'reports.view', 'reports.export', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.other', 'tasks', 'ai'],
   RM: ['leads.create', 'leads.edit', 'leads.export', 'reports.view', 'inventory.view', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'tasks', 'ai'],
   Viewer: ['leads.all', 'reports.view', 'audit.view', 'inventory.view', 'chat.view', 'calls.view'],
 };
@@ -64,10 +69,16 @@ export const itemDefault = (role: ConfigurableRole, item: AccessItem) => !!item.
 export type RoleAccessConfig = Partial<Record<ConfigurableRole, Record<string, boolean>>>;
 export interface UserAccess { allow: string[]; deny: string[]; hide: string[] }
 
+/** What was chosen for it, including a choice saved under the older switch it came from. Null when nothing was. */
+function pick(chosen: Record<string, unknown> | null | undefined, item: AccessItem): boolean | null {
+  const v = chosen?.[item.id] ?? (item.was ? chosen?.[item.was] : undefined);
+  return typeof v === 'boolean' ? v : null;
+}
+
 /** Is this on for the role, with what was chosen? Something it depends on being off turns it off too. */
 export function itemOn(role: ConfigurableRole, item: AccessItem, chosen: Record<string, boolean> | undefined): boolean {
   if (!itemOffered(role, item)) return false;
-  const on = chosen && typeof chosen[item.id] === 'boolean' ? chosen[item.id] : itemDefault(role, item);
+  const on = pick(chosen, item) ?? itemDefault(role, item);
   if (!on) return false;
   const need = item.needs ? ACCESS_ITEMS.find((x) => x.id === item.needs) : null;
   return need ? itemOn(role, need, chosen) : true;
@@ -96,8 +107,8 @@ export function cleanConfig(raw: any): RoleAccessConfig {
   for (const { id: role } of CONFIGURABLE_ROLES) {
     const chosen: Record<string, boolean> = {};
     for (const item of ACCESS_ITEMS) {
-      const v = raw?.[role]?.[item.id];
-      if (typeof v === 'boolean' && itemOffered(role, item) && v !== itemDefault(role, item)) chosen[item.id] = v;
+      const v = pick(raw?.[role], item);
+      if (v !== null && itemOffered(role, item) && v !== itemDefault(role, item)) chosen[item.id] = v;
     }
     if (Object.keys(chosen).length) out[role] = chosen;
   }

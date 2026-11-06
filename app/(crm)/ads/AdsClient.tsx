@@ -5,5 +5,5 @@ import { useCrm } from '../_components/CrmShell';
 
 export function AdsClient() {
   const { engine } = useCrm();
-  return <AdsView canChange={engine.can('marketing.manage')} />;
+  return <AdsView canChange={engine.can('marketing.ads')} />;
 }

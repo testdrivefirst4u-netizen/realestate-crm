@@ -198,7 +198,7 @@ export function publishMedia(kind: 'facebook' | 'instagram', job: MediaJob): Pro
 }
 
 export const actions: ActionMap = {
-  uploadPostVideoPart: { fn: (d, ctx) => uploadPostVideoPart(d, ctx), perm: 'marketing.manage' },
-  finishPostVideo: { fn: (d, ctx) => finishPostVideo(d, ctx), perm: 'marketing.manage' },
-  discardPostVideo: { fn: (d) => discardPostVideo(d), perm: 'marketing.manage' },
+  uploadPostVideoPart: { fn: (d, ctx) => uploadPostVideoPart(d, ctx), perm: 'marketing.posts' },
+  finishPostVideo: { fn: (d, ctx) => finishPostVideo(d, ctx), perm: 'marketing.posts' },
+  discardPostVideo: { fn: (d) => discardPostVideo(d), perm: 'marketing.posts' },
 };

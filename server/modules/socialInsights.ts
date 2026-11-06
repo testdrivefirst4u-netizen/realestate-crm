@@ -171,6 +171,6 @@ export async function getPostInsights(d: any): Promise<{ targets: Array<{ key: s
 }
 
 export const actions: ActionMap = {
-  getSocialInsights: { fn: (d) => getSocialInsights(d), perm: 'marketing.manage' },
-  getPostInsights: { fn: (d) => getPostInsights(d), perm: 'marketing.manage' },
+  getSocialInsights: { fn: (d) => getSocialInsights(d), perm: 'marketing.posts' },
+  getPostInsights: { fn: (d) => getPostInsights(d), perm: 'marketing.posts' },
 };

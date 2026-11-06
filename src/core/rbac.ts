@@ -37,7 +37,13 @@ export type Permission =
   | 'developer.edit'
   | 'developer.deploy'
   | 'audit.view'
-  /** Publish posts and pause / budget ad campaigns (Admins, Managers). */
+  /** Publish and change posts, and their insights (Admins, Managers). */
+  | 'marketing.posts'
+  /** Pause campaigns and change budgets (Admins, Managers). */
+  | 'marketing.ads'
+  /** Build and start drip campaigns, which message real leads (Admins, Managers). */
+  | 'marketing.drip'
+  /** Competitor ads, Google review replies and Search Console page checks (Admins, Managers). */
   | 'marketing.manage'
   /** Connect / disconnect the company's own Google, Meta, LinkedIn, Pinterest accounts (Admins). */
   | 'integrations.connect'
@@ -49,7 +55,7 @@ const ALL: Permission[] = [
   'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export',
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
-  'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.manage', 'integrations.connect',
+  'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.manage', 'integrations.connect',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {

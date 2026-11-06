@@ -619,14 +619,14 @@ export async function deletePost(d: any, ctx: Ctx): Promise<{ ok: true }> {
 }
 
 export const actions: ActionMap = {
-  listPosts: { fn: (d) => listPosts(d), perm: 'marketing.manage' },
-  getPost: { fn: (d) => getPost(d), perm: 'marketing.manage' },
-  createPost: { fn: (d, ctx) => createPost(d, ctx), perm: 'marketing.manage' },
-  updatePost: { fn: (d, ctx) => updatePost(d, ctx), perm: 'marketing.manage' },
-  reschedulePost: { fn: (d, ctx) => reschedulePost(d, ctx), perm: 'marketing.manage' },
-  editPublishedPost: { fn: (d, ctx) => editPublishedPost(d, ctx), perm: 'marketing.manage' },
-  deletePublishedPost: { fn: (d, ctx) => deletePublishedPost(d, ctx), perm: 'marketing.manage' },
-  retryPost: { fn: (d, ctx) => retryPost(d, ctx), perm: 'marketing.manage' },
-  deletePost: { fn: (d, ctx) => deletePost(d, ctx), perm: 'marketing.manage' },
-  uploadPostImage: { fn: (d, ctx) => uploadPostImage(d, ctx), perm: 'marketing.manage' },
+  listPosts: { fn: (d) => listPosts(d), perm: 'marketing.posts' },
+  getPost: { fn: (d) => getPost(d), perm: 'marketing.posts' },
+  createPost: { fn: (d, ctx) => createPost(d, ctx), perm: 'marketing.posts' },
+  updatePost: { fn: (d, ctx) => updatePost(d, ctx), perm: 'marketing.posts' },
+  reschedulePost: { fn: (d, ctx) => reschedulePost(d, ctx), perm: 'marketing.posts' },
+  editPublishedPost: { fn: (d, ctx) => editPublishedPost(d, ctx), perm: 'marketing.posts' },
+  deletePublishedPost: { fn: (d, ctx) => deletePublishedPost(d, ctx), perm: 'marketing.posts' },
+  retryPost: { fn: (d, ctx) => retryPost(d, ctx), perm: 'marketing.posts' },
+  deletePost: { fn: (d, ctx) => deletePost(d, ctx), perm: 'marketing.posts' },
+  uploadPostImage: { fn: (d, ctx) => uploadPostImage(d, ctx), perm: 'marketing.posts' },
 };

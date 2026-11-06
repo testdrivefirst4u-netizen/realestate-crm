@@ -54,5 +54,5 @@ export function clearInstagramProfileCache() {
 }
 
 export const actions: ActionMap = {
-  getInstagramProfile: { fn: (d) => getInstagramProfile(d), perm: 'marketing.manage' },
+  getInstagramProfile: { fn: (d) => getInstagramProfile(d), perm: 'marketing.posts' },
 };

@@ -459,10 +459,10 @@ const feature = () => {
 };
 
 export const actions: ActionMap = {
-  getDrip: { fn: (_d, ctx) => { feature(); return getDrip(ctx); }, perm: 'marketing.manage' },
-  getDripActivity: { fn: (d) => { feature(); return getDripActivity(d); }, perm: 'marketing.manage' },
-  saveDripCampaign: { fn: (d, ctx) => { feature(); return saveDripCampaign(d, ctx); }, perm: 'marketing.manage' },
-  testDripCampaign: { fn: (d, ctx) => { feature(); return testDripCampaign(d, ctx); }, perm: 'marketing.manage' },
-  setDripStatus: { fn: (d, ctx) => { feature(); return setDripStatus(d, ctx); }, perm: 'marketing.manage' },
+  getDrip: { fn: (_d, ctx) => { feature(); return getDrip(ctx); }, perm: 'marketing.drip' },
+  getDripActivity: { fn: (d) => { feature(); return getDripActivity(d); }, perm: 'marketing.drip' },
+  saveDripCampaign: { fn: (d, ctx) => { feature(); return saveDripCampaign(d, ctx); }, perm: 'marketing.drip' },
+  testDripCampaign: { fn: (d, ctx) => { feature(); return testDripCampaign(d, ctx); }, perm: 'marketing.drip' },
+  setDripStatus: { fn: (d, ctx) => { feature(); return setDripStatus(d, ctx); }, perm: 'marketing.drip' },
   saveDripEmail: { fn: (d, ctx) => { feature(); return saveDripEmail(d, ctx); }, perm: 'integrations.connect' },
 };

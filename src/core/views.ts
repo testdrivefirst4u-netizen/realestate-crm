@@ -49,12 +49,12 @@ export function viewAllowed(view: ViewId, settings: SettingsLike, can: (p: Permi
     case 'reports': return on('reports') && can('reports.view');
     case 'audit': return can('audit.view');
     case 'inbox': return on('socialInbox') && can('chat.view');
-    case 'posts': return on('socialPosts') && can('marketing.manage');
+    case 'posts': return on('socialPosts') && can('marketing.posts');
     case 'ads': return on('adsControl') && can('leads.viewAll');
     case 'analytics': return on('websiteAnalytics') && can('reports.view');
     case 'searchconsole': return on('searchConsole') && can('reports.view');
     case 'businessprofile': return on('businessProfile') && can('reports.view');
-    case 'dripcampaigns': return on('dripCampaigns') && can('marketing.manage');
+    case 'dripcampaigns': return on('dripCampaigns') && can('marketing.drip');
     case 'competitors': return on('competitorAds') && can('leads.viewAll');
     default: return true;
   }

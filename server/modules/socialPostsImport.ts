@@ -232,6 +232,6 @@ export async function getPostComments(d: any): Promise<{ comments: PostComment[]
 }
 
 export const actions: ActionMap = {
-  getPostComments: { fn: (d) => getPostComments(d), perm: 'marketing.manage' },
-  syncOldPosts: { fn: (d, ctx) => syncOldPosts(d, ctx), perm: 'marketing.manage' },
+  getPostComments: { fn: (d) => getPostComments(d), perm: 'marketing.posts' },
+  syncOldPosts: { fn: (d, ctx) => syncOldPosts(d, ctx), perm: 'marketing.posts' },
 };

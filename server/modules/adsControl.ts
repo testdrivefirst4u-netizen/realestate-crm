@@ -8,7 +8,7 @@
  * Google  = GAQL campaign + campaign_budget (cost last 7 days); campaigns:mutate status, campaignBudgets:mutate amount.
  * Alerts  = daily: a campaign that spent at least the set amount in the last 7 days with no CRM lead from it →
  *           phone notification to Admins and Managers, at most once a week per campaign.
- * Changes need marketing.manage (Admins, Managers); every change is in the audit log.
+ * Changes need marketing.ads (Admins, Managers); every change is in the audit log.
  */
 import type { ActionMap } from '../core/actions';
 import { auditLog, listUsers, type Ctx } from '../core/auth';
@@ -187,8 +187,8 @@ export async function runAdAlertsCron(now = new Date()): Promise<Record<string, 
 
 export const actions: ActionMap = {
   listAdCampaigns: { fn: () => listAdCampaigns(), perm: 'leads.viewAll' },
-  setCampaignStatus: { fn: (d, ctx) => setCampaignStatus(d, ctx), perm: 'marketing.manage' },
-  setCampaignBudget: { fn: (d, ctx) => setCampaignBudget(d, ctx), perm: 'marketing.manage' },
-  saveAdAlerts: { fn: (d, ctx) => saveAdAlerts(d, ctx), perm: 'marketing.manage' },
+  setCampaignStatus: { fn: (d, ctx) => setCampaignStatus(d, ctx), perm: 'marketing.ads' },
+  setCampaignBudget: { fn: (d, ctx) => setCampaignBudget(d, ctx), perm: 'marketing.ads' },
+  saveAdAlerts: { fn: (d, ctx) => saveAdAlerts(d, ctx), perm: 'marketing.ads' },
 };
 

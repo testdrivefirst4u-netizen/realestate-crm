@@ -233,5 +233,5 @@ export async function runInboxImportCron(now = new Date()): Promise<Record<strin
 }
 
 export const actions: ActionMap = {
-  syncOldInbox: { fn: (d, ctx) => syncOldInbox(d, ctx), perm: 'marketing.manage' },
+  syncOldInbox: { fn: (d, ctx) => syncOldInbox(d, ctx), perm: 'marketing.posts' },
 };
