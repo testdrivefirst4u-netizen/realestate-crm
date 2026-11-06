@@ -304,6 +304,8 @@ export interface BusinessPerformance {
   keywords: Array<{ keyword: string; value: number; below: boolean }>; keywordsFrom: string; keywordsTo: string; keywordsError: string; fetchedAt: string;
 }
 export interface BusinessPhoto { name: string; format: string; category: string; url: string; thumbnail: string; createdAt: string; author: string; authorUrl: string; removalUrl: string }
+export interface BusinessReview { id: string; author: string; anonymous: boolean; photo: string; stars: number; comment: string; createdAt: string; updatedAt: string; reply: string; repliedAt: string }
+export interface BusinessReviews { error: string; location: string; reviews: BusinessReview[]; average: number; total: number; nextPage: string }
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
@@ -658,6 +660,9 @@ export const api = {
     update: (d: { location: string; version: string; changes: Partial<ProfileEdit>; validateOnly: boolean; confirm: boolean }) => request<{ validated: boolean; changed: string[]; profile: BusinessProfileData | null }>('updateBusinessProfile', d, { timeoutMs: 60000 }),
     categories: (q: string, regionCode: string) => request<Array<{ name: string; displayName: string }>>('searchBusinessCategories', { q, regionCode }),
     photos: (location: string) => request<BusinessPhotos>('getBusinessPhotos', { location }, { timeoutMs: 60000 }),
+    reviews: (d: { location: string; order?: string; page?: string }) => request<BusinessReviews>('getBusinessReviews', d, { timeoutMs: 60000 }),
+    replyReview: (location: string, reviewId: string, comment: string) => request<{ ok: true }>('replyBusinessReview', { location, reviewId, comment }, { timeoutMs: 60000 }),
+    deleteReply: (location: string, reviewId: string) => request<{ ok: true }>('deleteBusinessReply', { location, reviewId, confirm: true }, { timeoutMs: 60000 }),
     addPhoto: (d: { location: string; category: string; name: string; mime: string; base64: string }) => request<BusinessPhoto>('addBusinessPhoto', d, { timeoutMs: 120000 }),
     deletePhoto: (location: string, name: string) => request<{ ok: true }>('deleteBusinessPhoto', { location, name, confirm: true }, { timeoutMs: 60000 }),
   },

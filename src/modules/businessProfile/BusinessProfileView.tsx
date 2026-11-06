@@ -1,6 +1,6 @@
 /**
  * Business Profile (/businessprofile; server: modules/businessProfile.ts): the profile as customers see it, a preview card,
- * the state of each detail with Edit (gbpEdit.tsx), photos (gbpPhotos.tsx), and the figures. The preview is our drawing, so the screen says so and
+ * the state of each detail with Edit (gbpEdit.tsx), photos (gbpPhotos.tsx), reviews (gbpReviews.tsx), and the figures. The preview is our drawing, so the screen says so and
  * links to the real listing.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -12,6 +12,7 @@ import { LineChart } from '../analytics/analyticsCharts';
 import { EditDialog, SECTION_OF, type EditSection } from './gbpEdit';
 import { coverOf, PhotosTab } from './gbpPhotos';
 import { Preview } from './gbpPreview';
+import { ReviewsTab } from './gbpReviews';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const n = (v: number) => Math.round(v).toLocaleString('en-IN');
@@ -155,9 +156,9 @@ const PerformanceTab: React.FC<{ location: string }> = ({ location }) => {
   );
 };
 
-export const BusinessProfileView: React.FC<{ canManage: boolean }> = ({ canManage }) => {
+export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boolean }> = ({ canManage, canReply }) => {
   const [location, setLocation] = useState('');
-  const [tab, setTab] = useState<'profile' | 'photos' | 'performance'>('profile');
+  const [tab, setTab] = useState<'profile' | 'photos' | 'reviews' | 'performance'>('profile');
   const [photo, setPhoto] = useState('');
   const [editing, setEditing] = useState<EditSection | null>(null);
   const [opening, setOpening] = useState(false);
@@ -222,11 +223,12 @@ export const BusinessProfileView: React.FC<{ canManage: boolean }> = ({ canManag
       {data && !data.error && data.profile && (
         <>
           <div role="tablist" aria-label="Business Profile" className="flex border-b border-[#DADCE0]">
-            {(['profile', 'photos', 'performance'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium capitalize', tab === t ? 'border-[#1A73E8] text-[#1967D2]' : 'border-transparent text-[#5F6368] hover:bg-white')}>{t}</button>)}
+            {(['profile', 'photos', 'reviews', 'performance'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium capitalize', tab === t ? 'border-[#1A73E8] text-[#1967D2]' : 'border-transparent text-[#5F6368] hover:bg-white')}>{t}</button>)}
           </div>
           {opening && <p className="text-xs text-[#5F6368]">Reading the latest details from Google…</p>}
           {tab === 'profile' && <ProfileTab data={data} canEdit={canManage} photo={photo} onEdit={(s) => void openEditor(s)} />}
           {tab === 'photos' && <PhotosTab location={data.location} canEdit={canManage} onChanged={photosChanged} />}
+          {tab === 'reviews' && <ReviewsTab location={data.location} canReply={canReply} />}
           {tab === 'performance' && <PerformanceTab location={data.location} />}
           {editing && data.edit && <EditDialog section={editing} data={data} photo={photo} onClose={() => setEditing(null)} onSaved={(fresh) => { setData(fresh); setEditing(null); }} />}
         </>

@@ -38,7 +38,7 @@ function readItem(m: any): BusinessPhoto {
   };
 }
 
-async function place(wanted: unknown): Promise<{ parent: string; name: string; title: string }> {
+export async function place(wanted: unknown): Promise<{ parent: string; name: string; title: string }> {
   const { error, d } = await connection();
   if (error) throw bad(error);
   const loc = pick(d, wanted);

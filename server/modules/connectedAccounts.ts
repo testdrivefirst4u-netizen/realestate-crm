@@ -54,7 +54,7 @@ export async function getConnectedAccounts(): Promise<ConnectedAccount[]> {
       account: [g.email, g.adsCustomerId ? `Ads ${String(g.adsCustomerId).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}` : '', g.gbpLocation?.title || ''].filter(Boolean).join(' · '),
       connectedBy: g.updatedBy || '', at: iso(g.updatedAt), status: conn && conn.status !== 'Error' ? 'connected' : 'error', note: conn?.status === 'Error' ? conn.lastError || 'Access expired' : g.setupError || '',
       usedFor: uses([
-        [!!f.businessProfile, 'Shows your Business Profile, its photos and figures, and sends the edits and photos your Admin adds'],
+        [!!f.businessProfile, 'Shows your Business Profile, its photos, reviews and figures, and sends the edits, photos and review replies your team adds'],
         [!!f.googleConversions, 'Sends lead results to Google Ads / Analytics'], [!!f.googleAdsSpend, 'Reads Google Ads spend'], [!!f.websiteAnalytics, 'Reads website visitors (Analytics, read only)'],
         [!!(f.socialInbox || f.socialPosts), 'Reads Google reviews, posts replies and your Google posts'], [!!f.adsControl, 'Pauses campaigns / changes budgets when your team clicks'],
       ]),
