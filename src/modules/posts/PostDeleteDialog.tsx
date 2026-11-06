@@ -27,6 +27,7 @@ export const PostDeleteDialog: React.FC<{ post: SocialPost; onClose: () => void;
     try {
       const r = await api.posts.deletePublished(post.id, keys);
       if (r.deleted.length) toast('Post deleted', `Removed from ${r.deleted.join(', ')}.`, 'success');
+      if (r.alreadyGone.length) toast('Already deleted on the platform', `${r.alreadyGone.join(', ')} no longer has this post, so the CRM now shows it as deleted.`, 'success');
       if (r.failed.length) {
         setFailed(r.failed);
         setKeys(r.failed.map((f) => f.key));

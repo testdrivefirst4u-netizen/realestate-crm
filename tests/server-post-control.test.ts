@@ -10,7 +10,8 @@ import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { dispatch } from '../server/router';
 import { resetGoogleOAuthTokenCache } from '../server/modules/googleConnect';
 import { BUSINESS_SCOPE } from '../server/modules/googleMarketing';
-import { deletePost, deletePublishedPost, editPublishedPost, listPosts, publishPost } from '../server/modules/socialPosts';
+import { deletePost, deletePublishedPost, editPublishedPost, goneOnPlatform, listPosts, publishPost } from '../server/modules/socialPosts';
+import { importOldPosts } from '../server/modules/socialPostsImport';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let calls: Array<{ host: string; path: string; method: string; query: URLSearchParams; body: string }> = [];
@@ -33,7 +34,7 @@ async function fake(input: any, init: any = {}): Promise<Response> {
   const path = url.pathname.replace(/^\/v\d+(\.\d+)?\//, '/');
   const method = String(init.method || 'GET');
   calls.push({ host: url.host, path, method, query: url.searchParams, body: String(init.body || '') });
-  if (refuse[path]) return json(400, { error: { message: refuse[path], code: 10 } });
+  if (method !== 'GET' && refuse[path]) return json(400, { error: { message: refuse[path], code: 10 } });
   return json(200, { success: true });
 }
 const writes = () => calls.filter((c) => c.method !== 'GET');
@@ -169,6 +170,88 @@ describe('delete from the platforms', () => {
     expect(posts.map((p) => p.id)).toEqual(['POST-1']);
     await inCo(() => deletePost({ id: 'POST-1' }, ctx));
     expect(await saved()).toBeNull();
+  });
+});
+
+describe('deleted on the platform itself', () => {
+  const NOT_THERE = "Object with ID 'PAGE1_7' does not exist, cannot be loaded due to missing permissions, or does not support this operation.";
+  /** Meta's answers per request, the rest as usual. */
+  const meta = (answer: (path: string, method: string) => Response | null) => vi.stubGlobal('fetch', vi.fn(async (input: any, init: any = {}) => {
+    const url = new URL(String(input));
+    const path = url.pathname.replace(/^\/v\d+(\.\d+)?\//, '/');
+    return answer(path, String(init.method || 'GET')) || fake(input, init);
+  }));
+
+  it('Delete finds it gone, marks it deleted, and does not report a fault', async () => {
+    await post({});
+    meta((path, method) => (path === '/PAGE1_7' ? json(400, { error: { message: NOT_THERE, code: 100 } }) : null));
+    const r = await inCo(() => deletePublishedPost({ id: 'POST-1', targets: [FB.key], confirm: true }, ctx));
+    expect(r.alreadyGone).toEqual(['Amaya Page']);
+    expect(r.failed).toEqual([]);
+    expect(r.deleted).toEqual([]);
+    expect(r.post.status).toBe('deleted');
+    expect(r.post.targets[0]).toMatchObject({ status: 'deleted', deletedBy: 'Deleted on the platform' });
+  });
+
+  it('a post that can still be read is not gone, so the refusal stands', async () => {
+    await post({ imported: true });
+    meta((path, method) => (path === '/PAGE1_7' && method === 'DELETE' ? json(400, { error: { message: `Unsupported delete request. ${NOT_THERE}`, code: 100 } }) : path === '/PAGE1_7' ? json(200, { id: 'PAGE1_7' }) : null));
+    const r = await inCo(() => deletePublishedPost({ id: 'POST-1', targets: [FB.key], confirm: true }, ctx));
+    expect(r.alreadyGone).toEqual([]);
+    expect(r.failed[0].error).toMatch(/not published through the CRM/);
+    expect(r.post.status).toBe('published');
+  });
+
+  it('when the account itself cannot be read, nothing is called gone: it may be a permission', async () => {
+    await post({});
+    meta((path) => (path === '/PAGE1_7' || path === '/PAGE1' ? json(400, { error: { message: NOT_THERE, code: 100 } }) : null));
+    const r = await inCo(() => deletePublishedPost({ id: 'POST-1', targets: [FB.key], confirm: true }, ctx));
+    expect(r.alreadyGone).toEqual([]);
+    expect(r.failed).toHaveLength(1);
+    expect(r.post.status).toBe('published');
+  });
+
+  it('other errors are not read as gone', async () => {
+    meta((path) => (path === '/PAGE1_7' ? json(500, { error: { message: 'Temporary', code: 2 } }) : null));
+    expect(await inCo(() => goneOnPlatform(FB as any))).toBe(false);
+  });
+
+  it('a Google post that is not found is gone', async () => {
+    meta((path) => (path === `/${GOOGLE_POST}` ? json(404, { error: { message: 'Requested entity was not found.' } }) : null));
+    expect(await inCo(() => goneOnPlatform(GO as any))).toBe(true);
+  });
+
+  const lists = (posts: any[]) => (path: string) => (path === '/PAGE1/published_posts' ? json(200, { data: posts }) : path === '/IG1/media' ? json(200, { data: [] }) : null);
+
+  it('the sync marks a post gone from the platform, leaving others, and it stays deleted', async () => {
+    await post({ scheduledAt: new Date(Date.now() - 86400000) });
+    const list = lists([]);
+    meta((path) => list(path) || (path === '/PAGE1_7' ? json(400, { error: { message: NOT_THERE, code: 100 } }) : path === '/PAGE1' ? json(200, { id: 'PAGE1' }) : null));
+    const r = await inCo(() => importOldPosts({}));
+    expect(r.removed).toBe(1);
+    expect((await saved()).status).toBe('deleted');
+    expect((await saved()).targets[0].deletedBy).toBe('Deleted on the platform');
+  });
+
+  it('the sync leaves a post not listed but still there, such as a video under another id', async () => {
+    await post({ scheduledAt: new Date(Date.now() - 86400000) });
+    const list = lists([]);
+    meta((path) => list(path) || (path === '/PAGE1_7' ? json(200, { id: 'PAGE1_7' }) : null));
+    const r = await inCo(() => importOldPosts({}));
+    expect(r.removed).toBeUndefined();
+    expect((await saved()).status).toBe('published');
+  });
+
+  it('the sync checks nothing for an account whose list could not be read, nor a story', async () => {
+    await post({ scheduledAt: new Date(Date.now() - 86400000) });
+    meta((path) => (path === '/PAGE1/published_posts' ? json(400, { error: { message: 'Nope', code: 10 } }) : path === '/IG1/media' ? json(200, { data: [] }) : null));
+    calls = [];
+    await inCo(() => importOldPosts({}));
+    expect((await saved()).status).toBe('published');
+    await inCo(async () => (await col<any>('socialPosts')).updateOne({ _id: 'POST-1' }, { $set: { postType: 'story', targets: [IG] } }));
+    meta((path) => (path === '/PAGE1/published_posts' || path === '/IG1/media' ? json(200, { data: [] }) : path === '/M7' ? json(400, { error: { message: NOT_THERE, code: 100 } }) : null));
+    await inCo(() => importOldPosts({}));
+    expect((await saved()).status).toBe('published');
   });
 });
 

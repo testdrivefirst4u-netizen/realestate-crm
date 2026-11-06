@@ -20,6 +20,8 @@
  * After   = text of a published post can change on Facebook (only posts this app made, says Meta) and Google, for each account.
  *          Delete removes it from Facebook, Instagram (whole carousel) or Google, each account on its own; the copy stays
  *          here marked deleted. Instagram has no caption editing; LinkedIn and Pinterest stay on the platform.
+ * Gone    = a post deleted on the platform itself is noticed when Delete is tried and by the post sync. Meta says the same words
+ *          for "gone" and "no permission", so it counts as gone only if the post cannot be read while its account can.
  */
 import crypto from 'crypto';
 import type { ActionMap } from '../core/actions';
@@ -500,8 +502,49 @@ async function removeFromPlatform(t: PostTarget): Promise<void> {
   if (r?.success === false) throw new Error(`${t.kind === 'facebook' ? 'Facebook' : 'Instagram'} did not delete it.`);
 }
 
+/** Is it really gone from the platform? Only a sure yes: anything unclear leaves the post as it is. */
+export async function goneOnPlatform(t: PostTarget): Promise<boolean> {
+  if (t.kind === 'google') {
+    if (!isGoogleName(t)) return false;
+    try {
+      await gbpFetch(`https://mybusiness.googleapis.com/v4/${t.postId}`);
+      return false;
+    } catch (e: any) {
+      return /not found|answered 404/i.test(String(e?.message || ''));
+    }
+  }
+  if (t.kind !== 'facebook' && t.kind !== 'instagram') return false;
+  const id = accountOf(t);
+  const page = (await socialPages()).find((p) => (t.kind === 'facebook' ? p.id === id : p.igId === id));
+  if (!page) return false;
+  try {
+    await graph(t.postId!, { token: page.token, params: { fields: 'id' } });
+    return false;
+  } catch (e: any) {
+    if (!/does not exist/i.test(String(e?.message || ''))) return false;
+  }
+  try {
+    await graph(id, { token: page.token, params: { fields: 'id' } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Saves that an account no longer has the post, and what that makes the post. */
+export async function markRemoved(id: string, key: string, by: string): Promise<PostDoc | null> {
+  const c = await postsCol();
+  await c.updateOne({ _id: id, 'targets.key': key }, { $set: { 'targets.$.status': 'deleted', 'targets.$.deletedAt': new Date().toISOString(), 'targets.$.deletedBy': by, updatedAt: new Date() } });
+  const now = await c.findOne({ _id: id });
+  if (!now) return null;
+  const posted = now.targets.filter((x) => x.status === 'posted').length;
+  const bad = now.targets.filter((x) => x.status === 'failed').length;
+  const status: PostStatus = now.targets.every((x) => x.status === 'deleted') ? 'deleted' : !bad ? 'published' : posted ? 'partial' : 'failed';
+  return c.findOneAndUpdate({ _id: id }, { $set: { status, updatedAt: new Date() } }, { returnDocument: 'after' });
+}
+
 /** Delete a published post from the accounts chosen. Each is saved as it happens; a refusal leaves that account as it was. */
-export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: PostView; deleted: string[]; failed: Array<{ key: string; name: string; error: string; url: string }> }> {
+export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: PostView; deleted: string[]; failed: Array<{ key: string; name: string; error: string; url: string }>; alreadyGone: string[] }> {
   const id = String(d?.id || '');
   if (d?.confirm !== true) throw fail('VALIDATION', 'Confirm the delete first.');
   const c = await postsCol();
@@ -513,26 +556,29 @@ export async function deletePublishedPost(d: any, ctx: Ctx): Promise<{ post: Pos
   const chosen = keys.map((k) => post.targets.find((x) => x.key === k));
   if (chosen.some((x) => !x || x.status !== 'posted' || !x.postId || !['facebook', 'instagram', 'google'].includes(x.kind))) throw fail('VALIDATION', 'One of those accounts cannot be deleted from here. Reload the page.');
   const deleted: string[] = [];
+  const alreadyGone: string[] = [];
   const failed: Array<{ key: string; name: string; error: string; url: string }> = [];
   for (const t of chosen as PostTarget[]) {
     try {
       await removeFromPlatform(t);
-      await c.updateOne({ _id: id, 'targets.key': t.key }, { $set: { 'targets.$.status': 'deleted', 'targets.$.deletedAt': new Date().toISOString(), 'targets.$.deletedBy': ctx.user?.name || 'System', updatedAt: new Date() } });
+      await markRemoved(id, t.key, ctx.user?.name || 'System');
       deleted.push(t.name);
     } catch (e: any) {
+      if (await goneOnPlatform(t).catch(() => false)) {
+        await markRemoved(id, t.key, 'Deleted on the platform');
+        alreadyGone.push(t.name);
+        continue;
+      }
       const said = truncate(String(e?.message || e), 300);
       // Meta's refusal of a post made outside this app reads like a fault; what helps is where to delete it
       const notOurs = post.imported && t.kind === 'facebook' && /unsupported delete|does not exist/i.test(said);
       failed.push({ key: t.key, name: t.name, url: t.url || '', error: notOurs ? 'Facebook did not let the CRM delete this post, most likely because it was not published through the CRM. Delete it on Facebook instead.' : t.kind === 'instagram' && /permission/i.test(said) ? `${said} Deleting on Instagram needs a Meta permission this app may not have yet.` : said });
     }
   }
-  const now = (await c.findOne({ _id: id })) || post;
-  const posted = now.targets.filter((x) => x.status === 'posted').length;
-  const bad = now.targets.filter((x) => x.status === 'failed').length;
-  const status: PostStatus = now.targets.every((x) => x.status === 'deleted') ? 'deleted' : !bad ? 'published' : posted ? 'partial' : 'failed';
-  const r = await c.findOneAndUpdate({ _id: id }, { $set: { status, updatedAt: new Date() } }, { returnDocument: 'after' });
+  const r = await c.findOne({ _id: id });
   if (deleted.length) await auditLog(ctx, 'Published Post Deleted', 'Post', id, truncate(`${deleted.join(', ')}${failed.length ? ` · refused by ${failed.map((f) => f.name).join(', ')}` : ''} · ${post.text}`, 300));
-  return { post: view(r || now), deleted, failed };
+  if (alreadyGone.length) await auditLog(ctx, 'Post Found Deleted On Platform', 'Post', id, truncate(`${alreadyGone.join(', ')} · ${post.text}`, 300));
+  return { post: view(r || post), deleted, failed, alreadyGone };
 }
 
 /** Move a scheduled post to another time (the planner's drag), keeping everything else. */

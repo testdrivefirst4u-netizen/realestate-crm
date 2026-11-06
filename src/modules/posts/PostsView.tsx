@@ -210,7 +210,9 @@ export const PostsView: React.FC = () => {
     try {
       const r = await api.posts.syncOld();
       const failed = [...r.errors.map((e) => `${e.account}: ${e.message}`), ...r.warnings].join(' · ');
-      toast(`${r.imported} old post${r.imported === 1 ? '' : 's'} added`, failed || (r.updated ? `${r.updated} already here were refreshed.` : undefined), failed ? 'alert' : 'success');
+      const gone = r.removed ? `${r.removed} deleted on the platform moved to Deleted.` : '';
+      toast(`${r.imported} old post${r.imported === 1 ? '' : 's'} added`, [failed, r.updated ? `${r.updated} already here were refreshed.` : '', gone].filter(Boolean).join(' ') || undefined, failed ? 'alert' : 'success');
+      if (r.removed) setRev((n) => n + 1);
       await load();
     } catch (e) {
       toast('Could not sync old posts', errText('posts.sync', e), 'alert');

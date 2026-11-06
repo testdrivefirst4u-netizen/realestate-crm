@@ -9,7 +9,8 @@
  * Instagram leaves out the link of some videos (copyright, downloads off): then the cover shows, with the way to the platform.
  * Imported posts have status 'published' and are read only: they are changed or removed on the platform. A post made
  * in the CRM is recognised by its platform id and not copied, but gets the same counts when it went to one account.
- * A post deleted on the platform stays here. When Meta refuses some counts the posts still come, with a warning.
+ * A post deleted on the platform is marked deleted here: one missing from the platform's list is then checked by itself, a few
+ * each run, so a Reel or video listed under another id stays. When Meta refuses some counts the posts still come, with a warning.
  * "likes" on Facebook is reactions: the number Facebook itself shows.
  */
 import type { ActionMap } from '../core/actions';
@@ -21,11 +22,13 @@ import { truncate } from '../core/utils';
 import { graph } from '../integrations/meta';
 import { listActiveTenants } from '../platform/registry';
 import { socialPages } from './socialAccounts';
+import { goneOnPlatform, markRemoved } from './socialPosts';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 const ALL_HISTORY_DAYS = 20 * 365;
 const DAY_MS = 86400000;
+const MAX_GONE_CHECKS = 30;
 const postsCol = () => col<any>('socialPosts');
 
 interface Metrics { likes: number | null; comments: number | null; shares: number | null }
@@ -119,32 +122,58 @@ async function instagramPosts(p: { igId?: string; igUsername?: string; token: st
   }));
 }
 
-export async function importOldPosts(opts: { days?: number; now?: Date } = {}): Promise<{ imported: number; updated: number; skipped: number; errors: Array<{ account: string; message: string }>; warnings: string[] }> {
+/** Posts here that the platform's list no longer has, for accounts whose list was read: each checked before it is marked. */
+async function markRemovedOnPlatform(found: Found[], accounts: Set<string>, cutoff: Date): Promise<number> {
+  if (!accounts.size) return 0;
+  const listed = new Set(found.map((f) => f.postId));
+  const rows = await (await postsCol()).find({ status: { $in: ['published', 'partial'] }, scheduledAt: { $gte: cutoff }, 'targets.key': { $in: [...accounts] } }, { projection: { targets: 1, postType: 1 } }).sort({ scheduledAt: -1 }).limit(500).toArray();
+  let checks = 0;
+  let removed = 0;
+  for (const p of rows) {
+    if (p.postType === 'story') continue; // a story ends by itself
+    for (const t of p.targets || []) {
+      if (t.status !== 'posted' || !t.postId || !accounts.has(t.key) || listed.has(t.postId)) continue;
+      if (checks >= MAX_GONE_CHECKS) return removed;
+      checks += 1;
+      if (await goneOnPlatform(t).catch(() => false)) {
+        await markRemoved(String(p._id), t.key, 'Deleted on the platform');
+        removed += 1;
+      }
+    }
+  }
+  return removed;
+}
+
+export async function importOldPosts(opts: { days?: number; now?: Date } = {}): Promise<{ imported: number; updated: number; skipped: number; errors: Array<{ account: string; message: string }>; warnings: string[]; removed?: number }> {
   const now = opts.now || new Date();
   const cutoff = new Date(now.getTime() - (opts.days ?? 365) * DAY_MS);
   const errors: Array<{ account: string; message: string }> = [];
   const found: Found[] = [];
   const warnings: string[] = [];
-  const collect = async (account: string, read: () => Promise<Found[]>) => {
+  const readOk = new Set<string>();
+  const collect = async (account: string, read: () => Promise<Found[]>, key: string) => {
     try {
       found.push(...await read());
+      readOk.add(key);
     } catch (e: any) {
       errors.push({ account, message: truncate(e?.message || String(e), 300) });
     }
   };
   for (const p of await socialPages()) {
-    await collect(p.name, () => facebookPosts(p, cutoff, warnings));
-    if (p.igId) await collect(`@${p.igUsername || p.igId}`, () => instagramPosts(p, cutoff, warnings));
+    await collect(p.name, () => facebookPosts(p, cutoff, warnings), `facebook:${p.id}`);
+    if (p.igId) await collect(`@${p.igUsername || p.igId}`, () => instagramPosts(p, cutoff, warnings), `instagram:${p.igId}`);
   }
   const c = await postsCol();
   const made = new Set((await c.distinct('targets.postId', { imported: { $ne: true } })).map(String));
   // posts made in the CRM are not copied, but show the counts too (one account only: the counts would differ between accounts)
   const counted = found.filter((f) => made.has(f.postId));
   if (counted.length) await c.bulkWrite(counted.map((f) => ({ updateOne: { filter: { imported: { $ne: true }, targets: { $size: 1 }, 'targets.postId': f.postId }, update: { $set: { metrics: f.metrics } } } })));
+  const removed = await markRemovedOnPlatform(found, readOk, cutoff);
+  const also = removed ? { removed } : {};
   // a platform can still list a post just deleted from here: it must not come back as live
   const gone = new Set((await c.distinct('_id', { imported: true, status: 'deleted' })).map(String));
   const fresh = found.filter((f) => !made.has(f.postId) && !gone.has(`IMP-${f.kind}-${f.postId}`) && !Number.isNaN(f.at.getTime()));
-  if (!fresh.length) return { imported: 0, updated: 0, skipped: found.length, errors, warnings };
+  if (!fresh.length) return { imported: 0, updated: 0, skipped: found.length, errors, warnings, ...also };
   const r = await c.bulkWrite(fresh.map((f) => ({
     updateOne: {
       filter: { _id: `IMP-${f.kind}-${f.postId}` },
@@ -159,7 +188,7 @@ export async function importOldPosts(opts: { days?: number; now?: Date } = {}): 
       upsert: true,
     },
   })));
-  return { imported: r.upsertedCount, updated: r.modifiedCount, skipped: found.length - fresh.length, errors, warnings };
+  return { imported: r.upsertedCount, updated: r.modifiedCount, skipped: found.length - fresh.length, errors, warnings, ...also };
 }
 
 export async function syncOldPosts(_d: any, ctx: Ctx) {
@@ -176,7 +205,7 @@ export async function runImportPostsCron(now = new Date()): Promise<Record<strin
     if (!tenant.features.socialPosts) continue;
     try {
       const r = await runWithTenant(tenant, () => importOldPosts({ days: 30, now }));
-      if (r.imported || r.errors.length) out[tenant.slug] = r;
+      if (r.imported || r.removed || r.errors.length) out[tenant.slug] = r;
     } catch (e: any) {
       out[tenant.slug] = { error: truncate(e?.message || String(e), 200) };
     }
