@@ -83,6 +83,9 @@ const countText = (n: number) => (n > 999 ? '999+' : String(n));
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, counts = {}, unreadChats }) => {
   const company = useCompany();
   const allowed = (v: ViewId) => viewAllowed(v, { features }, can);
+  // Each screen is rendered on the server per person, so it is preloaded only when someone points at it, not all on every page load.
+  const [wanted, setWanted] = React.useState<ReadonlySet<ViewId>>(new Set());
+  const want = (id: ViewId) => setWanted((w) => (w.has(id) ? w : new Set(w).add(id)));
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats })
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
@@ -101,6 +104,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       <Link
         key={i.id}
         href={viewHref(i.id)}
+        prefetch={wanted.has(i.id) ? null : false}
+        onMouseEnter={() => want(i.id)}
+        onFocus={() => want(i.id)}
         onClick={go}
         aria-current={on ? 'page' : undefined}
         title={narrow ? i.label : undefined}
@@ -135,7 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
 
       {/* company */}
       <div className={`relative flex items-center ${narrow ? 'justify-center pt-5 pb-4' : 'gap-3 px-5 pt-5 pb-4'}`}>
-        <Link href={viewHref('dashboard')} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
+        <Link href={viewHref('dashboard')} prefetch={false} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
           <AppLogo size="sm" />
         </Link>
         {!narrow && (
@@ -166,7 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         {narrow ? (
           <>
             <span className="mx-auto w-2 h-2 rounded-full" style={{ background: syncBad ? '#F3B3A3' : '#7EE2AE' }} title={`CRM server · ${syncText}`} aria-label={`CRM server ${syncLabel}`} role="img" />
-            <Link href={`${viewHref('settings')}?section=profile`} onClick={go} className="mx-auto rounded-full ring-2 ring-white/15 hover:ring-[#5CC8FF]" title={currentUser ? `${currentUser.name} · ${roleLabel(currentUser.role)}` : 'Your profile'} aria-label="Your profile">
+            <Link href={`${viewHref('settings')}?section=profile`} prefetch={false} onClick={go} className="mx-auto rounded-full ring-2 ring-white/15 hover:ring-[#5CC8FF]" title={currentUser ? `${currentUser.name} · ${roleLabel(currentUser.role)}` : 'Your profile'} aria-label="Your profile">
               <Avatar user={currentUser} size="md" />
             </Link>
             <button type="button" onClick={onToggleCollapse} className="mx-auto w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20" aria-label="Expand navigation" title="Expand navigation"><ChevronRight size={16} strokeWidth={2.6} /></button>
@@ -179,7 +185,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
                 <div className="text-[13px] font-bold truncate">{currentUser?.name || 'Guest'}</div>
                 {currentUser && <div className="text-[11px] text-[#8FB2D1] truncate">{roleLabel(currentUser.role)}</div>}
               </div>
-              <Link href={`${viewHref('settings')}?section=profile`} onClick={go} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-white/10 hover:text-white`} aria-label="Profile" title="Profile"><UserCircle2 size={17} /></Link>
+              <Link href={`${viewHref('settings')}?section=profile`} prefetch={false} onClick={go} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-white/10 hover:text-white`} aria-label="Profile" title="Profile"><UserCircle2 size={17} /></Link>
               <button type="button" onClick={() => { go(); onLogout(); }} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-[#FF8A65]/20 hover:text-[#FFB59E]`} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
             </div>
             <div className="flex items-center justify-between gap-2 px-1">
