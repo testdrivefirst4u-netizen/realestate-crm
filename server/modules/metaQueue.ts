@@ -286,6 +286,8 @@ export async function runMetaCron(opts: { deadline?: number; now?: Date } = {}):
             if (deepDue) {
               await ensureMetaSubscription(s);
               list.push({ id: s._id, check: 'daily', result: (await runBackfill(s, DEEP_DAYS, now.getTime(), { scheduled: true })).message });
+              // the safety net: anything the check could not bring in; a failure here must not stop the other Pages
+              if (!late()) await (await import('./metaSync')).dailyCompare(s, now.getTime()).catch((e: any) => console.error('[cron:meta] compare', e?.message));
             } else {
               const r = await runQuickSync(s, now.getTime());
               list.push({ id: s._id, check: 'quick', result: r.message, recovered: r.recovered });

@@ -125,6 +125,8 @@ export interface MetaSyncPage {
   /** null until compared (compare: true). */
   forms: MetaSyncForm[] | null;
   compareError: string;
+  /** The daily check's own comparison, so a problem shows before the live one finishes. */
+  lastCompare: { at: string; fb7: number; crm7: number; missing: number } | null;
 }
 
 export interface MetaSyncReport {

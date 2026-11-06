@@ -18,7 +18,9 @@ import * as M from '../server/modules/meta';
 import * as Q from '../server/modules/metaQueue';
 import * as MS from '../server/modules/metaSync';
 import * as leadsModule from '../server/modules/leads';
-import { sourcesCol } from '../server/modules/intake';
+import { inboundCol, sourcesCol } from '../server/modules/intake';
+import { CFG } from '../server/core/config';
+import { col } from '../server/core/db';
 import { appSecretProof, graph, TOKEN_EXPIRED_MSG, __setMetaRetryDelay } from '../server/integrations/meta';
 import { dispatch } from '../server/router';
 import { platformDispatch } from '../server/platform/router';
@@ -541,6 +543,48 @@ describe('backfill, check and disconnect', () => {
     leads['7202'] = lead('7202', { form_id: FORM_B, field_data: [{ name: 'phone_number', values: ['+919800000005'] }] });
     await Q.enqueueLeadgen(JSON.parse(leadgenBody(['7202'], PAGE, FORM_B)));
     expect(await Q.processQueueItem('7202')).toMatchObject({ status: 'skipped' });
+  });
+
+  it('the safety net: says what is still missing after the daily check, and what the CRM refused does not count', async () => {
+    const { sourceId } = await connectDirect();
+    const source = () => inCo(async () => (await (await sourcesCol()).findOne({ _id: sourceId })) as any);
+    const alertId = `alert:meta-missing:${sourceId}`;
+    const alert = () => inCo(async () => (await col<any>(CFG.COLL.META)).findOne({ _id: alertId }));
+    const compare = async () => { const src = await source(); return inCo(() => MS.dailyCompare(src)); };
+    leads['8201'] = lead('8201', { created_time: new Date(Date.now() - 20 * 60e3).toISOString() });
+
+    expect(await compare()).toBe(1);
+    expect((await source()).config.meta.lastCompare).toMatchObject({ fb7: 1, crm7: 0, missing: 1 });
+    expect(await alert()).toBeTruthy();
+    expect((await inCo(() => MS.metaSyncReport({}))).pages[0].lastCompare).toMatchObject({ missing: 1 });
+
+    await inCo(() => M.backfillMetaSource({ sourceId, days: 7 }, null));
+    await inCo(async () => (await col<any>(CFG.COLL.META)).deleteOne({ _id: alertId }));
+    expect(await compare()).toBe(0);
+    expect((await source()).config.meta.lastCompare).toMatchObject({ fb7: 1, crm7: 1, missing: 0 });
+    expect(await alert()).toBeNull();
+
+    // a lead on Facebook the CRM turned away on purpose is no alarm
+    leads['8202'] = lead('8202', { created_time: new Date(Date.now() - 10 * 60e3).toISOString(), field_data: [{ name: 'phone_number', values: ['+919800000082'] }] });
+    await inCo(async () => (await inboundCol()).insertOne({ _id: 'INB-REFUSED', sourceId, status: 'rejected', receivedAt: new Date(), leadId: '', message: 'no phone', payload: {}, ip: '', origin: 'meta' } as any));
+    expect(await compare()).toBe(0);
+    expect(await alert()).toBeNull();
+  });
+
+  it('Admins can see and run Facebook sync; Managers cannot', async () => {
+    await connectDirect();
+    const base = { userAgent: 'vitest', ip: '10.2.2.2', companyId: 'CMP-test' };
+    const session = async (role: 'Admin' | 'Manager') => {
+      const email = `${role.toLowerCase()}@safety.test`;
+      await createUser({ name: role, email, password: 'long-enough-pw', role, mustChangePassword: false }, null);
+      return (await login(email, 'long-enough-pw', { userAgent: 'vitest', ip: '10.2.2.2' })).token;
+    };
+    const admin = await session('Admin');
+    const manager = await session('Manager');
+    expect((await dispatch('metaSyncReport', {}, { ...base, token: admin })).status).toBe(200);
+    expect((await dispatch('retryMetaLeads', {}, { ...base, token: admin })).status).toBe(200);
+    expect((await dispatch('metaSyncReport', {}, { ...base, token: manager })).status).toBe(403);
+    expect((await dispatch('backfillMetaSource', { sourceId: 'x' }, { ...base, token: manager })).status).toBe(403);
   });
 
   it('Facebook sync report: Facebook vs CRM per form, recent leads with arrival time, retry of failed leads', async () => {

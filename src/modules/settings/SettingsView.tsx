@@ -83,7 +83,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'users', label: 'Team', icon: <Users size={14} />, show: can('users.manageAgents') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
-      { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('settings.view') },
+      { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('integrations.connect') },
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
       { id: 'visitBooking', label: 'Visit booking', icon: <CalendarDays size={14} />, show: can('settings.view') },
       { id: 'connections', label: 'Connected accounts', icon: <ShieldCheck size={14} />, show: (metaAdsOn || googleOn || socialOn) && can('integrations.connect') },
@@ -157,7 +157,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'users' && can('users.manageAgents') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}
-          {active === 'metaSync' && metaOn && can('settings.view') && <MetaSyncSection canEdit={can('settings.edit')} />}
+          {active === 'metaSync' && metaOn && can('integrations.connect') && <MetaSyncSection canEdit={can('integrations.connect')} />}
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}
           {active === 'visitBooking' && can('settings.view') && <VisitBookingSection {...base} />}
           {active === 'connections' && can('integrations.connect') && <ConnectedAccountsSection onOpen={(s) => setActive(s as SectionId)} />}

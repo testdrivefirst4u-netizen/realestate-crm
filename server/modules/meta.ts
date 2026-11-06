@@ -783,6 +783,6 @@ export const actions: ActionMap = {
   getMetaPendingConnection: { fn: (d, ctx) => getMetaPendingConnection(d, ctx), perm: 'settings.edit' },
   connectMetaPages: { fn: (d, ctx) => connectMetaPages(d, ctx), perm: 'settings.edit' },
   checkMetaSource: { fn: (d, ctx) => checkMetaSource(d, ctx), perm: 'settings.edit' },
-  backfillMetaSource: { fn: (d, ctx) => backfillMetaSource(d, ctx), perm: 'settings.edit' },
+  backfillMetaSource: { fn: (d, ctx) => backfillMetaSource(d, ctx), perm: 'integrations.connect' },
   disconnectMetaSource: { fn: (d, ctx) => disconnectMetaSource(d, ctx), perm: 'settings.edit' },
 };

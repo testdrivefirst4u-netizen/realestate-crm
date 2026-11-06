@@ -5,6 +5,8 @@
  *   checks had to recover, last error); with `compare` the Page's forms are read from Facebook for the last 7 days
  *   and each lead id is looked up in the intake log, giving Facebook / CRM / missing counts per form. Also the latest
  *   Facebook leads with how long each took to arrive, and webhook leads that failed or were skipped.
+ * dailyCompare() — after the daily check: Facebook against the CRM again, kept on the source, and the admins are told if leads
+ *   are still missing once the check has tried to bring them in. Leads the CRM refused on purpose (say no phone) do not count.
  * retryMetaLeads() — queue this company's failed / dead webhook leads again and process them now.
  */
 import type { ActionMap } from '../core/actions';
@@ -15,6 +17,7 @@ import { dateKey, truncate } from '../core/utils';
 import { listFormLeads, listForms, requireMetaConfig } from '../integrations/meta';
 import { inboundCol, sourcesCol } from './intake';
 import { errMsg, formAllowed, pageTokenOf, type MetaSourceDoc } from './meta';
+import { notifyAdmins } from './adminAlerts';
 import { processQueueItems, queueCol } from './metaQueue';
 
 type Res<K extends keyof MetaActions> = MetaActions[K]['res'];
@@ -54,6 +57,20 @@ async function compareForms(src: MetaSourceDoc, nowMs: number): Promise<MetaSync
   return out;
 }
 
+/** The safety net: what the daily check could not bring in. Returns how many are still missing. */
+export async function dailyCompare(src: MetaSourceDoc, nowMs = Date.now()): Promise<number> {
+  const forms = await compareForms(src, nowMs);
+  const fb7 = forms.reduce((n, f) => n + f.fb7, 0);
+  const crm7 = forms.reduce((n, f) => n + f.crm7, 0);
+  const refused = await (await inboundCol()).countDocuments({ sourceId: src._id, status: 'rejected', receivedAt: { $gte: new Date(nowMs - 7 * DAY) } });
+  const missing = Math.max(0, fb7 - crm7 - refused);
+  await (await sourcesCol()).updateOne({ _id: src._id }, { $set: { 'config.meta.lastCompare': { at: new Date(nowMs).toISOString(), fb7, crm7, missing } } } as any);
+  if (missing) {
+    await notifyAdmins(`meta-missing:${src._id}`, `Facebook leads missing (${missing})`, `${missing} lead${missing === 1 ? '' : 's'} from the last 7 days ${missing === 1 ? 'is' : 'are'} on "${metaOf(src).pageName || src.name}" but not in the CRM, even after the daily check. Facebook has ${fb7}, the CRM has ${crm7}. Open Settings › Facebook sync.`, nowMs);
+  }
+  return missing;
+}
+
 export async function metaSyncReport(d: { compare?: boolean } | undefined, nowMs = Date.now()): Promise<Res<'metaSyncReport'>> {
   const tenant = requireTenant();
   const sources = (await (await sourcesCol()).find({ type: 'meta' }).sort({ _id: 1 }).toArray()) as MetaSourceDoc[];
@@ -64,7 +81,7 @@ export async function metaSyncReport(d: { compare?: boolean } | undefined, nowMs
       sourceId: s._id, name: s.name, status: s.status, pageId: m.pageId || '', pageName: m.pageName || '', subscribed: !!m.subscribed,
       lastLeadAt: m.lastLeadAt || '', lastQuickSyncAt: m.lastQuickSyncAt || '', lastBackfillAt: m.lastBackfillAt || '',
       recovered: Number(m.recovered || 0), lastRecoveredAt: m.lastRecoveredAt || '', lastError: m.lastError || '',
-      forms: null, compareError: '',
+      forms: null, compareError: '', lastCompare: m.lastCompare || null,
     };
     if (d?.compare && s.status === 'Active') {
       try {
@@ -175,6 +192,6 @@ export async function retryMetaLeads(ctx: Ctx | null, nowMs = Date.now()): Promi
 }
 
 export const actions: ActionMap = {
-  metaSyncReport: { fn: (d) => metaSyncReport(d), perm: 'settings.view' },
-  retryMetaLeads: { fn: (_d, ctx) => retryMetaLeads(ctx), perm: 'settings.edit' },
+  metaSyncReport: { fn: (d) => metaSyncReport(d), perm: 'integrations.connect' },
+  retryMetaLeads: { fn: (_d, ctx) => retryMetaLeads(ctx), perm: 'integrations.connect' },
 };

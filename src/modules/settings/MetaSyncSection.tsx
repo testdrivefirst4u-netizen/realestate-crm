@@ -14,13 +14,18 @@ import { Button, Card, EmptyState, InlineNotice, cx } from '../../components/ui'
 const ago = (iso: string) => (iso ? formatRelative(iso) : 'never');
 const delay = (s: number | null) => (s === null ? '—' : s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 360) / 10} h`);
 
+const STALE_MS = 36 * 3600000;
+
 /** Overall state of a Page: what an admin needs to do, if anything. */
 function pageState(p: MetaSyncPage): { ok: boolean; text: string } {
   if (p.status !== 'Active') return { ok: false, text: 'Paused — no leads are imported from this Page.' };
-  if (!p.subscribed) return { ok: false, text: 'Not subscribed to new leads — press Check in Lead sources.' };
+  if (!p.subscribed) return { ok: false, text: 'Not subscribed to new leads, so new ones may not arrive. Connect the Page again, or ask platform support.' };
   if (p.lastError) return { ok: false, text: p.lastError };
   const missing = p.forms?.reduce((n, f) => n + f.missing7, 0) || 0;
   if (missing) return { ok: false, text: `${missing} lead${missing === 1 ? '' : 's'} from the last 7 days ${missing === 1 ? 'is' : 'are'} on Facebook but not in the CRM — press Sync now.` };
+  if (!p.forms && p.lastCompare?.missing) return { ok: false, text: `The daily check found ${p.lastCompare.missing} lead${p.lastCompare.missing === 1 ? '' : 's'} on Facebook but not in the CRM — press Sync now.` };
+  // the background job stopping is what lets leads slip through unnoticed
+  if (p.lastBackfillAt && Date.now() - Date.parse(p.lastBackfillAt) > STALE_MS) return { ok: false, text: `The daily check last ran ${formatRelative(p.lastBackfillAt)}. The background job may have stopped, so missed leads won't be recovered until it runs. Press Sync now, and tell platform support.` };
   return { ok: true, text: 'Receiving leads in real time.' };
 }
 
@@ -52,6 +57,8 @@ export const MetaSyncSection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => 
     setBusy(sourceId);
     setNotice(null);
     try {
+      // leads added by Excel have no Facebook id, so going back further can add them again as re-enquiries
+      if (days > 7 && !window.confirm(`Sync the last ${days} days?\n\nAny Facebook lead that was added by Excel import in that time can come in again as a re-enquiry. Use this only if you have not imported those leads by Excel.`)) { setBusy(null); return; }
       const r = await api.meta.backfill(sourceId, days);
       setNotice(`Sync finished: ${r.message}.`);
       await load(true);
@@ -93,7 +100,7 @@ export const MetaSyncSection: React.FC<{ canEdit: boolean }> = ({ canEdit }) => 
           <Card
             key={p.sourceId}
             title={p.pageName || p.name}
-            subtitle={<>Last lead {ago(p.lastLeadAt)} · backup check {ago(p.lastQuickSyncAt)} · daily check {ago(p.lastBackfillAt)}</>}
+            subtitle={<>Last lead {ago(p.lastLeadAt)} · backup check {ago(p.lastQuickSyncAt)} · daily check {ago(p.lastBackfillAt)}{p.lastCompare ? <> · at that check, 7 days: Facebook {p.lastCompare.fb7}, CRM {p.lastCompare.crm7}, missing {p.lastCompare.missing}</> : null}</>}
             actions={canEdit && p.status === 'Active' ? (
               <span className="flex flex-wrap items-center gap-2">
                 <select aria-label="How far back to sync" title="How far back to look on Facebook. Leads keep the date they came in. Leads Facebook already sent are not added again, but one added by Excel import can come in again as a re-enquiry." value={days} disabled={!!busy} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-[#D3E3F0] bg-white px-2 py-1.5 text-xs text-[#0B2A44]">
