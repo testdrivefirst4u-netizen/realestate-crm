@@ -13,6 +13,7 @@ import { IntegrationsSection } from './IntegrationsSection';
 import { RecycleBinSection } from './RecycleBinSection';
 import { BackupsSection } from './BackupsSection';
 import { MetaSyncSection } from './MetaSyncSection';
+import { RolesSection } from './RolesSection';
 import { useFeature } from '../../core/tenant';
 import { CompanySection } from './CompanySection';
 import { LeadSourcesSection } from './leadSources/LeadSourcesSection';
@@ -56,7 +57,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -81,6 +82,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'profile', label: 'My profile', icon: <UserCircle2 size={14} />, show: true },
       { id: 'company', label: 'Company & plan', icon: <Building2 size={14} />, show: can('settings.view') },
       { id: 'users', label: 'Team', icon: <Users size={14} />, show: can('users.manageAgents') },
+      { id: 'roles', label: 'Roles & access', icon: <ShieldCheck size={14} />, show: can('users.manage') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
       { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('integrations.connect') },
@@ -154,6 +156,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'display' && <DisplaySection />}
           {active === 'profile' && <ProfileSection currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'company' && can('settings.view') && <CompanySection serverSettings={serverSettings} users={users} />}
+          {active === 'roles' && can('users.manage') && <RolesSection />}
           {active === 'users' && can('users.manageAgents') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}

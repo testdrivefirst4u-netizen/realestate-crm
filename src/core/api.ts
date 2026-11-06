@@ -7,6 +7,7 @@
  * Responses use the envelope `{status:'success', data}` | `{status:'error', code, message}`
  * — also on non-2xx HTTP statuses, so the body is always parsed.
  */
+import type { RoleAccessConfig } from './roleAccess';
 import { API, SYNC } from './config';
 import { AppError, ErrorCode, toAppError } from './errors';
 import type { LibraryContent, LibraryResponse } from '../documents/projectLibrary';
@@ -661,6 +662,10 @@ export const api = {
     saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; placements: string[]; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
     setAdActive: (id: string, active: boolean) => request<{ ok: true }>('setCompetitorAdActive', { id, active }),
+  },
+  roles: {
+    get: () => request<{ config: RoleAccessConfig }>('getRoleAccess'),
+    save: (config: RoleAccessConfig) => request<{ config: RoleAccessConfig }>('saveRoleAccess', { config }),
   },
   drip: {
     get: () => request<DripOverview>('getDrip'),

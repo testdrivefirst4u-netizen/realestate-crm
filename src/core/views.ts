@@ -38,6 +38,7 @@ type SettingsLike = { features?: Record<string, boolean> | null } | null | undef
 /** Plan feature + permission a screen needs (the same rules the sidebar shows entries by). */
 export function viewAllowed(view: ViewId, settings: SettingsLike, can: (p: Permission) => boolean): boolean {
   const on = (name: FeatureName) => hasFeature(settings, name);
+  if (!can(`view.${view}`)) return false; // hidden from this role (Settings › Roles & access)
   switch (view) {
     case 'chat360': return on('chat360') && can('chat.view');
     case 'calls': return on('calls') && can('calls.view');

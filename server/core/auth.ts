@@ -11,6 +11,8 @@
  * - Same error for unknown, disabled and wrong-password accounts (no account enumeration).
  * - Audit entries record before/after values for changed fields when the caller provides them.
  */
+import { accessSays, type UserAccess } from '../../src/core/roleAccess';
+import { accessOfRole } from './roleAccess';
 import bcrypt from 'bcryptjs';
 import { ObjectId } from 'mongodb';
 import { CFG, Role } from './config';
@@ -22,6 +24,8 @@ import { deviceName, e164, randomPassword, randomToken, sha256Base64, sha256Hex,
 import { generateTotpSecret, groupSecret, openTotpSecret, otpauthUri, sealTotpSecret, totpStepOf, verifyTotp } from './totp';
 
 export interface PublicUser {
+  /** What the company changed for this user's role; absent when nothing. */
+  access?: UserAccess | null;
   id: string;
   name: string;
   email: string;
@@ -544,7 +548,9 @@ export async function validateSession(token: string): Promise<{ user: PublicUser
     expiresAt = new Date(Date.now() + CFG.SESSION_HOURS * 3600000);
     await (await sessions()).updateOne({ _id: s._id }, { $set: { expiresAt, lastSeen: new Date() } });
   }
-  return { user: publicUser(u), expiresAt: expiresAt.toISOString() };
+  // what the company chose for this role (Settings › Roles & access): the Platform support account is never limited
+  const access = u.support ? null : await accessOfRole(normalizeRole(u.role));
+  return { user: { ...publicUser(u), ...(access ? { access } : {}) }, expiresAt: expiresAt.toISOString() };
 }
 
 /** Id and sign-in e-mail of the hidden Platform support account (not in the platform e-mail directory: no password login). */
@@ -689,8 +695,10 @@ export async function totpDisable(ctx: Ctx, password: string): Promise<PublicUse
 
 /* ------------------------------ permissions ------------------------------ */
 
-export function can(user: Pick<PublicUser, 'role'> | null | undefined, permission: string) {
+export function can(user: (Pick<PublicUser, 'role'> & { access?: UserAccess | null }) | null | undefined, permission: string) {
   if (!user) return false;
+  const said = accessSays(user.access, permission);
+  if (said !== null) return said;
   const perms = CFG.PERMISSIONS[normalizeRole(user.role)] || [];
   for (const p of perms) {
     if (p === '*' || p === permission) return true;

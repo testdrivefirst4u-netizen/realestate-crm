@@ -1,4 +1,5 @@
 import { UserAccount, UserRole } from '../types/crm';
+import { accessSays, type UserAccess } from './roleAccess';
 
 /**
  * Role-based access control — mirrored in server/ (the backend
@@ -39,7 +40,9 @@ export type Permission =
   /** Publish posts and pause / budget ad campaigns (Admins, Managers). */
   | 'marketing.manage'
   /** Connect / disconnect the company's own Google, Meta, LinkedIn, Pinterest accounts (Admins). */
-  | 'integrations.connect';
+  | 'integrations.connect'
+  /** A screen the company can hide from a role (Settings › Roles & access). */
+  | `view.${string}`;
 
 const ALL: Permission[] = [
   'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export',
@@ -74,8 +77,10 @@ export function normalizeRole(role: string | undefined | null): UserRole {
   return 'RM'; // 'rm', 'relationship manager', 'executive', 'user'
 }
 
-export function can(user: UserAccount | null | undefined, permission: Permission): boolean {
+export function can(user: (UserAccount & { access?: UserAccess | null }) | null | undefined, permission: Permission): boolean {
   if (!user) return false;
+  const said = accessSays(user.access, permission);
+  if (said !== null) return said;
   const role = normalizeRole(user.role);
   return ROLE_PERMISSIONS[role].includes(permission);
 }

@@ -49,6 +49,7 @@ import { actions as competitorActions } from './modules/competitors';
 import { actions as searchConsoleActions } from './modules/searchConsole';
 import { actions as businessProfileActions } from './modules/businessProfile';
 import { actions as dripActions } from './modules/dripCampaigns';
+import { actions as roleAccessActions } from './modules/roleAccess';
 import { actions as businessPhotoActions } from './modules/businessPhotos';
 import { actions as businessReviewActions } from './modules/businessReviews';
 import { actions as socialInsightsActions } from './modules/socialInsights';
@@ -95,6 +96,7 @@ export const registry: ActionMap = {
   ...searchConsoleActions,
   ...businessProfileActions,
   ...dripActions,
+  ...roleAccessActions,
   ...businessPhotoActions,
   ...businessReviewActions,
   ...socialInsightsActions,
