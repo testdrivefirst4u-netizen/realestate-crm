@@ -153,6 +153,48 @@ describe('old posts', () => {
     expect(posts.map((p) => p.id)).toEqual(['IMP-facebook-PAGE1_1']);
   });
 
+  it('keeps videos, Reels and carousels as what they are, and the cover when Meta gives no video link', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: any, init: any) => {
+      const url = new URL(String(input));
+      const path = url.pathname.replace(/^\/v\d+\.\d+\//, '/');
+      if (path === '/IG1/media') return json(200, { data: [
+        { id: 'R1', media_type: 'VIDEO', media_product_type: 'REELS', media_url: 'https://cdn.example/r1.mp4', thumbnail_url: 'https://cdn.example/r1.jpg', timestamp: '2026-10-25T06:00:00+0000' },
+        { id: 'R2', media_type: 'VIDEO', media_product_type: 'REELS', thumbnail_url: 'https://cdn.example/r2.jpg', timestamp: '2026-10-24T06:00:00+0000' },
+        { id: 'V1', media_type: 'VIDEO', media_product_type: 'FEED', media_url: 'https://cdn.example/v1.mp4', thumbnail_url: 'https://cdn.example/v1.jpg', timestamp: '2026-10-23T06:00:00+0000' },
+        { id: 'C1', media_type: 'CAROUSEL_ALBUM', media_url: 'https://cdn.example/c1.jpg', timestamp: '2026-10-22T06:00:00+0000', children: { data: [{ media_type: 'IMAGE', media_url: 'https://cdn.example/c1.jpg' }, { media_type: 'VIDEO', thumbnail_url: 'https://cdn.example/c2.jpg' }] } },
+      ] });
+      if (path === '/PAGE1/published_posts') return json(200, { data: [
+        { id: 'FV', created_time: '2026-10-21T06:00:00+0000', full_picture: 'https://cdn.example/fv.jpg', attachments: { data: [{ media_type: 'video', type: 'video_inline', media: { source: 'https://cdn.example/fv.mp4' } }] } },
+        { id: 'FR', created_time: '2026-10-20T06:00:00+0000', permalink_url: 'https://www.facebook.com/reel/1', attachments: { data: [{ media_type: 'video', media: { source: 'javascript:alert(1)' } }] } },
+        { id: 'FA', created_time: '2026-10-19T06:00:00+0000', full_picture: 'https://cdn.example/fa.jpg', attachments: { data: [{ media_type: 'album', subattachments: { data: [{ media_type: 'photo', media: { image: { src: 'https://cdn.example/a1.jpg' } } }, { media_type: 'photo', media: { image: { src: 'https://cdn.example/a2.jpg' } } }] } }] } },
+      ] });
+      return fake(input, init);
+    }));
+    await inCo(() => importOldPosts({ now }));
+    const { posts } = await inCo(() => listPosts({ from: '2000-01-01T00:00:00Z', statuses: ['published'] }));
+    const of = (id: string) => posts.find((p) => p.id === id)!;
+    expect(of('IMP-instagram-R1')).toMatchObject({ postType: 'reel', videoUrl: 'https://cdn.example/r1.mp4', imageUrl: 'https://cdn.example/r1.jpg' });
+    expect(of('IMP-instagram-R2')).toMatchObject({ postType: 'reel', videoUrl: '', imageUrl: 'https://cdn.example/r2.jpg' });
+    expect(of('IMP-instagram-V1')).toMatchObject({ postType: 'video', videoUrl: 'https://cdn.example/v1.mp4' });
+    expect(of('IMP-instagram-C1').imageUrls).toEqual(['https://cdn.example/c1.jpg', 'https://cdn.example/c2.jpg']);
+    expect(of('IMP-instagram-C1').postType).toBe('post');
+    expect(of('IMP-facebook-FV')).toMatchObject({ postType: 'video', videoUrl: 'https://cdn.example/fv.mp4' });
+    expect(of('IMP-facebook-FR')).toMatchObject({ postType: 'reel', videoUrl: '' });
+    expect(of('IMP-facebook-FA').imageUrls).toEqual(['https://cdn.example/a1.jpg', 'https://cdn.example/a2.jpg']);
+  });
+
+  it('when Meta refuses the video details, the posts still come, with a warning', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: any, init: any) => {
+      const fields = new URL(String(input)).searchParams.get('fields') || '';
+      if (/attachments|media_product_type/.test(fields)) return json(400, { error: { message: 'No such field', code: 100 } });
+      return fake(input, init);
+    }));
+    const r = await inCo(() => importOldPosts({ now }));
+    expect(r.imported).toBeGreaterThan(0);
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.join(' ')).toMatch(/videos and carousels may show as pictures/);
+  });
+
   it('keeps the old text when Facebook refuses the change', async () => {
     await inCo(() => importOldPosts({ now }));
     vi.stubGlobal('fetch', vi.fn(async () => json(400, { error: { message: 'Not allowed', code: 200 } })));

@@ -5,6 +5,8 @@
  * Facebook  = GET <page>/published_posts; Instagram = GET <ig>/media, with likes, comments and shares. All the history
  *             (up to 2000 posts an account) from "Sync old posts", the last 30 days every morning (the platforms'
  *             picture links expire, so recent posts get fresh ones). Views need other permissions and are not read.
+ * Videos, Reels and carousels keep what they are (postType, videoExternal, imageExternals). Meta's links can stop working and
+ * Instagram leaves out the link of some videos (copyright, downloads off): then the cover shows, with the way to the platform.
  * Imported posts have status 'published' and are read only: they are changed or removed on the platform. A post made
  * in the CRM is recognised by its platform id and not copied, but gets the same counts when it went to one account.
  * A post deleted on the platform stays here. When Meta refuses some counts the posts still come, with a warning.
@@ -27,7 +29,7 @@ const DAY_MS = 86400000;
 const postsCol = () => col<any>('socialPosts');
 
 interface Metrics { likes: number | null; comments: number | null; shares: number | null }
-interface Found { kind: 'facebook' | 'instagram'; accountId: string; accountName: string; postId: string; text: string; url: string; image: string; at: Date; metrics: Metrics }
+interface Found { kind: 'facebook' | 'instagram'; accountId: string; accountName: string; postId: string; text: string; url: string; image: string; at: Date; metrics: Metrics; type: 'post' | 'video' | 'reel'; video: string; images: string[] }
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 const https = (v: unknown) => (/^https:\/\//.test(String(v || '')) ? String(v) : '');
@@ -64,22 +66,56 @@ async function readWithCounts(tries: string[], read: (fields: string) => Promise
   return rows;
 }
 
+/** Ask with the video and carousel details at every level of counts; the posts matter more, so without them they still come, with a warning. */
+async function richRead(media: string, plain: string[], read: (fields: string) => Promise<any[]>, account: string, warnings: string[]): Promise<any[]> {
+  try {
+    return await readWithCounts(plain.map((fields) => `${fields},${media}`), read, account, warnings);
+  } catch (e: any) {
+    warnings.push(`${account}: videos and carousels may show as pictures. Meta said: ${truncate(e?.message || String(e), 200)}`);
+    return readWithCounts(plain, read, account, warnings);
+  }
+}
+
+function facebookMedia(x: any): Pick<Found, 'type' | 'video' | 'images'> {
+  const a = x?.attachments?.data?.[0];
+  const isVideo = /video/i.test(String(a?.media_type || '')) || /video/i.test(String(a?.type || ''));
+  const parts: any[] = a?.subattachments?.data || [];
+  return {
+    type: /\/reel\//.test(String(x?.permalink_url || '')) ? 'reel' : isVideo ? 'video' : 'post',
+    video: isVideo ? https(a?.media?.source) : '',
+    images: parts.filter((s) => !/video/i.test(String(s?.media_type || ''))).map((s) => https(s?.media?.image?.src)).filter(Boolean),
+  };
+}
+
+function instagramMedia(x: any): Pick<Found, 'type' | 'video' | 'images'> {
+  const isVideo = x?.media_type === 'VIDEO';
+  const parts: any[] = x?.children?.data || [];
+  return {
+    type: x?.media_product_type === 'REELS' ? 'reel' : isVideo ? 'video' : 'post',
+    video: isVideo ? https(x?.media_url) : '',
+    images: parts.map((c) => https(c?.media_type === 'VIDEO' ? c?.thumbnail_url : c?.media_url)).filter(Boolean),
+  };
+}
+
 async function facebookPosts(p: { id: string; name: string; token: string }, cutoff: Date, warnings: string[]): Promise<Found[]> {
   const base = 'id,message,created_time,permalink_url,full_picture';
   const read = (fields: string) => newestPosts(`${p.id}/published_posts`, p.token, fields, (x) => new Date(x.created_time), cutoff);
   // the posts matter more than their counts: without the counts' permission they still come through
   const reactions = 'reactions.summary(true).limit(0)';
-  const rows = await readWithCounts([`${base},shares,${reactions},comments.summary(true).limit(0)`, `${base},shares,${reactions}`, base], read, p.name, warnings);
-  return rows.map((x) => ({ kind: 'facebook', accountId: p.id, accountName: p.name, postId: String(x.id), text: String(x.message || ''), url: https(x.permalink_url), image: https(x.full_picture), at: new Date(x.created_time), metrics: { likes: num(x.reactions?.summary?.total_count), comments: num(x.comments?.summary?.total_count), shares: num(x.shares?.count) ?? (x.reactions ? 0 : null) } }));
+  const media = 'attachments{media_type,type,media{source,image},subattachments{media_type,media{image}}}';
+  const counted = [`${base},shares,${reactions},comments.summary(true).limit(0)`, `${base},shares,${reactions}`, base];
+  const rows = await richRead(media, counted, read, p.name, warnings);
+  return rows.map((x) => ({ ...facebookMedia(x), kind: 'facebook', accountId: p.id, accountName: p.name, postId: String(x.id), text: String(x.message || ''), url: https(x.permalink_url), image: https(x.full_picture), at: new Date(x.created_time), metrics: { likes: num(x.reactions?.summary?.total_count), comments: num(x.comments?.summary?.total_count), shares: num(x.shares?.count) ?? (x.reactions ? 0 : null) } }));
 }
 
 async function instagramPosts(p: { igId?: string; igUsername?: string; token: string }, cutoff: Date, warnings: string[]): Promise<Found[]> {
   const base = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp';
   const read = (fields: string) => newestPosts(`${p.igId}/media`, p.token, fields, (x) => new Date(x.timestamp), cutoff);
-  const rows = await readWithCounts([`${base},like_count,comments_count`, base], read, `@${p.igUsername || p.igId}`, warnings);
+  const counted = [`${base},like_count,comments_count`, base];
+  const rows = await richRead('media_product_type,children{media_type,media_url,thumbnail_url}', counted, read, `@${p.igUsername || p.igId}`, warnings);
   return rows.map((x) => ({
-    kind: 'instagram', accountId: String(p.igId), accountName: `@${p.igUsername || p.igId}`, postId: String(x.id), text: String(x.caption || ''), url: https(x.permalink),
-    image: https(x.media_type === 'VIDEO' ? x.thumbnail_url : x.media_url), at: new Date(x.timestamp), metrics: { likes: num(x.like_count), comments: num(x.comments_count), shares: null },
+    ...instagramMedia(x), kind: 'instagram', accountId: String(p.igId), accountName: `@${p.igUsername || p.igId}`, postId: String(x.id), text: String(x.caption || ''), url: https(x.permalink),
+    image: https(x.media_type === 'VIDEO' ? x.thumbnail_url : x.media_url) || instagramMedia(x).images[0] || '', at: new Date(x.timestamp), metrics: { likes: num(x.like_count), comments: num(x.comments_count), shares: null },
   }));
 }
 
@@ -114,7 +150,7 @@ export async function importOldPosts(opts: { days?: number; now?: Date } = {}): 
       filter: { _id: `IMP-${f.kind}-${f.postId}` },
       update: {
         $set: {
-          text: truncate(f.text, 3000), link: '', imageFileId: '', imageExternal: f.image, imported: true, metrics: f.metrics, scheduledAt: f.at, publishedAt: f.at, status: 'published', updatedAt: now,
+          text: truncate(f.text, 3000), link: '', imageFileId: '', imageExternal: f.image, imageExternals: f.images, postType: f.type, videoExternal: f.video, imported: true, metrics: f.metrics, scheduledAt: f.at, publishedAt: f.at, status: 'published', updatedAt: now,
           targets: [{ key: `${f.kind}:${f.accountId}`, kind: f.kind, name: f.accountName, status: 'posted', postId: f.postId, url: f.url, error: '' }],
           createdBy: `Imported from ${f.kind === 'facebook' ? 'Facebook' : 'Instagram'}`,
         },

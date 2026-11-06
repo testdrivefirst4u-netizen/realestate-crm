@@ -74,12 +74,15 @@ const PhotoGrid: React.FC<{ images: string[] }> = ({ images }) => {
 /** Roughly how the post will look; each platform draws it in its own way. Spans only: a card can sit inside a button. */
 export const Preview: React.FC<{ kind: PostTargetKind; name: string; text: string; link: string; image?: string; images?: string[]; when?: string; metrics?: SocialPost['metrics']; postType?: PostType; video?: string; controls?: boolean }> = ({ kind, name, text, link, image, images, when = 'Just now', metrics, postType = 'post', video, controls }) => {
   const photos = images && images.length ? images : image ? [image] : [];
+  // a platform's video link can stop working: the cover shows instead
+  const [videoBroken, setVideoBroken] = useState(false);
+  useEffect(() => setVideoBroken(false), [video]);
   const initial = (name.replace(/^@/, '')[0] || '?').toUpperCase();
   const avatar = <span className={cx('flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm font-bold text-white', KIND[kind].cls)}>{initial}</span>;
   if (postType !== 'post') {
     const label = TYPES.find((t) => t.id === postType)!.label;
-    const media = video
-      ? <video src={video} poster={photos[0]} controls={controls} muted preload="metadata" playsInline className="h-full w-full object-cover" />
+    const media = video && !videoBroken
+      ? <video src={video} poster={photos[0]} controls={controls} muted preload="metadata" playsInline onError={() => setVideoBroken(true)} className="h-full w-full object-cover" />
       : photos[0] ? <img src={photos[0]} alt="" className="h-full w-full object-cover" />
         : <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-4 text-center text-xs text-white/80"><Film size={22} />{when === 'Just now' ? `Add a video` : 'Posted: open it on the platform to watch'}</span>;
     if (postType === 'video') {

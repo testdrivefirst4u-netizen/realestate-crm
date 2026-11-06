@@ -73,6 +73,9 @@ interface PostDoc {
   /** Copied from the platform (socialPostsImport.ts): its picture link, read only. */
   imported?: boolean;
   imageExternal?: string;
+  /** Copied from the platform too: all a carousel's pictures, and a video's own link. */
+  imageExternals?: string[];
+  videoExternal?: string;
   metrics?: PostMetrics | null;
 }
 const postsCol = () => col<PostDoc>('socialPosts');
@@ -323,9 +326,9 @@ function shownView(p: PostDoc, keys: string[]): PostView | null {
 }
 const view = (p: PostDoc): PostView => ({
   id: p._id, text: p.text, texts: p.texts || {}, firstComment: p.firstComment || '', link: p.link, imageFileId: p.imageFileId, imageFileIds: photosOf(p),
-  imageUrls: photosOf(p).length ? photosOf(p).map((f) => `/api/files/${f}`) : p.imageExternal ? [p.imageExternal] : [], imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
+  imageUrls: photosOf(p).length ? photosOf(p).map((f) => `/api/files/${f}`) : p.imageExternals?.length ? p.imageExternals : p.imageExternal ? [p.imageExternal] : [], imageUrl: p.imageFileId ? `/api/files/${p.imageFileId}` : p.imageExternal || '', targets: p.targets, scheduledAt: p.scheduledAt.toISOString(),
   status: p.status, createdBy: p.createdBy, publishedAt: p.publishedAt ? p.publishedAt.toISOString() : '', metrics: p.metrics || null,
-  postType: p.postType || 'post', videoFileId: p.videoFileId || '', videoUrl: p.videoFileId ? `/api/files/${p.videoFileId}` : '',
+  postType: p.postType || 'post', videoFileId: p.videoFileId || '', videoUrl: p.videoFileId ? `/api/files/${p.videoFileId}` : p.videoExternal || '',
 });
 
 /** Posts in the range (the planner's month; by default from 30 days ago), and every draft. */

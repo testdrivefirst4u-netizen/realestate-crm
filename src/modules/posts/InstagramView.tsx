@@ -4,7 +4,7 @@
  * Only real actions are offered: no like or share buttons that would do nothing.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Clapperboard, Clock, ExternalLink, FileText, Heart, Images, MessageCircle, Pencil, RefreshCw, RotateCcw, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clapperboard, Clock, ExternalLink, FileText, Heart, Images, MessageCircle, Pencil, Play, RefreshCw, RotateCcw, Trash2, X } from 'lucide-react';
 import { api, type InstagramProfile, type PostTargetOption, type SocialPost } from '../../core/api';
 import { Button, InlineNotice, cx } from '../../components/ui';
 import { errText, postDate } from './postShared';
@@ -43,7 +43,7 @@ const Tile: React.FC<{ p: SocialPost; onOpen: () => void }> = ({ p, onOpen }) =>
       <button type="button" onClick={onOpen} aria-label={`Open post from ${dayText(when)}: ${p.text.slice(0, 80) || 'no caption'}`} className="group relative block aspect-[3/4] w-full overflow-hidden bg-[#EFEFEF] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#0095F6]">
         <Picture src={p.imageUrl} p={p} className={cx('h-full w-full object-cover', planned(p) && 'opacity-80')} />
         <span className="absolute right-1.5 top-1.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
-          {p.status === 'draft' ? <FileText size={18} aria-hidden="true" /> : p.postType === 'reel' ? <Clapperboard size={18} aria-hidden="true" /> : p.imageUrls.length > 1 ? <Images size={18} aria-hidden="true" /> : null}
+          {p.status === 'draft' ? <FileText size={18} aria-hidden="true" /> : p.postType === 'reel' ? <Clapperboard size={18} aria-hidden="true" /> : p.postType === 'video' ? <Play size={18} className="fill-white" aria-hidden="true" /> : p.imageUrls.length > 1 ? <Images size={18} aria-hidden="true" /> : null}
         </span>
         {planned(p) && <span className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-black/60 px-1.5 py-1 text-[10px] font-semibold text-white sm:text-[11px]">{p.status === 'draft' ? 'Draft' : <><Clock size={11} aria-hidden="true" /><span className="truncate">{shortWhen(when)}</span></>}</span>}
         {!planned(p) && p.metrics && (
@@ -60,6 +60,7 @@ const Tile: React.FC<{ p: SocialPost; onOpen: () => void }> = ({ p, onOpen }) =>
 const PostWindow: React.FC<{ post: SocialPost; account: string; profile: InstagramProfile | null; onClose: () => void; onEdit: () => void; onDelete: () => void; onAgain: () => void; onDetails: () => void }> = ({ post, account, profile, onClose, onEdit, onDelete, onAgain, onDetails }) => {
   const dialog = useRef<HTMLDialogElement>(null);
   const [at, setAt] = useState(0);
+  const [videoBroken, setVideoBroken] = useState(false);
   const [comments, setComments] = useState<{ rows: Array<{ id: string; author: string; text: string; at: string }> | null; error: string }>({ rows: null, error: '' });
   const target = post.targets.find((t) => t.key === account);
   const out = target?.status === 'posted';
@@ -80,7 +81,8 @@ const PostWindow: React.FC<{ post: SocialPost; account: string; profile: Instagr
     <dialog ref={dialog} aria-label={`Post by ${username}`} onClose={onClose} onClick={(e) => { if (e.target === dialog.current) onClose(); }} className="m-auto h-[92vh] max-h-[860px] w-[95vw] max-w-[1080px] overflow-hidden rounded-md border-0 bg-white p-0 backdrop:bg-black/70 max-lg:h-[92vh]">
       <div className="flex h-full flex-col lg:flex-row">
         <div className="relative flex min-h-0 flex-[1_1_45%] items-center justify-center bg-black lg:flex-[1_1_60%]">
-          {post.videoUrl ? <video src={post.videoUrl} controls className="max-h-full max-w-full" /> : photos[at] ? <Picture src={photos[at]} p={post} className="max-h-full max-w-full object-contain" /> : <p className="p-6 text-center text-sm text-white/80">{post.postType === 'post' ? 'No picture' : 'The video is on Instagram'}</p>}
+          {post.videoUrl && !videoBroken ? <video src={post.videoUrl} poster={photos[0]} controls playsInline onError={() => setVideoBroken(true)} className="max-h-full max-w-full" /> : photos[at] ? <Picture src={photos[at]} p={post} className="max-h-full max-w-full object-contain" /> : <p className="p-6 text-center text-sm text-white/80">{post.postType === 'post' ? 'No picture' : 'The video is on Instagram'}</p>}
+          {post.postType !== 'post' && (!post.videoUrl || videoBroken) && target?.url && <a href={target.url} target="_blank" rel="noopener noreferrer" className="absolute bottom-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#262626]"><Play size={13} className="fill-[#262626]" aria-hidden="true" />Watch on Instagram</a>}
           {photos.length > 1 && !post.videoUrl && (
             <>
               {at > 0 && <button type="button" aria-label="Previous photo" onClick={() => setAt(at - 1)} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-1 text-[#262626]"><ChevronLeft size={18} /></button>}
