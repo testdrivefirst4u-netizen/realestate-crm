@@ -47,6 +47,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'marketing.ads', group: 'Marketing', label: 'Change ads', perms: ['marketing.ads'], writes: true, was: 'marketing', needs: 'leads.all', note: 'Can pause campaigns and change budgets, which spends money. The Ads screen needs "See all leads".' },
   { id: 'marketing.drip', group: 'Marketing', label: 'Drip Campaigns', perms: ['marketing.drip'], writes: true, was: 'marketing', note: 'Can start campaigns that message real leads.' },
   { id: 'marketing.bots', group: 'Marketing', label: 'WhatsApp Chatbots', perms: ['marketing.bots'], writes: true, note: 'Can start bots that answer real customers.' },
+  { id: 'marketing.campaigns', group: 'Marketing', label: 'WhatsApp Campaigns', perms: ['marketing.campaigns'], writes: true, note: 'Can message many customers at once, which costs credits, and manage templates.' },
   { id: 'marketing.other', group: 'Marketing', label: 'Competitor Ads, review replies and page checks', perms: ['marketing.manage'], writes: true, was: 'marketing', note: 'Adds competitors, replies to Google reviews in public, and runs Search Console page checks.' },
   { id: 'tasks', group: 'Work', label: 'Tasks', perms: ['tasks.manage'], writes: true },
   { id: 'ai', group: 'Work', label: 'AI assistant', perms: ['ai.use', 'ai.actions'], writes: true },
@@ -61,7 +62,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
 
 /** What a role can have before anything is chosen. Kept with the list: both sides must start from the same answer. */
 const STARTS: Record<ConfigurableRole, string[]> = {
-  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'reports.credits', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.other', 'tasks', 'ai'],
+  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'reports.credits', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.campaigns', 'marketing.other', 'tasks', 'ai'],
   RM: ['leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'reports.view', 'inventory.view', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'tasks', 'ai'],
   Viewer: ['leads.all', 'leads.phones', 'reports.view', 'audit.view', 'inventory.view', 'chat.view', 'calls.view'],
 };

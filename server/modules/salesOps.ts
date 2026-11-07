@@ -236,7 +236,7 @@ export function reassignDue(assignedAt: Date, cfg: Pick<SalesOps, 'reassignAfter
 async function touchedSince(l: LeadDoc, since: Date): Promise<boolean> {
   if ((l.followups || []).length || l.lastFollowupAt) return true;
   if ((await (await col(CFG.COLL.CALLS)).countDocuments({ leadId: l._id }, { limit: 1 })) > 0) return true;
-  const robots = ['System', 'Auto-reply', 'RM alert', 'Auto-reassign', 'Chatbot', ''];
+  const robots = ['System', 'Auto-reply', 'RM alert', 'Auto-reassign', 'Chatbot', 'Campaign', ''];
   const tl = await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: l._id, type: 'chat_sent', actor: { $nin: robots }, timestamp: { $gte: since } }, { limit: 1 });
   return tl > 0;
 }
@@ -568,7 +568,14 @@ export async function runLeadWatch(now = new Date()) {
   const missed = await alertUnreturnedMissed(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
   const payments = await sendPaymentReminders(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
   const credits = await sweepCredits(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { released: 0, charged: 0 }; });
-  return { slow, reassigned, visits, summary, missed, payments, credits };
+  // only a company with campaigns ever loads them
+  let campaigns = { sent: 0, more: false };
+  if ((currentTenant()?.features as any)?.whatsappCampaigns) {
+    const worker = await import('./whatsappCampaigns');
+    campaigns = await worker.runCampaignsDue(20000, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0, more: false }; });
+    if (campaigns.more && campaigns.sent) await worker.nudgeWorker();
+  }
+  return { slow, reassigned, visits, summary, missed, payments, credits, campaigns };
 }
 
 /* ------------------------------- leaderboard ----------------------------- */

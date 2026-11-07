@@ -49,6 +49,7 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   whatsappDirect: 'WhatsApp direct through Meta (test; also needs WhatsApp on)',
   whatsappCredits: 'WhatsApp credits (BroaddCast bills this company; needs WhatsApp direct)',
   whatsappBots: 'WhatsApp chatbots (needs WhatsApp direct)',
+  whatsappCampaigns: 'WhatsApp campaigns (needs WhatsApp direct)',
 };
 
 export interface SuperAdmin {

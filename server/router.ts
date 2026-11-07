@@ -63,6 +63,7 @@ import { actions as metaAdsTableActions } from './modules/metaAdsTable';
 import { actions as whatsappDirectActions } from './modules/whatsappDirect';
 import { actions as whatsappCreditActions } from './modules/whatsappCredits';
 import { actions as whatsappBotActions } from './modules/whatsappBots';
+import { actions as whatsappCampaignActions } from './modules/whatsappCampaigns';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
 
 export const registry: ActionMap = {
@@ -114,6 +115,7 @@ export const registry: ActionMap = {
   ...whatsappDirectActions,
   ...whatsappCreditActions,
   ...whatsappBotActions,
+  ...whatsappCampaignActions,
   ...connectedAccountActions,
 };
 
@@ -136,6 +138,7 @@ const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatur
   [/^waDirect/, 'whatsappDirect', 'WhatsApp direct'],
   [/^waCredits/, 'whatsappCredits', 'WhatsApp credits'],
   [/^waBot/, 'whatsappBots', 'WhatsApp chatbots'],
+  [/^waCampaign/, 'whatsappCampaigns', 'WhatsApp campaigns'],
   [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall|splitCallTranscript)$|^jc[A-Z]/, 'calls', 'Calls'],
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],

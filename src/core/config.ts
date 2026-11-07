@@ -291,6 +291,7 @@ export const FEATURES = {
   whatsappDirect: false,
   whatsappCredits: false,
   whatsappBots: false,
+  whatsappCampaigns: false,
   csvImport: true,
   documents: true,
   templates: true,

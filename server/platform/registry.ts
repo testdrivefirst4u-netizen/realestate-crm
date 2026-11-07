@@ -85,6 +85,7 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   whatsappDirect: false,
   whatsappCredits: false,
   whatsappBots: false,
+  whatsappCampaigns: false,
 };
 
 export function normalizeFeatures(f: Partial<TenantFeatures> | null | undefined): TenantFeatures {

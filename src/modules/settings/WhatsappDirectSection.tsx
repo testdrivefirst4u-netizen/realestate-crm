@@ -9,7 +9,7 @@ import { Badge, Button, Card, ConfirmDialog, Field, InlineNotice, LoadingState, 
 import { loadSignupSdk, startSignup } from './whatsappSignup';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
-const STATUS: Record<string, { label: string; tone: 'sage' | 'amber' | 'muted' | 'rust' }> = {
+export const STATUS: Record<string, { label: string; tone: 'sage' | 'amber' | 'muted' | 'rust' }> = {
   APPROVED: { label: 'Approved', tone: 'sage' }, PENDING: { label: 'In review', tone: 'amber' }, IN_APPEAL: { label: 'In appeal', tone: 'amber' }, REJECTED: { label: 'Rejected', tone: 'rust' },
   PAUSED: { label: 'Paused', tone: 'amber' }, DISABLED: { label: 'Disabled', tone: 'rust' },
 };
@@ -126,8 +126,9 @@ const PastChats: React.FC<{ view: Extract<WaDirectView, { connected: true }>; bu
   );
 };
 
-const TemplateModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
-  const [f, setF] = useState({ name: '', category: 'UTILITY', language: 'en', body: '', footer: '' });
+export const TemplateModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
+  const [f, setF] = useState({ name: '', category: 'UTILITY', language: 'en', body: '', footer: '', headerMedia: '' });
+  const [sample, setSample] = useState<File | null>(null);
   const [examples, setExamples] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
@@ -137,7 +138,9 @@ const TemplateModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({
     setBusy(true);
     setProblem('');
     try {
-      await api.whatsappDirect.createTemplate({ ...f, examples: names.map((n) => examples[n] || '') });
+      const media = f.headerMedia && sample ? { name: sample.name, mime: sample.type, base64: await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result || '').split(',')[1] || ''); r.onerror = () => reject(new Error('Could not read the file')); r.readAsDataURL(sample); }) } : undefined;
+      if (f.headerMedia && !media) throw new Error(`Add an example ${f.headerMedia}, so Meta can review it.`);
+      await api.whatsappDirect.createTemplate({ ...f, examples: names.map((n) => examples[n] || ''), sample: media });
       toast('Template sent to Meta for review', f.name, 'success');
       onSaved();
     } catch (e) {
@@ -155,6 +158,8 @@ const TemplateModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({
           <Field label="Type" hint="Marketing costs more than Utility. Meta can change the type when it reviews."><Select value={f.category} onChange={set('category')} options={[{ value: 'UTILITY', label: 'Utility' }, { value: 'MARKETING', label: 'Marketing' }]} /></Field>
           <Field label="Language"><Select value={f.language} onChange={set('language')} options={LANGUAGES} /></Field>
         </div>
+        <Field label="At the top" hint="A picture, video or PDF above the message. You choose the actual file for each campaign. Templates with one are sent from WhatsApp Campaigns."><Select value={f.headerMedia} onChange={(e) => { set('headerMedia')(e); setSample(null); }} options={[{ value: '', label: 'Nothing' }, { value: 'image', label: 'Picture' }, { value: 'video', label: 'Video' }, { value: 'document', label: 'PDF' }]} /></Field>
+        {f.headerMedia && <Field label="Example file for Meta's review" hint="Up to 3 MB."><input className={inputCls} type="file" accept={f.headerMedia === 'image' ? 'image/jpeg,image/png' : f.headerMedia === 'video' ? 'video/mp4' : 'application/pdf'} onChange={(e) => setSample(e.target.files?.[0] || null)} /></Field>}
         <Field label="Message" hint="Use {{1}}, {{2}} for what changes, with words before and after."><textarea className={inputCls} rows={4} maxLength={1024} value={f.body} onChange={set('body')} placeholder="Hello {{1}}, your site visit is on {{2}}. Reply here if you need to change it." /></Field>
         {names.map((n) => <Field key={n} label={`Example for {{${n}}}`}><input className={inputCls} value={examples[n] || ''} onChange={(e) => setExamples((x) => ({ ...x, [n]: e.target.value }))} /></Field>)}
         <Field label="Footer (optional)"><input className={inputCls} maxLength={60} value={f.footer} onChange={set('footer')} /></Field>

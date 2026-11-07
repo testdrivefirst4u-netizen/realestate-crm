@@ -14,7 +14,7 @@ interface PlanDoc extends Omit<Plan, 'id'> {
   updatedAt: Date;
 }
 
-const ALL_ON: TenantFeatures = { aiCopilot: true, chat360: true, calls: true, inventory: true, unitLocator: true, projectLibrary: true, reports: true, segments: true, websiteApi: true, metaLeads: true, googleSheets: true, adConversions: true, googleAdsLeads: true, adSpend: true, googleConversions: true, googleAdsSpend: true, socialInbox: true, socialPosts: true, adsControl: true, linkedin: true, pinterest: true, websiteAnalytics: true, competitorAds: true, searchConsole: false, businessProfile: false, dripCampaigns: false, whatsappDirect: false, whatsappCredits: false, whatsappBots: false };
+const ALL_ON: TenantFeatures = { aiCopilot: true, chat360: true, calls: true, inventory: true, unitLocator: true, projectLibrary: true, reports: true, segments: true, websiteApi: true, metaLeads: true, googleSheets: true, adConversions: true, googleAdsLeads: true, adSpend: true, googleConversions: true, googleAdsSpend: true, socialInbox: true, socialPosts: true, adsControl: true, linkedin: true, pinterest: true, websiteAnalytics: true, competitorAds: true, searchConsole: false, businessProfile: false, dripCampaigns: false, whatsappDirect: false, whatsappCredits: false, whatsappBots: false, whatsappCampaigns: false };
 
 export const DEFAULT_PLANS: Plan[] = [
   {
@@ -22,7 +22,7 @@ export const DEFAULT_PLANS: Plan[] = [
     name: 'Starter',
     description: 'Core CRM for small teams: leads, tasks, calls, inventory and reports.',
     maxUsers: 5,
-    features: { aiCopilot: false, chat360: false, calls: true, inventory: true, reports: true, segments: true, unitLocator: false, projectLibrary: false, websiteApi: true, metaLeads: false, googleSheets: false, adConversions: false, googleAdsLeads: false, adSpend: false, googleConversions: false, googleAdsSpend: false, socialInbox: false, socialPosts: false, adsControl: false, linkedin: false, pinterest: false, websiteAnalytics: false, competitorAds: false, searchConsole: false, businessProfile: false, dripCampaigns: false, whatsappDirect: false, whatsappCredits: false, whatsappBots: false },
+    features: { aiCopilot: false, chat360: false, calls: true, inventory: true, reports: true, segments: true, unitLocator: false, projectLibrary: false, websiteApi: true, metaLeads: false, googleSheets: false, adConversions: false, googleAdsLeads: false, adSpend: false, googleConversions: false, googleAdsSpend: false, socialInbox: false, socialPosts: false, adsControl: false, linkedin: false, pinterest: false, websiteAnalytics: false, competitorAds: false, searchConsole: false, businessProfile: false, dripCampaigns: false, whatsappDirect: false, whatsappCredits: false, whatsappBots: false, whatsappCampaigns: false },
     priceMonthly: 2999,
     currency: 'INR',
   },

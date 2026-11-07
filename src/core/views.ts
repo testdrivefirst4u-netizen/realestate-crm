@@ -10,9 +10,9 @@ import type { Permission } from './rbac';
 
 export type ViewId =
   | 'dashboard' | 'mis' | 'performance' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
-  | 'documents' | 'templates' | 'reports' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics' | 'searchconsole' | 'businessprofile' | 'dripcampaigns' | 'whatsappcredits' | 'chatbots' | 'competitors';
+  | 'documents' | 'templates' | 'reports' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics' | 'searchconsole' | 'businessprofile' | 'dripcampaigns' | 'whatsappcampaigns' | 'whatsappcredits' | 'chatbots' | 'competitors';
 
-export const VIEW_IDS: ViewId[] = ['dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcredits', 'chatbots', 'competitors'];
+export const VIEW_IDS: ViewId[] = ['dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcampaigns', 'whatsappcredits', 'chatbots', 'competitors'];
 
 export const DEFAULT_VIEW: ViewId = 'dashboard';
 
@@ -20,7 +20,7 @@ export const DEFAULT_VIEW: ViewId = 'dashboard';
 export const VIEW_TITLES: Record<ViewId, string> = {
   dashboard: 'Dashboard', mis: 'Sales MIS', performance: 'YTD / MTD', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
   inventory: 'Inventory', chat360: 'WhatsApp · Chat360', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
-  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'WhatsApp Chatbots', competitors: 'Competitor Ads',
+  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcampaigns: 'WhatsApp Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'WhatsApp Chatbots', competitors: 'Competitor Ads',
 };
 
 export const viewHref = (view: ViewId) => `/${view}`;
@@ -56,6 +56,7 @@ export function viewAllowed(view: ViewId, settings: SettingsLike, can: (p: Permi
     case 'businessprofile': return on('businessProfile') && can('reports.view');
     case 'dripcampaigns': return on('dripCampaigns') && can('marketing.drip');
     case 'whatsappcredits': return on('whatsappCredits') && can('reports.credits');
+    case 'whatsappcampaigns': return on('whatsappCampaigns') && can('marketing.campaigns');
     case 'chatbots': return on('whatsappBots') && can('marketing.bots');
     case 'competitors': return on('competitorAds') && can('leads.viewAll');
     default: return true;

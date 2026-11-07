@@ -313,6 +313,13 @@ export interface InstagramProfile { account: string; username: string; name: str
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
 export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
 export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
+export interface WaCampaignView {
+  id: string; name: string; status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'stopped'; template: string; language: string; category: string; params: string[]; headerFileId: string; perDay: number; audience: string; skippedAtStart: Record<string, number>; tested: boolean;
+  scheduledAt: string; startedAt: string; finishedAt: string; pauseReason: string; createdBy: string; createdAt: string;
+  stats: { total: number; waiting: number; sent: number; delivered: number; read: number; failed: number; skipped: number; replied: number; credits: number };
+}
+export interface WaCampaignsOverview { connected: boolean; creditsOn: boolean; prices: Record<string, number>; campaigns: WaCampaignView[] }
+export interface WaCampaignDetail { visits: number; bookings: number; failures: Array<{ name: string; phone: string; error: string }> }
 export interface BotStepView { id: string; type: 'message' | 'question' | 'choice' | 'visit' | 'ai' | 'handoff' | 'end'; text: string; next: string; saveTo: '' | 'name' | 'email' | 'unit' | 'city' | 'budget' | 'purpose' | 'notes'; validate: 'text' | 'email' | 'number'; options: Array<{ id: string; label: string; next: string }>; days: number; times: string[] }
 export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
 export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
@@ -324,7 +331,7 @@ export interface WaCreditsOverview {
   prices: Record<'marketing' | 'utility' | 'authentication' | 'service', number>;
   statement: Array<{ date: string; details: string; credit: number; used: number; balance: number }>;
 }
-export interface WaDirectTemplate { name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string }
+export interface WaDirectTemplate { name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; headerMedia?: string }
 export interface WaSignupConfig { ready: boolean; appId: string; configId: string; version: string; solutionId: string }
 export type WaDirectView =
   | { connected: false; webhookUrl: string; signup: WaSignupConfig }
@@ -546,6 +553,18 @@ export const api = {
     markRead: (phone: string) => request<void>('chat360MarkRead', { phone }),
   },
 
+  campaigns: {
+    list: () => request<WaCampaignsOverview>('waCampaignList', {}),
+    templates: () => request<WaDirectTemplate[]>('waDirectAllTemplates', {}),
+    detail: (id: string) => request<WaCampaignDetail>('waCampaignDetail', { id }),
+    save: (d: { id?: string; name: string; template: string; language: string; params: string[]; headerFileId: string; perDay: number }) => request<{ id: string }>('waCampaignSave', d),
+    setAudience: (d: { id: string; label: string; leadIds?: string[]; list?: Array<{ phone: string; name: string }> }) => request<{ added: number; skipped: Record<string, number> }>('waCampaignAudience', d, { timeoutMs: 90000 }),
+    test: (id: string, phone: string) => request<{ ok: true }>('waCampaignTest', { id, phone }, { timeoutMs: 45000 }),
+    start: (d: { id: string; consent: boolean; at?: string }) => request<{ status: string }>('waCampaignStart', d, { timeoutMs: 45000 }),
+    change: (id: string, action: 'pause' | 'resume' | 'stop' | 'delete') => request<{ ok: true }>('waCampaignChange', { id, action }, { timeoutMs: 30000 }),
+    tick: () => request<{ sent: number; more: boolean }>('waCampaignTick', {}, { timeoutMs: 60000 }),
+  },
+
   bots: {
     list: () => request<BotsOverview>('waBotsList', {}),
     save: (d: { id?: string; name: string; trigger: string; keywords: string; steps: BotStepView[]; knowledge: string }) => request<{ id: string; problems: string[] }>('waBotSave', d),
@@ -566,7 +585,7 @@ export const api = {
     pastChats: () => request<unknown>('waDirectPastChats', {}, { timeoutMs: 45000 }),
     disconnect: () => request<{ ok: true }>('waDirectDisconnect', {}),
     syncTemplates: () => request<{ templates: number }>('waDirectSyncTemplates', {}, { timeoutMs: 60000 }),
-    createTemplate: (d: { name: string; category: string; language: string; body: string; footer: string; examples: string[] }) => request<{ status: string }>('waDirectCreateTemplate', d, { timeoutMs: 30000 }),
+    createTemplate: (d: { name: string; category: string; language: string; body: string; footer: string; examples: string[]; headerMedia?: string; sample?: { name: string; mime: string; base64: string } }) => request<{ status: string }>('waDirectCreateTemplate', d, { timeoutMs: 30000 }),
     deleteTemplate: (name: string) => request<{ ok: true }>('waDirectDeleteTemplate', { name }, { timeoutMs: 30000 }),
     approvedTemplates: () => request<WaDirectTemplate[]>('waDirectApprovedTemplates', {}),
   },

@@ -50,7 +50,7 @@ export async function setPricing(p: WhatsappPricing, by: string) {
 interface Wallet { _id: string; balance: number; held: number; graceMonth?: string; graceUsed?: number; updatedAt?: Date }
 export interface LedgerEntry {
   _id: string; companyId: string; type: 'credit' | 'charge' | 'free'; units: number; costUnits: number; category: string; template: string; agent: string;
-  day: string; at: Date; reference?: string; note?: string; by?: string; estimated?: boolean;
+  day: string; at: Date; reference?: string; note?: string; by?: string; estimated?: boolean; campaignId?: string;
 }
 
 const walletCol = () => col<Wallet>('whatsappWallet');
@@ -141,7 +141,7 @@ export async function settleMessage(row: any, pricing: { billable?: boolean; cat
   const units = free ? 0 : toUnits(rates.prices[category]);
   const entry: LedgerEntry = {
     _id: `charge:${row._id}`, companyId: companyId(), type: free ? 'free' : 'charge', units: -units, costUnits: free ? 0 : toUnits(rates.costs[category]), category,
-    template: String(row.creditTemplate || ''), agent: String(row.agent || ''), day: dateKey(now), at: now, ...(billable === undefined ? { estimated: true } : {}),
+    template: String(row.creditTemplate || ''), agent: String(row.agent || ''), day: dateKey(now), at: now, ...(billable === undefined ? { estimated: true } : {}), ...(row.campaignId ? { campaignId: String(row.campaignId) } : {}),
   };
   try {
     await (await ledgerCol()).insertOne(entry);

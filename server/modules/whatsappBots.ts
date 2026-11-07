@@ -263,7 +263,7 @@ const matchesKeyword = (text: string, words: string[]) => {
 export async function shouldStart(bot: BotDoc, phoneKey: string, messageId: string, text: string, now: Date): Promise<boolean> {
   const since = new Date(now.getTime() - DAY_MS);
   const m = await msgs();
-  if (await m.findOne({ phoneLast10: phoneKey, direction: 'Outbound', agent: { $nin: ['Chatbot', 'System', 'Automation', ''] }, timestamp: { $gte: since } }, { projection: { _id: 1 } })) return false;
+  if (await m.findOne({ phoneLast10: phoneKey, direction: 'Outbound', agent: { $nin: ['Chatbot', 'Campaign', 'System', 'Automation', ''] }, timestamp: { $gte: since } }, { projection: { _id: 1 } })) return false;
   if (await (await sessionsCol()).findOne({ phoneLast10: phoneKey, lastAt: { $gte: since } }, { projection: { _id: 1 } })) return bot.trigger === 'keyword' && matchesKeyword(text, bot.keywords);
   if (bot.trigger === 'keyword') return matchesKeyword(text, bot.keywords);
   if (bot.trigger === 'any') return true;

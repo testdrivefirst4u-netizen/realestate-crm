@@ -61,6 +61,8 @@ export interface TenantFeatures {
   whatsappCredits: boolean;
   /** Chatbots built by the company, on a direct WhatsApp connection. */
   whatsappBots: boolean;
+  /** Templates sent to many people, on a direct WhatsApp connection. */
+  whatsappCampaigns: boolean;
 }
 
 export interface Tenant {
