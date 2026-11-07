@@ -331,7 +331,7 @@ export interface WaCreditsOverview {
   prices: Record<'marketing' | 'utility' | 'authentication' | 'service', number>;
   statement: Array<{ date: string; details: string; credit: number; used: number; balance: number }>;
 }
-export interface WaDirectTemplate { name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; headerMedia?: string }
+export interface WaDirectTemplate { name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; headerMedia?: string; headerText?: string; footer?: string; buttons?: Array<{ type: string; text: string }> }
 export interface WaSignupConfig { ready: boolean; appId: string; configId: string; version: string; solutionId: string }
 export type WaDirectView =
   | { connected: false; webhookUrl: string; signup: WaSignupConfig }

@@ -1,15 +1,17 @@
 /** Making a campaign, in five steps: name and template, who gets it, values, a test, then send or schedule. */
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { api, type WaCampaignView, type WaDirectTemplate } from '../../core/api';
 import { F } from '../../core/config';
 import { reportError, toAppError } from '../../core/errors';
+import { useCompany } from '../../core/tenant';
 import { readXlsxRows } from '../../core/xlsx';
 import { parseCsvText } from '../../services/csvService';
 import { SegmentationService } from '../../services/segmentationService';
 import type { ClientSegment, Lead } from '../../types/crm';
 import { Button, Field, InlineNotice, Modal, Select, cx, inputCls } from '../../components/ui';
-import { VALUE_FIELDS, filterLeads, parseAudienceRows, type ListRow } from './campaignAudience';
+import { VALUE_FIELDS, fillPreviewValue, filterLeads, leadToPerson, parseAudienceRows, peopleMissingValues, type ListRow, type PreviewPerson } from './campaignAudience';
+import { TemplatePreview } from './TemplatePreview';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const STEPS = ['Template', 'Who gets it', 'Values', 'Test', 'Send'];
@@ -39,9 +41,17 @@ export const CampaignWizard: React.FC<{
   const [step, setStep] = useState(0);
   const [name, setName] = useState(existing?.name || '');
   const [pick, setPick] = useState(existing ? `${existing.template}:${existing.language}` : '');
-  const [values, setValues] = useState<Record<string, string>>({});
+  // a draft comes back with what was typed
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const t = existing && usable.find((x) => x.name === existing.template && x.language === existing.language);
+    return t ? Object.fromEntries(t.paramNames.map((n, i) => [n, existing!.params[i] || ''])) : {};
+  });
   const [headerFileId, setHeaderFileId] = useState(existing?.headerFileId || '');
   const [headerName, setHeaderName] = useState('');
+  const [mediaUrl, setMediaUrl] = useState(existing?.headerFileId ? `/api/files/${existing.headerFileId}` : '');
+  const [sampleAt, setSampleAt] = useState(0);
+  const company = useCompany();
+  const companyName = String(company?.name || 'Your business');
   const [perDay, setPerDay] = useState(existing?.perDay || 250);
   const [source, setSource] = useState<'leads' | 'segment' | 'file'>('leads');
   const [segmentId, setSegmentId] = useState('');
@@ -71,6 +81,11 @@ export const CampaignWizard: React.FC<{
   const audienceCount = source === 'file' ? list.length : chosenLeads.length;
   const needsAFilter = source === 'leads' && !filters.stages.length && !filters.sources.length && !filters.rms.length;
   const price = template ? prices[template.category.toLowerCase()] ?? prices.marketing : 0;
+  const people = useMemo<PreviewPerson[]>(() => (source === 'file' ? list.map((r) => ({ label: r.name || 'No name', name: r.name, rm: '', unit: '' })) : chosenLeads.map(leadToPerson)), [source, list, chosenLeads]);
+  const person: PreviewPerson = people[Math.min(sampleAt, Math.max(people.length - 1, 0))] || { label: 'Sample customer', name: 'Sample Customer', rm: 'Your RM', unit: 'Sample unit' };
+  const specs = template ? template.paramNames.map((n) => values[n] || '') : [];
+  const previewValues = specs.map((s) => (s.trim() ? fillPreviewValue(s, person, companyName) : ''));
+  const missing = useMemo(() => peopleMissingValues(specs, people, companyName), [specs.join('\u0000'), people, companyName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (scope: string, fn: () => Promise<void>) => {
     setBusy(true);
@@ -100,6 +115,7 @@ export const CampaignWizard: React.FC<{
     if (up.kind !== template?.headerMedia) throw new Error(`This template needs a ${template?.headerMedia}.`);
     setHeaderFileId(up.fileId);
     setHeaderName(file.name);
+    setMediaUrl(URL.createObjectURL(file));
   });
   const saveDraft = async () => {
     const r = await api.campaigns.save({ id: id || undefined, name, template: template!.name, language: template!.language, params: template!.paramNames.map((n) => values[n] || ''), headerFileId, perDay });
@@ -151,11 +167,12 @@ export const CampaignWizard: React.FC<{
         {STEPS.map((s, i) => <li key={s} aria-current={i === step ? 'step' : undefined} className={cx('inline-flex items-center gap-1.5 font-semibold', i === step ? 'text-[#0B6BB0]' : i < step ? 'text-[#067647]' : 'text-[#7E93A6]')}><span className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[10px]', i === step ? 'bg-[#0B6BB0] text-white' : i < step ? 'bg-[#E7F6EE]' : 'bg-[#EEF2F6]')}>{i < step ? <Check size={11} aria-hidden="true" /> : i + 1}</span>{s}</li>)}
       </ol>
 
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_270px]">
+      <div className="min-w-0">
       {step === 0 && (
         <div className="space-y-3">
           <Field label="Campaign name"><input className={inputCls} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="Diwali offer, Skyline Towers" autoFocus /></Field>
           <Field label="Template" hint="Only templates Meta has approved. Add more on the Templates tab."><Select value={pick} onChange={(e) => { setPick(e.target.value); setValues({}); setHeaderFileId(''); }} placeholder="Choose" options={usable.map((t) => ({ value: `${t.name}:${t.language}`, label: `${t.name} (${t.language}, ${t.category.toLowerCase()})` }))} /></Field>
-          {template && <div className="whitespace-pre-wrap break-words rounded-lg bg-[#D9FDD3] p-3 text-[13px] text-[#111B21]">{template.body}</div>}
         </div>
       )}
 
@@ -239,6 +256,26 @@ export const CampaignWizard: React.FC<{
         </div>
       )}
       {problem && <InlineNotice tone="warning" className="mt-3">{problem}</InlineNotice>}
+      </div>
+
+      <aside className="md:sticky md:top-0 md:self-start">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#5E778C]">Preview</p>
+        <TemplatePreview template={template} values={previewValues} business={companyName} mediaUrl={mediaUrl} mediaName={headerName} />
+        {template && (
+          <div className="mt-2 text-[11px] text-[#5E778C]">
+            {people.length > 1 ? (
+              <div className="flex items-center gap-1">
+                <Button variant="secondary" size="xs" icon={<ChevronLeft size={12} />} aria-label="Previous person" disabled={sampleAt <= 0} onClick={() => setSampleAt(Math.max(0, sampleAt - 1))} />
+                <span className="min-w-0 flex-1 truncate text-center" aria-live="polite"><b className="font-semibold text-[#0B2A44]">{person.label}</b> · {(Math.min(sampleAt, people.length - 1) + 1).toLocaleString('en-IN')} of {people.length.toLocaleString('en-IN')}</span>
+                <Button variant="secondary" size="xs" icon={<ChevronRight size={12} />} aria-label="Next person" disabled={sampleAt >= people.length - 1} onClick={() => setSampleAt(Math.min(people.length - 1, sampleAt + 1))} />
+              </div>
+            ) : <p className="text-center">{people.length === 1 ? <>For <b className="font-semibold text-[#0B2A44]">{person.label}</b></> : 'With sample details, until you choose people'}</p>}
+            {missing > 0 && <p className="mt-1.5 flex items-start gap-1 text-[#93370D]"><AlertTriangle size={12} className="mt-px flex-none" aria-hidden="true" />{missing.toLocaleString('en-IN')} {missing === 1 ? 'person is' : 'people are'} missing a value here, and would not get this.</p>}
+            <p className="mt-1.5">It may look slightly different on each phone. Your test message shows the real thing.</p>
+          </div>
+        )}
+      </aside>
+      </div>
     </Modal>
   );
 };

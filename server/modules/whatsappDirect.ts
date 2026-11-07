@@ -43,7 +43,7 @@ type ConnectMode = 'manual' | 'cloud' | 'coexistence';
 interface SyncState { contactsAt?: Date; contactsRequestId?: string; historyAt?: Date; historyRequestId?: string; progress?: number; declined?: boolean; error?: string }
 interface ConnectionDoc { _id: typeof DOC_ID; phoneNumberId: string; wabaId: string; token: string; displayPhone: string; verifiedName: string; connectedAt: Date; connectedBy: string; mode?: ConnectMode; pin?: string; sync?: SyncState }
 interface NumberClaim { _id: string; companyId: string; wabaId: string; claimedAt: Date }
-interface TemplateDoc { _id: string; name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; syncedAt: Date; headerMedia?: string }
+interface TemplateDoc { _id: string; name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; syncedAt: Date; headerMedia?: string; headerText?: string; footer?: string; buttons?: Array<{ type: string; text: string }> }
 
 const connectionCol = () => col<ConnectionDoc>(CFG.COLL.INTEGRATIONS);
 const templatesCol = () => col<TemplateDoc>('whatsappTemplates');
@@ -286,7 +286,7 @@ export async function disconnectDirect(ctx: Ctx): Promise<{ ok: true }> {
   return { ok: true };
 }
 
-const templateView = (t: TemplateDoc) => ({ name: t.name, language: t.language, status: t.status, category: t.category, body: t.body, paramNames: t.paramNames, sendable: t.sendable, notSendable: t.notSendable, reason: t.reason, headerMedia: t.headerMedia || '' });
+const templateView = (t: TemplateDoc) => ({ name: t.name, language: t.language, status: t.status, category: t.category, body: t.body, paramNames: t.paramNames, sendable: t.sendable, notSendable: t.notSendable, reason: t.reason, headerMedia: t.headerMedia || '', headerText: t.headerText || '', footer: t.footer || '', buttons: t.buttons || [] });
 
 export async function getDirect() {
   const c = await connection();
@@ -319,7 +319,7 @@ export function templateParams(body: string): string[] {
 }
 
 /** What the CRM can fill today: words in the body. A picture in the header or a value in a button needs more than that. */
-export function readTemplate(raw: any): Omit<TemplateDoc, '_id' | 'syncedAt'> & { headerMedia: string } {
+export function readTemplate(raw: any): Omit<TemplateDoc, '_id' | 'syncedAt'> & { headerMedia: string; headerText: string; footer: string; buttons: Array<{ type: string; text: string }> } {
   const parts: any[] = Array.isArray(raw?.components) ? raw.components : [];
   const body = str(parts.find((c) => c.type === 'BODY')?.text);
   const header = parts.find((c) => c.type === 'HEADER');
@@ -336,7 +336,7 @@ export function readTemplate(raw: any): Omit<TemplateDoc, '_id' | 'syncedAt'> & 
     headerMedia = format.toLowerCase();
     notSendable = `It has a ${headerMedia} in its header. Send it from WhatsApp Campaigns.`;
   }
-  return { name: str(raw?.name), language: str(raw?.language), status: str(raw?.status), category: str(raw?.category), body, paramNames: templateParams(body), sendable: !notSendable, notSendable, headerMedia, reason: str(raw?.rejected_reason) === 'NONE' ? '' : str(raw?.rejected_reason) };
+  return { name: str(raw?.name), language: str(raw?.language), status: str(raw?.status), category: str(raw?.category), body, paramNames: templateParams(body), sendable: !notSendable, notSendable, headerMedia, headerText: format === 'TEXT' ? str(header?.text) : '', footer: str(parts.find((c) => c.type === 'FOOTER')?.text), buttons: buttons.map((b) => ({ type: str(b.type), text: str(b.text) })).filter((b) => b.text), reason: str(raw?.rejected_reason) === 'NONE' ? '' : str(raw?.rejected_reason) };
 }
 
 const templateId = (name: string, language: string) => `${name}:${language}`;
@@ -430,7 +430,7 @@ export async function createTemplate(d: any, ctx: Ctx): Promise<{ status: string
     throw refused(e, 'Meta did not accept this template');
   }
   const status = str(r.status) || 'PENDING';
-  await (await templatesCol()).replaceOne({ _id: templateId(t.name, t.language) }, { name: t.name, language: t.language, status, category: str(r.category) || t.category, body: t.body, paramNames: templateParams(t.body), sendable: !headerMedia, notSendable: headerMedia ? `It has a ${headerMedia} in its header. Send it from WhatsApp Campaigns.` : '', headerMedia, reason: '', syncedAt: new Date() }, { upsert: true });
+  await (await templatesCol()).replaceOne({ _id: templateId(t.name, t.language) }, { name: t.name, language: t.language, status, category: str(r.category) || t.category, body: t.body, paramNames: templateParams(t.body), sendable: !headerMedia, notSendable: headerMedia ? `It has a ${headerMedia} in its header. Send it from WhatsApp Campaigns.` : '', headerMedia, footer: t.footer, reason: '', syncedAt: new Date() }, { upsert: true });
   await auditLog(ctx, 'WhatsApp Template Created', 'Settings', t.name, t.category);
   return { status };
 }

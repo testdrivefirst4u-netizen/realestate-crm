@@ -9,6 +9,7 @@ import type { ClientSegment, Lead } from '../../types/crm';
 import { Badge, Button, ConfirmDialog, EmptyState, InlineNotice, LoadingState, Modal, cx, inputCls } from '../../components/ui';
 import { STATUS as TEMPLATE_STATUS, TemplateModal } from '../settings/WhatsappDirectSection';
 import { CampaignWizard } from './CampaignWizard';
+import { TemplatePreview } from './TemplatePreview';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const STATUS: Record<WaCampaignView['status'], { label: string; tone: 'sage' | 'amber' | 'muted' | 'navy' | 'rust' }> = {
@@ -59,6 +60,7 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
   const [report, setReport] = useState<string>('');
   const [addingTemplate, setAddingTemplate] = useState(false);
   const [removingTemplate, setRemovingTemplate] = useState<WaDirectTemplate | null>(null);
+  const [viewingTemplate, setViewingTemplate] = useState<WaDirectTemplate | null>(null);
   const [stopping, setStopping] = useState<{ c: WaCampaignView; action: 'stop' | 'delete' } | null>(null);
   const [busy, setBusy] = useState('');
 
@@ -198,6 +200,7 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
                       {t.reason && <p className="mt-0.5 text-[11px] text-[#B42318]">Meta's reason: {t.reason.toLowerCase().replace(/_/g, ' ')}</p>}
                       {!t.sendable && !t.headerMedia && <p className="mt-0.5 text-[11px] text-[#8A5A00]">{t.notSendable}</p>}
                     </div>
+                    <Button variant="secondary" size="xs" onClick={() => setViewingTemplate(t)}>Preview</Button>
                     <Button variant="secondary" size="xs" icon={<Trash2 size={12} />} aria-label={`Delete ${t.name}`} onClick={() => setRemovingTemplate(t)} />
                   </li>
                 );
@@ -209,6 +212,7 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
 
       {making && <CampaignWizard leads={leads} segments={segments} stages={stages} sources={sources} rms={rms} templates={templates} creditsOn={data.creditsOn} prices={data.prices} existing={making.existing} onClose={() => { setMaking(null); void load(); }} onDone={() => { setMaking(null); toast('Campaign started', 'You can leave this screen. It keeps sending.', 'success'); void load(); }} />}
       {opened && <Report c={opened} creditsOn={data.creditsOn} onClose={() => setReport('')} />}
+      {viewingTemplate && <Modal open onClose={() => setViewingTemplate(null)} title={viewingTemplate.name} subtitle="Highlighted parts are filled in for each person."><TemplatePreview template={viewingTemplate} className="mx-auto max-w-[300px]" /></Modal>}
       {addingTemplate && <TemplateModal onClose={() => setAddingTemplate(false)} onSaved={() => { setAddingTemplate(false); void load(); }} />}
       <ConfirmDialog open={!!stopping} danger title={stopping?.action === 'stop' ? 'Stop this campaign?' : 'Delete this draft?'} message={stopping?.action === 'stop' ? `“${stopping.c.name}” stops for good. People not yet messaged will not get it, and it cannot be restarted. To carry on later, pause it instead.` : `“${stopping?.c.name}” will be deleted.`} confirmLabel={stopping?.action === 'stop' ? 'Stop campaign' : 'Delete'} loading={!!stopping && busy === stopping.c.id} onConfirm={() => stopping && void change(stopping.c, stopping.action)} onCancel={() => setStopping(null)} />
       <ConfirmDialog open={!!removingTemplate} danger title="Delete this template?" message={`Meta deletes “${removingTemplate?.name}” in every language, and any campaign still using it will pause.`} confirmLabel="Delete" loading={busy === 'tpl'} onConfirm={async () => { if (!removingTemplate) return; setBusy('tpl'); try { await api.whatsappDirect.deleteTemplate(removingTemplate.name); setRemovingTemplate(null); await load(); } catch (e) { toast('Not deleted', errText('campaigns.deleteTemplate', e), 'alert'); } finally { setBusy(''); } }} onCancel={() => setRemovingTemplate(null)} />

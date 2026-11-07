@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { api, type WaDirectTemplate } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
+import { useCompany } from '../../core/tenant';
 import { Button, Field, InlineNotice, Modal, Select, inputCls } from '../../components/ui';
+import { TemplatePreview } from '../campaigns/TemplatePreview';
 
 export const SendTemplateButton: React.FC<{ phone: string; leadId?: string; onSent: () => void }> = ({ phone, leadId, onSent }) => {
   const [open, setOpen] = useState(false);
@@ -41,7 +43,7 @@ export const SendTemplateButton: React.FC<{ phone: string; leadId?: string; onSe
       setBusy(false);
     }
   };
-  const preview = template ? template.body.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, n) => values[n]?.trim() || m) : '';
+  const company = useCompany();
 
   return (
     <>
@@ -56,7 +58,7 @@ export const SendTemplateButton: React.FC<{ phone: string; leadId?: string; onSe
               <Field label="Template"><Select value={picked} onChange={(e) => { setPicked(e.target.value); setValues({}); }} placeholder="Choose" options={list.map((t) => ({ value: keyOf(t), label: `${t.name} (${t.language})` }))} /></Field>
             )}
             {template?.paramNames.map((n) => <Field key={n} label={`Value for {{${n}}}`}><input className={inputCls} value={values[n] || ''} maxLength={1000} onChange={(e) => setValues((v) => ({ ...v, [n]: e.target.value }))} /></Field>)}
-            {template && <div className="whitespace-pre-wrap break-words rounded-lg bg-[#D9FDD3] p-3 text-[13px] text-[#111B21]">{preview}</div>}
+            {template && <TemplatePreview template={template} values={template.paramNames.map((n) => values[n]?.trim() || '')} business={String(company?.name || 'Your business')} className="mx-auto max-w-[280px]" />}
             {problem && <InlineNotice tone="warning">{problem}</InlineNotice>}
           </div>
         </Modal>

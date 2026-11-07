@@ -32,3 +32,42 @@ export function filterLeads(leads: Lead[], f: LeadFilters): Lead[] {
 
 /** What each value can be filled from. */
 export const VALUE_FIELDS = [{ token: '{first_name}', label: 'First name' }, { token: '{name}', label: 'Full name' }, { token: '{rm}', label: 'Their RM' }, { token: '{unit}', label: 'Unit interested in' }, { token: '{company}', label: 'Company name' }];
+
+/* -------------------------------- the preview -------------------------------- */
+
+export interface PreviewPerson { label: string; name: string; rm: string; unit: string }
+
+const PLACEHOLDER_NAME = /^(whatsapp\b|unknown$|\+?\d[\d\s-]*$)/i;
+
+/** One value for one person, by the same rules as sending (server: whatsappCampaigns.fillValue). */
+export function fillPreviewValue(spec: string, p: PreviewPerson, company: string): string {
+  const name = p.name && !PLACEHOLDER_NAME.test(p.name.trim()) ? p.name.trim() : '';
+  const vars: Record<string, string> = { name: name || 'there', first_name: name.split(/\s+/)[0] || 'there', rm: p.rm, unit: p.unit, company };
+  return String(spec || '').replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '').trim();
+}
+
+/** How many of these people would fail for a value left empty. */
+export function peopleMissingValues(specs: string[], people: PreviewPerson[], company: string): number {
+  return people.filter((p) => specs.some((s) => s.trim() && !fillPreviewValue(s, p, company))).length;
+}
+
+export interface PreviewPart { text: string; empty: boolean }
+
+/** The message in pieces, so a blank still to fill can stand out. */
+export function previewBody(body: string, names: string[], values: string[]): PreviewPart[] {
+  const parts: PreviewPart[] = [];
+  let at = 0;
+  for (const m of String(body || '').matchAll(/\{\{\s*(\w+)\s*\}\}/g)) {
+    if (m.index > at) parts.push({ text: body.slice(at, m.index), empty: false });
+    const value = values[names.indexOf(m[1])] || '';
+    parts.push(value ? { text: value, empty: false } : { text: m[0], empty: true });
+    at = m.index + m[0].length;
+  }
+  if (at < String(body || '').length) parts.push({ text: body.slice(at), empty: false });
+  return parts;
+}
+
+export function leadToPerson(l: Lead): PreviewPerson {
+  const name = String(l[F.NAME] || '');
+  return { label: name || 'No name', name, rm: String(l[F.RM] || ''), unit: String(l[F.UNIT_TYPE] || '') };
+}
