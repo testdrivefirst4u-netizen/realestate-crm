@@ -1,22 +1,13 @@
 /** WhatsApp chatbots (plan feature whatsappBots; server: modules/whatsappBots.ts): build from blocks, try it in a test chat, start it, see how it does. */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Bot, Pause, Pencil, Play, Plus, Send, Trash2, X } from 'lucide-react';
+import { Bot, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
 import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { Badge, Button, Card, ConfirmDialog, EmptyState, Field, InlineNotice, LoadingState, Modal, Select, cx, inputCls } from '../../components/ui';
+import { Badge, Button, Card, ConfirmDialog, EmptyState, InlineNotice, LoadingState, Modal, inputCls } from '../../components/ui';
+import { BotFlowEditor, type BotDraft } from './BotFlowEditor';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
-const TYPES: Array<{ id: BotStepView['type']; label: string; hint: string }> = [
-  { id: 'message', label: 'Send a message', hint: 'Sends this, then carries on.' },
-  { id: 'question', label: 'Ask a question', hint: 'Waits for a typed answer, and can save it on the lead.' },
-  { id: 'choice', label: 'Offer choices', hint: 'Up to 3 become buttons, up to 10 a list. Each can lead somewhere different.' },
-  { id: 'visit', label: 'Book a site visit', hint: 'Offers days, then times, and schedules the visit on the lead.' },
-  { id: 'ai', label: 'AI answers questions', hint: 'Answers only from what you write below. Anything else goes to your team.' },
-  { id: 'handoff', label: 'Hand to the team', hint: 'Says this, stops the bot and alerts the RM.' },
-  { id: 'end', label: 'End the chat', hint: 'Says this, if anything, and stops.' },
-];
-const SAVE_OPTIONS = [{ value: '', label: 'Do not save' }, { value: 'name', label: 'Name' }, { value: 'email', label: 'E-mail' }, { value: 'unit', label: 'Unit interested in' }, { value: 'city', label: 'City' }, { value: 'budget', label: 'Budget' }, { value: 'purpose', label: 'Purpose' }, { value: 'notes', label: 'Add as a remark' }];
 const STATUS: Record<BotView['status'], { label: string; tone: 'sage' | 'amber' | 'muted' }> = { active: { label: 'Running', tone: 'sage' }, paused: { label: 'Paused', tone: 'amber' }, draft: { label: 'Draft', tone: 'muted' } };
 const TRIGGER: Record<BotView['trigger'], string> = { new: 'First message from a new customer', keyword: 'A customer sends a keyword', any: 'Any customer message, if nobody replied in the last day' };
 
@@ -32,106 +23,9 @@ const starterSteps = (): BotStepView[] => [
   { ...blank('handoff'), text: 'Your visit is noted for {visit}. Our team will call you to confirm. Thank you!' },
 ];
 
-type Draft = { id?: string; name: string; trigger: BotView['trigger']; keywords: string; steps: BotStepView[]; knowledge: string };
+type Draft = BotDraft;
 const toDraft = (b: BotView): Draft => ({ id: b.id, name: b.name, trigger: b.trigger, keywords: b.keywords.join(', '), steps: b.steps, knowledge: b.knowledge });
 const newDraft = (): Draft => ({ name: 'Property enquiry', trigger: 'new', keywords: '', steps: starterSteps(), knowledge: '' });
-
-const StepEditor: React.FC<{ step: BotStepView; index: number; all: BotStepView[]; aiAvailable: boolean; onChange: (s: BotStepView) => void; onMove: (d: -1 | 1) => void; onRemove: () => void }> = ({ step, index, all, aiAvailable, onChange, onMove, onRemove }) => {
-  const set = <K extends keyof BotStepView>(k: K, v: BotStepView[K]) => onChange({ ...step, [k]: v });
-  const goTo = [{ value: '', label: 'The next step' }, ...all.filter((s) => s.id !== step.id).map((s) => ({ value: s.id, label: `Step ${all.indexOf(s) + 1}: ${(s.text || TYPES.find((t) => t.id === s.type)!.label).slice(0, 34)}` }))];
-  const info = TYPES.find((t) => t.id === step.type)!;
-  const setOption = (i: number, patch: Partial<BotStepView['options'][number]>) => set('options', step.options.map((o, j) => (j === i ? { ...o, ...patch } : o)));
-  return (
-    <section className="rounded-xl border border-[#D3E3F0] bg-white p-3" aria-label={`Step ${index + 1}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-[#E3EEF7] text-[11px] font-bold text-[#0B5E9C]">{index + 1}</span>
-        <div className="min-w-[180px] flex-1"><Select value={step.type} aria-label="Kind of step" onChange={(e) => onChange({ ...blank(e.target.value as BotStepView['type']), id: step.id, text: step.text })} options={TYPES.filter((t) => t.id !== 'ai' || aiAvailable || step.type === 'ai').map((t) => ({ value: t.id, label: t.label }))} /></div>
-        <span className="flex gap-1">
-          <Button variant="secondary" size="xs" icon={<ArrowUp size={12} />} aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} />
-          <Button variant="secondary" size="xs" icon={<ArrowDown size={12} />} aria-label="Move down" disabled={index === all.length - 1} onClick={() => onMove(1)} />
-          <Button variant="secondary" size="xs" icon={<X size={12} />} aria-label="Remove step" onClick={onRemove} />
-        </span>
-      </div>
-      <p className="mt-1 text-[11px] text-[#5E778C]">{info.hint}</p>
-      <textarea className={cx(inputCls, 'mt-2')} rows={2} maxLength={1024} value={step.text} onChange={(e) => set('text', e.target.value)} aria-label="Message" placeholder={step.type === 'end' || step.type === 'visit' || step.type === 'handoff' ? 'Message (optional)' : 'Message'} />
-      {step.type === 'question' && (
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <Field label="Save the answer as"><Select value={step.saveTo} onChange={(e) => set('saveTo', e.target.value as BotStepView['saveTo'])} options={SAVE_OPTIONS} /></Field>
-          <Field label="Answer must be"><Select value={step.validate} onChange={(e) => set('validate', e.target.value as BotStepView['validate'])} options={[{ value: 'text', label: 'Any text' }, { value: 'email', label: 'An e-mail address' }, { value: 'number', label: 'A number' }]} /></Field>
-        </div>
-      )}
-      {step.type === 'choice' && (
-        <div className="mt-2 space-y-1.5">
-          <Field label="Save the choice as"><Select value={step.saveTo} onChange={(e) => set('saveTo', e.target.value as BotStepView['saveTo'])} options={SAVE_OPTIONS} /></Field>
-          {step.options.map((o, i) => (
-            <div key={o.id} className="flex flex-wrap items-center gap-1.5">
-              <input className={cx(inputCls, 'min-w-[120px] !w-auto flex-1')} maxLength={24} value={o.label} onChange={(e) => setOption(i, { label: e.target.value })} placeholder={`Option ${i + 1}`} aria-label={`Option ${i + 1}`} />
-              <div className="min-w-[150px] flex-1"><Select value={o.next} aria-label={`Option ${i + 1} goes to`} onChange={(e) => setOption(i, { next: e.target.value })} options={goTo} /></div>
-              <Button variant="secondary" size="xs" icon={<X size={12} />} aria-label={`Remove option ${i + 1}`} onClick={() => set('options', step.options.filter((_, j) => j !== i))} />
-            </div>
-          ))}
-          {step.options.length < 10 && <Button variant="secondary" size="xs" icon={<Plus size={12} />} onClick={() => set('options', [...step.options, { id: newId('o'), label: '', next: '' }])}>Add option</Button>}
-          <p className="text-[11px] text-[#5E778C]">{step.options.length > 3 ? 'WhatsApp will show these as a list, up to 24 characters each.' : 'WhatsApp will show these as buttons. Over 20 characters becomes a list.'}</p>
-        </div>
-      )}
-      {step.type === 'visit' && (
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <Field label="Days to offer, from tomorrow"><input className={inputCls} type="number" min={1} max={10} value={step.days} onChange={(e) => set('days', Number(e.target.value))} /></Field>
-          <Field label="Times" hint="Separate with commas, like 11:00, 15:30"><input className={inputCls} value={step.times.join(', ')} onChange={(e) => set('times', e.target.value.split(',').map((x) => x.trim()).filter(Boolean))} /></Field>
-        </div>
-      )}
-      {step.type !== 'choice' && step.type !== 'handoff' && step.type !== 'end' && <div className="mt-2"><Field label="Then go to"><Select value={step.next} onChange={(e) => set('next', e.target.value)} options={goTo} /></Field></div>}
-    </section>
-  );
-};
-
-const BotEditor: React.FC<{ draft: Draft; aiAvailable: boolean; onClose: () => void; onSaved: (id: string, problems: string[]) => void }> = ({ draft, aiAvailable, onClose, onSaved }) => {
-  const [d, setD] = useState(draft);
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState('');
-  const steps = d.steps;
-  const setSteps = (s: BotStepView[]) => setD((x) => ({ ...x, steps: s }));
-  const save = async () => {
-    setBusy(true);
-    setProblem('');
-    try {
-      const r = await api.bots.save({ ...d, keywords: d.keywords });
-      onSaved(r.id, r.problems);
-    } catch (e) {
-      setProblem(errText('bots.save', e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal open onClose={onClose} width="lg" title={d.id ? `Edit ${draft.name}` : 'New chatbot'}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={() => void save()}>Save</Button></>}>
-      <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name"><input className={inputCls} maxLength={80} value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} /></Field>
-          <Field label="Starts when"><Select value={d.trigger} onChange={(e) => setD({ ...d, trigger: e.target.value as Draft['trigger'] })} options={(Object.keys(TRIGGER) as Array<BotView['trigger']>).map((k) => ({ value: k, label: TRIGGER[k] }))} /></Field>
-        </div>
-        {d.trigger === 'keyword' && <Field label="Keywords" hint="Separate with commas, like price, brochure"><input className={inputCls} value={d.keywords} onChange={(e) => setD({ ...d, keywords: e.target.value })} /></Field>}
-        <p className="text-[11px] text-[#5E778C]">You can use {'{name}'}, {'{first_name}'}, {'{company}'}, {'{unit}'}, {'{visit}'} in messages. Anyone who says STOP, or asks for a person, leaves the bot at any point.</p>
-        <div className="space-y-2">
-          {steps.map((s, i) => (
-            <StepEditor key={s.id} step={s} index={i} all={steps} aiAvailable={aiAvailable}
-              onChange={(n) => setSteps(steps.map((x) => (x.id === s.id ? n : x)))}
-              onMove={(dir) => { const c = [...steps]; c.splice(i, 1); c.splice(i + dir, 0, s); setSteps(c); }}
-              onRemove={() => setSteps(steps.filter((x) => x.id !== s.id))} />
-          ))}
-          <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={() => setSteps([...steps, blank()])}>Add step</Button>
-        </div>
-        {(steps.some((s) => s.type === 'ai') || d.knowledge) && (
-          <Field label="What the AI may use" hint="Projects, prices, locations, amenities, timings. It answers only from this, in up to 6 replies a chat. Keep it current: a wrong price here goes to customers.">
-            <textarea className={inputCls} rows={6} maxLength={20000} value={d.knowledge} onChange={(e) => setD({ ...d, knowledge: e.target.value })} />
-          </Field>
-        )}
-        {problem && <InlineNotice tone="warning">{problem}</InlineNotice>}
-      </div>
-    </Modal>
-  );
-};
 
 type Line = { from: 'bot' | 'you' | 'note'; o?: BotOutgoing; text?: string };
 
@@ -279,7 +173,7 @@ export const ChatbotsView: React.FC = () => {
           </Card>
         );
       })}
-      {editing && <BotEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} />}
+      {editing && <BotFlowEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} />}
       {testing && <TestChat bot={testing} onClose={() => { setTesting(null); void load(); }} onDone={() => undefined} />}
       <ConfirmDialog open={!!removing} danger title="Delete this chatbot?" message={`“${removing?.name}” will be deleted. Chats it already had stay in WhatsApp.`} confirmLabel="Delete" loading={busy === 'remove'} onConfirm={() => void remove()} onCancel={() => setRemoving(null)} />
     </div>
