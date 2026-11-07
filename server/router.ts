@@ -61,6 +61,7 @@ import { actions as socialPostsImportActions } from './modules/socialPostsImport
 import { actions as socialInboxImportActions } from './modules/socialInboxImport';
 import { actions as metaAdsTableActions } from './modules/metaAdsTable';
 import { actions as whatsappDirectActions } from './modules/whatsappDirect';
+import { actions as whatsappProfileActions } from './modules/whatsappProfile';
 import { actions as whatsappCreditActions } from './modules/whatsappCredits';
 import { actions as whatsappBotActions } from './modules/whatsappBots';
 import { actions as whatsappCampaignActions } from './modules/whatsappCampaigns';
@@ -113,6 +114,7 @@ export const registry: ActionMap = {
   ...socialInboxImportActions,
   ...metaAdsTableActions,
   ...whatsappDirectActions,
+  ...whatsappProfileActions,
   ...whatsappCreditActions,
   ...whatsappBotActions,
   ...whatsappCampaignActions,

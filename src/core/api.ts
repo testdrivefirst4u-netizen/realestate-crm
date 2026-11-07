@@ -333,6 +333,7 @@ export interface WaCreditsOverview {
 }
 export interface WaDirectTemplate { name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; headerMedia?: string; headerText?: string; footer?: string; buttons?: Array<{ type: string; text: string }> }
 export interface WaSignupConfig { ready: boolean; appId: string; configId: string; version: string; solutionId: string }
+export interface WaProfileView { profile: { about: string; address: string; description: string; email: string; websites: string[]; vertical: string; picture: string }; name: { current: string; status: string; pending: string; pendingStatus: string; finish: boolean; canChange: boolean; pinSaved: boolean }; displayPhone: string }
 export type WaDirectView =
   | { connected: false; webhookUrl: string; signup: WaSignupConfig }
   | { connected: true; webhookUrl: string; signup: WaSignupConfig; mode: 'manual' | 'cloud' | 'coexistence'; syncOpen: boolean; sync: { contactsAsked: boolean; historyAsked: boolean; progress: number; declined: boolean; error: string }; phoneNumberId: string; wabaId: string; displayPhone: string; verifiedName: string; connectedAt: string; connectedBy: string; lastInboundAt: string; quality: string; platform: string; problem: string; templates: WaDirectTemplate[] };
@@ -580,6 +581,10 @@ export const api = {
 
   whatsappDirect: {
     get: () => request<WaDirectView>('waDirectGet', {}, { timeoutMs: 30000 }),
+    profile: () => request<WaProfileView>('waDirectProfileGet', {}, { timeoutMs: 45000 }),
+    saveProfile: (d: { about: string; address: string; description: string; email: string; websites: string[]; vertical: string; base: WaProfileView['profile']; photo?: { name: string; mime: string; base64: string } }) => request<WaProfileView>('waDirectProfileSave', d, { timeoutMs: 90000 }),
+    requestName: (name: string) => request<WaProfileView>('waDirectNameRequest', { name }, { timeoutMs: 45000 }),
+    finishName: (pin: string) => request<WaProfileView>('waDirectNameFinish', { pin }, { timeoutMs: 45000 }),
     connect: (d: { phoneNumberId: string; wabaId: string; token: string; pin: string }) => request<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }>('waDirectConnect', d, { timeoutMs: 90000 }),
     finishSignup: (d: { code: string; wabaId: string; phoneNumberId: string; keepApp: boolean }) => request<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }>('waDirectFinishSignup', d, { timeoutMs: 90000 }),
     pastChats: () => request<unknown>('waDirectPastChats', {}, { timeoutMs: 45000 }),

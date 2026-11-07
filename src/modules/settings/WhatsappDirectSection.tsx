@@ -6,6 +6,7 @@ import { formatRelative } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, ConfirmDialog, Field, InlineNotice, LoadingState, Modal, Select, cx, inputCls } from '../../components/ui';
+import { WhatsappProfileCard } from './WhatsappProfileCard';
 import { loadSignupSdk, startSignup } from './whatsappSignup';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
@@ -210,7 +211,7 @@ export const WhatsappDirectSection: React.FC = () => {
       <ol className="mt-2 list-decimal space-y-1 pl-4">
         <li>Open the Meta app, then WhatsApp › Configuration.</li>
         <li>Callback URL: <code className="break-all rounded bg-white px-1">{data.webhookUrl || 'Your CRM address + /api/webhooks/meta'}</code>. Verify token: the same one as your Meta Leads webhook.</li>
-        <li>Under Webhook fields, subscribe to <b>messages</b>, <b>message_template_status_update</b>, <b>account_update</b>, <b>history</b>, <b>smb_app_state_sync</b> and <b>smb_message_echoes</b>.</li>
+        <li>Under Webhook fields, subscribe to <b>messages</b>, <b>message_template_status_update</b>, <b>account_update</b>, <b>history</b>, <b>smb_app_state_sync</b>, <b>smb_message_echoes</b> and <b>phone_number_name_update</b>.</li>
       </ol>
     </details>
   );
@@ -253,6 +254,8 @@ export const WhatsappDirectSection: React.FC = () => {
         {!data.lastInboundAt && <div className="mt-3">{webhook}</div>}
         {changing && <div className="mt-3 border-t border-[#E3EDF5] pt-3"><ConnectForm current={{ phoneNumberId: data.phoneNumberId, wabaId: data.wabaId }} onDone={() => { setChanging(false); void load(); }} onCancel={() => setChanging(false)} /></div>}
       </Card>
+
+      <WhatsappProfileCard onNameChanged={() => void load()} />
 
       <Card title="Templates" subtitle="Meta must approve a template before it can be sent. A customer who has not written in 24 hours can only get one of these."
         actions={<span className="flex gap-1.5"><Button variant="secondary" size="xs" icon={<RefreshCw size={12} className={busy === 'sync' ? 'animate-spin' : ''} />} disabled={!!busy} onClick={() => void act('sync', 'whatsappDirect.sync', () => api.whatsappDirect.syncTemplates(), 'Not refreshed')}>Refresh</Button><Button variant="primary" size="xs" icon={<Plus size={12} />} onClick={() => setAdding(true)}>New template</Button></span>}>

@@ -46,6 +46,7 @@ interface NumberClaim { _id: string; companyId: string; wabaId: string; claimedA
 interface TemplateDoc { _id: string; name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; syncedAt: Date; headerMedia?: string; headerText?: string; footer?: string; buttons?: Array<{ type: string; text: string }> }
 
 const connectionCol = () => col<ConnectionDoc>(CFG.COLL.INTEGRATIONS);
+export const connectionCollection = connectionCol;
 const templatesCol = () => col<TemplateDoc>('whatsappTemplates');
 const claimsCol = () => pc<NumberClaim>(PCOLL.WHATSAPP_NUMBERS);
 const msgs = () => col<any>(CFG.COLL.CHAT_MESSAGES);
@@ -53,7 +54,7 @@ const bookCol = () => col<{ _id: string; name: string; phone: string; at: Date }
 const contactsCol = () => col<any>(CFG.COLL.CHAT_CONTACTS);
 const featureOn = () => !!(currentTenant()?.features as any)?.whatsappDirect;
 
-async function connection(): Promise<ConnectionDoc | null> {
+export async function connection(): Promise<ConnectionDoc | null> {
   return (await connectionCol()).findOne({ _id: DOC_ID });
 }
 
@@ -69,7 +70,7 @@ export class WhatsappApiError extends Error {
 }
 
 /** One call, JSON both ways, never retried: a send that timed out may have gone through, and a retry would message the customer twice. */
-async function call<T = any>(path: string, token: string, opts: { method?: 'GET' | 'POST' | 'DELETE'; body?: unknown; params?: Record<string, string> } = {}): Promise<T> {
+export async function call<T = any>(path: string, token: string, opts: { method?: 'GET' | 'POST' | 'DELETE'; body?: unknown; params?: Record<string, string>; asciiBody?: boolean } = {}): Promise<T> {
   const cfg = await loadMetaConfig();
   const q = new URLSearchParams(opts.params || {});
   if (cfg.appSecret) q.set('appsecret_proof', appSecretProof(token, cfg.appSecret));
@@ -79,7 +80,8 @@ async function call<T = any>(path: string, token: string, opts: { method?: 'GET'
     res = await fetch(url, {
       method: opts.method || 'GET',
       headers: { Authorization: `Bearer ${token}`, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
-      ...(opts.body ? { body: JSON.stringify(opts.body) } : {}),
+      // the profile: Meta asks for emoji escaped, which is still the same JSON
+      ...(opts.body ? { body: opts.asciiBody ? JSON.stringify(opts.body).replace(/[\u007f-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`) : JSON.stringify(opts.body) } : {}),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (e: any) {
@@ -117,7 +119,7 @@ const digitsId = (v: unknown, what: string) => {
   return s;
 };
 
-const refused = (e: any, doing: string) => (e instanceof WhatsappApiError ? fail('VALIDATION', `${doing}: ${e.metaCode === 190 ? 'Meta did not accept this token.' : e.message}`) : e);
+export const refused = (e: any, doing: string) => (e instanceof WhatsappApiError ? fail('VALIDATION', `${doing}: ${e.metaCode === 190 ? 'Meta did not accept this token.' : e.message}`) : e);
 
 export async function connectDirect(d: any, ctx: Ctx, opts: { mode?: ConnectMode; keepPin?: boolean } = {}): Promise<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }> {
   const t = currentTenant();
@@ -392,7 +394,7 @@ const SAMPLE_MIME: Record<string, RegExp> = { image: /^image\/(jpeg|png)$/, vide
 const SAMPLE_MAX = 3 * 1024 * 1024;
 
 /** Meta wants an example of the file for its review, sent through its upload service. It returns a handle to put in the template. */
-async function uploadSample(sample: any, kind: string, token: string): Promise<string> {
+export async function uploadSample(sample: any, kind: string, token: string): Promise<string> {
   const mime = str(sample?.mime).toLowerCase();
   if (!SAMPLE_MIME[kind]?.test(mime)) throw fail('VALIDATION', kind === 'image' ? 'Use a JPG or PNG picture as the example.' : kind === 'video' ? 'Use an MP4 video as the example.' : 'Use a PDF as the example.');
   const data = Buffer.from(str(sample?.base64), 'base64');
@@ -403,10 +405,10 @@ async function uploadSample(sample: any, kind: string, token: string): Promise<s
   const q = new URLSearchParams({ file_name: truncate(str(sample?.name) || 'example', 100), file_length: String(data.length), file_type: mime });
   const started = await fetch(`${base}/${cfg.appId}/uploads?${q}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) }).then((r) => r.json()).catch(() => null);
   const session = str(started?.id);
-  if (!session) throw fail('SERVER', 'Meta did not accept the example file. Please try again.');
+  if (!session) throw fail('SERVER', 'Meta did not accept the file. Please try again.');
   const done = await fetch(`${base}/${session}`, { method: 'POST', headers: { Authorization: `OAuth ${token}`, file_offset: '0' }, body: data, signal: AbortSignal.timeout(60000) }).then((r) => r.json()).catch(() => null);
   const handle = str(done?.h);
-  if (!handle) throw fail('SERVER', 'Meta did not accept the example file. Please try again.');
+  if (!handle) throw fail('SERVER', 'Meta did not accept the file. Please try again.');
   return handle;
 }
 
@@ -875,6 +877,18 @@ export async function handleWhatsappWebhook(body: any): Promise<void> {
         await runWithTenant(tenant, async () => {
           const c = await connection();
           if (c && c.wabaId === waba) await handlePartnerRemoved(c);
+        });
+      } else if (ch?.field === 'phone_number_name_update') {
+        const waba = str(entry?.id);
+        const tenant = await tenantOf(await claims.findOne({ wabaId: waba }));
+        if (!tenant) continue;
+        await runWithTenant(tenant, async () => {
+          const c = await connection();
+          if (!c || c.wabaId !== waba) return;
+          const decision = str(v.decision).toUpperCase();
+          const asked = truncate(str(v.requested_verified_name), 80);
+          if (decision === 'APPROVED') await notifyAdmins(`whatsapp-name-APPROVED-${asked}`, 'New WhatsApp name approved', `Meta approved “${asked}” for ${c.displayPhone}. Finish it in Settings › WhatsApp direct within 14 days, or it has to be reviewed again.`);
+          else if (decision === 'REJECTED') await notifyAdmins(`whatsapp-name-REJECTED-${asked}`, 'New WhatsApp name rejected', `Meta rejected “${asked}” for ${c.displayPhone}. See Settings › WhatsApp direct.`);
         });
       } else if (ch?.field === 'message_template_status_update') {
         const tenant = await tenantOf(await claims.findOne({ wabaId: str(entry?.id) }));
