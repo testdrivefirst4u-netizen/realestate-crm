@@ -91,6 +91,95 @@ function MetaGuide() {
   );
 }
 
+/** BroaddCast's own WhatsApp system user: with it, a client connected through the popup never depends on the token that expires. */
+function WhatsappSystemUser({ s, onSaved }: { s: MetaSettings; onSaved: (m: MetaSettings) => void }) {
+  const toast = useToast();
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const u = s.whatsappSystemUser;
+  const send = async (value: string) => {
+    setBusy(true);
+    setError('');
+    try {
+      onSaved(await call('setWhatsappSystemToken', { token: value }));
+      setToken('');
+      setRemoveOpen(false);
+      toast(value ? 'WhatsApp system user saved. New WhatsApp connections get permanent access.' : 'WhatsApp system user removed.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="space-y-3 border-t border-[#E3EDF5] p-5" aria-label="WhatsApp permanent access">
+      <div>
+        <h3 className="text-[14px] font-semibold text-[#0A1F33]">WhatsApp permanent access</h3>
+        <p className="mt-0.5 text-[13px] text-[#5E778C]">
+          Meta&apos;s signup gives each client a token that expires. With your own system user saved here, the CRM adds it to every client&apos;s WhatsApp account when they connect, and uses its token instead, so their WhatsApp keeps working.
+        </p>
+      </div>
+      {u.saved ? (
+        <p className="text-[13.5px] text-[#233B50]">
+          Saved: system user <span className="font-mono">{u.userId}</span>, {u.expiresAt ? <strong className="font-medium text-[#B54708]">expires {fmtDateTime(u.expiresAt)}</strong> : 'never expires'}.
+        </p>
+      ) : (
+        <p className="text-[13.5px] text-[#4E6779]">Not saved. Clients connected with the Connect WhatsApp button keep their own token, and must connect again before it expires.</p>
+      )}
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (token.trim()) void send(token.trim());
+        }}
+        className="space-y-3"
+      >
+        <TextField
+          label={u.saved ? 'Replace the system user token' : 'System user token'}
+          type="password"
+          value={token}
+          onChange={(e) => {
+            setToken(e.target.value);
+            setError('');
+          }}
+          hint="Business settings › System users › an Admin system user › Generate new token: this app, expiry Never, whatsapp_business_management and whatsapp_business_messaging. It is checked with Meta, stored encrypted and never shown again."
+          autoComplete="new-password"
+          spellCheck={false}
+          maxLength={1000}
+          data-1p-ignore
+          data-lpignore="true"
+        />
+        <ErrorBox message={error} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" loading={busy && !removeOpen} disabled={!token.trim()} icon={<Save className="h-4 w-4" aria-hidden />}>
+            Check and save
+          </Button>
+          {u.saved && (
+            <Button variant="secondary" disabled={busy} onClick={() => setRemoveOpen(true)}>
+              Remove
+            </Button>
+          )}
+        </div>
+      </form>
+      <ConfirmDialog
+        open={removeOpen}
+        onClose={() => {
+          if (!busy) setRemoveOpen(false);
+        }}
+        busy={busy}
+        error={error}
+        onConfirm={() => send('')}
+        tone="danger"
+        title="Remove the WhatsApp system user?"
+        confirmLabel="Remove"
+        description="Clients using permanent access go back to their own signup token, which may already have expired. Their WhatsApp could stop until they connect again."
+      />
+    </section>
+  );
+}
+
 function MetaSkeleton() {
   return (
     <div role="status" aria-label="Loading Meta settings" className="space-y-4 p-5">
@@ -451,6 +540,8 @@ export function MetaSettingsCard() {
           </div>
         </form>
       )}
+
+      {s && editable && s.configured && <WhatsappSystemUser s={s} onSaved={settings.setData} />}
 
       <div className="border-t border-[#E3EDF5] p-5">
         <MetaGuide />

@@ -336,7 +336,7 @@ export interface WaSignupConfig { ready: boolean; appId: string; configId: strin
 export interface WaProfileView { profile: { about: string; address: string; description: string; email: string; websites: string[]; vertical: string; picture: string }; name: { current: string; status: string; pending: string; pendingStatus: string; finish: boolean; canChange: boolean; pinSaved: boolean }; displayPhone: string }
 export type WaDirectView =
   | { connected: false; webhookUrl: string; signup: WaSignupConfig }
-  | { connected: true; webhookUrl: string; signup: WaSignupConfig; mode: 'manual' | 'cloud' | 'coexistence'; syncOpen: boolean; sync: { contactsAsked: boolean; historyAsked: boolean; progress: number; declined: boolean; error: string }; phoneNumberId: string; wabaId: string; displayPhone: string; verifiedName: string; connectedAt: string; connectedBy: string; lastInboundAt: string; quality: string; platform: string; problem: string; templates: WaDirectTemplate[] };
+  | { connected: true; webhookUrl: string; signup: WaSignupConfig; mode: 'manual' | 'cloud' | 'coexistence'; syncOpen: boolean; sync: { contactsAsked: boolean; historyAsked: boolean; progress: number; declined: boolean; error: string }; phoneNumberId: string; wabaId: string; displayPhone: string; verifiedName: string; access: { permanent: boolean; expiresAt: string; canSwitch: boolean }; connectedAt: string; connectedBy: string; lastInboundAt: string; quality: string; platform: string; problem: string; templates: WaDirectTemplate[] };
 export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
 export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; at: string }
 /** Search Console (server: modules/searchConsole.ts). */
@@ -588,6 +588,7 @@ export const api = {
     connect: (d: { phoneNumberId: string; wabaId: string; token: string; pin: string }) => request<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }>('waDirectConnect', d, { timeoutMs: 90000 }),
     finishSignup: (d: { code: string; wabaId: string; phoneNumberId: string; keepApp: boolean }) => request<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }>('waDirectFinishSignup', d, { timeoutMs: 90000 }),
     pastChats: () => request<unknown>('waDirectPastChats', {}, { timeoutMs: 45000 }),
+    permanentAccess: () => request<{ ok: true }>('waDirectPermanentAccess', {}, { timeoutMs: 45000 }),
     disconnect: () => request<{ ok: true }>('waDirectDisconnect', {}),
     syncTemplates: () => request<{ templates: number }>('waDirectSyncTemplates', {}, { timeoutMs: 60000 }),
     createTemplate: (d: { name: string; category: string; language: string; body: string; footer: string; examples: string[]; headerMedia?: string; sample?: { name: string; mime: string; base64: string } }) => request<{ status: string }>('waDirectCreateTemplate', d, { timeoutMs: 30000 }),

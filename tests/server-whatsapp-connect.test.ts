@@ -161,7 +161,8 @@ describe('finishing signup', () => {
   });
   it('finds the account and number if the popup message never came', async () => {
     await finish({ wabaId: '', phoneNumberId: '' });
-    expect(hits('/debug_token')).toHaveLength(1);
+    // once to find the account, once more for when the token expires
+    expect(hits('/debug_token')).toHaveLength(2);
     expect(await inCo(() => isConnected())).toBe(true);
   });
   it('asks to choose when an account has several numbers, or says if it has none', async () => {

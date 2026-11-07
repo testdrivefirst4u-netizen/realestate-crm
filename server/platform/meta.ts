@@ -9,7 +9,7 @@ import { encryptSecret } from '../core/settings';
 import { runWithTenant } from '../core/tenant';
 import { randomToken, truncate } from '../core/utils';
 import type { PlatformMetaActions } from '../core/metaTypes';
-import { checkAppToken, DEFAULT_GRAPH_VERSION, getPage, listForms, loadMetaConfig, metaSettingsCol, requireMetaConfig } from '../integrations/meta';
+import { checkAppToken, DEFAULT_GRAPH_VERSION, getPage, inspectToken, listForms, loadMetaConfig, metaSettingsCol, requireMetaConfig } from '../integrations/meta';
 import { sourcesCol } from '../modules/intake';
 import { defaultConfig, toSource } from '../modules/leadSources';
 import { connectPage, errMsg, statusOf, validFormIds } from '../modules/meta';
@@ -30,6 +30,11 @@ export async function getMetaSettings(): Promise<Res<'getMetaSettings'>> {
     capiConfigId: cfg.capiConfigId,
     whatsappConfigId: cfg.whatsappConfigId,
     whatsappSolutionId: cfg.whatsappSolutionId,
+    whatsappSystemUser: {
+      saved: !!doc?.whatsappSystemToken,
+      userId: doc?.whatsappSystemUserId || '',
+      expiresAt: doc?.whatsappSystemToken && doc.whatsappSystemTokenExpiresAt ? new Date(doc.whatsappSystemTokenExpiresAt).toISOString() : '',
+    },
     updatedAt: doc?.updatedAt ? new Date(doc.updatedAt).toISOString() : '',
     updatedBy: doc?.updatedBy || '',
     queue,
@@ -81,6 +86,37 @@ export async function setMetaSettings(d: Req<'setMetaSettings'>, ctx: SaCtx): Pr
   );
   const changed = [secretIn ? 'app secret' : '', verifyPlain ? 'verify token' : ''].filter(Boolean).join(', ');
   await platformAudit(ctx, 'Meta App Set', '', `App ${appId}, Graph ${graphVersion}${loginConfigId ? `, login config ${loginConfigId}` : ''}${changed ? `; changed: ${changed}` : ''}`);
+  return getMetaSettings();
+}
+
+const WHATSAPP_SCOPES = ['whatsapp_business_management', 'whatsapp_business_messaging'];
+
+/** BroaddCast's own WhatsApp system user token. Checked with Meta before it is kept, and never shown again. Empty removes it. */
+export async function setWhatsappSystemToken(d: Req<'setWhatsappSystemToken'>, ctx: SaCtx): Promise<Res<'setWhatsappSystemToken'>> {
+  const c = await metaSettingsCol();
+  const token = String(d?.token ?? '').trim();
+  if (!token) {
+    await c.updateOne({ _id: 'meta' }, { $unset: { whatsappSystemToken: '', whatsappSystemUserId: '', whatsappSystemTokenExpiresAt: '' } });
+    await platformAudit(ctx, 'WhatsApp System User Removed', '', '');
+    return getMetaSettings();
+  }
+  if (token.length < 50 || token.length > 1000 || !NO_SPACE.test(token)) throw fail('VALIDATION', 'That does not look like a whole token. Copy it again with the Copy button on Meta.');
+  const cfg = await requireMetaConfig();
+  if (!(await c.findOne({ _id: 'meta' }))) throw fail('VALIDATION', 'Save the Meta app above first.');
+  let t: Awaited<ReturnType<typeof inspectToken>>;
+  try {
+    t = await inspectToken(token, cfg);
+  } catch (e: any) {
+    throw fail('VALIDATION', `Meta could not check this token: ${errMsg(e)}`);
+  }
+  if (!t.valid) throw fail('VALIDATION', 'Meta says this token is not valid. It may have been revoked, or not copied whole.');
+  if (t.appId !== cfg.appId) throw fail('VALIDATION', `This token was made for another app. Generate it for app ${cfg.appId}.`);
+  if (t.type && t.type !== 'SYSTEM_USER') throw fail('VALIDATION', 'This is not a system user token. Make it in Business settings › System users › Generate new token.');
+  const missing = WHATSAPP_SCOPES.filter((s) => !t.scopes.includes(s));
+  if (missing.length) throw fail('VALIDATION', `The token is missing ${missing.join(' and ')}. Generate it again with both ticked.`);
+  if (!/^\d{5,30}$/.test(t.userId)) throw fail('VALIDATION', 'Meta did not say which system user this token belongs to.');
+  await c.updateOne({ _id: 'meta' }, { $set: { whatsappSystemToken: encryptSecret(token), whatsappSystemUserId: t.userId, whatsappSystemTokenExpiresAt: t.expiresAt, updatedAt: new Date(), updatedBy: actorLabel(ctx) } });
+  await platformAudit(ctx, 'WhatsApp System User Set', '', `System user ${t.userId}, ${t.expiresAt ? `expires ${t.expiresAt.toISOString().slice(0, 10)}` : 'never expires'}`);
   return getMetaSettings();
 }
 

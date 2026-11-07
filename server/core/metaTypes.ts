@@ -140,7 +140,9 @@ export interface MetaSyncReport {
 
 /** Super-admin actions (POST /api/platform/rpc). */
 export interface PlatformMetaActions {
-  getMetaSettings: { req: {}; res: MetaStatus & { verifyToken: string; loginConfigId: string; capiConfigId: string; whatsappConfigId: string; whatsappSolutionId: string; updatedAt: string; updatedBy: string; queue: { pending: number; failed: number; done24h: number } } };
+  getMetaSettings: { req: {}; res: MetaStatus & { verifyToken: string; loginConfigId: string; capiConfigId: string; whatsappConfigId: string; whatsappSolutionId: string; whatsappSystemUser: { saved: boolean; userId: string; expiresAt: string }; updatedAt: string; updatedBy: string; queue: { pending: number; failed: number; done24h: number } } };
+  /** BroaddCast's WhatsApp system user token, checked with Meta; '' removes it. */
+  setWhatsappSystemToken: { req: { token: string }; res: PlatformMetaActions['getMetaSettings']['res'] };
   /** appSecret '' keeps the stored one; verifyToken '__generate__' creates a new random token. */
   setMetaSettings: { req: { appId: string; appSecret?: string; verifyToken?: string; graphVersion?: string; loginConfigId?: string; capiConfigId?: string; whatsappConfigId?: string; whatsappSolutionId?: string }; res: PlatformMetaActions['getMetaSettings']['res'] };
   /** App access token check (GET /oauth/access_token?grant_type=client_credentials). */

@@ -65,6 +65,7 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   getMetaSettings: { fn: () => MA.getMetaSettings() },
   setMetaSettings: { fn: (d, ctx) => MA.setMetaSettings(d, ctx) },
   testMetaSettings: { fn: () => MA.testMetaSettings() },
+  setWhatsappSystemToken: { fn: (d, ctx) => MA.setWhatsappSystemToken(d, ctx) },
   companyMeta: { fn: (d) => MA.companyMeta(d) },
   connectCompanyMetaPage: { fn: (d, ctx) => MA.connectCompanyMetaPage(d, ctx) },
   retryMetaQueue: { fn: (d, ctx) => MA.retryMetaQueue(d, ctx) },

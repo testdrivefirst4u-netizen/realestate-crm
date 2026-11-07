@@ -9,6 +9,29 @@ import { Badge, Button, Card, ConfirmDialog, Field, InlineNotice, LoadingState, 
 import { WhatsappProfileCard } from './WhatsappProfileCard';
 import { loadSignupSdk, startSignup } from './whatsappSignup';
 
+const DAY_MS = 86400000;
+/** Weeks ahead is soon enough to warn: an Admin then has time to connect again. */
+const WARN_DAYS = 14;
+
+type Access = Extract<WaDirectView, { connected: true }>['access'];
+
+/** Whether this number depends on a token that runs out, and when. Quiet when all is well. */
+export function AccessLine({ access, busy, onSwitch, now = Date.now() }: { access: Access; busy: boolean; onSwitch: () => void; now?: number }) {
+  if (access.permanent) return <p className="mt-3 text-xs text-[#3E5A70]">Access to Meta: permanent. It does not expire.</p>;
+  const left = access.expiresAt ? Math.ceil((new Date(access.expiresAt).getTime() - now) / DAY_MS) : null;
+  const soon = left !== null && left <= WARN_DAYS;
+  const when = access.expiresAt ? new Date(access.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  if (left === null && !access.canSwitch) return null;
+  const text = left === null ? 'This number uses its own token from Meta.' : left <= 0 ? `The token from Meta expired on ${when}. Messages stop until it is renewed.` : `The token from Meta expires on ${when}, in ${left} day${left === 1 ? '' : 's'}.`;
+  const fix = access.canSwitch ? '' : left === null ? '' : ' Connect again before then, or save a new token with Change.';
+  return (
+    <InlineNotice tone={soon ? 'warning' : 'info'} className="mt-3">
+      <span>{text}{fix}</span>
+      {access.canSwitch && <span className="mt-2 flex flex-wrap items-center gap-2"><Button variant="primary" size="xs" loading={busy} onClick={onSwitch}>Switch to permanent access</Button><span className="text-[11px]">Then it never expires.</span></span>}
+    </InlineNotice>
+  );
+}
+
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 export const STATUS: Record<string, { label: string; tone: 'sage' | 'amber' | 'muted' | 'rust' }> = {
   APPROVED: { label: 'Approved', tone: 'sage' }, PENDING: { label: 'In review', tone: 'amber' }, IN_APPEAL: { label: 'In appeal', tone: 'amber' }, REJECTED: { label: 'Rejected', tone: 'rust' },
@@ -250,6 +273,7 @@ export const WhatsappDirectSection: React.FC = () => {
         </dl>
         {data.mode === 'coexistence' && <p className="mt-3 text-xs text-[#3E5A70]"><Smartphone size={12} className="mr-1 inline" aria-hidden="true" />Also on the WhatsApp Business app. Open the app on the phone at least every 2 weeks, or Meta disconnects it.</p>}
         {data.problem && <InlineNotice tone="warning" className="mt-3">{data.problem}</InlineNotice>}
+        <AccessLine access={data.access} busy={busy === 'permanent'} onSwitch={() => void act('permanent', 'whatsappDirect.permanentAccess', () => api.whatsappDirect.permanentAccess(), 'Not switched').then((ok) => ok && toast('Permanent access is on', 'This number no longer depends on a token that expires.', 'success'))} />
         {data.mode === 'coexistence' && <PastChats view={data} busy={busy === 'past'} onAsk={() => void act('past', 'whatsappDirect.pastChats', () => api.whatsappDirect.pastChats(), 'Not started')} />}
         {!data.lastInboundAt && <div className="mt-3">{webhook}</div>}
         {changing && <div className="mt-3 border-t border-[#E3EDF5] pt-3"><ConnectForm current={{ phoneNumberId: data.phoneNumberId, wabaId: data.wabaId }} onDone={() => { setChanging(false); void load(); }} onCancel={() => setChanging(false)} /></div>}

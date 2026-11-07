@@ -22,7 +22,7 @@ import { addEvent, addTimeline, logError } from '../core/events';
 import { decryptSecret, encryptSecret, settingsAll } from '../core/settings';
 import { currentTenant, runWithTenant } from '../core/tenant';
 import { bool, e164, last10, safeJsonParse, str, truncate } from '../core/utils';
-import { DEFAULT_GRAPH_VERSION, GRAPH_HOST, appSecretProof, graph, loadMetaConfig } from '../integrations/meta';
+import { DEFAULT_GRAPH_VERSION, GRAPH_HOST, appSecretProof, graph, inspectToken, loadMetaConfig, platformWhatsappUser } from '../integrations/meta';
 import { mapLimit, pc } from '../platform/base';
 import { getTenantById, PCOLL } from '../platform/registry';
 import { notifyAdmins } from './adminAlerts';
@@ -41,7 +41,11 @@ const MEDIA_HOSTS = /(^|\.)(fbcdn\.net|whatsapp\.net|fbsbx\.com|facebook\.com)$/
 
 type ConnectMode = 'manual' | 'cloud' | 'coexistence';
 interface SyncState { contactsAt?: Date; contactsRequestId?: string; historyAt?: Date; historyRequestId?: string; progress?: number; declined?: boolean; error?: string }
-interface ConnectionDoc { _id: typeof DOC_ID; phoneNumberId: string; wabaId: string; token: string; displayPhone: string; verifiedName: string; connectedAt: Date; connectedBy: string; mode?: ConnectMode; pin?: string; sync?: SyncState }
+/**
+ * tokenSource 'platform': BroaddCast's own system user was added to this account, so its never-expiring token is used and the
+ * company's own token stays only as a spare. tokenExpiresAt: when the company's own token stops working (absent: never, or unknown).
+ */
+interface ConnectionDoc { _id: typeof DOC_ID; phoneNumberId: string; wabaId: string; token: string; displayPhone: string; verifiedName: string; connectedAt: Date; connectedBy: string; mode?: ConnectMode; pin?: string; sync?: SyncState; tokenSource?: 'platform'; tokenExpiresAt?: Date | null }
 interface NumberClaim { _id: string; companyId: string; wabaId: string; claimedAt: Date }
 interface TemplateDoc { _id: string; name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string; syncedAt: Date; headerMedia?: string; headerText?: string; footer?: string; buttons?: Array<{ type: string; text: string }> }
 
@@ -54,8 +58,60 @@ const bookCol = () => col<{ _id: string; name: string; phone: string; at: Date }
 const contactsCol = () => col<any>(CFG.COLL.CHAT_CONTACTS);
 const featureOn = () => !!(currentTenant()?.features as any)?.whatsappDirect;
 
+/** The connection with the token to use: the platform's, when this account was handed to it (and it is still saved), else the company's own. */
 export async function connection(): Promise<ConnectionDoc | null> {
-  return (await connectionCol()).findOne({ _id: DOC_ID });
+  const c = await (await connectionCol()).findOne({ _id: DOC_ID });
+  if (c?.tokenSource !== 'platform') return c;
+  const p = await platformWhatsappUser();
+  return p ? { ...c, token: p.encryptedToken } : c;
+}
+
+/**
+ * After a signup: add BroaddCast's own system user to the client's account, so the CRM stops depending on the signup token,
+ * which Meta's configuration makes expire. If that cannot be done, the company keeps its own token and its expiry is shown.
+ */
+export async function adoptPlatformToken(wabaId: string, phoneNumberId: string): Promise<boolean> {
+  const p = await platformWhatsappUser();
+  if (!p) return false;
+  const token = decryptSecret(p.encryptedToken);
+  if (!token) return false;
+  // refused when it is already there (BroaddCast's own account, or a second try): what counts is the check after
+  const assigned = await call(`${wabaId}/assigned_users`, token, { method: 'POST', params: { user: p.userId, tasks: "['MANAGE']" } }).then(() => '', (e: any) => str(e?.message));
+  try {
+    // proof it worked: the platform token can now see this number in this account
+    const list = await call<{ data: any[] }>(`${wabaId}/phone_numbers`, token, { params: { fields: 'id', limit: '100' } });
+    if (!(list.data || []).some((n) => str(n?.id) === phoneNumberId)) throw new Error('the number is not visible to the platform token');
+  } catch (e: any) {
+    await logError('whatsappDirect.adopt', 'UPSTREAM', truncate(`${assigned ? `assign: ${assigned}; ` : ''}check: ${e?.message}`, 500), '', '', { wabaId });
+    return false;
+  }
+  await (await connectionCol()).updateOne({ _id: DOC_ID }, { $set: { tokenSource: 'platform' }, $unset: { tokenExpiresAt: '' } });
+  return true;
+}
+
+/** For a company connected before the platform's system user was saved, or whose switch did not go through at signup. */
+export async function switchToPlatformToken(ctx: Ctx): Promise<{ ok: true }> {
+  const c = await connection();
+  if (!c) throw fail('NOT_CONFIGURED', 'WhatsApp direct is not connected.');
+  if (c.tokenSource === 'platform') return { ok: true };
+  if (!(await platformWhatsappUser())) throw fail('NOT_CONFIGURED', 'Permanent access is not set up on this platform yet.');
+  if (!(await adoptPlatformToken(c.wabaId, c.phoneNumberId))) {
+    throw fail('VALIDATION', 'Meta did not allow it. Permanent access works for numbers connected with the Connect WhatsApp button; a number typed in by hand keeps its own token.');
+  }
+  await auditLog(ctx, 'WhatsApp Permanent Access', 'Settings', DOC_ID, c.displayPhone);
+  await bumpVersion();
+  return { ok: true };
+}
+
+/** When a token stops working, as Meta says. Null: never, or Meta would not say. */
+async function tokenExpiry(token: string): Promise<Date | null> {
+  try {
+    const cfg = await loadMetaConfig();
+    if (!cfg.appId || !cfg.appSecret) return null;
+    return (await inspectToken(token, cfg)).expiresAt;
+  } catch {
+    return null;
+  }
 }
 
 /** Does this company send through Meta? No: nothing is even read for a company without the feature. */
@@ -172,9 +228,16 @@ export async function connectDirect(d: any, ctx: Ctx, opts: { mode?: ConnectMode
   // a different number replaces the old one, whose claim is released
   if (saved && saved.phoneNumberId !== phoneNumberId) await claims.deleteOne({ _id: saved.phoneNumberId, companyId: t.id });
 
+  // the same number saved again without a new token: whichever token it was using stays
+  const keepToken = !typed && !!saved && saved.phoneNumberId === phoneNumberId;
+  const ownToken = keepToken ? (await (await connectionCol()).findOne({ _id: DOC_ID }))?.token || encryptSecret(token) : encryptSecret(token);
+  const expires = keepToken ? saved!.tokenExpiresAt ?? null : await tokenExpiry(token);
   await (await connectionCol()).updateOne(
     { _id: DOC_ID },
-    { $set: { phoneNumberId, wabaId, token: encryptSecret(token), displayPhone, verifiedName: str(info.verified_name), connectedAt: new Date(), connectedBy: ctx.user?.name || 'System', mode: opts.mode || 'manual', ...(opts.keepPin && pin ? { pin: encryptSecret(pin) } : {}), sync: {} } },
+    {
+      $set: { phoneNumberId, wabaId, token: ownToken, displayPhone, verifiedName: str(info.verified_name), connectedAt: new Date(), connectedBy: ctx.user?.name || 'System', mode: opts.mode || 'manual', ...(opts.keepPin && pin ? { pin: encryptSecret(pin) } : {}), sync: {}, ...(expires ? { tokenExpiresAt: expires } : {}) },
+      ...(keepToken ? {} : { $unset: { tokenSource: '' as const, ...(expires ? {} : { tokenExpiresAt: '' as const }) } }),
+    },
     { upsert: true }
   );
   // incoming messages reach the app only once the account is subscribed to it
@@ -241,6 +304,8 @@ export async function finishSignup(d: any, ctx: Ctx): Promise<{ displayPhone: st
     if (str(info?.platform_type) !== 'CLOUD_API') pin = String(crypto.randomInt(100000, 1000000));
   }
   const r = await connectDirect({ phoneNumberId, wabaId, token, pin }, ctx, { mode: keepApp ? 'coexistence' : 'cloud', keepPin: true });
+  // the signup token expires; the platform's own does not
+  await adoptPlatformToken(wabaId, phoneNumberId);
   return { ...r, sync: keepApp ? await requestPastChats() : null };
 }
 
@@ -306,6 +371,7 @@ export async function getDirect() {
   }
   return {
     connected: true as const, webhookUrl, signup, mode: c.mode || 'manual', sync: syncView(c.sync), syncOpen: Date.now() - c.connectedAt.getTime() <= SYNC_WINDOW_MS, phoneNumberId: c.phoneNumberId, wabaId: c.wabaId, displayPhone: c.displayPhone, verifiedName: c.verifiedName,
+    access: { permanent: c.tokenSource === 'platform', expiresAt: c.tokenSource !== 'platform' && c.tokenExpiresAt ? new Date(c.tokenExpiresAt).toISOString() : '', canSwitch: c.tokenSource !== 'platform' && !!(await platformWhatsappUser()) },
     connectedAt: c.connectedAt.toISOString(), connectedBy: c.connectedBy, lastInboundAt: lastIn?.timestamp ? new Date(lastIn.timestamp).toISOString() : '', ...live,
     templates: (await (await templatesCol()).find({}).sort({ name: 1, language: 1 }).toArray()).map(templateView),
   };
@@ -907,6 +973,7 @@ export const actions: ActionMap = {
   waDirectConnect: { fn: (d, ctx) => connectDirect(d, ctx), perm: 'integrations.connect' },
   waDirectFinishSignup: { fn: (d, ctx) => finishSignup(d, ctx), perm: 'integrations.connect' },
   waDirectPastChats: { fn: () => requestPastChats(), perm: 'integrations.connect' },
+  waDirectPermanentAccess: { fn: (_d, ctx) => switchToPlatformToken(ctx), perm: 'integrations.connect' },
   waDirectDisconnect: { fn: (_d, ctx) => disconnectDirect(ctx), perm: 'integrations.connect' },
   // Managers run campaigns, so they manage templates too
   waDirectSyncTemplates: { fn: () => syncTemplatesAction(), perm: 'marketing.campaigns' },

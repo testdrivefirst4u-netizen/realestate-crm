@@ -59,7 +59,8 @@ async function fake(input: any, init: any = {}): Promise<Response> {
   return json(404, { error: { message: `unexpected ${path}` } });
 }
 const plat = () => getClient().then((c) => c!.db(PLATFORM_DB()));
-const toMeta = () => meta.filter((m) => m.url.includes('graph.facebook.com'));
+/** Calls made with the company's token. Meta's token check (debug_token) is the one exception: it takes the token to check in the address, by design, and is signed by the app. */
+const toMeta = () => meta.filter((m) => m.url.includes('graph.facebook.com') && !m.url.includes('/debug_token'));
 const lastSent = () => [...meta].reverse().find((m) => m.url.includes('/messages'))!;
 const connect = (over: Record<string, unknown> = {}) => inCo(() => connectDirect({ phoneNumberId: NUMBER_ID, wabaId: WABA, token: TOKEN, ...over }, ctx));
 const chat360Ready = () => inCo(async () => {

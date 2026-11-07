@@ -48,8 +48,27 @@ export interface MetaSettingsDoc {
   whatsappConfigId?: string;
   /** Multi-Partner Solution id: clients then share the Solution Partner's credit line, so BroaddCast bills them. */
   whatsappSolutionId?: string;
+  /** BroaddCast's own admin system user, added to each client's WhatsApp account at signup so its token (encrypted) serves them all, never expiring. */
+  whatsappSystemToken?: string;
+  whatsappSystemUserId?: string;
+  /** null: never expires. */
+  whatsappSystemTokenExpiresAt?: Date | null;
   updatedAt: Date;
   updatedBy: string;
+}
+
+/** The platform's WhatsApp system user, if one is saved: its token stays encrypted here. */
+export async function platformWhatsappUser(): Promise<{ encryptedToken: string; userId: string } | null> {
+  const doc = await (await metaSettingsCol()).findOne({ _id: 'meta' });
+  return doc?.whatsappSystemToken && doc.whatsappSystemUserId ? { encryptedToken: doc.whatsappSystemToken, userId: doc.whatsappSystemUserId } : null;
+}
+
+/** What Meta says about a token: valid, for which app, whose, which permissions and until when (null: never). */
+export async function inspectToken(token: string, cfg: MetaConfig): Promise<{ valid: boolean; appId: string; userId: string; type: string; scopes: string[]; expiresAt: Date | null }> {
+  const r = await graph<any>('debug_token', { config: cfg, params: { input_token: token, access_token: `${cfg.appId}|${cfg.appSecret}` } });
+  const d = r?.data || {};
+  const exp = Number(d.expires_at) || 0;
+  return { valid: d.is_valid === true, appId: String(d.app_id || ''), userId: String(d.user_id || ''), type: String(d.type || ''), scopes: Array.isArray(d.scopes) ? d.scopes.map(String) : [], expiresAt: exp > 0 ? new Date(exp * 1000) : null };
 }
 
 export interface MetaConfig {
