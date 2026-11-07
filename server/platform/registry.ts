@@ -30,6 +30,8 @@ export const PCOLL = {
   META_PAGES: 'metaPages',
   /** Meta leadgen webhook queue { _id: leadgen_id, pageId, formId, adId, createdTime, receivedAt, status, attempts, … }. */
   META_QUEUE: 'metaLeadQueue',
+  /** { _id: WhatsApp phone number id, companyId, wabaId, claimedAt } — a number can be connected to one company only, and tells the webhook whose it is. */
+  WHATSAPP_NUMBERS: 'whatsappNumbers',
 } as const;
 
 export interface CompanyDoc {
@@ -80,6 +82,9 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   searchConsole: false,
   businessProfile: false,
   dripCampaigns: false,
+  whatsappDirect: false,
+  whatsappCredits: false,
+  whatsappBots: false,
 };
 
 export function normalizeFeatures(f: Partial<TenantFeatures> | null | undefined): TenantFeatures {

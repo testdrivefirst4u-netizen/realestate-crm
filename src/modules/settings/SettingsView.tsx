@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Building2, Target, Globe, Share2, ShieldCheck, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays } from 'lucide-react';
+import { Activity, Building2, Target, Globe, Share2, ShieldCheck, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays, MessageCircle } from 'lucide-react';
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -10,6 +10,7 @@ import { DisplaySection } from './DisplaySection';
 import { ProfileSection } from './ProfileSection';
 import { UsersSection } from './UsersSection';
 import { IntegrationsSection } from './IntegrationsSection';
+import { WhatsappDirectSection } from './WhatsappDirectSection';
 import { RecycleBinSection } from './RecycleBinSection';
 import { BackupsSection } from './BackupsSection';
 import { MetaSyncSection } from './MetaSyncSection';
@@ -57,7 +58,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'whatsappDirect', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -68,6 +69,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const conversionsOn = useFeature('adConversions');
   const adSpendOn = useFeature('adSpend');
   const metaAdsOn = conversionsOn || adSpendOn;
+  const waDirectOn = useFeature('whatsappDirect');
   const f = { gc: useFeature('googleConversions'), gs: useFeature('googleAdsSpend'), si: useFeature('socialInbox'), sp: useFeature('socialPosts'), ac: useFeature('adsControl'), wa: useFeature('websiteAnalytics'), sc: useFeature('searchConsole'), bp: useFeature('businessProfile') };
   const googleOn = f.gc || f.gs || f.si || f.sp || f.ac || f.wa || f.sc || f.bp;
   const liOn = useFeature('linkedin');
@@ -90,6 +92,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'visitBooking', label: 'Visit booking', icon: <CalendarDays size={14} />, show: can('settings.view') },
       { id: 'connections', label: 'Connected accounts', icon: <ShieldCheck size={14} />, show: (metaAdsOn || googleOn || socialOn) && can('integrations.connect') },
       { id: 'adConversions', label: 'Meta ads', icon: <Target size={14} />, show: metaAdsOn && can('integrations.connect') },
+      { id: 'whatsappDirect', label: 'WhatsApp direct', icon: <MessageCircle size={14} />, show: waDirectOn && can('integrations.connect') },
       { id: 'google', label: 'Google (Ads, Analytics, Business)', icon: <Globe size={14} />, show: googleOn && can('integrations.connect') },
       { id: 'social', label: 'Social accounts', icon: <Share2 size={14} />, show: socialOn && can('integrations.connect') },
       { id: 'googleSheets', label: 'Google Sheets', icon: <FileSpreadsheet size={14} />, show: can('settings.view') },
@@ -98,7 +101,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'recycle', label: 'Recycle bin', icon: <Trash2 size={14} />, show: can('settings.view') || currentUser?.role === 'Admin', badge: trashedLeads.length || undefined },
     ];
     return list.filter((s) => s.show);
-  }, [can, currentUser?.role, trashedLeads.length, metaOn, metaAdsOn, googleOn, socialOn]);
+  }, [can, currentUser?.role, trashedLeads.length, metaOn, metaAdsOn, waDirectOn, googleOn, socialOn]);
 
   const [active, setActive] = useState<SectionId>(() => initialSettingsSection<SectionId>(link, SECTION_IDS, 'profile'));
   useEffect(() => {
@@ -165,6 +168,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'visitBooking' && can('settings.view') && <VisitBookingSection {...base} />}
           {active === 'connections' && can('integrations.connect') && <ConnectedAccountsSection onOpen={(s) => setActive(s as SectionId)} />}
           {active === 'adConversions' && metaAdsOn && can('integrations.connect') && <AdConversionsSection can={can} stageOptions={stageOptions || []} onOpenLead={onOpenLead} />}
+          {active === 'whatsappDirect' && waDirectOn && can('integrations.connect') && <WhatsappDirectSection />}
           {active === 'google' && googleOn && can('integrations.connect') && <GoogleSection can={can} stageOptions={stageOptions || []} />}
           {active === 'social' && socialOn && can('integrations.connect') && <SocialAccountsSection can={can} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}

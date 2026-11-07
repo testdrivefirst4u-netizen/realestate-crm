@@ -48,7 +48,7 @@ export interface MetaQueueDoc {
   processedAt?: Date;
 }
 
-export const MAX_BODY = 1024 * 1024;
+export const MAX_BODY = 4 * 1024 * 1024; // chunks of WhatsApp chat history are much bigger than a lead event
 export const BACKOFF_MIN = [5, 15, 60, 240];
 export const MAX_ATTEMPTS = 5;
 export const CRON_BATCH = 200;
@@ -135,6 +135,17 @@ export async function handleMetaWebhookPost(req: Request, schedule: (fn: () => P
     body = JSON.parse(raw.toString('utf8'));
   } catch {
     return json({ status: 'error', code: 'VALIDATION', message: 'Invalid JSON' }, 400);
+  }
+  // WhatsApp through Meta: a failure answers 500, so Meta delivers it again (repeats are harmless)
+  if (body?.object === 'whatsapp_business_account') {
+    try {
+      const { handleWhatsappWebhook } = await import('./whatsappDirect');
+      await handleWhatsappWebhook(body);
+      return json({ status: 'success' }, 200);
+    } catch (e: any) {
+      console.error('[webhook:meta] whatsapp', e?.message);
+      return json({ status: 'error', code: 'INTERNAL', message: 'Could not save the message' }, 500);
+    }
   }
   // social inbox: comments and messages (stored at once; never blocks the lead queue)
   try {

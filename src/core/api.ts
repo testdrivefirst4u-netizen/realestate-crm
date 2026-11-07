@@ -313,6 +313,22 @@ export interface InstagramProfile { account: string; username: string; name: str
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
 export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
 export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
+export interface BotStepView { id: string; type: 'message' | 'question' | 'choice' | 'visit' | 'ai' | 'handoff' | 'end'; text: string; next: string; saveTo: '' | 'name' | 'email' | 'unit' | 'city' | 'budget' | 'purpose' | 'notes'; validate: 'text' | 'email' | 'number'; options: Array<{ id: string; label: string; next: string }>; days: number; times: string[] }
+export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
+export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
+export type BotOutgoing = { kind: 'text'; text: string } | { kind: 'buttons'; text: string; options: Array<{ id: string; label: string }> } | { kind: 'list'; text: string; button: string; options: Array<{ id: string; label: string }> };
+export interface BotSimResult { out: BotOutgoing[]; state: unknown; status: 'active' | 'done' | 'handoff' | 'stopped'; reason: string; effects: Array<{ type: 'save'; field: string; value: string } | { type: 'visit'; day: string; time: string; label: string }> }
+export interface WaCreditsOverview {
+  month: string; months: string[]; balance: number; held: number; available: number; low: boolean; finished: boolean; usedToday: number; usedMonth: number; addedMonth: number;
+  byType: Array<{ key: string; messages: number; free: number; amount: number }>; byDay: Array<{ key: string; messages: number; free: number; amount: number }>; byTemplate: Array<{ key: string; messages: number; free: number; amount: number }>;
+  prices: Record<'marketing' | 'utility' | 'authentication' | 'service', number>;
+  statement: Array<{ date: string; details: string; credit: number; used: number; balance: number }>;
+}
+export interface WaDirectTemplate { name: string; language: string; status: string; category: string; body: string; paramNames: string[]; sendable: boolean; notSendable: string; reason: string }
+export interface WaSignupConfig { ready: boolean; appId: string; configId: string; version: string; solutionId: string }
+export type WaDirectView =
+  | { connected: false; webhookUrl: string; signup: WaSignupConfig }
+  | { connected: true; webhookUrl: string; signup: WaSignupConfig; mode: 'manual' | 'cloud' | 'coexistence'; syncOpen: boolean; sync: { contactsAsked: boolean; historyAsked: boolean; progress: number; declined: boolean; error: string }; phoneNumberId: string; wabaId: string; displayPhone: string; verifiedName: string; connectedAt: string; connectedBy: string; lastInboundAt: string; quality: string; platform: string; problem: string; templates: WaDirectTemplate[] };
 export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
 export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; at: string }
 /** Search Console (server: modules/searchConsole.ts). */
@@ -517,7 +533,7 @@ export const api = {
   chat360: {
     contacts: () => request<Chat360Contact[]>('chat360GetContacts'),
     messages: (phone: string) => request<Chat360Message[]>('chat360GetMessages', { phone }),
-    send: (payload: { leadId?: string; phone: string; text?: string; templateName?: string; params?: string[]; fileId?: string }) =>
+    send: (payload: { leadId?: string; phone: string; text?: string; templateName?: string; templateLanguage?: string; params?: string[]; fileId?: string }) =>
       request<{ message: Chat360Message }>('chat360Send', payload, payload.fileId ? { timeoutMs: 60000 } : undefined),
     uploadFile: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; name: string; mime: string; kind: string }>('chat360UploadFile', d, { timeoutMs: 90000 }),
     test: () => request<{ ok: boolean; message: string }>('chat360Test'),
@@ -528,6 +544,31 @@ export const api = {
       request<{ done: boolean; phase: 'rooms' | 'messages'; offset: number; rooms: number; named: number; synced: number; added: number; left: number }>('chat360Backfill', d, { timeoutMs: 120000 }),
     mapContact: (phone: string, leadId: string) => request<void>('chat360MapContact', { phone, leadId }),
     markRead: (phone: string) => request<void>('chat360MarkRead', { phone }),
+  },
+
+  bots: {
+    list: () => request<BotsOverview>('waBotsList', {}),
+    save: (d: { id?: string; name: string; trigger: string; keywords: string; steps: BotStepView[]; knowledge: string }) => request<{ id: string; problems: string[] }>('waBotSave', d),
+    setStatus: (id: string, status: 'active' | 'paused') => request<{ ok: true }>('waBotStatus', { id, status }),
+    remove: (id: string) => request<{ ok: true }>('waBotDelete', { id }),
+    simulate: (d: { id: string; rev: number; state?: unknown; text?: string; replyId?: string }) => request<BotSimResult>('waBotSimulate', d, { timeoutMs: 45000 }),
+  },
+
+  whatsappCredits: {
+    overview: (month?: string) => request<WaCreditsOverview>('waCreditsOverview', month ? { month } : {}),
+    balance: () => request<{ available: number; low: boolean; finished: boolean }>('waCreditsBalance', {}),
+  },
+
+  whatsappDirect: {
+    get: () => request<WaDirectView>('waDirectGet', {}, { timeoutMs: 30000 }),
+    connect: (d: { phoneNumberId: string; wabaId: string; token: string; pin: string }) => request<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }>('waDirectConnect', d, { timeoutMs: 90000 }),
+    finishSignup: (d: { code: string; wabaId: string; phoneNumberId: string; keepApp: boolean }) => request<{ displayPhone: string; verifiedName: string; webhookSubscribed: boolean }>('waDirectFinishSignup', d, { timeoutMs: 90000 }),
+    pastChats: () => request<unknown>('waDirectPastChats', {}, { timeoutMs: 45000 }),
+    disconnect: () => request<{ ok: true }>('waDirectDisconnect', {}),
+    syncTemplates: () => request<{ templates: number }>('waDirectSyncTemplates', {}, { timeoutMs: 60000 }),
+    createTemplate: (d: { name: string; category: string; language: string; body: string; footer: string; examples: string[] }) => request<{ status: string }>('waDirectCreateTemplate', d, { timeoutMs: 30000 }),
+    deleteTemplate: (name: string) => request<{ ok: true }>('waDirectDeleteTemplate', { name }, { timeoutMs: 30000 }),
+    approvedTemplates: () => request<WaDirectTemplate[]>('waDirectApprovedTemplates', {}),
   },
 
   calls: {

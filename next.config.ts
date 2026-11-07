@@ -6,20 +6,21 @@ const isDev = process.env.NODE_ENV === 'development';
 /**
  * Content-Security-Policy without nonces (see the Next.js CSP guide): pages stay statically optimisable.
  * Only Google Fonts is loaded from outside; the browser talks to this origin alone (AI, Meta, Google and
- * Chat360 calls all go through the server) — except the phone inside the CRM, which talks SIP to JustConnect. Images allow data:/blob: (logos, avatars) and https: (Page pictures).
+ * Chat360 calls all go through the server) — except the phone inside the CRM, which talks SIP to JustConnect, and Meta's
+ * signup popup for connecting WhatsApp, whose script is only loaded on that settings screen. Images allow data:/blob: (logos, avatars) and https: (Page pictures).
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  `script-src 'self' 'unsafe-inline' https://connect.facebook.net${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   // videos in Social Inbox messages come straight from Meta's servers
   "media-src 'self' data: blob: https://*.fbcdn.net https://*.cdninstagram.com https://*.fbsbx.com",
   // shared Instagram posts in Social Inbox messages
-  "frame-src 'self' https://www.instagram.com",
+  "frame-src 'self' https://www.instagram.com https://www.facebook.com https://web.facebook.com https://staticxx.facebook.com",
   // the phone inside the CRM: SIP over JustConnect's secure WebSocket (src/modules/calls/softphone.ts)
-  "connect-src 'self' wss://*.justconnect.biz:*",
+  "connect-src 'self' wss://*.justconnect.biz:* https://www.facebook.com https://connect.facebook.net https://graph.facebook.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

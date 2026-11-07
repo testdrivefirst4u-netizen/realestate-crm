@@ -100,6 +100,9 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   searchConsole: 'Search Console (Google search figures and indexed pages)',
   businessProfile: 'Business Profile (Google listing and its figures)',
   dripCampaigns: 'Drip campaigns (WhatsApp, e-mail and RM task steps for new leads)',
+  whatsappDirect: 'WhatsApp direct through Meta (test; also needs WhatsApp on)',
+  whatsappCredits: 'WhatsApp credits (BroaddCast bills this company; needs WhatsApp direct)',
+  whatsappBots: 'WhatsApp chatbots (needs WhatsApp direct)',
 };
 export const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
 

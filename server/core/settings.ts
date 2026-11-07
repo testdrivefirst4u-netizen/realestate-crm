@@ -124,10 +124,13 @@ export function appUrl() {
 /** Settings safe for any signed-in user (bootstrap). */
 export async function settingsPublic() {
   const s = await settingsAll();
+  const direct = !!(currentTenant()?.features as any)?.whatsappDirect && !!(await (await col<any>(CFG.COLL.INTEGRATIONS)).findOne({ _id: 'whatsappDirect' }, { projection: { _id: 1 } }));
   return {
     appName: s.appName, timeZone: s.timeZone, aiModel: s.aiModel, aiFastModel: s.aiFastModel, aiTranscribeModel: s.aiTranscribeModel,
     aiConfigured: !!(await getSecret('GEMINI_API_KEY')),
-    chat360Configured: !!(await getSecret('CHAT360_API_KEY')),
+    chat360Configured: !!(await getSecret('CHAT360_API_KEY')) || direct,
+    /** WhatsApp is going through Meta for this company, not Chat360. */
+    whatsappDirect: direct,
     /** Calls start through JustConnect (click-to-call) instead of the phone's dialer. */
     justconnectConfigured: !!(await getSecret('JUSTCONNECT_API_KEY')),
     chat360AutoCreateLeads: bool(s.chat360AutoCreateLeads), chat360DefaultRM: s.chat360DefaultRM,

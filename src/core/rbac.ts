@@ -23,6 +23,8 @@ export type Permission =
   | 'inventory.edit'
   | 'reports.view'
   | 'reports.export'
+  /** See the WhatsApp credits balance and usage (Admins, Managers). */
+  | 'reports.credits'
   | 'chat.view'
   | 'chat.send'
   | 'calls.view'
@@ -45,6 +47,8 @@ export type Permission =
   | 'marketing.ads'
   /** Build and start drip campaigns, which message real leads (Admins, Managers). */
   | 'marketing.drip'
+  /** Build and start WhatsApp chatbots, which answer real customers (Admins, Managers). */
+  | 'marketing.bots'
   /** Competitor ads, Google review replies and Search Console page checks (Admins, Managers). */
   | 'marketing.manage'
   /** Connect / disconnect the company's own Google, Meta, LinkedIn, Pinterest accounts (Admins). */
@@ -54,10 +58,10 @@ export type Permission =
 
 const ALL: Permission[] = [
   'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export', 'leads.phones',
-  'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export',
+  'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export', 'reports.credits',
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
-  'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.manage', 'integrations.connect',
+  'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.manage', 'integrations.connect',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {

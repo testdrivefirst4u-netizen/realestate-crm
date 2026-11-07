@@ -87,6 +87,9 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   getMarketingApps: { fn: () => MK.getMarketingApps() },
   setMarketingApps: { fn: (d, ctx) => MK.setMarketingApps(d, ctx) },
   /* billing */
+  whatsappCreditsOverview: { fn: async (d) => (await import('./whatsappCredits')).whatsappCreditsOverview(d) },
+  addWhatsappCredits: { fn: async (d, ctx) => (await import('./whatsappCredits')).addWhatsappCredits(d, ctx) },
+  saveWhatsappPricing: { fn: async (d, ctx) => (await import('./whatsappCredits')).saveWhatsappPricing(d, ctx) },
   billingOverview: { fn: () => BI.billingOverview() },
   saveSubscription: { fn: (d, ctx) => BI.saveSubscription(d, ctx) },
   createInvoice: { fn: (d, ctx) => BI.createInvoice(d, ctx) },

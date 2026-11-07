@@ -44,6 +44,10 @@ export interface MetaSettingsDoc {
   loginConfigId: string;
   /** Facebook Login for Business configuration of "Ad conversions" (system-user token, ads permissions). */
   capiConfigId?: string;
+  /** Facebook Login for Business configuration of WhatsApp's Embedded Signup. */
+  whatsappConfigId?: string;
+  /** Multi-Partner Solution id: clients then share the Solution Partner's credit line, so BroaddCast bills them. */
+  whatsappSolutionId?: string;
   updatedAt: Date;
   updatedBy: string;
 }
@@ -55,6 +59,8 @@ export interface MetaConfig {
   graphVersion: string;
   loginConfigId: string;
   capiConfigId: string;
+  whatsappConfigId: string;
+  whatsappSolutionId: string;
   /** Where the app id / secret come from. */
   source: 'platform' | 'env' | 'none';
   configured: boolean;
@@ -76,8 +82,10 @@ export async function loadMetaConfig(): Promise<MetaConfig> {
   const graphVersion = doc?.graphVersion || env('META_GRAPH_VERSION') || DEFAULT_GRAPH_VERSION;
   const loginConfigId = doc?.loginConfigId || env('META_LOGIN_CONFIG_ID');
   const capiConfigId = doc?.capiConfigId || env('META_CAPI_CONFIG_ID');
+  const whatsappConfigId = doc?.whatsappConfigId || env('META_WHATSAPP_CONFIG_ID');
+  const whatsappSolutionId = doc?.whatsappSolutionId || env('META_WHATSAPP_SOLUTION_ID');
   const source: MetaConfig['source'] = doc?.appId || storedSecret ? 'platform' : appId || appSecret ? 'env' : 'none';
-  return { appId, appSecret, verifyToken, graphVersion, loginConfigId, capiConfigId, source, configured: !!(appId && appSecret && verifyToken) };
+  return { appId, appSecret, verifyToken, graphVersion, loginConfigId, capiConfigId, whatsappConfigId, whatsappSolutionId, source, configured: !!(appId && appSecret && verifyToken) };
 }
 
 const NOT_CONFIGURED_MSG = 'Meta Lead Ads is not set up on this platform yet (no Meta app). Ask your platform administrator.';

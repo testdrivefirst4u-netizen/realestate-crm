@@ -55,6 +55,12 @@ export interface TenantFeatures {
   businessProfile: boolean;
   /** Drip campaigns: WhatsApp, e-mail and RM task steps for new leads. */
   dripCampaigns: boolean;
+  /** WhatsApp through Meta's Cloud API instead of Chat360, once a number is connected. */
+  whatsappDirect: boolean;
+  /** BroaddCast bills this company's WhatsApp messages from credits Super Admin adds. */
+  whatsappCredits: boolean;
+  /** Chatbots built by the company, on a direct WhatsApp connection. */
+  whatsappBots: boolean;
 }
 
 export interface Tenant {

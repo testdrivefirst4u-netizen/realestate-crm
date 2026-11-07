@@ -26,10 +26,12 @@ interface Form {
   graphVersion: string;
   loginConfigId: string;
   capiConfigId: string;
+  whatsappConfigId: string;
+  whatsappSolutionId: string;
 }
 
 function formFrom(s: MetaSettings | null): Form {
-  return { appId: s?.appId || '', appSecret: '', graphVersion: s?.graphVersion || DEFAULT_GRAPH_VERSION, loginConfigId: s?.loginConfigId || '', capiConfigId: s?.capiConfigId || '' };
+  return { appId: s?.appId || '', appSecret: '', graphVersion: s?.graphVersion || DEFAULT_GRAPH_VERSION, loginConfigId: s?.loginConfigId || '', capiConfigId: s?.capiConfigId || '', whatsappConfigId: s?.whatsappConfigId || '', whatsappSolutionId: s?.whatsappSolutionId || '' };
 }
 
 function ExtLink({ href, children }: { href: string; children: ReactNode }) {
@@ -168,13 +170,17 @@ export function MetaSettingsCard() {
     if (!GRAPH_VERSION_RE.test(graphVersion)) errs.graphVersion = `Use the form vNN.N, e.g. ${DEFAULT_GRAPH_VERSION}.`;
     if (loginConfigId && !LOGIN_CONFIG_RE.test(loginConfigId)) errs.loginConfigId = 'The configuration ID is a number.';
     if (capiConfigId && !LOGIN_CONFIG_RE.test(capiConfigId)) errs.capiConfigId = 'The configuration ID is a number.';
+    const whatsappConfigId = f.whatsappConfigId.trim();
+    const whatsappSolutionId = f.whatsappSolutionId.trim();
+    if (whatsappConfigId && !LOGIN_CONFIG_RE.test(whatsappConfigId)) errs.whatsappConfigId = 'The configuration ID is a number.';
+    if (whatsappSolutionId && !LOGIN_CONFIG_RE.test(whatsappSolutionId)) errs.whatsappSolutionId = 'The solution ID is a number.';
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
     setSaving(true);
     setSaveError('');
     try {
-      const updated = await call('setMetaSettings', { appId, appSecret, graphVersion, loginConfigId, capiConfigId });
+      const updated = await call('setMetaSettings', { appId, appSecret, graphVersion, loginConfigId, capiConfigId, whatsappConfigId, whatsappSolutionId });
       settings.setData(updated);
       setF(formFrom(updated));
       setTest(null);
@@ -284,6 +290,8 @@ export function MetaSettingsCard() {
             <Field label="App ID">{s.appId ? <span className="font-mono">{s.appId}</span> : '—'}</Field>
             <Field label="Graph API version">{s.graphVersion ? <span className="font-mono">{s.graphVersion}</span> : '—'}</Field>
             <Field label="Login configuration ID">{s.loginConfigId ? <span className="font-mono">{s.loginConfigId}</span> : 'Not set (standard Facebook Login)'}</Field>
+            <Field label="WhatsApp signup configuration ID">{s.whatsappConfigId ? <span className="font-mono">{s.whatsappConfigId}</span> : 'Not set (the Connect WhatsApp button stays hidden)'}</Field>
+            <Field label="WhatsApp partner solution ID">{s.whatsappSolutionId ? <span className="font-mono">{s.whatsappSolutionId}</span> : 'Not set (clients would pay Meta themselves)'}</Field>
             <Field label="Ad conversions configuration ID">{s.capiConfigId ? <span className="font-mono">{s.capiConfigId}</span> : 'Not set (asks for the ads permissions directly)'}</Field>
             <Field label="Updated">{s.updatedAt ? fmtDateTime(s.updatedAt) : '—'}</Field>
             <Field label="Updated by">{s.updatedBy || '—'}</Field>
@@ -388,6 +396,30 @@ export function MetaSettingsCard() {
               error={errors.loginConfigId}
               placeholder="Optional"
               hint="Facebook Login for Business › Configurations. Leave empty to request the permissions directly."
+              inputMode="numeric"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={25}
+            />
+            <TextField
+              label="WhatsApp signup configuration ID"
+              value={f.whatsappConfigId}
+              onChange={(e) => set('whatsappConfigId', e.target.value)}
+              error={errors.whatsappConfigId}
+              placeholder="Optional"
+              hint="Facebook Login for Business › Configurations, made with the WhatsApp Embedded Signup variation. This turns on the Connect WhatsApp button for companies."
+              inputMode="numeric"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={25}
+            />
+            <TextField
+              label="WhatsApp partner solution ID"
+              value={f.whatsappSolutionId}
+              onChange={(e) => set('whatsappSolutionId', e.target.value)}
+              error={errors.whatsappSolutionId}
+              placeholder="Optional"
+              hint="From your Solution Partner's Multi-Partner Solution. With it, clients connect on the partner's credit line, so BroaddCast bills them. Without it, each client must add its own payment method in Meta."
               inputMode="numeric"
               autoComplete="off"
               spellCheck={false}

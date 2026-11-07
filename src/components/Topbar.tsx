@@ -5,6 +5,7 @@ import { AppLogo } from './AppLogo';
 import { globalSearch, highlightParts, queryTerms, type SearchData, type SearchGroup, type SearchHit, type SearchKind } from '../core/globalSearch';
 import { Permission } from '../core/rbac';
 import { useCompany, useFeature } from '../core/tenant';
+import { CreditsBadge } from '../modules/whatsappCredits/CreditsBadge';
 import { usePathname, useRouter } from 'next/navigation';
 import { DEFAULT_VIEW, VIEW_TITLES, viewHref, type ViewId } from '../core/views';
 
@@ -55,6 +56,8 @@ let lastPath = '';
 export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, onSyncNow, sync, unreadCount, onToggleNotificationDrawer, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll, phoneSlot }) => {
   const company = useCompany();
   const router = useRouter();
+  const creditsFeature = useFeature('whatsappCredits');
+  const creditsVisible = creditsFeature && can('reports.credits');
   const pathname = usePathname();
   const [canGoBack, setCanGoBack] = useState(pagesBack > 0);
   const goingBack = useRef(false);
@@ -184,6 +187,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
 
       <div className="hidden lg:block flex-1" />
       <div className="flex items-center gap-1.5 sm:gap-2.5 flex-none">
+        {creditsVisible && <CreditsBadge />}
         {aiEnabled && (
           <button onClick={() => onOpenChatbot()} className="inline-flex items-center gap-2 px-2.5 sm:px-4 h-10 sm:h-11 rounded-xl text-[13.5px] font-bold bg-[#0B2A44] text-white hover:bg-[#123A5C]" title="AI Copilot" aria-label="AI Copilot">
             <Sparkles size={16} className="text-[#36B3F2]" /><span className="hidden sm:inline">AI Copilot</span>

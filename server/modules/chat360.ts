@@ -18,7 +18,7 @@ import { auditLog, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { bumpVersion, col } from '../core/db';
 import { ApiError, ApiErrorCode, fail } from '../core/errors';
-import { tenantKey } from '../core/tenant';
+import { currentTenant, tenantKey } from '../core/tenant';
 import { addEvent, addTimeline, logError } from '../core/events';
 import { getSecret, settingSet, settingsAll } from '../core/settings';
 import { bool, digits, e164, last10, maskSecret, num, parseDate, safeJsonParse, shortId, str, toIso, truncate } from '../core/utils';
@@ -214,6 +214,7 @@ function serializeMsg(r: any) {
     contactName: str(r.contactName), leadId: str(r.leadId), messageType: str(r.messageType),
     text: str(r.text) === UNREAD_TEXT ? textFromRaw(r.raw) || UNREAD_TEXT : str(r.text),
     mediaUrl: str(r.mediaUrl), status: str(r.status), timestamp: toIso(r.timestamp), agent: str(r.agent),
+    ...(r.error ? { error: str(r.error) } : {}),
   };
 }
 
@@ -289,7 +290,7 @@ export async function messages(phone: string): Promise<any[]> {
 /* --------------------------------- contacts -------------------------------- */
 
 /** Upsert the contact for a phone; `inc` adds to counters atomically. Returns the contact after the write. */
-async function upsertContact(phone: string, patch: Record<string, any>, inc?: Record<string, number>) {
+export async function upsertContact(phone: string, patch: Record<string, any>, inc?: Record<string, number>) {
   const key = last10(phone);
   if (!key) throw fail('VALIDATION', 'A valid phone number is required');
   const c = await contactsCol();
@@ -331,7 +332,7 @@ export async function mapContact(phone: string, leadId: string, ctx: Ctx): Promi
 
 /** Per-phone in-process lock: parallel webhook deliveries for one customer must not double-create a lead. */
 const phoneLocks = new Map<string, Promise<unknown>>();
-async function withPhoneLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+export async function withPhoneLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = phoneLocks.get(tenantKey(key)) || Promise.resolve();
   const run = prev.catch(() => undefined).then(fn);
   const tail = run.catch(() => undefined);
@@ -537,10 +538,12 @@ function extractMedia(p: any): string {
 interface RecordIn {
   id?: string; eventId?: string; dedupeKey?: string; direction: 'Inbound' | 'Outbound'; phone: string; contactName?: string; leadId?: string;
   text?: string; mediaUrl?: string; status?: string; agent?: string; type?: string; raw?: unknown; ts?: unknown;
+  /** Fields only another way of sending needs. */
+  extra?: Record<string, unknown>;
 }
 
 /** Insert a message. Returns null when `dedupeKey` (or the provider id) was already stored — i.e. a retry. */
-async function record(m: RecordIn) {
+export async function record(m: RecordIn) {
   const doc: Record<string, any> = {
     _id: m.id || shortId('MSG'),
     eventId: m.eventId || '',
@@ -557,6 +560,7 @@ async function record(m: RecordIn) {
     agent: m.agent || '',
     raw: m.raw ? truncate(JSON.stringify(m.raw), RAW_MAX) : '',
     createdAt: new Date(),
+    ...(m.extra || {}),
   };
   if (m.dedupeKey) doc.dedupeKey = m.dedupeKey;
   try {
@@ -1061,6 +1065,8 @@ export async function backfillFromChat360(d: { offset?: number; phase?: 'rooms' 
 
 /** The chat's messages for the CRM: first brings in from Chat360 whatever the webhook did not carry. */
 export async function messagesWithSync(phone: string): Promise<any[]> {
+  // a chat on Meta has nothing to bring in from Chat360
+  if ((currentTenant()?.features as any)?.whatsappDirect && (await (await import('./whatsappDirect')).isConnected())) return messages(phone);
   try {
     await syncConversation(phone);
   } catch (e: any) {
@@ -1074,7 +1080,7 @@ export async function messagesWithSync(phone: string): Promise<any[]> {
 
 export const WHATSAPP_FILE_CATEGORY = 'WhatsApp files';
 /** What WhatsApp itself takes, by the kind of message it becomes. */
-const WHATSAPP_FILE_KINDS: Record<string, 'image' | 'video' | 'document'> = {
+export const WHATSAPP_FILE_KINDS: Record<string, 'image' | 'video' | 'document'> = {
   'image/jpeg': 'image', 'image/png': 'image', 'video/mp4': 'video', 'application/pdf': 'document', 'text/plain': 'document',
   'application/msword': 'document', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
   'application/vnd.ms-excel': 'document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'document',
@@ -1097,6 +1103,11 @@ export async function uploadWhatsappFile(d: any, ctx: Ctx): Promise<{ fileId: st
 }
 
 export async function send(d: any, ctx: Ctx): Promise<{ message: any }> {
+  // only a company deliberately switched to Meta goes elsewhere: without the plan switch, nothing else is even asked
+  if ((currentTenant()?.features as any)?.whatsappDirect) {
+    const direct = await import('./whatsappDirect');
+    if (await direct.isConnected()) return direct.sendDirect(d, ctx);
+  }
   const cfg = await chatCfg();
   if (!cfg.apiKey) throw fail('NOT_CONFIGURED', 'Chat360 API key is not configured. Add it under Settings → Integrations → Chat360.');
   if (!cfg.businessNumber) cfg.businessNumber = await learnBusinessNumber();

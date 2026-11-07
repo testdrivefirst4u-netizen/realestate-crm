@@ -122,7 +122,8 @@ export async function saveDripCampaign(d: any, ctx: Ctx): Promise<{ id: string }
 
 async function whatsappSetup(): Promise<{ ready: boolean; reason: string }> {
   if (!(currentTenant()?.features as any)?.chat360) return { ready: false, reason: "WhatsApp (Chat360) isn't included in this company's plan." };
-  if (!(await getSecret('CHAT360_API_KEY'))) return { ready: false, reason: 'Chat360 is not connected yet.' };
+  const direct = (currentTenant()?.features as any)?.whatsappDirect && (await (await import('./whatsappDirect')).isConnected());
+  if (!direct && !(await getSecret('CHAT360_API_KEY'))) return { ready: false, reason: 'Chat360 is not connected yet.' };
   return { ready: true, reason: '' };
 }
 

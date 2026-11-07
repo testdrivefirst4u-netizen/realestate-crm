@@ -152,6 +152,7 @@ export async function ensureIndexes(db: Db) {
     [C.ARCHIVE, { archivedAt: -1 }],
     [C.TASKS, { assignedTo: 1, completed: 1, dateTime: 1 }],
     [C.TASKS, { leadId: 1 }],
+    ['whatsappLedger', { companyId: 1, day: 1 }],
     [C.INVENTORY, { tower: 1, floor: 1, unitNumber: 1 }],
     [C.INVENTORY, { leadId: 1 }],
     [C.USERS, { emailLower: 1 }, { unique: true }],

@@ -30,6 +30,9 @@ export type FeatureName =
   | 'searchConsole'
   | 'businessProfile'
   | 'dripCampaigns'
+  | 'whatsappDirect'
+  | 'whatsappCredits'
+  | 'whatsappBots'
   | 'unitLocator'
   | 'projectLibrary'
   | 'reports'
@@ -95,6 +98,9 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   searchConsole: 'Search Console',
   businessProfile: 'Business Profile',
   dripCampaigns: 'Drip campaigns',
+  whatsappDirect: 'WhatsApp direct',
+  whatsappCredits: 'WhatsApp credits',
+  whatsappBots: 'WhatsApp chatbots',
 };
 
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */

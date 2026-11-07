@@ -22,6 +22,8 @@ import { searchLeads } from '../../core/analytics';
 import { addDays, compareDates, dateKey, formatDate, formatDateTime, formatRelative, formatTime, fromDatetimeLocalInput, getParts, nowIso, parseDate, startOfToday, toDatetimeLocalInput, todayKey } from '../../core/dates';
 import { initials, truncate } from '../../core/format';
 import { digitsOnly, fillTemplate, formatPhone, last10, samePhone, toE164Digits } from '../../core/phone';
+import { useTenantSettings } from '../../core/tenant';
+import { SendTemplateButton } from './SendTemplateButton';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { can } from '../../core/rbac';
@@ -329,6 +331,7 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [attachment, setAttachment] = useState<{ file: File; preview: string } | null>(null);
+  const tenantSettings = useTenantSettings() as { whatsappDirect?: boolean } | null;
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const docInput = useRef<HTMLInputElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
@@ -1110,7 +1113,8 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
                             <button type="button" onClick={() => setSuggestFailed(false)} className="ml-auto p-0.5 rounded hover:text-[#0B2A44]" aria-label="Dismiss"><X size={11} /></button>
                           </div>
                         )}
-                        <div className="text-[10px] text-[#7E93A6]">Sent as {currentUser?.name || 'you'} via Chat360. Outside the 24-hour customer window WhatsApp only delivers approved templates.</div>
+                        {tenantSettings?.whatsappDirect && selectedPhone && <div><SendTemplateButton phone={selectedPhone} leadId={selectedContact?.leadId || undefined} onSent={() => loadMessages(selectedPhone, true)} /></div>}
+                        <div className="text-[10px] text-[#7E93A6]">Sent as {currentUser?.name || 'you'} via {tenantSettings?.whatsappDirect ? 'WhatsApp' : 'Chat360'}. Outside the 24-hour customer window WhatsApp only delivers approved templates.</div>
                       </>
                     )}
                   </footer>
@@ -1203,6 +1207,7 @@ const MessageList: React.FC<{ groups: Array<{ key: string; label: string; items:
                     <span>{formatTime(m.timestamp, '')}</span>
                     {out && <StatusTicks status={m.status} />}
                   </div>
+                  {out && m.error && <div className="mt-1 border-t border-[#E9B8B4] pt-1 text-[11.5px] text-[#B42318]">Not delivered: {m.error}</div>}
                 </div>
               </div>
             );

@@ -35,6 +35,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'leads.phones', group: 'Leads', label: 'See phone numbers', perms: ['leads.phones'], note: 'Off: numbers show as 98•••••34 everywhere, including exports. They can still call through JustConnect and send WhatsApp from the CRM, but cannot call from their own phone.' },
   { id: 'reports.view', group: 'Reports', label: 'See reports and analytics', perms: ['reports.view'] },
   { id: 'reports.export', group: 'Reports', label: 'Export reports', perms: ['reports.export'], needs: 'reports.view' },
+  { id: 'reports.credits', group: 'Reports', label: 'See WhatsApp credits', perms: ['reports.credits'], note: 'The balance at the top of the screen, usage and statement.' },
   { id: 'audit.view', group: 'Reports', label: 'See the audit log', perms: ['audit.view'] },
   { id: 'inventory.view', group: 'Inventory', label: 'See inventory', perms: ['inventory.view'] },
   { id: 'inventory.edit', group: 'Inventory', label: 'Edit inventory', perms: ['inventory.edit'], writes: true, needs: 'inventory.view' },
@@ -45,6 +46,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'marketing.posts', group: 'Marketing', label: 'Post Scheduler', perms: ['marketing.posts'], writes: true, was: 'marketing', note: 'Can publish, change and delete posts on your accounts.' },
   { id: 'marketing.ads', group: 'Marketing', label: 'Change ads', perms: ['marketing.ads'], writes: true, was: 'marketing', needs: 'leads.all', note: 'Can pause campaigns and change budgets, which spends money. The Ads screen needs "See all leads".' },
   { id: 'marketing.drip', group: 'Marketing', label: 'Drip Campaigns', perms: ['marketing.drip'], writes: true, was: 'marketing', note: 'Can start campaigns that message real leads.' },
+  { id: 'marketing.bots', group: 'Marketing', label: 'WhatsApp Chatbots', perms: ['marketing.bots'], writes: true, note: 'Can start bots that answer real customers.' },
   { id: 'marketing.other', group: 'Marketing', label: 'Competitor Ads, review replies and page checks', perms: ['marketing.manage'], writes: true, was: 'marketing', note: 'Adds competitors, replies to Google reviews in public, and runs Search Console page checks.' },
   { id: 'tasks', group: 'Work', label: 'Tasks', perms: ['tasks.manage'], writes: true },
   { id: 'ai', group: 'Work', label: 'AI assistant', perms: ['ai.use', 'ai.actions'], writes: true },
@@ -59,7 +61,7 @@ export const ACCESS_ITEMS: AccessItem[] = [
 
 /** What a role can have before anything is chosen. Kept with the list: both sides must start from the same answer. */
 const STARTS: Record<ConfigurableRole, string[]> = {
-  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.other', 'tasks', 'ai'],
+  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'reports.credits', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.other', 'tasks', 'ai'],
   RM: ['leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'reports.view', 'inventory.view', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'tasks', 'ai'],
   Viewer: ['leads.all', 'leads.phones', 'reports.view', 'audit.view', 'inventory.view', 'chat.view', 'calls.view'],
 };

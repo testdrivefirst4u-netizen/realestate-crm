@@ -60,6 +60,9 @@ import { actions as analyticsReportActions } from './modules/analyticsReports';
 import { actions as socialPostsImportActions } from './modules/socialPostsImport';
 import { actions as socialInboxImportActions } from './modules/socialInboxImport';
 import { actions as metaAdsTableActions } from './modules/metaAdsTable';
+import { actions as whatsappDirectActions } from './modules/whatsappDirect';
+import { actions as whatsappCreditActions } from './modules/whatsappCredits';
+import { actions as whatsappBotActions } from './modules/whatsappBots';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
 
 export const registry: ActionMap = {
@@ -108,6 +111,9 @@ export const registry: ActionMap = {
   ...socialPostsImportActions,
   ...socialInboxImportActions,
   ...metaAdsTableActions,
+  ...whatsappDirectActions,
+  ...whatsappCreditActions,
+  ...whatsappBotActions,
   ...connectedAccountActions,
 };
 
@@ -127,6 +133,9 @@ export interface RouteResult {
 const FEATURE_OF: Array<[RegExp, keyof TenantFeatures | Array<keyof TenantFeatures>, string]> = [
   [/^ai[A-Z]/, 'aiCopilot', 'AI features'],
   [/^chat360/, 'chat360', 'WhatsApp (Chat360)'],
+  [/^waDirect/, 'whatsappDirect', 'WhatsApp direct'],
+  [/^waCredits/, 'whatsappCredits', 'WhatsApp credits'],
+  [/^waBot/, 'whatsappBots', 'WhatsApp chatbots'],
   [/^(getCalls|logCall|updateCall|uploadCallRecording|transcribeCall|summarizeCall|splitCallTranscript)$|^jc[A-Z]/, 'calls', 'Calls'],
   [/^(getInventory|updateInventoryUnit|addInventoryUnit|importInventory)$/, 'inventory', 'Inventory'],
   [/^saveReportSnapshot$/, 'reports', 'Reports'],

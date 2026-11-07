@@ -374,6 +374,8 @@ export interface Chat360Message {
   status?: string;
   timestamp: string; // ISO
   agent?: string;
+  /** Why WhatsApp did not deliver it. */
+  error?: string;
 }
 
 export interface Chat360Contact {

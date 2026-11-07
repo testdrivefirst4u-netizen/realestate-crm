@@ -30,6 +30,7 @@ import { dateKey, fmtDate, fmtTime, localHour, makeZoned, safeJsonParse } from '
 import { notifyAdmins } from './adminAlerts';
 import { idsByEmail, idsByName, sendPush } from './push';
 import { updateLead } from './leads';
+import { sweepCredits } from './whatsappCredits';
 
 const S = CFG.STAGES;
 const L = CFG.LEAD;
@@ -235,7 +236,7 @@ export function reassignDue(assignedAt: Date, cfg: Pick<SalesOps, 'reassignAfter
 async function touchedSince(l: LeadDoc, since: Date): Promise<boolean> {
   if ((l.followups || []).length || l.lastFollowupAt) return true;
   if ((await (await col(CFG.COLL.CALLS)).countDocuments({ leadId: l._id }, { limit: 1 })) > 0) return true;
-  const robots = ['System', 'Auto-reply', 'RM alert', 'Auto-reassign', ''];
+  const robots = ['System', 'Auto-reply', 'RM alert', 'Auto-reassign', 'Chatbot', ''];
   const tl = await (await col(CFG.COLL.TIMELINE)).countDocuments({ leadId: l._id, type: 'chat_sent', actor: { $nin: robots }, timestamp: { $gte: since } }, { limit: 1 });
   return tl > 0;
 }
@@ -566,7 +567,8 @@ export async function runLeadWatch(now = new Date()) {
   const summary = await sendEveningSummary(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
   const missed = await alertUnreturnedMissed(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
   const payments = await sendPaymentReminders(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
-  return { slow, reassigned, visits, summary, missed, payments };
+  const credits = await sweepCredits(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { released: 0, charged: 0 }; });
+  return { slow, reassigned, visits, summary, missed, payments, credits };
 }
 
 /* ------------------------------- leaderboard ----------------------------- */

@@ -46,6 +46,9 @@ export const FEATURE_LABELS: Record<FeatureKey, string> = {
   searchConsole: 'Search Console (Google search figures and indexed pages)',
   businessProfile: 'Business Profile (Google listing and its figures)',
   dripCampaigns: 'Drip campaigns (WhatsApp, e-mail and RM task steps for new leads)',
+  whatsappDirect: 'WhatsApp direct through Meta (test; also needs WhatsApp on)',
+  whatsappCredits: 'WhatsApp credits (BroaddCast bills this company; needs WhatsApp direct)',
+  whatsappBots: 'WhatsApp chatbots (needs WhatsApp direct)',
 };
 
 export interface SuperAdmin {
@@ -115,6 +118,14 @@ export interface PlatformAuditEntry {
   companyId: string;
   details: string;
 }
+
+/** WhatsApp credits (super admin): clients' balances, prices, Meta's cost and the margin. */
+export interface WhatsappPricingView { prices: Record<'marketing' | 'utility' | 'authentication' | 'service', number>; costs: Record<'marketing' | 'utility' | 'authentication' | 'service', number>; lowBalanceAt: number; replyGrace: number }
+export interface WhatsappCreditsCompany {
+  companyId: string; name: string; direct: boolean; balance: number; held: number; low: boolean; addedMonth: number; usedMonth: number; metaCostMonth: number; marginMonth: number;
+  messages: number; freeMessages: number; mismatch: number; recent: Array<{ at: string; amount: number; reference: string; note: string; by: string }>;
+}
+export interface WhatsappCreditsOverview { month: string; thisMonth: string; pricing: WhatsappPricingView; companies: WhatsappCreditsCompany[]; totals: { balance: number; added: number; used: number; metaCost: number; margin: number; messages: number } }
 
 /** Billing (super admin): subscriptions and invoices kept by hand until a payment gateway is connected. */
 export interface BillingSubscription {
@@ -294,6 +305,9 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
   storageOverview: { req: { refresh?: boolean }; res: StorageOverview };
   storageCompany: { req: { companyId: string }; res: { companyId: string; name: string; at: string; collections: StorageCollection[] } };
   storageLargest: { req: { companyId: string; collection: string }; res: StorageLargestItem[] };
+  whatsappCreditsOverview: { req: { month?: string }; res: WhatsappCreditsOverview };
+  addWhatsappCredits: { req: { companyId: string; amount: number; kind: 'add' | 'correction'; reference?: string; note?: string; requestId: string }; res: { applied: boolean } };
+  saveWhatsappPricing: { req: WhatsappPricingView; res: WhatsappPricingView };
   billingOverview: { req: {}; res: BillingOverview };
   saveSubscription: { req: { companyId: string; amount: number; currency: string; cycle: 'monthly' | 'yearly'; status: BillingSubscription['status']; startedOn?: string; renewsOn?: string; notes?: string }; res: BillingSubscription };
   createInvoice: { req: { companyId: string; amount: number; currency: string; description?: string; periodFrom?: string; periodTo?: string; issuedOn?: string; dueOn?: string }; res: BillingInvoice };

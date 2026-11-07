@@ -190,7 +190,7 @@ export const VIEW_SKELETON: Record<ViewId, PageSkeletonVariant> = {
   dashboard: 'dashboard', mis: 'dashboard', performance: 'dashboard', reports: 'dashboard',
   leads: 'table', inventory: 'table', calls: 'table', audit: 'table', followups: 'table', segments: 'table',
   kanban: 'board', templates: 'cards', documents: 'cards', chat360: 'split', settings: 'settings', tasks: 'list',
-  inbox: 'split', posts: 'list', ads: 'table', analytics: 'dashboard', searchconsole: 'dashboard', businessprofile: 'dashboard', dripcampaigns: 'list', competitors: 'list',
+  inbox: 'split', posts: 'list', ads: 'table', analytics: 'dashboard', searchconsole: 'dashboard', businessprofile: 'dashboard', dripcampaigns: 'list', whatsappcredits: 'dashboard', chatbots: 'list', competitors: 'list',
 };
 
 /** A whole screen while it loads. */

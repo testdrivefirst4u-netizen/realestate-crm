@@ -28,6 +28,8 @@ export async function getMetaSettings(): Promise<Res<'getMetaSettings'>> {
     verifyToken: cfg.verifyToken,
     loginConfigId: cfg.loginConfigId,
     capiConfigId: cfg.capiConfigId,
+    whatsappConfigId: cfg.whatsappConfigId,
+    whatsappSolutionId: cfg.whatsappSolutionId,
     updatedAt: doc?.updatedAt ? new Date(doc.updatedAt).toISOString() : '',
     updatedBy: doc?.updatedBy || '',
     queue,
@@ -67,10 +69,14 @@ export async function setMetaSettings(d: Req<'setMetaSettings'>, ctx: SaCtx): Pr
   if (loginConfigId && !/^\d{1,30}$/.test(loginConfigId)) throw fail('VALIDATION', 'The Facebook Login for Business configuration id is a number');
   const capiConfigId = d?.capiConfigId === undefined ? cur?.capiConfigId || '' : String(d.capiConfigId ?? '').trim();
   if (capiConfigId && !/^\d{1,30}$/.test(capiConfigId)) throw fail('VALIDATION', 'The ad conversions configuration id is a number');
+  const whatsappConfigId = d?.whatsappConfigId === undefined ? cur?.whatsappConfigId || '' : String(d.whatsappConfigId ?? '').trim();
+  if (whatsappConfigId && !/^\d{1,30}$/.test(whatsappConfigId)) throw fail('VALIDATION', 'The WhatsApp signup configuration id is a number');
+  const whatsappSolutionId = d?.whatsappSolutionId === undefined ? cur?.whatsappSolutionId || '' : String(d.whatsappSolutionId ?? '').trim();
+  if (whatsappSolutionId && !/^\d{1,30}$/.test(whatsappSolutionId)) throw fail('VALIDATION', 'The WhatsApp solution id is a number');
 
   await c.updateOne(
     { _id: 'meta' },
-    { $set: { appId, appSecret, verifyToken, graphVersion, loginConfigId, capiConfigId, updatedAt: new Date(), updatedBy: actorLabel(ctx) } },
+    { $set: { appId, appSecret, verifyToken, graphVersion, loginConfigId, capiConfigId, whatsappConfigId, whatsappSolutionId, updatedAt: new Date(), updatedBy: actorLabel(ctx) } },
     { upsert: true }
   );
   const changed = [secretIn ? 'app secret' : '', verifyPlain ? 'verify token' : ''].filter(Boolean).join(', ');

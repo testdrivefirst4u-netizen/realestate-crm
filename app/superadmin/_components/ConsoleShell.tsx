@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Activity, Building2, Database, LayoutDashboard, Layers, LogOut, Menu, Receipt, ScrollText, Settings2, ShieldCheck, X } from 'lucide-react';
+import { Activity, Building2, Database, LayoutDashboard, Layers, LogOut, Menu, Receipt, ScrollText, Settings2, ShieldCheck, Wallet, X } from 'lucide-react';
 import type { SuperAdmin } from '@/server/platform/contract';
 import { LOGIN_PATH, call, errorMessage, isAuthError } from '../_lib/api';
 import { initials } from '../_lib/format';
@@ -25,6 +25,7 @@ const GROUPS: Array<{ label: string; items: Array<{ href: string; label: string;
     { href: '/superadmin/companies', label: 'Companies', icon: Building2 },
     { href: '/superadmin/plans', label: 'Plans', icon: Layers },
     { href: '/superadmin/billing', label: 'Billing', icon: Receipt },
+    { href: '/superadmin/whatsapp-credits', label: 'WhatsApp credits', icon: Wallet },
   ] },
   { label: 'Security', items: [
     { href: '/superadmin/admins', label: 'Super admins', icon: ShieldCheck },
