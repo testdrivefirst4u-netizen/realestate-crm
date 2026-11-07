@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
+    "@xyflow/react": "^12.12.1",
     "bcryptjs": "^3.0.3",
     "canvas-confetti": "^1.9.4",
     "fflate": "^0.8.3",

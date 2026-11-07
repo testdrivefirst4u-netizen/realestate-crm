@@ -1,12 +1,14 @@
-/** The chatbot builder as a map: each step a box, choices branching into paths. Click a box to edit it, or + on a line to add a step. */
-import React, { useEffect, useMemo, useState } from 'react';
+/** The chatbot builder: a map you can drag. Boxes move, dots connect, lines can be re-pointed or removed, and every change can be undone. */
+import React, { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, CalendarDays, CheckCircle2, CircleHelp, CornerDownRight, GitBranch, MessageSquare, Minus, Plus, Sparkles, Trash2, UserRound, X } from 'lucide-react';
+import { Background, BackgroundVariant, BaseEdge, EdgeLabelRenderer, Handle, MarkerType, MiniMap, Panel, Position, ReactFlow, ReactFlowProvider, applyNodeChanges, getBezierPath, useNodesInitialized, useReactFlow, useUpdateNodeInternals, useViewport, type Connection, type Edge, type EdgeProps, type EdgeChange, type FinalConnectionState, type Node, type NodeChange, type NodeProps } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { AlertTriangle, CalendarDays, CheckCircle2, CircleHelp, GitBranch, LayoutGrid, Maximize, MessageSquare, Minus, Plus, Redo2, Sparkles, Trash2, Undo2, UserRound, X } from 'lucide-react';
 import { api, type BotStepView } from '../../core/api';
 import { END_STEP, botProblems, type BotStep } from '../../core/botEngine';
 import { reportError, toAppError } from '../../core/errors';
 import { Button, ConfirmDialog, Field, InlineNotice, Select, cx, inputCls } from '../../components/ui';
-import { explicitSteps, insertStep, layoutBot, mapOrder, removalCount, removeStep, setExit, type Exit, type MapEdge, type MapNode } from './botTree';
+import { NODE_W, addStep, arrange, emptyHistory, exitsOf, explicitSteps, mapOrder, record, redo, removalCount, removeStep, setExit, setPosition, undo, unconnectedSteps, withPositions, type Exit, type History, type Pos } from './botTree';
 
 export type BotDraft = { id?: string; name: string; trigger: 'new' | 'keyword' | 'any'; keywords: string; steps: BotStepView[]; knowledge: string };
 
@@ -21,32 +23,106 @@ const KINDS: Record<BotStepView['type'], { label: string; hint: string; icon: Re
 };
 const SAVE_OPTIONS = [{ value: '', label: 'Do not save' }, { value: 'name', label: 'Name' }, { value: 'email', label: 'E-mail' }, { value: 'unit', label: 'Unit interested in' }, { value: 'city', label: 'City' }, { value: 'budget', label: 'Budget' }, { value: 'purpose', label: 'Purpose' }, { value: 'notes', label: 'Add as a remark' }];
 const TRIGGERS = [{ value: 'new', label: 'First message from a new customer' }, { value: 'keyword', label: 'A customer sends a keyword' }, { value: 'any', label: 'Any message, if nobody replied in the last day' }];
+const LINE = '#9CB6CA';
+const LINE_ON = '#0B6BB0';
 
 let counter = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(counter++).toString(36)}`;
 const makeStep = (type: BotStepView['type']): BotStepView => ({ id: newId('s'), type, text: '', next: '', saveTo: '', validate: 'text', options: type === 'choice' ? [{ id: newId('o'), label: 'Option 1', next: END_STEP }, { id: newId('o'), label: 'Option 2', next: END_STEP }] : [], days: 7, times: ['11:00', '15:00', '17:00'] });
+const exitOfHandle = (stepId: string, handle?: string | null): Exit => (handle && handle !== 'next' ? { stepId, optionId: handle } : { stepId });
+const clientPoint = (e: MouseEvent | TouchEvent) => ('changedTouches' in e ? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY } : { x: e.clientX, y: e.clientY });
+const boxAt = (p: { x: number; y: number }) => document.elementFromPoint(p.x, p.y)?.closest('.react-flow__node')?.getAttribute('data-id') || '';
 
-const AddMenu: React.FC<{ aiAvailable: boolean; onPick: (t: BotStepView['type']) => void; onClose: () => void }> = ({ aiAvailable, onPick, onClose }) => (
-  <div role="menu" aria-label="Add a step" className="absolute left-1/2 top-full z-30 mt-1 w-56 -translate-x-1/2 rounded-lg border border-[#D3E3F0] bg-white p-1 shadow-xl">
-    {(Object.keys(KINDS) as Array<BotStepView['type']>).filter((t) => t !== 'ai' || aiAvailable).map((t) => {
-      const K = KINDS[t];
-      return <button key={t} type="button" role="menuitem" onClick={() => onPick(t)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium text-[#0B2A44] hover:bg-[#F2F7FB]"><span className="flex h-6 w-6 flex-none items-center justify-center rounded" style={{ background: K.tint, color: K.ink }}><K.icon size={13} aria-hidden="true" /></span>{K.label}</button>;
-    })}
-    <button type="button" role="menuitem" onClick={onClose} className="mt-0.5 w-full rounded px-2 py-1 text-left text-[11px] text-[#5E778C] hover:bg-[#F2F7FB]">Cancel</button>
-  </div>
-);
+/** What boxes and lines can ask the editor to do. */
+type Actions = { openAdd: (exit: Exit, x: number, y: number) => void; remove: (id: string) => void; unlink: (exit: Exit) => void; hover: (edge: string) => void };
+const ActionsContext = createContext<Actions | null>(null);
 
-const StepBox: React.FC<{ node: MapNode; step: BotStepView; selected: boolean; hasProblem: boolean; onClick: () => void }> = ({ node, step, selected, hasProblem, onClick }) => {
+type BoxData = { step: BotStepView; number: number; problem: boolean; start: boolean; unconnected: boolean; open: string[]; removable: boolean };
+type BoxNode = Node<BoxData, 'bot'>;
+type LineData = { exit: Exit; hover: boolean; lit: boolean };
+type LineEdge = Edge<LineData, 'bot'>;
+
+const dot = (ink: string): React.CSSProperties => ({ width: 13, height: 13, background: '#fff', border: `2px solid ${ink}` });
+
+const OpenPath: React.FC<{ exit: Exit }> = ({ exit }) => {
+  const a = useContext(ActionsContext)!;
+  return <button type="button" aria-label="Add the next step" title="Add the next step. Left open, the chat ends here." onClick={(e) => { e.stopPropagation(); a.openAdd(exit, e.clientX, e.clientY); }} className="nodrag nopan absolute left-full top-1/2 ml-2.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-dashed border-[#7E93A6] bg-white text-[#3E5A70] hover:border-[#0B6BB0] hover:text-[#0B6BB0]"><Plus size={13} /></button>;
+};
+
+const Box: React.FC<NodeProps<BoxNode>> = memo(({ id, data, selected }) => {
+  const { step, number, problem, start, unconnected, open, removable } = data;
   const K = KINDS[step.type];
+  const a = useContext(ActionsContext)!;
+  const sync = useUpdateNodeInternals();
+  const rows = step.type === 'choice' ? step.options.map((o) => o.id).join() : '';
+  useEffect(() => sync(id), [id, rows, sync]);
+  const single = step.type !== 'choice' && step.type !== 'handoff' && step.type !== 'end';
   return (
-    <button type="button" onClick={onClick} aria-pressed={selected} aria-label={`Step ${node.number}: ${K.label}. ${step.text}`} style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
-      className={cx('absolute flex flex-col overflow-hidden rounded-xl border-2 bg-white text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B6BB0]', selected ? 'border-[#0B6BB0]' : hasProblem ? 'border-[#F2B8B5]' : 'border-[#D3E3F0]')}>
-      <span className="flex w-full flex-none items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold" style={{ background: K.tint, color: K.ink }}>
+    <div className={cx('group relative rounded-xl border-2 bg-white shadow-sm transition-shadow hover:shadow-md', selected ? 'border-[#0B6BB0]' : problem ? 'border-[#F2B8B5]' : 'border-[#D3E3F0]')} style={{ width: NODE_W }}>
+      {start && <span className="absolute -top-6 left-0 rounded-full bg-[#067647] px-2 py-0.5 text-[10.5px] font-semibold text-white">Start</span>}
+      {unconnected && !start && <span className="absolute -top-6 left-0 rounded-full bg-[#FFF8E6] px-2 py-0.5 text-[10.5px] font-semibold text-[#8A5A00] ring-1 ring-[#F2D58A]">Nothing leads here</span>}
+      <Handle type="target" position={Position.Left} isConnectableStart={false} style={{ ...dot('#7E93A6'), top: 18 }} />
+      <div className="flex h-[34px] items-center gap-1.5 rounded-t-[10px] px-2.5 text-[11.5px] font-semibold" style={{ background: K.tint, color: K.ink }}>
         <K.icon size={13} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{K.label}</span>
-        {hasProblem ? <AlertTriangle size={13} className="flex-none text-[#B42318]" aria-label="Needs fixing" /> : <span className="flex-none tabular-nums opacity-70">{node.number}</span>}
-      </span>
-      <span className="line-clamp-3 flex-1 break-words px-2.5 py-1.5 text-[12px] leading-snug text-[#0B2A44]">{step.text || <span className="text-[#7E93A6]">{step.type === 'visit' ? 'Which day suits you?' : step.type === 'end' ? 'Stops quietly' : 'No message yet'}</span>}</span>
-    </button>
+        {problem && <AlertTriangle size={13} className="flex-none text-[#B42318]" aria-label="Needs fixing" />}
+        <button type="button" aria-label={`Remove step ${number}`} disabled={!removable} title={removable ? 'Remove this step' : 'The first step needs one path to hand over to. Change what it does instead.'} onClick={(e) => { e.stopPropagation(); a.remove(id); }} className={cx('nodrag nopan flex-none rounded p-0.5 text-[#B42318] hover:bg-white focus-visible:opacity-100 disabled:cursor-not-allowed disabled:text-[#9CB6CA]', selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}><Trash2 size={13} /></button>
+        <span className="flex-none tabular-nums opacity-70">{number}</span>
+      </div>
+      <p className="line-clamp-3 h-[66px] break-words px-2.5 py-1.5 text-[12px] leading-snug text-[#0B2A44]">{step.text || <span className="text-[#7E93A6]">{step.type === 'visit' ? 'Which day suits you?' : step.type === 'end' ? 'Stops quietly' : 'No message yet'}</span>}</p>
+      {step.type === 'choice' && (
+        <ul className="space-y-0 border-t border-[#E3EDF5] py-1.5">
+          {step.options.map((o) => (
+            <li key={o.id} className="relative flex h-[34px] items-center px-2.5">
+              <span className="min-w-0 flex-1 truncate rounded-md bg-[#FFF4E5] px-2 py-1 text-[11.5px] font-semibold text-[#9A5B00]" title={o.label}>{o.label || 'Option'}</span>
+              <Handle id={o.id} type="source" position={Position.Right} isConnectableEnd={false} style={dot('#9A5B00')} />
+              {open.includes(o.id) && <OpenPath exit={{ stepId: id, optionId: o.id }} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      {single && <Handle id="next" type="source" position={Position.Right} isConnectableEnd={false} style={dot(K.ink)} />}
+      {single && open.includes('next') && <OpenPath exit={{ stepId: id }} />}
+    </div>
+  );
+});
+Box.displayName = 'Box';
+
+const Line: React.FC<EdgeProps<LineEdge>> = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, selected, data }) => {
+  const a = useContext(ActionsContext)!;
+  const [path, x, y] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  const on = selected || data?.lit || data?.hover;
+  return (
+    <>
+      <BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={26} style={{ stroke: on ? LINE_ON : LINE, strokeWidth: on ? 2.25 : 1.5 }} />
+      {(selected || data?.hover) && data && (
+        <EdgeLabelRenderer>
+          <div className="nodrag nopan absolute flex gap-1" style={{ transform: `translate(-50%,-50%) translate(${x}px,${y}px)`, pointerEvents: 'all', zIndex: 1002 }} onMouseEnter={() => a.hover(id)} onMouseLeave={() => a.hover('')}>
+            <button type="button" aria-label="Add a step on this line" title="Add a step on this line" onClick={(e) => { e.stopPropagation(); a.openAdd(data.exit, e.clientX, e.clientY); }} className="flex h-6 w-6 items-center justify-center rounded-full border border-[#0B6BB0] bg-white text-[#0B6BB0] shadow-sm hover:bg-[#EAF4FB]"><Plus size={13} /></button>
+            {selected && <button type="button" aria-label="Remove this line" title="Remove this line" onClick={(e) => { e.stopPropagation(); a.unlink(data.exit); }} className="flex h-6 w-6 items-center justify-center rounded-full border border-[#F2B8B5] bg-white text-[#B42318] shadow-sm hover:bg-[#FEF3F2]"><X size={13} /></button>}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+};
+
+const nodeTypes = { bot: Box };
+const edgeTypes = { bot: Line };
+
+const AddMenu: React.FC<{ x: number; y: number; aiAvailable: boolean; onPick: (t: BotStepView['type']) => void; onClose: () => void }> = ({ x, y, aiAvailable, onPick, onClose }) => {
+  const types = (Object.keys(KINDS) as Array<BotStepView['type']>).filter((t) => t !== 'ai' || aiAvailable);
+  const left = Math.max(8, Math.min(x + 6, window.innerWidth - 232));
+  const top = Math.max(8, Math.min(y + 6, window.innerHeight - (types.length * 34 + 20)));
+  return (
+    <>
+      <div className="absolute inset-0 z-40" onClick={onClose} aria-hidden="true" />
+      <div role="menu" aria-label="Add a step" className="fixed z-50 w-56 rounded-lg border border-[#D3E3F0] bg-white p-1 shadow-xl" style={{ left, top }}>
+        {types.map((t) => {
+          const K = KINDS[t];
+          return <button key={t} type="button" role="menuitem" onClick={() => onPick(t)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium text-[#0B2A44] hover:bg-[#F2F7FB]"><span className="flex h-6 w-6 flex-none items-center justify-center rounded" style={{ background: K.tint, color: K.ink }}><K.icon size={13} aria-hidden="true" /></span>{K.label}</button>;
+        })}
+      </div>
+    </>
   );
 };
 
@@ -58,7 +134,7 @@ const Inspector: React.FC<{ step: BotStepView; number: number; all: BotStepView[
   const changeType = (type: BotStepView['type']) => {
     const fresh = makeStep(type);
     const onward = step.type === 'choice' ? step.options[0]?.next || END_STEP : step.next || END_STEP;
-    onChange({ ...fresh, id: step.id, text: step.text, next: type === 'handoff' || type === 'end' || type === 'choice' ? '' : onward, options: type === 'choice' ? fresh.options.map((o, i) => ({ ...o, next: i === 0 ? onward : END_STEP })) : [] });
+    onChange({ ...fresh, id: step.id, pos: step.pos, text: step.text, next: type === 'handoff' || type === 'end' || type === 'choice' ? '' : onward, options: type === 'choice' ? fresh.options.map((o, i) => ({ ...o, next: i === 0 ? onward : END_STEP })) : [] });
   };
   return (
     <aside className="flex h-full w-full flex-col border-t border-[#D3E3F0] bg-white lg:w-[340px] lg:flex-none lg:border-l lg:border-t-0" aria-label={`Edit step ${number}`}>
@@ -110,65 +186,215 @@ const Inspector: React.FC<{ step: BotStepView; number: number; all: BotStepView[
   );
 };
 
-export const BotFlowEditor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => void; onSaved: (id: string, problems: string[]) => void }> = ({ draft, aiAvailable, onClose, onSaved }) => {
-  const [d, setD] = useState<BotDraft>(() => ({ ...draft, steps: mapOrder(explicitSteps(draft.steps as BotStep[])) as BotStepView[] }));
-  const [selected, setSelected] = useState(d.steps[0]?.id || '');
-  const [adding, setAdding] = useState('');
-  const [zoom, setZoom] = useState(1);
+const Toolbar: React.FC<{ canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; onArrange: () => void }> = ({ canUndo, canRedo, onUndo, onRedo, onArrange }) => {
+  const rf = useReactFlow();
+  const { zoom } = useViewport();
+  return (
+    <Panel position="top-left" className="flex flex-wrap items-center gap-1 rounded-lg border border-[#D3E3F0] bg-white p-1 shadow-sm">
+      <Button variant="secondary" size="xs" icon={<Undo2 size={12} />} aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={onUndo} />
+      <Button variant="secondary" size="xs" icon={<Redo2 size={12} />} aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={onRedo} />
+      <span className="mx-0.5 h-4 w-px bg-[#D3E3F0]" aria-hidden="true" />
+      <Button variant="secondary" size="xs" icon={<Minus size={12} />} aria-label="Zoom out" onClick={() => void rf.zoomOut({ duration: 120 })} />
+      <span className="w-10 text-center text-[11px] tabular-nums text-[#3E5A70]">{Math.round(zoom * 100)}%</span>
+      <Button variant="secondary" size="xs" icon={<Plus size={12} />} aria-label="Zoom in" onClick={() => void rf.zoomIn({ duration: 120 })} />
+      <Button variant="secondary" size="xs" icon={<Maximize size={12} />} aria-label="Fit the whole map" title="Fit the whole map" onClick={() => void rf.fitView({ padding: 0.15, maxZoom: 1, duration: 200 })} />
+      <span className="mx-0.5 h-4 w-px bg-[#D3E3F0]" aria-hidden="true" />
+      <Button variant="secondary" size="xs" icon={<LayoutGrid size={12} />} onClick={onArrange}>Arrange</Button>
+    </Panel>
+  );
+};
+
+const Editor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => void; onSaved: (id: string, problems: string[]) => void }> = ({ draft, aiAvailable, onClose, onSaved }) => {
+  const rf = useReactFlow();
+  const [d, setD] = useState<Omit<BotDraft, 'steps'>>(() => ({ id: draft.id, name: draft.name, trigger: draft.trigger, keywords: draft.keywords, knowledge: draft.knowledge }));
+  const [flow, setFlow] = useState<{ steps: BotStep[]; history: History }>(() => ({ steps: withPositions(mapOrder(explicitSteps(draft.steps as BotStep[]))), history: emptyHistory }));
+  const steps = flow.steps;
+  const [selected, setSelected] = useState('');
+  const [selectedEdge, setSelectedEdge] = useState('');
+  const [hoverEdge, setHoverEdge] = useState('');
+  const [menu, setMenu] = useState<{ x: number; y: number; exit?: Exit; at?: Pos } | null>(null);
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const [dirty, setDirty] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [removing, setRemoving] = useState('');
+  const pane = useRef<HTMLDivElement>(null);
+  // the whole map in view on opening, once every box has been measured
+  const measured = useNodesInitialized();
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (!measured || fitted.current) return;
+    fitted.current = true;
+    void rf.fitView({ padding: 0.15, maxZoom: 1 });
+  }, [measured, rf]);
 
-  const update = (fn: (steps: BotStepView[]) => BotStepView[]) => {
-    setD((x) => ({ ...x, steps: mapOrder(fn(x.steps) as BotStep[]) as BotStepView[] }));
+  const update = useCallback((fn: (s: BotStep[]) => BotStep[], group?: string) => {
+    setFlow((f) => {
+      const steps = mapOrder(fn(f.steps));
+      // a change that changes nothing, like one drop reported twice, must not take an extra undo
+      if (JSON.stringify(steps) === JSON.stringify(f.steps)) return f;
+      return { steps, history: record(f.history, f.steps, group) };
+    });
     setDirty(true);
-  };
-  const steps = d.steps;
-  const map = useMemo(() => layoutBot(steps as BotStep[]), [steps]);
-  const problems = useMemo(() => botProblems({ steps: steps as BotStep[] }), [steps]);
-  const stepHasProblem = (n: number) => problems.some((p) => p.startsWith(`Step ${n}:`));
-  const nodeOf = useMemo(() => new Map(map.nodes.map((n) => [n.key, n])), [map]);
-  const current = steps.find((s) => s.id === selected);
+  }, []);
+  const keepInView = useCallback(() => {
+    setTimeout(() => {
+      const r = pane.current?.getBoundingClientRect();
+      if (!r) return;
+      const shown = [...(pane.current?.querySelectorAll('.react-flow__node') ?? [])].some((n) => {
+        const b = n.getBoundingClientRect();
+        return b.right > r.left && b.left < r.right && b.bottom > r.top && b.top < r.bottom;
+      });
+      if (!shown) void rf.fitView({ padding: 0.15, maxZoom: 1, duration: 200 });
+    }, 80);
+  }, [rf]);
+  const doUndo = useCallback(() => { setFlow((f) => { const r = undo(f.history, f.steps); return r ? { steps: r.steps, history: r.history } : f; }); setDirty(true); setNotice(''); keepInView(); }, [keepInView]);
+  const doRedo = useCallback(() => { setFlow((f) => { const r = redo(f.history, f.steps); return r ? { steps: r.steps, history: r.history } : f; }); setDirty(true); keepInView(); }, [keepInView]);
+
+  const problems = useMemo(() => botProblems({ steps }), [steps]);
+  const current = steps.find((s) => s.id === selected) as BotStepView | undefined;
   const numberOf = (id: string) => steps.findIndex((s) => s.id === id) + 1;
+
+  const doRemove = (id: string) => {
+    update((s) => removeStep(s, id));
+    setRemoving('');
+    setSelected('');
+    setNotice('Step removed.');
+  };
+  const askRemove = (id: string) => {
+    const n = removalCount(steps, id);
+    if (n > 1) setRemoving(id);
+    else if (n === 1) doRemove(id);
+  };
+  const link = (exit: Exit, target: string) => {
+    if (target && target !== exit.stepId) update((s) => setExit(s, exit, target));
+  };
+  const unlink = (exit: Exit) => {
+    update((s) => setExit(s, exit, END_STEP));
+    setSelectedEdge('');
+    setHoverEdge('');
+  };
+  const pick = (type: BotStepView['type']) => {
+    if (!menu) return;
+    const step = makeStep(type) as BotStep;
+    const next = menu.exit ? addStep(steps, menu.exit, step, menu.at) : [{ ...step, pos: { x: 0, y: 0 } }];
+    update(() => next);
+    setMenu(null);
+    setSelected(step.id);
+    setSelectedEdge('');
+    const at = next.find((s) => s.id === step.id)?.pos;
+    if (at) {
+      // bring it into view if it landed off screen
+      setTimeout(() => {
+        const r = pane.current?.getBoundingClientRect();
+        if (!r) return;
+        const p = rf.flowToScreenPosition(at);
+        const v = rf.getViewport();
+        const edge = 24;
+        const w = (NODE_W + 40) * v.zoom;
+        const h = 130 * v.zoom;
+        const dx = p.x < r.left + edge ? r.left + edge - p.x : p.x + w > r.right - edge ? r.right - edge - p.x - w : 0;
+        const dy = p.y < r.top + 70 ? r.top + 70 - p.y : p.y + h > r.bottom - edge ? r.bottom - edge - p.y - h : 0;
+        if (dx || dy) void rf.setViewport({ x: v.x + dx, y: v.y + dy, zoom: v.zoom }, { duration: 200 });
+      }, 60);
+    }
+  };
+  const tidy = () => {
+    update((s) => arrange(s));
+    setTimeout(() => void rf.fitView({ padding: 0.15, maxZoom: 1, duration: 200 }), 40);
+  };
+
+  // boxes and lines call through this, so they need not redraw whenever the editor does
+  const latest = useRef<Actions | null>(null);
+  useEffect(() => {
+    latest.current = { openAdd: (exit, x, y) => setMenu({ x, y, exit }), remove: askRemove, unlink, hover: setHoverEdge };
+  });
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const actions = useMemo<Actions>(() => ({
+    openAdd: (e, x, y) => latest.current?.openAdd(e, x, y),
+    remove: (id) => latest.current?.remove(id),
+    unlink: (e) => latest.current?.unlink(e),
+    // a short wait, so moving from the line onto its buttons does not hide them
+    hover: (edge) => { clearTimeout(hoverTimer.current); if (edge) setHoverEdge(edge); else hoverTimer.current = setTimeout(() => setHoverEdge(''), 150); },
+  }), []);
+
+  const build = useCallback((prev: BoxNode[]): BoxNode[] => {
+    const ids = new Set(steps.map((s) => s.id));
+    const lost = new Set(unconnectedSteps(steps));
+    const old = new Map(prev.map((n) => [n.id, n]));
+    return steps.map((s, i) => ({
+      ...old.get(s.id), id: s.id, type: 'bot' as const, position: s.pos || { x: 0, y: 0 }, selected: s.id === selected,
+      data: { step: s as BotStepView, number: i + 1, problem: problems.some((p) => p.startsWith(`Step ${i + 1}:`)), start: i === 0, unconnected: lost.has(s.id), open: exitsOf(s).filter((x) => !ids.has(x.target)).map((x) => x.handle), removable: removalCount(steps, s.id) > 0 },
+    }));
+  }, [steps, selected, problems]);
+  const [nodes, setNodes] = useState<BoxNode[]>(() => build([]));
+  useEffect(() => setNodes(build), [build]);
+
+  const edges = useMemo<LineEdge[]>(() => {
+    const ids = new Set(steps.map((s) => s.id));
+    return steps.flatMap((s) => exitsOf(s).filter((x) => ids.has(x.target)).map((x) => {
+      const id = `${s.id}:${x.handle}`;
+      const lit = !!selected && (s.id === selected || x.target === selected);
+      const on = lit || id === selectedEdge || id === hoverEdge;
+      return { id, type: 'bot' as const, zIndex: on ? 1001 : 0, source: s.id, sourceHandle: x.handle, target: x.target, selected: id === selectedEdge, reconnectable: 'target' as const, markerEnd: { type: MarkerType.ArrowClosed, color: on ? LINE_ON : LINE, width: 18, height: 18 }, data: { exit: x.exit, hover: id === hoverEdge, lit } };
+    }));
+  }, [steps, selected, selectedEdge, hoverEdge]);
+
+  const selectBox = (id: string) => { setSelected(id); setSelectedEdge(''); };
+  const onNodesChange = (changes: NodeChange<BoxNode>[]) => {
+    const picked = changes.find((c) => c.type === 'select' && c.selected);
+    if (picked && picked.type === 'select') selectBox(picked.id);
+    setNodes((ns) => applyNodeChanges(changes.filter((c) => c.type !== 'select' && c.type !== 'remove'), ns));
+  };
+  const onEdgesChange = (changes: EdgeChange<LineEdge>[]) => {
+    const picked = changes.find((c) => c.type === 'select' && c.selected);
+    if (picked && picked.type === 'select') { setSelectedEdge(picked.id); setSelected(''); }
+  };
+  const reconnecting = useRef(false);
+  const onConnectEnd = (e: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+    const from = state.fromNode?.id;
+    if (reconnecting.current || state.isValid || !from) return;
+    const exit = exitOfHandle(from, state.fromHandle?.id);
+    const p = clientPoint(e);
+    const box = boxAt(p);
+    if (box) link(exit, box);
+    else setMenu({ x: p.x, y: p.y, exit, at: rf.screenToFlowPosition(p) });
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (adding) setAdding('');
-      else if (selected) setSelected('');
+      const typing = (e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]');
+      if (e.key === 'Escape') {
+        if (menu) setMenu(null);
+        else { setSelected(''); setSelectedEdge(''); }
+        return;
+      }
+      if (typing || removing || leaving) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selected) askRemove(selected);
+        else {
+          const line = edges.find((x) => x.id === selectedEdge);
+          if (line?.data) unlink(line.data.exit);
+        }
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [adding, selected]);
+  });
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(''), 7000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
-  const add = (e: Exit, type: BotStepView['type']) => {
-    const step = makeStep(type);
-    update((s) => insertStep(s as BotStep[], e, step as BotStep) as BotStepView[]);
-    setAdding('');
-    setSelected(step.id);
-  };
-  const addFirst = (type: BotStepView['type']) => {
-    const step = makeStep(type);
-    update(() => (explicitSteps([step as BotStep]) as BotStepView[]));
-    setAdding('');
-    setSelected(step.id);
-  };
-  const confirmRemove = (id: string) => {
-    if (removalCount(steps as BotStep[], id) > 1) setRemoving(id);
-    else doRemove(id);
-  };
-  const doRemove = (id: string) => {
-    update((s) => removeStep(s as BotStep[], id) as BotStepView[]);
-    setRemoving('');
-    setSelected('');
-  };
   const save = async () => {
     setBusy(true);
     setProblem('');
     try {
-      const r = await api.bots.save(d);
+      const r = await api.bots.save({ ...d, steps: steps as BotStepView[] });
       onSaved(r.id, r.problems);
     } catch (e) {
       setProblem(toAppError(reportError('bots.save', e)).userMessage);
@@ -176,106 +402,75 @@ export const BotFlowEditor: React.FC<{ draft: BotDraft; aiAvailable: boolean; on
       setBusy(false);
     }
   };
-  const edgePath = (e: MapEdge) => {
-    const a = nodeOf.get(e.fromKey)!;
-    const b = nodeOf.get(e.toKey)!;
-    const x1 = a.x + a.w / 2, y1 = a.y + a.h, x2 = b.x + b.w / 2, y2 = b.y;
-    const mid = (y1 + y2) / 2;
-    const t = e.label ? 0.35 : 0.5;
-    const u = 1 - t;
-    const at = (a: number, b: number, c: number) => (u * u * u + 3 * u * u * t) * a + 3 * u * t * t * b + t * t * t * c;
-    return { d: `M${x1} ${y1} C${x1} ${mid} ${x2} ${mid} ${x2} ${y2}`, midX: u * u * u * x1 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x2, midY: at(y1, mid, y2) + 3 * u * u * t * (mid - y1), x2, y2 };
-  };
-  const pad = 40;
-  const canvasW = (map.width + pad * 2) * zoom;
-  const canvasH = (map.height + pad * 2 + 60) * zoom;
+  const editHeader = (patch: Partial<typeof d>) => { setD((x) => ({ ...x, ...patch })); setDirty(true); };
 
-  return createPortal(
+  return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#F4F8FB]" role="dialog" aria-modal="true" aria-label={d.id ? `Edit ${draft.name}` : 'New chatbot'}>
       <header className="flex flex-wrap items-end gap-3 border-b border-[#D3E3F0] bg-white px-4 py-3">
-        <div className="min-w-[180px] flex-1"><Field label="Bot name"><input className={inputCls} maxLength={80} value={d.name} onChange={(e) => { setD({ ...d, name: e.target.value }); setDirty(true); }} /></Field></div>
-        <div className="min-w-[220px]"><Field label="Starts when"><Select value={d.trigger} onChange={(e) => { setD({ ...d, trigger: e.target.value as BotDraft['trigger'] }); setDirty(true); }} options={TRIGGERS} /></Field></div>
-        {d.trigger === 'keyword' && <div className="min-w-[160px]"><Field label="Keywords"><input className={inputCls} placeholder="price, brochure" value={d.keywords} onChange={(e) => { setD({ ...d, keywords: e.target.value }); setDirty(true); }} /></Field></div>}
-        <span className="flex gap-2 pb-0.5"><Button variant="secondary" onClick={() => (dirty ? setLeaving(true) : onClose())}>Close</Button><Button variant="primary" loading={busy} onClick={() => void save()}>Save</Button></span>
+        <div className={cx(current && 'hidden sm:block', 'min-w-[160px] flex-1')}><Field label="Bot name"><input className={inputCls} maxLength={80} value={d.name} onChange={(e) => editHeader({ name: e.target.value })} /></Field></div>
+        <div className={cx(current && 'hidden sm:block', 'w-full sm:w-[260px]')}><Field label="Starts when"><Select value={d.trigger} onChange={(e) => editHeader({ trigger: e.target.value as BotDraft['trigger'] })} options={TRIGGERS} /></Field></div>
+        {d.trigger === 'keyword' && <div className={cx(current && 'hidden sm:block', 'w-full sm:w-[170px]')}><Field label="Keywords"><input className={inputCls} placeholder="price, brochure" value={d.keywords} onChange={(e) => editHeader({ keywords: e.target.value })} /></Field></div>}
+        <span className="ml-auto flex flex-none items-center gap-2 pb-0.5">
+          {dirty && <span className="text-[11px] text-[#5E778C]">Not saved yet</span>}
+          <Button variant="secondary" onClick={() => (dirty ? setLeaving(true) : onClose())}>Close</Button>
+          <Button variant="primary" loading={busy} onClick={() => void save()}>Save</Button>
+        </span>
       </header>
       {problem && <InlineNotice tone="warning" className="m-2">{problem}</InlineNotice>}
       {problems.length > 0 && !problem && <p className="flex items-center gap-1.5 border-b border-[#F8D9B0] bg-[#FFF8E6] px-4 py-1.5 text-xs text-[#8A5A00]"><AlertTriangle size={13} className="flex-none" aria-hidden="true" /><span className="min-w-0 truncate">{problems[0]}{problems.length > 1 ? ` And ${problems.length - 1} more.` : ''}</span></p>}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative min-h-0 flex-1 overflow-auto" onClick={(e) => { if (e.target === e.currentTarget) { setSelected(''); setAdding(''); } }}>
-          <div className="sticky left-3 top-3 z-20 inline-flex gap-1 rounded-lg border border-[#D3E3F0] bg-white p-1 shadow-sm">
-            <Button variant="secondary" size="xs" icon={<Minus size={12} />} aria-label="Zoom out" disabled={zoom <= 0.5} onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))} />
-            <span className="w-10 self-center text-center text-[11px] tabular-nums text-[#3E5A70]">{Math.round(zoom * 100)}%</span>
-            <Button variant="secondary" size="xs" icon={<Plus size={12} />} aria-label="Zoom in" disabled={zoom >= 1.2} onClick={() => setZoom((z) => Math.min(1.2, Math.round((z + 0.1) * 10) / 10))} />
-          </div>
-          {!steps.length ? (
-            <div className="relative mx-auto mt-16 w-fit text-center">
+        <div ref={pane} className="relative min-h-0 min-w-0 flex-1">
+          <ActionsContext.Provider value={actions}>
+            <ReactFlow<BoxNode, LineEdge>
+              nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
+              onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+              onNodeClick={(_, n) => { selectBox(n.id); setMenu(null); }}
+              onEdgeClick={(_, x) => { setSelectedEdge(x.id); setSelected(''); }}
+              onPaneClick={() => { setSelected(''); setSelectedEdge(''); setMenu(null); }}
+              onNodeDragStop={(_, n) => { const s = steps.find((x) => x.id === n.id); if (s && (s.pos?.x !== n.position.x || s.pos?.y !== n.position.y)) update((all) => setPosition(all, n.id, { x: n.position.x, y: n.position.y })); }}
+              onEdgeMouseEnter={(_, x) => actions.hover(x.id)} onEdgeMouseLeave={() => actions.hover('')}
+              onConnect={(c: Connection) => { if (c.source) link(exitOfHandle(c.source, c.sourceHandle), c.target); }}
+              onConnectEnd={onConnectEnd}
+              onReconnect={(old, c) => { if (old.data && c.target) link(old.data.exit, c.target); }}
+              onReconnectStart={() => { reconnecting.current = true; }}
+              onReconnectEnd={(e, old, _h, state) => { reconnecting.current = false; if (!state.isValid && old.data) link(old.data.exit, boxAt(clientPoint(e))); }}
+              minZoom={0.25} maxZoom={1.5} snapToGrid snapGrid={[8, 8]}
+              selectNodesOnDrag={false} deleteKeyCode={null} selectionKeyCode={null} multiSelectionKeyCode={null} zoomOnDoubleClick={false} connectionRadius={28}
+              connectionLineStyle={{ stroke: LINE_ON, strokeWidth: 2 }} attributionPosition="bottom-left"
+            >
+              <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} color="#C9D9E6" />
+              <Toolbar canUndo={flow.history.past.length > 0} canRedo={flow.history.future.length > 0} onUndo={doUndo} onRedo={doRedo} onArrange={tidy} />
+              <MiniMap pannable zoomable className="!hidden md:!block" nodeColor={(n) => KINDS[(n as BoxNode).data.step.type].ink} maskColor="rgba(11,42,68,0.08)" />
+              {steps.length > 0 && <Panel position="top-right" className="hidden rounded-md bg-white/80 px-2 py-1 text-[11px] text-[#5E778C] xl:block">Drag a box to move it. Drag a dot to another box to connect.</Panel>}
+            </ReactFlow>
+          </ActionsContext.Provider>
+          {!steps.length && (
+            <div className="absolute left-1/2 top-1/3 z-10 -translate-x-1/2 text-center">
               <p className="mb-2 text-sm text-[#5E778C]">Start with the first step.</p>
-              <Button variant="primary" icon={<Plus size={14} />} onClick={() => setAdding('first')}>Add first step</Button>
-              {adding === 'first' && <AddMenu aiAvailable={aiAvailable} onPick={addFirst} onClose={() => setAdding('')} />}
-            </div>
-          ) : (
-            <div style={{ width: canvasW, height: canvasH }} onClick={(e) => { if (e.target === e.currentTarget) { setSelected(''); setAdding(''); } }}>
-              <div className="relative origin-top-left" style={{ width: map.width + pad * 2, height: map.height + pad * 2, transform: `scale(${zoom})` }}>
-                <div className="absolute" style={{ left: pad, top: pad, width: map.width, height: map.height }}>
-                  <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width={map.width} height={map.height} aria-hidden="true">
-                    {map.edges.map((e) => <path key={e.key} d={edgePath(e).d} fill="none" stroke="#9CB6CA" strokeWidth={1.5} />)}
-                  </svg>
-                  {map.edges.map((e) => {
-                    const p = edgePath(e);
-                    const target = nodeOf.get(e.toKey)!;
-                    return (
-                      <React.Fragment key={e.key}>
-                        {e.label && <span className="absolute z-10 max-w-[120px] -translate-x-1/2 truncate rounded-full border border-[#F2D9AE] bg-[#FFF4E5] px-2 py-0.5 text-[10.5px] font-semibold text-[#9A5B00]" style={{ left: p.x2, top: p.y2 - 34 }} title={e.label}>{e.label}</span>}
-                        {target.kind !== 'end' && (
-                          <span className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: p.midX, top: p.midY }}>
-                            <button type="button" aria-label="Add a step here" title="Add a step here" onClick={() => setAdding(e.key)} className="flex h-5 w-5 items-center justify-center rounded-full border border-[#9CB6CA] bg-white text-[#3E5A70] hover:border-[#0B6BB0] hover:text-[#0B6BB0]"><Plus size={11} /></button>
-                            {adding === e.key && <AddMenu aiAvailable={aiAvailable} onPick={(t) => add(e.exit, t)} onClose={() => setAdding('')} />}
-                          </span>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                  {map.nodes.map((n) => {
-                    if (n.kind === 'step') {
-                      const s = steps.find((x) => x.id === n.stepId)!;
-                      return <StepBox key={n.key} node={n} step={s} selected={selected === s.id} hasProblem={stepHasProblem(n.number)} onClick={() => { setSelected(s.id); setAdding(''); }} />;
-                    }
-                    const edge = map.edges.find((e) => e.toKey === n.key)!;
-                    if (n.kind === 'jump') {
-                      return <button key={n.key} type="button" onClick={() => setSelected(n.stepId)} style={{ left: n.x, top: n.y, width: n.w, height: n.h }} className="absolute flex items-center justify-center gap-1 rounded-lg border border-dashed border-[#9CB6CA] bg-white text-[11.5px] font-medium text-[#3E5A70] hover:bg-[#F2F7FB]"><CornerDownRight size={12} aria-hidden="true" />Goes to step {n.number}</button>;
-                    }
-                    return (
-                      <span key={n.key} className="absolute" style={{ left: n.x, top: n.y, width: n.w, height: n.h }}>
-                        <button type="button" onClick={() => setAdding(edge.key)} className="flex h-full w-full flex-col items-center justify-center rounded-lg border border-dashed border-[#9CB6CA] bg-white text-[11px] text-[#5E778C] hover:border-[#0B6BB0] hover:text-[#0B6BB0]"><span className="inline-flex items-center gap-1 font-semibold"><Plus size={12} aria-hidden="true" />Add a step</span><span className="text-[10px]">or the chat ends here</span></button>
-                        {adding === edge.key && <AddMenu aiAvailable={aiAvailable} onPick={(t) => add(edge.exit, t)} onClose={() => setAdding('')} />}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
+              <Button variant="primary" icon={<Plus size={14} />} onClick={(e) => setMenu({ x: e.clientX, y: e.clientY })}>Add first step</Button>
             </div>
           )}
-          {map.unconnected.length > 0 && (
-            <div className="sticky bottom-3 left-3 z-20 inline-block max-w-md rounded-lg border border-[#F8D9B0] bg-[#FFF8E6] p-2.5 text-xs text-[#6B4700] shadow-sm">
-              <p className="font-semibold">Not connected to anything</p>
-              <div className="mt-1 flex flex-wrap gap-1">{map.unconnected.map((id) => <button key={id} type="button" className="rounded border border-[#F2D58A] bg-white px-2 py-0.5 hover:bg-[#FFFDF5]" onClick={() => setSelected(id)}>Step {numberOf(id)}: {KINDS[steps.find((s) => s.id === id)!.type].label}</button>)}</div>
+          {notice && (
+            <div role="status" className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-[#0B2A44] px-3 py-2 text-xs text-white shadow-lg">
+              {notice}<button type="button" className="font-semibold underline" onClick={doUndo}>Undo</button>
             </div>
           )}
+          {menu && <AddMenu x={menu.x} y={menu.y} aiAvailable={aiAvailable} onPick={pick} onClose={() => setMenu(null)} />}
         </div>
-
-        {current ? (
+        {current && (
           <div className="max-h-[50vh] lg:max-h-none">
-            <Inspector key={current.id} step={current} number={numberOf(current.id)} all={steps} canRemove={removeStep(steps as BotStep[], current.id).length < steps.length} removeCount={removalCount(steps as BotStep[], current.id)} aiAvailable={aiAvailable} knowledge={d.knowledge} onKnowledge={(v) => { setD((x) => ({ ...x, knowledge: v })); setDirty(true); }}
-              onChange={(n) => update((s) => s.map((x) => (x.id === n.id ? n : x)))}
-              onExit={(e, target) => update((s) => setExit(s as BotStep[], e, target) as BotStepView[])}
-              onRemove={() => confirmRemove(current.id)} onClose={() => setSelected('')} />
+            <Inspector key={current.id} step={current} number={numberOf(current.id)} all={steps as BotStepView[]} canRemove={removalCount(steps, current.id) > 0} removeCount={removalCount(steps, current.id)} aiAvailable={aiAvailable} knowledge={d.knowledge} onKnowledge={(v) => editHeader({ knowledge: v })}
+              onChange={(n) => update((s) => s.map((x) => (x.id === n.id ? (n as BotStep) : x)), `edit:${n.id}`)}
+              onExit={(e, target) => update((s) => setExit(s, e, target))}
+              onRemove={() => askRemove(current.id)} onClose={() => setSelected('')} />
           </div>
-        ) : null}
+        )}
       </div>
       <ConfirmDialog open={leaving} danger title="Close without saving?" message="Your changes to this bot will be lost." confirmLabel="Close without saving" onConfirm={onClose} onCancel={() => setLeaving(false)} />
-      <ConfirmDialog open={!!removing} danger title="Remove this step and what follows it?" message={`Its paths go with it: ${removing ? removalCount(steps as BotStep[], removing) : 0} steps in all.`} confirmLabel="Remove" onConfirm={() => doRemove(removing)} onCancel={() => setRemoving('')} />
-    </div>,
-    document.body,
+      <ConfirmDialog open={!!removing} danger title="Remove this step and what follows it?" message={`Its paths go with it: ${removing ? removalCount(steps, removing) : 0} steps in all. You can undo this.`} confirmLabel="Remove" onConfirm={() => doRemove(removing)} onCancel={() => setRemoving('')} />
+    </div>
   );
 };
+
+export const BotFlowEditor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => void; onSaved: (id: string, problems: string[]) => void }> = (props) => createPortal(<ReactFlowProvider><Editor {...props} /></ReactFlowProvider>, document.body);

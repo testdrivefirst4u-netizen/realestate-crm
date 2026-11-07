@@ -1,11 +1,13 @@
 /** WhatsApp chatbots (plan feature whatsappBots; server: modules/whatsappBots.ts): build from blocks, try it in a test chat, start it, see how it does. */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
 import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, InlineNotice, LoadingState, Modal, inputCls } from '../../components/ui';
-import { BotFlowEditor, type BotDraft } from './BotFlowEditor';
+import type { BotDraft } from './BotFlowEditor';
+
+const BotFlowEditor = React.lazy(() => import('./BotFlowEditor').then((m) => ({ default: m.BotFlowEditor })));
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const STATUS: Record<BotView['status'], { label: string; tone: 'sage' | 'amber' | 'muted' }> = { active: { label: 'Running', tone: 'sage' }, paused: { label: 'Paused', tone: 'amber' }, draft: { label: 'Draft', tone: 'muted' } };
@@ -173,7 +175,7 @@ export const ChatbotsView: React.FC = () => {
           </Card>
         );
       })}
-      {editing && <BotFlowEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} />}
+      {editing && <Suspense fallback={<LoadingState label="Opening the map" />}><BotFlowEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} /></Suspense>}
       {testing && <TestChat bot={testing} onClose={() => { setTesting(null); void load(); }} onDone={() => undefined} />}
       <ConfirmDialog open={!!removing} danger title="Delete this chatbot?" message={`“${removing?.name}” will be deleted. Chats it already had stay in WhatsApp.`} confirmLabel="Delete" loading={busy === 'remove'} onConfirm={() => void remove()} onCancel={() => setRemoving(null)} />
     </div>

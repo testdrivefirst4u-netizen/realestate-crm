@@ -1,93 +1,79 @@
-/** The chatbot as a map: where each step sits, how the paths connect, and adding or removing steps. No screen code, so it can be tested. */
-import { END_STEP, type BotStep } from '../../core/botEngine';
+/** The chatbot as a map: where each box sits, how paths connect, adding and removing steps, and undo. No screen code, so it can be tested. */
+import { END_STEP, explicitSteps, type BotStep } from '../../core/botEngine';
 
-export const NODE_W = 236;
-export const NODE_H = 104;
-const GAP_X = 28;
-const GAP_Y = 76;
-const PILL_W = 132;
+export { explicitSteps };
 
+export const NODE_W = 264;
+const HEADER_H = 36;
+const TEXT_H = 66;
+const ROW_H = 34;
+const ROWS_PAD = 6;
+const GAP_X = 96;
+const GAP_Y = 36;
+
+export type Pos = { x: number; y: number };
 /** A way out of a step: its only path, or one option of a choice. */
 export interface Exit { stepId: string; optionId?: string }
-export interface MapNode { key: string; kind: 'step' | 'end' | 'jump'; stepId: string; x: number; y: number; w: number; h: number; number: number }
-export interface MapEdge { key: string; fromKey: string; toKey: string; label: string; exit: Exit }
-export interface BotMap { nodes: MapNode[]; edges: MapEdge[]; width: number; height: number; unconnected: string[] }
 
 const noPaths = (s: BotStep) => s.type === 'handoff' || s.type === 'end';
 
-/** Every path written out, so moving things around cannot change where anything goes. "Blank" used to mean the following step. */
-export function explicitSteps(steps: BotStep[]): BotStep[] {
-  return steps.map((s, i) => {
-    const after = steps[i + 1]?.id || END_STEP;
-    if (noPaths(s)) return { ...s, next: '' };
-    if (s.type === 'choice') return { ...s, next: '', options: s.options.map((o) => ({ ...o, next: o.next || s.next || after })) };
-    return { ...s, next: s.next || after };
-  });
-}
-
-function exitsOf(s: BotStep): Array<{ exit: Exit; label: string; target: string }> {
+export function exitsOf(s: BotStep): Array<{ exit: Exit; handle: string; target: string }> {
   if (noPaths(s)) return [];
-  if (s.type === 'choice') return s.options.map((o) => ({ exit: { stepId: s.id, optionId: o.id }, label: o.label || 'Option', target: o.next || END_STEP }));
-  return [{ exit: { stepId: s.id }, label: '', target: s.next || END_STEP }];
+  if (s.type === 'choice') return s.options.map((o) => ({ exit: { stepId: s.id, optionId: o.id }, handle: o.id, target: o.next || END_STEP }));
+  return [{ exit: { stepId: s.id }, handle: 'next', target: s.next || END_STEP }];
 }
 
-/**
- * Lays the steps out as a tree from the first one. Each step sits once; a path back to one already placed shows as a small
- * "Goes to step 3" tag, so lines never cross the map. Parents sit centred over their children.
- */
-export function layoutBot(steps: BotStep[]): BotMap {
-  const nodes: MapNode[] = [];
-  const edges: MapEdge[] = [];
-  const placed = new Set<string>();
-  const numberOf = new Map(steps.map((s, i) => [s.id, i + 1]));
-  let cursor = 0;
-  let deepest = 0;
-  let n = 0;
-
-  const leaf = (kind: 'end' | 'jump', target: string, depth: number): MapNode => {
-    const node: MapNode = { key: `${kind}${n++}`, kind, stepId: target, x: cursor, y: depth * (NODE_H + GAP_Y), w: PILL_W, h: 44, number: numberOf.get(target) || 0 };
-    cursor += PILL_W + GAP_X;
-    nodes.push(node);
-    deepest = Math.max(deepest, node.y + node.h);
-    return node;
-  };
-  const place = (step: BotStep, depth: number): MapNode => {
-    placed.add(step.id);
-    const node: MapNode = { key: step.id, kind: 'step', stepId: step.id, x: 0, y: depth * (NODE_H + GAP_Y), w: NODE_W, h: NODE_H, number: numberOf.get(step.id) || 0 };
-    nodes.push(node);
-    deepest = Math.max(deepest, node.y + node.h);
-    const kids: MapNode[] = [];
-    for (const { exit, label, target } of exitsOf(step)) {
-      const next = steps.find((s) => s.id === target);
-      const child = !next ? leaf('end', END_STEP, depth + 1) : placed.has(target) ? leaf('jump', target, depth + 1) : place(next, depth + 1);
-      kids.push(child);
-      edges.push({ key: `${step.id}:${exit.optionId || 'next'}`, fromKey: node.key, toKey: child.key, label, exit });
-    }
-    if (kids.length) {
-      const left = kids[0].x + kids[0].w / 2;
-      const right = kids[kids.length - 1].x + kids[kids.length - 1].w / 2;
-      node.x = Math.max((left + right) / 2 - NODE_W / 2, 0);
-      // a lone narrow child: make sure the next branch clears this box
-      cursor = Math.max(cursor, node.x + NODE_W + GAP_X);
-    } else {
-      node.x = cursor;
-      cursor += NODE_W + GAP_X;
-    }
-    return node;
-  };
-  if (steps[0]) place(steps[0], 0);
-  return {
-    nodes, edges, width: Math.max(cursor, NODE_W), height: deepest,
-    unconnected: steps.filter((s) => !placed.has(s.id)).map((s) => s.id),
-  };
-}
-
-const targetOf = (steps: BotStep[], e: Exit): string => {
-  const s = steps.find((x) => x.id === e.stepId);
-  if (!s) return END_STEP;
-  if (e.optionId) return s.options.find((o) => o.id === e.optionId)?.next || END_STEP;
-  return s.next || END_STEP;
+export const heightOf = (s: BotStep) => HEADER_H + TEXT_H + (s.type === 'choice' ? ROWS_PAD * 2 + s.options.length * ROW_H : 0);
+const exitY = (s: BotStep, optionId?: string) => {
+  const i = optionId ? s.options.findIndex((o) => o.id === optionId) : -1;
+  return i >= 0 ? HEADER_H + TEXT_H + ROWS_PAD + i * ROW_H : 0;
 };
+const overlaps = (a: Pos & { h: number }, b: BotStep) => !!b.pos && a.x < b.pos.x + NODE_W + 16 && a.x + NODE_W + 16 > b.pos.x && a.y < b.pos.y + heightOf(b) + 16 && a.y + a.h + 16 > b.pos.y;
+
+const reachable = (steps: BotStep[], from?: string): Set<string> => {
+  const seen = new Set<string>();
+  const go = (id?: string) => {
+    const s = steps.find((x) => x.id === id);
+    if (!s || seen.has(s.id)) return;
+    seen.add(s.id);
+    exitsOf(s).forEach((x) => go(x.target));
+  };
+  go(from ?? steps[0]?.id);
+  return seen;
+};
+
+/** Steps that nothing leads to. */
+export const unconnectedSteps = (steps: BotStep[]): string[] => {
+  const seen = reachable(steps);
+  return steps.filter((s) => !seen.has(s.id)).map((s) => s.id);
+};
+
+/** Tidy left-to-right tree from the first step: children in columns, each parent centred on its children, nothing overlapping. */
+export function arrange(steps: BotStep[]): BotStep[] {
+  const pos = new Map<string, Pos>();
+  const columnEnd: number[] = [];
+  const place = (s: BotStep, depth: number): number => {
+    pos.set(s.id, { x: 0, y: 0 });
+    const centres: number[] = [];
+    for (const { target } of exitsOf(s)) {
+      const next = steps.find((x) => x.id === target);
+      if (next && !pos.has(next.id)) centres.push(place(next, depth + 1));
+    }
+    const h = heightOf(s);
+    const wanted = centres.length ? (centres[0] + centres[centres.length - 1]) / 2 - h / 2 : 0;
+    const y = Math.max(wanted, columnEnd[depth] ?? 0, centres.length ? 0 : Math.max(0, ...columnEnd.slice(depth)));
+    columnEnd[depth] = y + h + GAP_Y;
+    pos.set(s.id, { x: depth * (NODE_W + GAP_X), y });
+    return y + h / 2;
+  };
+  for (const s of steps) if (!pos.has(s.id)) place(s, 0);
+  return steps.map((s) => ({ ...s, pos: pos.get(s.id) }));
+}
+
+/** A bot saved before boxes could be moved gets arranged the first time it opens. */
+export const withPositions = (steps: BotStep[]): BotStep[] => (steps.every((s) => s.pos) ? steps : arrange(steps));
+
+export const setPosition = (steps: BotStep[], id: string, pos: Pos): BotStep[] => steps.map((s) => (s.id === id ? { ...s, pos } : s));
 
 /** Steps in the order the map reads, so step numbers run down each path. Needs every path written out: then order changes nothing. */
 export function mapOrder(steps: BotStep[]): BotStep[] {
@@ -104,7 +90,14 @@ export function mapOrder(steps: BotStep[]): BotStep[] {
   return [...ordered, ...steps.filter((s) => !seen.has(s.id))];
 }
 
-/** Point one way out at another step. */
+const targetOf = (steps: BotStep[], e: Exit): string => {
+  const s = steps.find((x) => x.id === e.stepId);
+  if (!s) return END_STEP;
+  if (e.optionId) return s.options.find((o) => o.id === e.optionId)?.next || END_STEP;
+  return s.next || END_STEP;
+};
+
+/** Point one way out at another step, or at END_STEP to leave the path open. */
 export function setExit(steps: BotStep[], e: Exit, target: string): BotStep[] {
   return steps.map((s) => {
     if (s.id !== e.stepId) return s;
@@ -122,22 +115,28 @@ export function insertStep(steps: BotStep[], e: Exit, step: BotStep): BotStep[] 
   return [...setExit(steps, e, step.id), made];
 }
 
-const reachable = (steps: BotStep[], from?: string): Set<string> => {
-  const seen = new Set<string>();
-  const go = (id?: string) => {
-    const s = steps.find((x) => x.id === id);
-    if (!s || seen.has(s.id)) return;
-    seen.add(s.id);
-    exitsOf(s).forEach((x) => go(x.target));
-  };
-  go(from ?? steps[0]?.id);
-  return seen;
-};
+/**
+ * Adds a step and gives it a place: where it was dropped, or just after the step it follows. Adding on an existing line moves
+ * what follows along to make room. It never sits on top of another box.
+ */
+export function addStep(steps: BotStep[], e: Exit, step: BotStep, at?: Pos): BotStep[] {
+  const source = steps.find((s) => s.id === e.stepId);
+  let all = insertStep(steps, e, step);
+  let spot: Pos = at ?? { x: (source?.pos?.x ?? 0) + NODE_W + GAP_X, y: (source?.pos?.y ?? 0) + (source ? exitY(source, e.optionId) : 0) };
+  if (!at) {
+    const onward = reachable(steps, targetOf(steps, e));
+    const startX = spot.x;
+    all = all.map((s) => (s.pos && s.id !== e.stepId && onward.has(s.id) && s.pos.x >= startX ? { ...s, pos: { x: s.pos.x + NODE_W + GAP_X, y: s.pos.y } } : s));
+  }
+  const made = all.find((s) => s.id === step.id)!;
+  const others = all.filter((s) => s.id !== step.id);
+  while (others.some((o) => overlaps({ ...spot, h: heightOf(made) }, o))) spot = { ...spot, y: spot.y + 40 };
+  return all.map((s) => (s.id === step.id ? { ...s, pos: spot } : s));
+}
 
 /** How much goes with a step if removed: a choice takes its branches, unless something else still leads there. */
 export function removalCount(steps: BotStep[], id: string): number {
-  const r = removeStep(steps, id);
-  return steps.length - r.length;
+  return steps.length - removeStep(steps, id).length;
 }
 
 /**
@@ -156,4 +155,26 @@ export function removeStep(steps: BotStep[], id: string): BotStep[] {
   const after = reachable(ordered);
   // what only this step led to goes too; steps already unconnected stay for the person to deal with
   return ordered.filter((x) => after.has(x.id) || !before.has(x.id));
+}
+
+/* ---------------------------------- undo ---------------------------------- */
+
+const HISTORY_LIMIT = 60;
+export interface History { past: BotStep[][]; future: BotStep[][]; group: string }
+export const emptyHistory: History = { past: [], future: [], group: '' };
+
+/** Note the state before a change. Changes in the same group, like typing in one box, undo together. */
+export function record(h: History, before: BotStep[], group = ''): History {
+  if (group && h.group === group) return { ...h, future: [] };
+  return { past: [...h.past, before].slice(-HISTORY_LIMIT), future: [], group };
+}
+export function undo(h: History, present: BotStep[]): { history: History; steps: BotStep[] } | null {
+  const steps = h.past[h.past.length - 1];
+  if (!steps) return null;
+  return { steps, history: { past: h.past.slice(0, -1), future: [present, ...h.future], group: '' } };
+}
+export function redo(h: History, present: BotStep[]): { history: History; steps: BotStep[] } | null {
+  const steps = h.future[0];
+  if (!steps) return null;
+  return { steps, history: { past: [...h.past, present], future: h.future.slice(1), group: '' } };
 }

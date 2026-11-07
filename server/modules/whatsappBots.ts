@@ -18,7 +18,7 @@ import { dateKey, last10, makeZoned, shortId, str, truncate } from '../core/util
 import { generateText } from './ai';
 import { appendRemark, getLead, updateLead, type UiLead } from './leads';
 import { idsByName, sendPush } from './push';
-import { MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult } from './whatsappBotEngine';
+import { MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult, sameFlow } from './whatsappBotEngine';
 import { isConnected, sendDirect } from './whatsappDirect';
 
 const L = CFG.LEAD;
@@ -51,6 +51,7 @@ const cleanStep = (raw: any, i: number): BotStep => {
     saveTo: (SAVE_TO.includes(raw?.saveTo) ? raw.saveTo : '') as BotStep['saveTo'], validate: raw?.validate === 'email' || raw?.validate === 'number' ? raw.validate : 'text',
     options: (Array.isArray(raw?.options) ? raw.options : []).slice(0, 20).map((o: any, j: number) => ({ id: /^[\w-]{1,40}$/.test(str(o?.id)) ? str(o.id) : `o${j + 1}`, label: String(o?.label ?? '').trim().slice(0, 60), next: str(o?.next).slice(0, 40) })),
     days: Math.round(Number(raw?.days)) || 7, times: (Array.isArray(raw?.times) ? raw.times : []).map(str).filter(Boolean).slice(0, 12),
+    ...(Number.isFinite(raw?.pos?.x) && Number.isFinite(raw?.pos?.y) ? { pos: { x: Math.round(Math.max(-100000, Math.min(100000, raw.pos.x))), y: Math.round(Math.max(-100000, Math.min(100000, raw.pos.y))) } } : {}),
   };
 };
 
@@ -73,7 +74,9 @@ export async function saveBot(d: any, ctx: Ctx): Promise<{ id: string; problems:
     const cur = await c.findOne({ _id: id });
     if (!cur) throw fail('NOT_FOUND', 'This bot is no longer here.');
     if (cur.status === 'active') throw bad('Pause the bot before changing it.');
-    await c.updateOne({ _id: id }, { $set: fields, $inc: { rev: 1 } });
+    // only boxes moved: the customer's chat is the same, so the finished test still counts
+    const same = cur.name === name && cur.trigger === trigger && cur.knowledge === knowledge && JSON.stringify(cur.keywords || []) === JSON.stringify(keywords) && sameFlow(cur.steps || [], steps);
+    await c.updateOne({ _id: id }, same ? { $set: { steps, updatedAt: fields.updatedAt } } : { $set: fields, $inc: { rev: 1 } });
     await auditLog(ctx, 'WhatsApp Bot Saved', 'Chatbot', id, name);
     return { id, problems: botProblems({ steps }) };
   }

@@ -209,6 +209,24 @@ describe('checking a bot before it can start', () => {
 });
 
 describe('starting a bot', () => {
+  it('moving boxes keeps the finished test, and keeps their places', async () => {
+    const { id } = await inCo(() => saveBot({ name: 'B', steps: FLOW }, ctx));
+    await inCo(async () => { await (await col('whatsappBots')).updateOne({ _id: id } as any, { $set: { tested: true } }); });
+    const moved = FLOW.map((s: BotStep, i: number) => ({ ...s, pos: { x: i * 300, y: 40.4 } }));
+    await inCo(() => saveBot({ id, name: 'B', steps: moved }, ctx));
+    const after = (await inCo(() => listBots())).bots.find((b: any) => b.id === id)!;
+    expect(after.tested).toBe(true);
+    expect(after.rev).toBe(1);
+    expect(after.steps[1].pos).toEqual({ x: 300, y: 40 });
+    await inCo(() => saveBot({ id, name: 'B', steps: moved.map((s: BotStep, i: number) => (i === 0 ? { ...s, text: 'Changed' } : s)) }, ctx));
+    const edited = (await inCo(() => listBots())).bots.find((b: any) => b.id === id)!;
+    expect(edited.tested).toBe(false);
+    expect(edited.rev).toBe(2);
+  });
+  it('a place that is not a number is dropped', async () => {
+    const { id } = await inCo(() => saveBot({ name: 'B', steps: FLOW.map((s: BotStep) => ({ ...s, pos: { x: 'left', y: null } })) }, ctx));
+    expect((await inCo(() => listBots())).bots.find((b: any) => b.id === id)!.steps[0].pos).toBeUndefined();
+  });
   it('needs the test chat first, and any edit needs it again', async () => {
     const { id } = await inCo(() => saveBot({ name: 'B', steps: FLOW }, ctx));
     await expect(inCo(() => setBotStatus({ id, status: 'active' }, ctx))).rejects.toThrow(/test chat/);

@@ -11,6 +11,8 @@ export const SAVE_TO: SaveTo[] = ['', 'name', 'email', 'unit', 'city', 'budget',
 export interface BotOption { id: string; label: string; next: string }
 export interface BotStep {
   id: string; type: StepType; text: string;
+  /** Where its box sits on the builder's map. Never affects a chat. */
+  pos?: { x: number; y: number };
   /** Where to go after this; empty = the following step. */
   next: string;
   saveTo: SaveTo;
@@ -24,6 +26,23 @@ export interface BotDefinition { steps: BotStep[] }
 /** A path that ends here: the chat finishes. */
 export const END_STEP = '__end__';
 export const MAX_STEPS = 40;
+
+/** Every path written out, so moving things around cannot change where anything goes. "Blank" used to mean the following step. */
+export function explicitSteps(steps: BotStep[]): BotStep[] {
+  return steps.map((s, i) => {
+    const after = steps[i + 1]?.id || END_STEP;
+    if (s.type === 'handoff' || s.type === 'end') return { ...s, next: '' };
+    if (s.type === 'choice') return { ...s, next: '', options: s.options.map((o) => ({ ...o, next: o.next || s.next || after })) };
+    return { ...s, next: s.next || after };
+  });
+}
+
+/** Whether two sets of steps do the same for a customer, whatever their order or where their boxes sit. */
+export function sameFlow(a: BotStep[], b: BotStep[]): boolean {
+  if (a.length !== b.length || a[0]?.id !== b[0]?.id) return false;
+  const key = (steps: BotStep[]) => JSON.stringify(explicitSteps(steps).map((s) => [s.id, s.type, s.text, s.next, s.saveTo, s.validate, s.options.map((o) => [o.id, o.label, o.next]), s.days, s.times]).sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
+  return key(a) === key(b);
+}
 export const MAX_BUTTONS = 3;
 export const MAX_ROWS = 10;
 export const BUTTON_CHARS = 20;
