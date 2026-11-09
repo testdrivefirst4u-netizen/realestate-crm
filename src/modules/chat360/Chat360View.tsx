@@ -768,11 +768,11 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight flex items-center gap-2">
-            Chat360 · WhatsApp
+            {tenantSettings?.whatsappDirect ? 'WhatsApp' : 'Chat360 · WhatsApp'}
             {totalUnread > 0 && <Badge tone="gold">{totalUnread} unread</Badge>}
           </h2>
           <p className="text-xs text-[#5E778C] mt-0.5">
-            {configured ? 'Connected — inbound messages arrive through the Chat360 webhook; the open conversation refreshes every 20 seconds.' : 'Not connected — showing conversations already stored in the CRM (if any).'}
+            {configured ? (tenantSettings?.whatsappDirect ? "Connected through Meta's WhatsApp Business Platform. Replies arrive here as they come in; the open conversation refreshes every 20 seconds." : 'Connected — inbound messages arrive through the Chat360 webhook; the open conversation refreshes every 20 seconds.') : 'Not connected — showing conversations already stored in the CRM (if any).'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

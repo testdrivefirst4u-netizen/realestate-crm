@@ -8,7 +8,7 @@ import {
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
-import { useCompany } from '../core/tenant';
+import { useCompany, useTenantSettings } from '../core/tenant';
 import { type ViewId, VIEW_TITLES, viewAllowed, viewHref } from '../core/views';
 import { formatRelative } from '../core/dates';
 import { Permission, roleLabel } from '../core/rbac';
@@ -52,7 +52,7 @@ interface Item { id: ViewId; label: string; icon: LucideIcon; count?: number; ur
 interface Group { id: string; label: string; items: Item[] }
 
 /** The screens, in sections; every screen has its own icon (the collapsed sidebar shows the icons alone). */
-function buildGroups(counts: SidebarCounts): Group[] {
+function buildGroups(counts: SidebarCounts, direct = false): Group[] {
   return [
     { id: 'overview', label: 'Overview', items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'mis', label: 'Sales MIS', icon: ChartColumn },
@@ -64,7 +64,7 @@ function buildGroups(counts: SidebarCounts): Group[] {
       { id: 'followups', label: 'Follow-ups', icon: CalendarClock, count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments', icon: ChartPie },
     ] },
     { id: 'messages', label: 'Messages', items: [
-      { id: 'chat360', label: 'WhatsApp (Chat360)', icon: MessageCircle, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },
+      { id: 'chat360', label: direct ? 'WhatsApp' : 'WhatsApp (Chat360)', icon: MessageCircle, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },
       { id: 'inbox', label: 'Social Inbox', icon: Inbox, count: counts.unreadSocial, urgent: true },
     ] },
     { id: 'marketing', label: 'Marketing', items: [
@@ -82,11 +82,13 @@ const countText = (n: number) => (n > 999 ? '999+' : String(n));
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, counts = {}, unreadChats }) => {
   const company = useCompany();
+  // a company on WhatsApp direct goes through Meta, not Chat360
+  const direct = !!(useTenantSettings() as { whatsappDirect?: boolean } | null)?.whatsappDirect;
   const allowed = (v: ViewId) => viewAllowed(v, { features }, can);
   // Each screen is rendered on the server per person, so it is preloaded only when someone points at it, not all on every page load.
   const [wanted, setWanted] = React.useState<ReadonlySet<ViewId>>(new Set());
   const want = (id: ViewId) => setWanted((w) => (w.has(id) ? w : new Set(w).add(id)));
-  const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats })
+  const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats }, direct)
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
 

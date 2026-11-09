@@ -142,7 +142,7 @@ export const WhatsAppTab: React.FC<Props> = ({ lead, active, chatEnabled, settin
       <div ref={listRef} className="flex-1 bg-[#E6EFF6] rounded-xl border border-[#D3E3F0] p-3 overflow-y-auto max-h-[52vh] space-y-2">
         {chat.loading && !chat.data && <ChatSkeleton className="py-4" />}
         {chat.error && !chat.data && <ErrorState compact title="Messages could not load" message={chat.error} onRetry={() => void chat.reload()} />}
-        {chat.data && messages.length === 0 && <EmptyState icon={<MessageCircle size={20} />} title="No messages yet" description="Send the first message below. Replies arrive here automatically through the Chat360 webhook." className="py-8" />}
+        {chat.data && messages.length === 0 && <EmptyState icon={<MessageCircle size={20} />} title="No messages yet" description="Send the first message below. Replies arrive here automatically." className="py-8" />}
         {messages.map((m, i) => {
           const prev = messages[i - 1];
           const newDay = !prev || dateKey(prev.timestamp) !== dateKey(m.timestamp);
