@@ -49,6 +49,8 @@ let leads: Record<string, FakeLead> = {};
 let failLead: Record<string, { status: number; error: any }> = {};
 let expired = new Set<string>();
 let subscribed = new Set<string>();
+/** Page fields of this app other than leadgen (the social inbox's feed / messages). */
+let otherFields: Record<string, string[]> = {};
 let pages: Array<{ id: string; name: string; tasks: string[] }> = [];
 const forms: Record<string, Array<{ id: string; name: string; status: string }>> = {
   [PAGE]: [{ id: FORM_A, name: 'Brochure form', status: 'ACTIVE' }, { id: FORM_B, name: 'Site visit form', status: 'ACTIVE' }],
@@ -110,15 +112,19 @@ async function fakeFetch(input: any, init: any = {}): Promise<Response> {
   if (parts[1] === 'subscribed_apps') {
     if (token !== pageToken(id)) return fbErr(403, 200, 'The user must be an administrator of the Page');
     if (method === 'POST') {
-      expect(params.get('subscribed_fields')).toBe('leadgen');
-      subscribed.add(id);
+      const list = String(params.get('subscribed_fields') || '').split(',').filter(Boolean);
+      if (list.includes('leadgen')) subscribed.add(id);
+      else subscribed.delete(id);
+      otherFields[id] = list.filter((f) => f !== 'leadgen');
       return json(200, { success: true });
     }
     if (method === 'DELETE') {
       subscribed.delete(id);
+      otherFields[id] = [];
       return json(200, { success: true });
     }
-    return json(200, { data: subscribed.has(id) ? [{ id: APP_ID, name: 'CRM', subscribed_fields: ['leadgen'] }] : [] });
+    const fields = [...(subscribed.has(id) ? ['leadgen'] : []), ...(otherFields[id] || [])];
+    return json(200, { data: fields.length ? [{ id: APP_ID, name: 'CRM', subscribed_fields: fields }] : [] });
   }
   if (parts[1] === 'leads') {
     const f = JSON.parse(params.get('filtering') || '[]');
@@ -196,6 +202,7 @@ beforeEach(async () => {
   failLead = {};
   expired = new Set();
   subscribed = new Set();
+  otherFields = {};
   pages = [{ id: PAGE, name: 'Amaya Living', tasks: ['ADVERTISE', 'ANALYZE', 'CREATE_CONTENT', 'MESSAGING', 'MODERATE', 'MANAGE'] }, { id: PAGE2, name: 'Second Page', tasks: ['MODERATE'] }];
   process.env.META_APP_ID = APP_ID;
   process.env.META_APP_SECRET = APP_SECRET;
@@ -625,6 +632,16 @@ describe('backfill, check and disconnect', () => {
     const r = await inCo(() => M.checkMetaSource({ sourceId }, null));
     expect(r).toMatchObject({ ok: true, subscribed: true, forms: forms[PAGE] });
     expect(subscribed.has(PAGE)).toBe(true);
+  });
+
+  it('disconnecting lead ads keeps the social inbox fields of the same Page', async () => {
+    otherFields[PAGE] = ['feed', 'messages'];
+    const { sourceId } = await connectDirect();
+    expect(otherFields[PAGE]).toEqual(['feed', 'messages']);
+    await inCo(() => M.disconnectMetaSource({ sourceId }, null));
+    expect(subscribed.has(PAGE)).toBe(false);
+    expect(otherFields[PAGE]).toEqual(['feed', 'messages']);
+    expect(calls.some((c) => c.path === `${PAGE}/subscribed_apps` && c.method === 'DELETE')).toBe(false);
   });
 
   it('disconnect (and deleteLeadSource) unsubscribes the app and releases the claim', async () => {

@@ -286,8 +286,17 @@ export async function subscribePage(pageId: string, pageToken: string, config?: 
   return j.success !== false;
 }
 
+/**
+ * Stop lead ads for a Page: drop only `leadgen`. The social inbox may use the same app subscription (feed, messages),
+ * so the app is removed from the Page only when nothing else is left.
+ */
 export async function unsubscribePage(pageId: string, pageToken: string, config?: MetaConfig): Promise<boolean> {
-  const j = await graph<{ success?: boolean }>(`${pageId}/subscribed_apps`, { token: pageToken, config, method: 'DELETE' });
+  const cfg = config || (await requireMetaConfig());
+  const cur = await graph<{ data?: Array<{ id?: string; subscribed_fields?: string[] }> }>(`${pageId}/subscribed_apps`, { token: pageToken, config: cfg }).catch(() => ({ data: [] as Array<{ id?: string; subscribed_fields?: string[] }> }));
+  const keep = ((cur.data || []).find((a) => String(a.id) === cfg.appId)?.subscribed_fields || []).filter((f) => f !== 'leadgen');
+  const j = keep.length
+    ? await graph<{ success?: boolean }>(`${pageId}/subscribed_apps`, { token: pageToken, config: cfg, method: 'POST', params: { subscribed_fields: keep.join(',') } })
+    : await graph<{ success?: boolean }>(`${pageId}/subscribed_apps`, { token: pageToken, config: cfg, method: 'DELETE' });
   return j.success !== false;
 }
 
