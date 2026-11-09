@@ -99,6 +99,11 @@ export function can(user: (UserAccount & { access?: UserAccess | null }) | null 
   return ROLE_PERMISSIONS[role].includes(permission);
 }
 
+/** The hidden Platform support account (opened from Super Admin); the only one that may bin or delete a lead (the server checks too). */
+export function isPlatformSupport(user: Pick<UserAccount, 'id' | 'role'> | null | undefined): boolean {
+  return !!user && user.id === 'USR-SUPPORT' && normalizeRole(user.role) === 'Developer';
+}
+
 export function roleLabel(role: UserRole | string): string {
   switch (normalizeRole(role)) {
     case 'Admin':

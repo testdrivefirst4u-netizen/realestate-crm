@@ -3,7 +3,7 @@ import { Activity, Building2, Target, Globe, Share2, ShieldCheck, DatabaseBackup
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
-import { Permission } from '../../core/rbac';
+import { Permission, isPlatformSupport } from '../../core/rbac';
 import { InlineNotice, Tabs } from '../../components/ui';
 import { SyncSection } from './SyncSection';
 import { DisplaySection } from './DisplaySection';
@@ -173,7 +173,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'social' && socialOn && can('integrations.connect') && <SocialAccountsSection can={can} />}
           {active === 'googleSheets' && can('settings.view') && <GoogleSheetsSection can={can} onOpenLeadSources={() => setActive('leadSources')} googleConnected={link?.googleConnected} googleError={link?.googleError} onGoogleLinkConsumed={onLinkConsumed} />}
           {active === 'backups' && can('settings.edit') && <BackupsSection />}
-          {active === 'recycle' && (can('settings.view') || currentUser?.role === 'Admin') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} />}
+          {active === 'recycle' && (can('settings.view') || currentUser?.role === 'Admin') && <RecycleBinSection trashedLeads={trashedLeads} can={can} onRestoreLead={onRestoreLead} onPermanentlyDeleteLead={onPermanentlyDeleteLead} canDelete={isPlatformSupport(currentUser)} />}
         </div>
       </div>
     </div>

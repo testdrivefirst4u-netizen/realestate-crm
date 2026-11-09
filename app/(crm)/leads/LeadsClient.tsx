@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { LeadsView } from '@/src/modules/leads/LeadsView';
 import { F } from '@/src/core/config';
+import { isPlatformSupport } from '@/src/core/rbac';
 import { useCrm } from '../_components/CrmShell';
 
 export function LeadsClient() {
@@ -22,6 +23,7 @@ export function LeadsClient() {
       onMergeLeads={engine.can('leads.delete') ? engine.mergeLeads : undefined}
       onBulk={engine.can('leads.edit') ? engine.bulkLeads : undefined}
       canBulkAssign={engine.can('leads.viewAll')}
+      canBulkTrash={isPlatformSupport(engine.currentUser)}
       sync={sync}
     />
   );

@@ -7,7 +7,7 @@
  */
 import type { AnyBulkWriteOperation } from 'mongodb';
 import type { ActionMap } from '../core/actions';
-import { auditLog, can, listUsers, type Ctx } from '../core/auth';
+import { SUPPORT_USER_ID, auditLog, can, listUsers, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { bumpVersion, col, ensureCounterAtLeast, getClient, getVersion, nextSeq } from '../core/db';
 import { fail } from '../core/errors';
@@ -359,8 +359,8 @@ function planUpdate(before: LeadDoc, patch: Record<string, unknown>, ctx: Ctx | 
 
   const newStage = cellPatch[L.STAGE] as string | undefined;
   const oldStage = str(before.stage);
-  // leads are never deleted or binned (any role, any route: the form, bulk, import, Copilot)
-  if (newStage === S.TRASH || newStage === S.DELETED) throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage).");
+  // leads are never deleted or binned (any role, any route: the form, bulk, import, Copilot) — only the Platform support account may bin one
+  if (newStage === S.DELETED || (newStage === S.TRASH && !isPlatformSupport(ctx))) throw fail('FORBIDDEN', NO_DELETE);
   // restoring a lead that was binned before is a 'leads.trash' permission
   if (ctx && ctx.user && newStage !== undefined && oldStage === S.TRASH && !can(ctx.user, 'leads.trash')) {
     throw fail('FORBIDDEN', 'Your role cannot move leads to or from the Recycle Bin');
@@ -776,7 +776,8 @@ export async function bulkLeads(d: { ids?: unknown; op?: unknown; value?: unknow
     if (!value) throw fail('VALIDATION', 'Write the remark');
     apply = (id) => appendRemark(id, truncate(value, 2000), ctx);
   } else if (op === 'trash') {
-    throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage).");
+    if (!isPlatformSupport(ctx)) throw fail('FORBIDDEN', NO_DELETE);
+    apply = (id) => updateLead(id, { [L.STAGE]: S.TRASH }, ctx);
   } else {
     throw fail('VALIDATION', 'Unknown bulk action');
   }
@@ -793,6 +794,13 @@ export async function bulkLeads(d: { ids?: unknown; op?: unknown; value?: unknow
   }
   await auditLog(ctx, `Bulk ${op}`, 'Lead', truncate(ids.join(','), 500), `${done} updated${skipped ? `, ${skipped} skipped` : ''}${failed.length ? `, ${failed.length} failed` : ''}${value && op !== 'remark' ? ` · ${value}` : ''}`);
   return { done, skipped, failed: failed.slice(0, 50), version: await getVersion() };
+}
+
+const NO_DELETE = 'Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage).';
+
+/** The hidden Platform support account (Super Admin › Open company settings) is the only one that may bin or delete a lead. */
+function isPlatformSupport(ctx: Ctx | null | undefined): boolean {
+  return !!ctx?.user && ctx.user.id === SUPPORT_USER_ID && ctx.user.role === 'Developer';
 }
 
 const onLead = <T>(fn: (d: any, ctx: Ctx) => Promise<T>) => async (d: any, ctx: Ctx) => {
@@ -830,9 +838,17 @@ export const actions: ActionMap = {
   updateLead: { fn: onLead(async (d, ctx) => { await assertLockedUnchanged(d.id, d.data); return updateLead(d.id, d.data, ctx, d.expectedUpdatedAt); }), perm: 'leads.edit' },
   appendRemark: { fn: onLead((d, ctx) => appendRemark(d.id, d.remark, ctx, d.nextFollowup)), perm: 'leads.edit' },
   setLeadStage: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: d.stage }, ctx)), perm: 'leads.edit' },
-  trashLead: { fn: async () => { throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage)."); }, perm: 'leads.view' },
+  trashLead: { fn: onLead((d, ctx) => { if (!isPlatformSupport(ctx)) throw fail('FORBIDDEN', NO_DELETE); return updateLead(d.id, { [L.STAGE]: S.TRASH }, ctx); }), perm: 'leads.view' },
   restoreLead: { fn: onLead((d, ctx) => updateLead(d.id, { [L.STAGE]: S.NEW }, ctx)), perm: 'leads.trash' },
-  deleteLead: { fn: async () => { throw fail('FORBIDDEN', "Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage)."); }, perm: 'leads.view' },
+  deleteLead: {
+    fn: onLead(async (d, ctx) => {
+      if (!isPlatformSupport(ctx)) throw fail('FORBIDDEN', NO_DELETE);
+      const doc = await (await leadsCol()).findOne({ _id: String(d.id) }, { projection: { stage: 1 } });
+      if (doc && doc.stage !== S.TRASH) throw fail('VALIDATION', 'Move the lead to the bin first, then delete it from the Recycle bin.');
+      return archiveLead(d.id, ctx);
+    }),
+    perm: 'leads.view',
+  },
   getLeadTimeline: { fn: onLead((d) => timelineForLead(d.id)), perm: 'leads.view' },
   getEnquiryHistory: { fn: onLead((d, ctx) => enquiryHistory(String(d.id), ctx)), perm: 'leads.view' },
   bulkLeads: { fn: (d, ctx) => bulkLeads(d, ctx), perm: 'leads.edit' },

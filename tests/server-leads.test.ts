@@ -166,6 +166,26 @@ describe('leads', () => {
     expect((await updateLead(id, { [L.STAGE]: 'New' }, admin)).lead[L.STAGE]).toBe('New');
   });
 
+  it('only the Platform support account can bin a lead and then delete it from the bin', async () => {
+    const { bulkLeads, actions } = await import('../server/modules/leads');
+    const support: Ctx = { ...admin, user: { ...admin.user!, id: 'USR-SUPPORT', name: 'Support · Rahul', role: 'Developer' } };
+    const otherDev: Ctx = { ...admin, user: { ...admin.user!, id: 'USR-0099', role: 'Developer' } };
+    const a = await addLead(sample(), admin);
+    const b = await addLead(sample({ [L.PHONE]: '9000000002' }), admin);
+    await expect(actions.trashLead.fn({ id: a.id }, otherDev)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    // delete straight away is refused: bin first
+    await expect(actions.deleteLead.fn({ id: a.id }, support)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await actions.trashLead.fn({ id: a.id }, support);
+    expect((await getLead(a.id))![L.STAGE]).toBe('Trash');
+    expect((await bulkLeads({ ids: [b.id], op: 'trash' }, support)).done).toBe(1);
+    // nobody else can delete it for good, nor mark it Permanently Deleted through an update
+    await expect(actions.deleteLead.fn({ id: a.id }, admin)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(updateLead(a.id, { [L.STAGE]: 'Permanently Deleted' }, support)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await actions.deleteLead.fn({ id: a.id }, support);
+    expect(await getLead(a.id)).toBeNull();
+    expect((await (await col(CFG.COLL.ARCHIVE)).findOne({ _id: a.id as any }))!.archivedBy).toBe('Support · Rahul');
+  });
+
   it('archives a lead (moved, not copied) and never reuses its id', async () => {
     await addLead(sample(), admin);
     const second = await addLead(sample({ [L.PHONE]: '9000000002' }), admin);

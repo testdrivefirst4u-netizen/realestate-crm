@@ -12,17 +12,18 @@ export interface RecycleBinSectionProps {
   can: CanFn;
   onRestoreLead: (id: string) => Promise<boolean>;
   onPermanentlyDeleteLead: (id: string) => Promise<boolean>;
+  /** Only the Platform support account may delete a lead for good. */
+  canDelete?: boolean;
 }
 
 const PAGE = 50;
 
-export const RecycleBinSection: React.FC<RecycleBinSectionProps> = ({ trashedLeads, can, onRestoreLead, onPermanentlyDeleteLead }) => {
+export const RecycleBinSection: React.FC<RecycleBinSectionProps> = ({ trashedLeads, can, onRestoreLead, onPermanentlyDeleteLead, canDelete = false }) => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Lead | null>(null);
   const [limit, setLimit] = useState(PAGE);
 
   const canRestore = can('leads.trash') || can('leads.edit');
-  const canDelete = false; // leads are never deleted for good
 
   const sorted = useMemo(
     () => [...trashedLeads].sort((a, b) => String(b[F.UPDATED_AT] || '').localeCompare(String(a[F.UPDATED_AT] || ''))),
