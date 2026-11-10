@@ -19,7 +19,7 @@ import { createFirstAdmin, getSettings, setSecret, settingsPublic, updateSetting
 import { nowIso, truncate } from '../core/utils';
 import { getAllLeads, getLeadsConfig } from './leads';
 import { getAllTasks } from './tasks';
-import { getAllUnits } from './inventory';
+import { getUnitsFor } from './inventory';
 import { listRecords } from './records';
 import { filterByLead } from '../core/scope';
 import { filterEvents, filterTasks } from '../core/scopeGuards';
@@ -33,7 +33,7 @@ async function bootstrap(d: any, ctx: Ctx) {
     getAllLeads(ctx),
     getLeadsConfig(),
     getAllTasks().then((t) => filterTasks(ctx.user, t)),
-    getAllUnits(),
+    getUnitsFor(ctx),
     listUsers(),
     listRecords('documents', ctx).then((rows) => filterByLead(ctx.user, rows, (r: any) => r.leadId)),
     listRecords('templates', ctx),

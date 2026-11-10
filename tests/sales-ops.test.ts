@@ -118,7 +118,7 @@ describe('payment reminders (inventory dues)', () => {
     const { lead } = await addLead({ [L.NAME]: 'Mr Rao', [L.PHONE]: '9876500011', [L.RM]: 'Priya Sharma' }, admin);
     const { addUnit, updateUnit } = await import('../server/modules/inventory');
     const { unit } = await addUnit({ unitId: 'A101' }, admin);
-    await updateUnit(unit.inventoryId, { status: 'Booked', leadId: lead[L.ID], customerName: 'Mr Rao', quotedAmount: 10000000, paidAmount: 2500000, dueDate: makeZoned(2026, 11, 10, 0, 0).toISOString() }, admin);
+    const booked = await updateUnit(unit.inventoryId, { status: 'Booked', leadId: lead[L.ID], customerName: 'Mr Rao', quotedAmount: 10000000, paidAmount: 2500000, dueDate: makeZoned(2026, 11, 10, 0, 0).toISOString() }, admin, undefined, { expectedRev: unit.rev });
 
     expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 7, 9, 0))).toEqual({ sent: 0 }); // before 10 AM
     expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 7, 11, 0))).toEqual({ sent: 1 }); // 3 days before
@@ -131,7 +131,7 @@ describe('payment reminders (inventory dues)', () => {
     expect(pushSent.at(-1)!.body.title).toBe('Payment overdue 1 day: unit A101');
     expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 14, 11, 0))).toEqual({ sent: 0 });
     expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 18, 11, 0))).toEqual({ sent: 1 }); // a week later
-    await updateUnit(unit.inventoryId, { paidAmount: 10000000 }, admin);
+    await updateUnit(unit.inventoryId, { paidAmount: 10000000 }, admin, undefined, { expectedRev: booked.unit.rev });
     expect(await SO.sendPaymentReminders(makeZoned(2026, 11, 25, 11, 0))).toEqual({ sent: 0 }); // paid up
   });
 });

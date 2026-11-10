@@ -519,8 +519,8 @@ export const api = {
 
   inventory: {
     list: () => request<{ units: InventoryUnit[]; version: string }>('getInventory'),
-    update: (inventoryId: string, patch: Partial<InventoryUnit>, expectedLastModified?: string) =>
-      request<{ unit: InventoryUnit; version: string; conflict?: InventoryUnit }>('updateInventoryUnit', { id: inventoryId, data: patch, expectedLastModified }),
+    update: (inventoryId: string, patch: Partial<InventoryUnit>, expectedLastModified?: string, expectedRev?: number, idempotencyKey?: string) =>
+      request<{ unit: InventoryUnit; version: string; conflict?: InventoryUnit; reason?: string }>('updateInventoryUnit', { id: inventoryId, data: patch, expectedLastModified, expectedRev, idempotencyKey }),
     add: (unit: Partial<InventoryUnit>) => request<{ unit: InventoryUnit; version: string }>('addInventoryUnit', { data: unit }),
     importUnits: (units: Partial<InventoryUnit>[]) => request<{ created: number; skipped: number; version: string }>('importInventory', { units }),
   },

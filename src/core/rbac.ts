@@ -21,6 +21,10 @@ export type Permission =
   | 'tasks.manage'
   | 'inventory.view'
   | 'inventory.edit'
+  /** See the buyer, phone, lead and payments on every unit; without it only on units of their own leads. */
+  | 'inventory.customers'
+  /** Cancel a booking or a sale (release a Booked / Sold unit). */
+  | 'inventory.approve'
   | 'reports.view'
   | 'reports.export'
   /** See the WhatsApp credits balance and usage (Admins, Managers). */
@@ -60,7 +64,7 @@ export type Permission =
 
 const ALL: Permission[] = [
   'leads.view', 'leads.viewAll', 'leads.editHistory', 'leads.create', 'leads.edit', 'leads.trash', 'leads.delete', 'leads.import', 'leads.export', 'leads.phones',
-  'tasks.manage', 'inventory.view', 'inventory.edit', 'reports.view', 'reports.export', 'reports.credits',
+  'tasks.manage', 'inventory.view', 'inventory.edit', 'inventory.customers', 'inventory.approve', 'reports.view', 'reports.export', 'reports.credits',
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
   'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.campaigns', 'marketing.manage', 'integrations.connect',
@@ -78,7 +82,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   ],
   // View only (e.g. founders): every lead, report, chat and call — no changes.
-  Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
+  Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'inventory.customers', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
 };
 
 /** Map legacy role names stored in older builds. */

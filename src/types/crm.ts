@@ -85,6 +85,12 @@ export interface InventoryUnit {
   ownership?: string;
   mortgaged?: boolean;
   row?: number;
+  /** Server revision: every save says which revision it is based on (compare-and-set). */
+  rev?: number;
+  /** A Reserved unit is held for its lead until then (ISO). */
+  holdUntil?: string;
+  /** The buyer and payment fields are hidden from this user (another agent's customer), not empty. */
+  restricted?: boolean;
 }
 
 export interface CrmDocument {

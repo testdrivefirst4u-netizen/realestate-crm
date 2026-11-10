@@ -104,6 +104,8 @@ export async function filterEvents<T extends { recordType?: string; recordId?: s
   return events.filter((e) => {
     if (e.recordType === 'Task') return taskOk.get(str(e.recordId)) ?? true;
     const leadId = e.recordType === 'Lead' ? str(e.recordId) : str(e.payload?.leadId);
+    // payment reminders name the buyer and the amount: only for users who may see that buyer
+    if (!leadId && (e as any).type === 'payment_due') return false;
     if (!leadId) return e.recordType !== 'Import'; // bulk-import summaries are for managers
     return ids.has(leadId);
   });
