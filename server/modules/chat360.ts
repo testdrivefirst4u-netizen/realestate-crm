@@ -1002,9 +1002,23 @@ export async function syncConversation(phone: string, opts: { force?: boolean } 
 
   const leadId = str(contact?.leadId);
   let added = 0;
+  let changed = 0;
   let newest: Chat360HistoryMessage | null = null;
   for (const m of history.sort((a, b) => (a.at?.getTime() || 0) - (b.at?.getTime() || 0))) {
-    if (await coll.findOne({ dedupeKey: `c360:${m.messageId}` }, { projection: { _id: 1 } })) continue;
+    // Already stored from an earlier sync. Refresh its text and time: an earlier parser may have saved the wrong text
+    // (e.g. a button label instead of the chatbot's question) or a coarser timestamp. This is what brings EXISTING
+    // conversations up to date — a bot message with the wrong text/order is corrected on the next sync, not only new ones.
+    const existing = await coll.findOne({ dedupeKey: `c360:${m.messageId}` }, { projection: { _id: 1, text: 1, timestamp: 1 } });
+    if (existing) {
+      const set: Record<string, unknown> = {};
+      if (m.text && str(existing.text) !== m.text) set.text = truncate(m.text, 4000);
+      if (m.at && (!existing.timestamp || new Date(existing.timestamp as any).getTime() !== m.at.getTime())) set.timestamp = m.at;
+      if (Object.keys(set).length) {
+        await coll.updateOne({ _id: existing._id }, { $set: set });
+        changed++;
+      }
+      continue;
+    }
     // the same message already came by webhook (customer) or was sent from the CRM: just mark it as known
     if (m.at) {
       const near = await coll.find({ phoneLast10: key, direction: m.direction, timestamp: { $gte: new Date(m.at.getTime() - 180_000), $lte: new Date(m.at.getTime() + 180_000) }, dedupeKey: { $not: /^c360:/ } }, { projection: { text: 1 } }).limit(20).toArray();
@@ -1044,7 +1058,7 @@ export async function syncConversation(phone: string, opts: { force?: boolean } 
   if (newest && (!contact?.lastMessageAt || (newest.at && newest.at > new Date(contact.lastMessageAt)))) {
     await contactsC.updateOne({ phoneLast10: key }, { $set: { lastMessage: truncate(newest.text, 200), lastMessageAt: newest.at || now } });
   }
-  if (added) await bumpVersion();
+  if (added || changed) await bumpVersion();
   return added;
 }
 

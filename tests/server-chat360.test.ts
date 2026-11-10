@@ -691,6 +691,17 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
     expect(calls.filter((u) => u.includes('/listing/active/')).length).toBe(1); // the room is remembered
   });
 
+  it('a re-sync corrects an existing bot message an older parser stored with the wrong text and time', async () => {
+    const coll = await col(CFG.COLL.CHAT_MESSAGES);
+    await (await col(CFG.COLL.CHAT_CONTACTS)).insertOne({ phoneLast10: '9876501234', phone: '+919876501234', c360RoomId: ROOM, status: 'Open' } as any);
+    // pretend an earlier version stored the welcome bot message (m-1) with a button label and a stale time
+    await coll.insertOne({ _id: 'C360-m-1' as any, dedupeKey: 'c360:m-1', phone: '+919876501234', phoneLast10: '9876501234', direction: 'Outbound', agent: 'Chat360 Bot', text: 'For Yourself', timestamp: new Date(t0 - 500_000), createdAt: new Date(t0 - 500_000) });
+    await syncConversation('919876501234', { force: true });
+    const welcome = (await messages('9876501234')).find((m: any) => m.id === 'C360-m-1');
+    expect(welcome?.text).toBe('Hello! 👋 Welcome to Amaya Senior Living. 🌿\n\nMay I know your name, please?');
+    expect(welcome?.timestamp).toBe(new Date(t0 + 1000).toISOString());
+  });
+
   it('no Chat360 login: the chat shows what the CRM has, without errors', async () => {
     await settingSet('chat360LoginEmail', '', 'test');
     await handleWebhook(inbound({ event_response_id: 's-9' }));
