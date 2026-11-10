@@ -64,6 +64,18 @@ export const DEFAULT_RULES: ConversionRule[] = [
   { event: 'Booked', when: 'stage', value: CFG.STAGES.BOOKED },
 ];
 
+/**
+ * Meta's Conversions API should learn only from leads Meta actually drove — Facebook / Instagram / Meta ads — not
+ * website, Chat360 (WhatsApp), Google Ads or other sources. A lead qualifies when its enquiry source is a Meta one, or
+ * it carries a Meta Lead-Ad form (filled only for Facebook / Instagram Lead Ads). The `allSources` config overrides it.
+ */
+const META_SOURCE_RE = /facebook|instagram|\bmeta\b/i;
+export function isMetaLead(lead: Record<string, string> | null | undefined): boolean {
+  if (!lead) return false;
+  if (META_SOURCE_RE.test(String(lead[L.SOURCE] || ''))) return true;
+  return !!String(lead[CFG.LEAD_AD.FORM] || '').trim();
+}
+
 interface ConfigDoc {
   _id: 'metaCapi';
   enabled: boolean;
@@ -71,6 +83,9 @@ interface ConfigDoc {
   token: string; // encrypted
   testCode: string;
   rules: ConversionRule[];
+  /** Report every lead to Meta regardless of source. Off by default: only Facebook / Instagram / Meta-ad leads are
+   *  sent, so Meta's conversion-leads optimisation is not taught by website, Chat360 or other non-Meta enquiries. */
+  allSources?: boolean;
   /** How the dataset and token were set: Facebook login, or typed in. */
   connectedVia?: 'facebook' | 'manual';
   datasetName?: string;
@@ -160,7 +175,10 @@ export async function queueConversions(leadId: string, change: { stage?: string;
     if (!hits.length) return 0;
     // where each event goes: Meta (dataset + token), Google Ads (a conversion action for that event), GA4
     const targets: Array<{ platform: ConversionPlatform; events: (e: string) => boolean }> = [];
-    if (tenant.features.adConversions && cfg?.enabled && cfg.datasetId && cfg.token) targets.push({ platform: 'meta', events: () => true });
+    if (tenant.features.adConversions && cfg?.enabled && cfg.datasetId && cfg.token) {
+      // Meta only learns from Meta-driven leads (Facebook / Instagram / Meta ads), not website / Chat360 / Google.
+      if (cfg.allSources || isMetaLead(await getLead(leadId))) targets.push({ platform: 'meta', events: () => true });
+    }
     if (tenant.features.googleConversions) {
       const g = await googleConversionTargets();
       if (g.ads) targets.push({ platform: 'google_ads', events: (e) => !!g.ads![e] });
@@ -226,7 +244,13 @@ export async function sendRecentAdConversions(d: any, ctx: Ctx, now = new Date()
   const cfg = await loadConfig();
   if (!cfg?.enabled || !cfg.datasetId || !cfg.token) throw fail('VALIDATION', 'Switch on "Send lead results to Meta", with a dataset connected, and Save first.');
   if (cfg.testCode) throw fail('VALIDATION', 'Clear the test event code and Save first, so these go out as real events.');
-  const missed = await missedSteps(cfg.rules, now);
+  let missed = await missedSteps(cfg.rules, now);
+  if (!cfg.allSources && missed.length) {
+    // only Meta-driven leads (Facebook / Instagram / Meta ads) are reported to Meta — not website / Chat360 / Google
+    const docs = await (await col<any>(CFG.COLL.LEADS)).find({ _id: { $in: [...new Set(missed.map((m) => m.leadId))] } }, { projection: { source: 1, extra: 1 } }).toArray();
+    const metaIds = new Set(docs.filter((d: any) => META_SOURCE_RE.test(String(d.source || '')) || !!String(d.extra?.[CFG.LEAD_AD.FORM] || '').trim()).map((d: any) => d._id));
+    missed = missed.filter((m) => metaIds.has(m.leadId));
+  }
   const byEvent: Record<string, number> = {};
   for (const m of missed) byEvent[m.event] = (byEvent[m.event] || 0) + 1;
   if (d?.preview === true || !missed.length) return { found: missed.length, byEvent, sent: 0, left: 0, results: {} };
@@ -296,9 +320,11 @@ async function sendToGoogle(d: QueueDoc): Promise<SendResult> {
   return sendGoogleAdsConversion(d, lead as unknown as Record<string, string>);
 }
 
-async function sendOne(d: QueueDoc, cfg: { datasetId: string; token: string; testCode: string }): Promise<SendResult> {
+async function sendOne(d: QueueDoc, cfg: { datasetId: string; token: string; testCode: string; allSources?: boolean }): Promise<SendResult> {
   const lead = await getLead(d.leadId);
   if (!lead) return { status: 'skipped', error: 'The lead no longer exists.' };
+  // Final guard: never report a non-Meta lead to Meta, even one queued before this rule existed.
+  if (!cfg.allSources && !isMetaLead(lead as Record<string, string>)) return { status: 'skipped', error: 'Not a Facebook / Instagram / Meta lead — not reported to Meta.' };
   const user: Record<string, unknown> = {};
   const by: string[] = [];
   const fbId = await facebookLeadId(d.leadId);
@@ -455,8 +481,9 @@ export async function saveAdConversions(d: any, ctx: Ctx): Promise<AdConversions
   if (new Set(rules.map((r) => r.event.toLowerCase())).size !== rules.length) throw fail('VALIDATION', 'Each event name can be used once.');
   const enabled = d?.enabled === undefined ? !!cur?.enabled : !!d.enabled;
   if (enabled && (!datasetId || !token)) throw fail('VALIDATION', 'Add the dataset ID and the access token before switching this on.');
+  const allSources = d?.allSources === undefined ? !!cur?.allSources : !!d.allSources;
   const by = ctx.user?.name || 'System';
-  await c.updateOne({ _id: 'metaCapi' }, { $set: { enabled, datasetId, token, testCode, rules, ...via, updatedAt: new Date(), updatedBy: by } as Partial<ConfigDoc> }, { upsert: true });
+  await c.updateOne({ _id: 'metaCapi' }, { $set: { enabled, datasetId, token, testCode, rules, allSources, ...via, updatedAt: new Date(), updatedBy: by } as Partial<ConfigDoc> }, { upsert: true });
   await auditLog(ctx, 'Ad Conversions Updated', 'Settings', 'metaCapi', `${enabled ? 'On' : 'Off'} · dataset ${datasetId || '—'}${newToken ? ' · new token' : d?.clearToken ? ' · token removed' : ''}${testCode ? ' · test mode' : ''}`);
   return getAdConversions(ctx);
 }

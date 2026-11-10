@@ -45,7 +45,8 @@ afterEach(() => {
 
 const turnOn = (extra: Record<string, unknown> = {}) => inCo(() => saveAdConversions({ enabled: true, datasetId: '1234567890123456', token: TOKEN, ...extra }, admin));
 const newLead = (fields: Record<string, string> = {}) =>
-  inCo(async () => (await addLead({ 'Prospect Name': 'Ravi', 'Phone Number': '98765 01234', Email: ' Ravi@Example.com ', ...fields } as any, null)).id);
+  // default to a Meta source so these tests exercise the send path (only Facebook / Instagram / Meta leads go to Meta)
+  inCo(async () => (await addLead({ 'Prospect Name': 'Ravi', 'Phone Number': '98765 01234', Email: ' Ravi@Example.com ', 'Enquiry Source': 'Facebook', ...fields } as any, null)).id);
 const move = (id: string, patch: Record<string, string>) => inCo(() => updateLead(id, patch as any, null));
 
 describe('settings', () => {
@@ -97,6 +98,37 @@ describe('sending', () => {
     await inCo(() => sendDue());
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect((await queue())[0]).toMatchObject({ matchedBy: 'phone + e-mail' });
+  });
+
+  it('only Facebook / Instagram / Meta leads are reported to Meta — website and Chat360 are not', async () => {
+    await turnOn();
+    const web = await newLead({ 'Enquiry Source': 'Website', 'Phone Number': '98765 11111' });
+    await move(web, { 'Lead Stage': 'Qualified' });
+    await inCo(() => sendDue());
+    expect(fetchMock).not.toHaveBeenCalled(); // a website lead is never sent to Meta
+    const chat = await newLead({ 'Enquiry Source': 'Chat360', 'Phone Number': '98765 22222' });
+    await move(chat, { 'Lead Stage': 'Qualified' });
+    await inCo(() => sendDue());
+    expect(fetchMock).not.toHaveBeenCalled();
+    // an Instagram lead does go
+    const ig = await newLead({ 'Enquiry Source': 'Instagram', 'Phone Number': '98765 33333' });
+    await move(ig, { 'Lead Stage': 'Qualified' });
+    await vi.waitFor(async () => expect((await queue()).find((x: any) => x.leadId === ig)?.status).toBe('sent'));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a Meta Lead-Ad enquiry is reported even when its source name is custom; allSources reports every source', async () => {
+    await turnOn();
+    // arbitrary source name but a Meta lead form present → still a Meta lead
+    const ad = await newLead({ 'Enquiry Source': 'Amaya Enquiries', 'Lead Form': 'Senior Living Form', 'Phone Number': '98765 44444' });
+    await move(ad, { 'Lead Stage': 'Qualified' });
+    await vi.waitFor(async () => expect((await queue()).find((x: any) => x.leadId === ad)?.status).toBe('sent'));
+    // with allSources on, even a website lead is reported
+    await turnOn({ allSources: true });
+    fetchMock.mockClear();
+    const web = await newLead({ 'Enquiry Source': 'Website', 'Phone Number': '98765 55555' });
+    await move(web, { 'Lead Stage': 'Qualified' });
+    await vi.waitFor(async () => expect((await queue()).find((x: any) => x.leadId === web)?.status).toBe('sent'));
   });
 
   it('a walk-in counts as Site Visit Done; stages without an event send nothing; switched off sends nothing', async () => {
