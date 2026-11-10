@@ -327,6 +327,13 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
                 <Field label="Enquiry source">
                   <Select value={value(F.SOURCE)} onChange={(e) => setField(F.SOURCE, e.target.value)} options={opts(F.SOURCE)} placeholder="Select…" disabled={!canEdit || !!String(lead[F.SOURCE] || '').trim()} title={String(lead[F.SOURCE] || '').trim() ? 'The enquiry source cannot be changed once it is set.' : undefined} />
                 </Field>
+                {/* Sub-source: a finer origin within the enquiry source. Type a new one or pick one already used. */}
+                <Field label="Sub-source" hint="A finer origin within the source (optional)">
+                  <input value={value(F.SUBSOURCE)} onChange={(e) => setField(F.SUBSOURCE, e.target.value)} disabled={!canEdit} list="subsource-list" placeholder="Type or pick…" className={inputCls} />
+                  <datalist id="subsource-list">
+                    {[...new Set(leads.map((l) => String(l[F.SUBSOURCE] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)).map((s) => <option key={s} value={s} />)}
+                  </datalist>
+                </Field>
                 <Field label="Enquiry date">
                   <input type="datetime-local" value={toDatetimeLocalInput(value(F.ENQUIRY_DATE) || String(lead[F.CREATED_AT] || ''))} disabled readOnly title="The enquiry date is when the lead came in and cannot be changed." className={inputCls} />
                 </Field>

@@ -74,6 +74,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   const [unit, setUnit] = useState('');
   const [rm, setRm] = useState('');
   const [campaign, setCampaign] = useState('');
+  const [subSource, setSubSource] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({ preset: 'all' });
   const [sortKey, setSortKey] = useState<SortKey>('enquiryDate');
   const [sortAsc, setSortAsc] = useState(false);
@@ -103,6 +104,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [base]);
 
+  const subSourceOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of base) {
+      const v = String(l[F.SUBSOURCE] || '').trim();
+      if (v) set.add(v);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [base]);
+
   const filtered = useMemo(() => {
     const q = query.trim();
     let list = q ? searchLeads(base, q, base.length) : base;
@@ -111,20 +121,21 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     if (unit) list = list.filter((l) => String(l[F.UNIT_TYPE] || '').trim() === unit);
     if (rm) list = list.filter((l) => String(l[F.RM] || '').trim() === rm);
     if (campaign) list = list.filter((l) => String(l[F.CAMPAIGN] || '').trim() === campaign);
+    if (subSource) list = list.filter((l) => String(l[F.SUBSOURCE] || '').trim() === subSource);
     if (range) list = list.filter((l) => inRange(enquiryDate(l), range));
     return list;
-  }, [base, query, stage, source, unit, rm, campaign, range]);
+  }, [base, query, stage, source, unit, rm, campaign, subSource, range]);
 
   const sorted = useMemo(() => sortLeads(filtered, sortKey, sortAsc), [filtered, sortKey, sortAsc]);
 
   // Reset pagination whenever the result set changes shape.
   useEffect(() => {
     setLimit(PAGE_SIZE);
-  }, [query, stage, source, unit, rm, campaign, range, sortKey, sortAsc]);
+  }, [query, stage, source, unit, rm, campaign, subSource, range, sortKey, sortAsc]);
 
   const visible = useMemo(() => sorted.slice(0, limit), [sorted, limit]);
-  const hasFilters = !!(query.trim() || stage || source || unit || rm || campaign || dateFilter.preset !== 'all');
-  const moreFilters = [source, unit, rm, campaign].filter(Boolean).length + (dateFilter.preset !== 'all' ? 1 : 0);
+  const hasFilters = !!(query.trim() || stage || source || unit || rm || campaign || subSource || dateFilter.preset !== 'all');
+  const moreFilters = [source, unit, rm, campaign, subSource].filter(Boolean).length + (dateFilter.preset !== 'all' ? 1 : 0);
   // quick stage chips on phones (the stages this company actually uses)
   const quickStages = useMemo(() => ['New', 'Hot', 'Warm', 'Qualified', 'Booked'].filter((x) => (config.options[F.STAGE] || []).includes(x)), [config.options]);
 
@@ -135,6 +146,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
     setUnit('');
     setRm('');
     setCampaign('');
+    setSubSource('');
     setDateFilter({ preset: 'all' });
   };
 
@@ -268,6 +280,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       key: 'source',
       label: 'Source',
       render: (l: Lead) => <SourceLogo source={l[F.SOURCE]} />,
+    },
+    {
+      key: 'subSource',
+      label: 'Sub-source',
+      render: (l: Lead) => (l[F.SUBSOURCE] ? <span className="text-[#0F2233] truncate max-w-[160px] inline-block align-bottom" title={String(l[F.SUBSOURCE])}>{l[F.SUBSOURCE]}</span> : <span className="text-[#7E93A6]">—</span>),
     },
     {
       key: 'campaign',
@@ -440,6 +457,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
         <Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All RMs" className="!w-auto" aria-label="Relationship manager" />
         {campaignOptions.length > 0 && (
           <Select value={campaign} onChange={(e) => setCampaign(e.target.value)} options={campaignOptions} placeholder="All Campaigns" className="!w-auto" aria-label="Campaign" />
+        )}
+        {subSourceOptions.length > 0 && (
+          <Select value={subSource} onChange={(e) => setSubSource(e.target.value)} options={subSourceOptions} placeholder="All Sub-sources" className="!w-auto" aria-label="Sub-source" />
         )}
         <DateRangeFilter value={dateFilter} onChange={setDateFilter} />
         <Button

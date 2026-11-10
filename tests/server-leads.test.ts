@@ -130,6 +130,21 @@ describe('leads', () => {
     expect(b.lead[L.BOOKING_DATE]).toBeTruthy();
   });
 
+  it('sub-source is a plain lead field that round-trips through create, update and serialization', async () => {
+    // set at creation
+    const created = await addLead(sample({ [L.PHONE]: '9000000002', [L.SUBSOURCE]: 'Broker referral' }), admin);
+    expect(created.lead[L.SUBSOURCE]).toBe('Broker referral');
+    expect((await getLead(created.id))![L.SUBSOURCE]).toBe('Broker referral');
+    // editable afterwards, on any source (no Chat360 restriction)
+    const { id } = await addLead(sample({ [L.PHONE]: '9000000003', [L.SOURCE]: 'Website' }), admin);
+    const r = await updateLead(id, { [L.SUBSOURCE]: 'Housing.com' }, admin);
+    expect(r.lead[L.SUBSOURCE]).toBe('Housing.com');
+    expect(r.changes!.map((c) => c.field)).toEqual([L.SUBSOURCE]);
+    // and it can be cleared
+    const r2 = await updateLead(id, { [L.SUBSOURCE]: '' }, admin);
+    expect(r2.lead[L.SUBSOURCE]).toBe('');
+  });
+
   it('rejects a stale expectedUpdatedAt with CONFLICT and the latest lead', async () => {
     const { id, lead } = await addLead(sample(), admin);
     const stale = new Date(Date.parse(lead[L.UPDATED_AT]) - 60000).toISOString();

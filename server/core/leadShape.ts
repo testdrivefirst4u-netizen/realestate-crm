@@ -24,6 +24,8 @@ export interface LeadDoc {
   email: string;
   stage: string;
   source: string;
+  /** Finer origin within a source (e.g. a WhatsApp sub-channel). Only used on Chat360 leads. */
+  subSource: string;
   unitType: string;
   purchaseOrRent: string;
   siteVisitStatus: string;
@@ -67,6 +69,7 @@ export const HEADER_TO_FIELD: Record<string, keyof LeadDoc> = {
   [L.EMAIL]: 'email',
   [L.STAGE]: 'stage',
   [L.SOURCE]: 'source',
+  [L.SUBSOURCE]: 'subSource',
   [L.UNIT_TYPE]: 'unitType',
   [L.PURCHASE_OR_RENT]: 'purchaseOrRent',
   [L.SITE_VISIT_STATUS]: 'siteVisitStatus',
@@ -256,7 +259,7 @@ export function applyFollowupEdits(list: FollowupEntry[], edits: Record<number, 
 /** An empty lead document (all base fields present). */
 export function blankLeadDoc(id: string): LeadDoc {
   return {
-    _id: id, enquiryDate: null, name: '', phone: '', phoneLast10: '', email: '', stage: CFG.STAGES.NEW, source: '', unitType: '',
+    _id: id, enquiryDate: null, name: '', phone: '', phoneLast10: '', email: '', stage: CFG.STAGES.NEW, source: '', subSource: '', unitType: '',
     purchaseOrRent: '', siteVisitStatus: '', siteVisitDate: null, bookingDate: null, nextFollowupAt: null, notes: '', assignedRm: '',
     brochureShared: '', relationship: '', enquiredFor: '', lastFollowupAt: null, createdAt: null, updatedAt: null, updatedBy: '',
     followups: [], extra: {},

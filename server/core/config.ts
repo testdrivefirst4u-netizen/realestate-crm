@@ -74,6 +74,7 @@ export const CFG = {
     EMAIL: 'Email',
     STAGE: 'Lead Stage',
     SOURCE: 'Enquiry Source',
+    SUBSOURCE: 'Enquiry Sub-source',
     UNIT_TYPE: 'Unit Type Interested In',
     PURCHASE_OR_RENT: 'Purchase or Rent',
     SITE_VISIT_STATUS: 'Site Visit Status',
@@ -104,6 +105,7 @@ export const CFG = {
 
   LEAD_BASE_HEADERS: [
     'Enquiry ID', 'Enquiry Date', 'Prospect Name', 'Phone Number', 'Email', 'Lead Stage', 'Enquiry Source',
+    'Enquiry Sub-source',
     'Unit Type Interested In', 'Purchase or Rent', 'Site Visit Status', 'Site Visit Date', 'Booking Date',
     'Next Follow-up Date', 'Enquiry Notes', 'Assigned RM', 'Brochure Shared', 'Relationship to Prospect',
     'Enquired For', 'Last Follow-up Date & Time', 'Created At', 'Updated At', 'Updated By',

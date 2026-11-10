@@ -239,6 +239,11 @@ const FIELD_RULES: FieldRule[] = [
     fuzzy: [/^(enquiry|inquiry|enq|lead)\s*source$/, /^(channel|campaign|medium|origin)$/, /^utm\s*source$/],
   },
   {
+    field: F.SUBSOURCE,
+    aliases: [F.SUBSOURCE, 'sub source', 'subsource', 'sub-source', 'sub channel', 'subchannel', 'source detail', 'sub origin'].map(nh),
+    fuzzy: [/^sub[\s-]*(source|channel|origin)$/, /^source\s*detail$/],
+  },
+  {
     field: F.UNIT_TYPE,
     aliases: [F.UNIT_TYPE, 'unit type', 'unit', 'configuration', 'config', 'bhk', 'typology', 'interested in', 'flat type', 'apartment type', 'unit preference', 'unit size', 'interested unit'].map(nh),
     fuzzy: [/^(unit|flat|apartment|home)\s*(type|size|preference|config|configuration)(\s*interested(\s*in)?)?$/, /^(configuration|config|bhk|typology)$/, /^interested\s*in$/],

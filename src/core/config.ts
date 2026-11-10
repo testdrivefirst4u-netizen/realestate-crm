@@ -27,6 +27,8 @@ export const F = {
   EMAIL: 'Email',
   STAGE: 'Lead Stage',
   SOURCE: 'Enquiry Source',
+  /** Finer origin within a source; only used on Chat360 leads. */
+  SUBSOURCE: 'Enquiry Sub-source',
   UNIT_TYPE: 'Unit Type Interested In',
   PURCHASE_OR_RENT: 'Purchase or Rent',
   SITE_VISIT_STATUS: 'Site Visit Status',
@@ -88,6 +90,7 @@ export const LEAD_BASE_HEADERS: string[] = [
   F.EMAIL,
   F.STAGE,
   F.SOURCE,
+  F.SUBSOURCE,
   F.UNIT_TYPE,
   F.PURCHASE_OR_RENT,
   F.SITE_VISIT_STATUS,
