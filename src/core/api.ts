@@ -33,6 +33,7 @@ import type {
 import type { LeadSourceActions } from '../../server/core/leadSourceTypes';
 import type { SheetActions, SheetAuth } from '../../server/core/sheetTypes';
 import type { MetaActions } from '../../server/core/metaTypes';
+import type { Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
 
 /** Request / response types of a lead-source RPC action (contract: server/core/leadSourceTypes.ts). */
 type LsReq<K extends keyof LeadSourceActions> = LeadSourceActions[K]['req'];
@@ -523,6 +524,28 @@ export const api = {
       request<{ unit: InventoryUnit; version: string; conflict?: InventoryUnit; reason?: string }>('updateInventoryUnit', { id: inventoryId, data: patch, expectedLastModified, expectedRev, idempotencyKey }),
     add: (unit: Partial<InventoryUnit>) => request<{ unit: InventoryUnit; version: string }>('addInventoryUnit', { data: unit }),
     importUnits: (units: Partial<InventoryUnit>[]) => request<{ created: number; skipped: number; version: string }>('importInventory', { units }),
+  },
+
+  /** Release B: people, next action, quotations, booking approval (server/modules/journey.ts). */
+  journey: {
+    people: (leadId: string) => request<Person[]>('getLeadPeople', { leadId }),
+    savePerson: (leadId: string, person: Partial<Person>) => request<Person[]>('saveLeadPerson', { leadId, person }),
+    removePerson: (leadId: string, personId: string) => request<Person[]>('removeLeadPerson', { leadId, personId }),
+    disposition: (d: { leadId: string; outcome: string; note?: string; personId?: string; next?: { type: string; at: string; note?: string } }) => request<{ ok: true; nextAt: string }>('logDisposition', d),
+    quotes: (leadId: string) => request<Quote[]>('listQuotes', { leadId }),
+    saveQuote: (d: { leadId: string; unitId: string; basePrice?: number; charges?: Array<{ label: string; amount: number }>; discount?: number }) => request<Quote>('saveQuote', d),
+    decideQuote: (id: string, approve: boolean, note = '') => request<Quote>('decideQuote', { id, approve, note }),
+    gate: (leadId: string, unitId: string) => request<{ missing: string[]; quote: Quote | null }>('getBookingGate', { leadId, unitId }),
+    requestBooking: (leadId: string, unitId: string, note = '') => request<{ _id: string; status: string }>('requestBooking', { leadId, unitId, note }),
+    decideBooking: (id: string, approve: boolean, note = '') => request<{ _id: string; status: string }>('decideBooking', { id, approve, note }),
+  },
+
+  /** Release B: work queues (server/modules/workspace.ts) and the founder report (salesReport.ts). */
+  workspace: {
+    today: () => request<TodayData>('getToday'),
+    team: () => request<TeamData>('getTeamExceptions'),
+    reassign: (leadIds: string[], to: string, reason: string) => request<{ moved: number; to: string }>('reassignLeads', { leadIds, to, reason }),
+    salesReport: (from?: string, to?: string) => request<SalesReport>('getSalesReport', { from, to }),
   },
 
   records: {

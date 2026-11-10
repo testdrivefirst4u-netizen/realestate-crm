@@ -7,7 +7,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
-import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Save, Sparkles, User } from 'lucide-react';
+import { Building2, Check, Copy, FileText, History, Mail, MessageCircle, MessageSquare, Phone, PhoneCall, Route, Save, Sparkles, User } from 'lucide-react';
 import { CRMConfig, CRMSettings, InventoryUnit, Lead, TaskItem, UserAccount } from '../../types/crm';
 import { F, FORM_ANSWER_PREFIX, LEAD_DATE_FIELDS, STAGES, STAGE_CLASS } from '../../core/config';
 import { api, type EnquiryHistoryRow } from '../../core/api';
@@ -27,6 +27,8 @@ import { FollowupsTab } from './detail/FollowupsTab';
 import { CallsTab } from './detail/CallsTab';
 import { WhatsAppTab } from './detail/WhatsAppTab';
 import { FilesTab } from './detail/FilesTab';
+import { JourneyTab } from './detail/JourneyTab';
+import { can as canDo } from '../../core/rbac';
 import { personName } from '../../core/leadName';
 
 export interface LeadDetailModalProps {
@@ -66,14 +68,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = (props) => {
 
 /* -------------------------------------------------------------------------- */
 
-type TabId = 'details' | 'timeline' | 'followups' | 'calls' | 'whatsapp' | 'files';
+type TabId = 'journey' | 'details' | 'timeline' | 'followups' | 'calls' | 'whatsapp' | 'files';
 type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead };
 
 const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY, F.AREA, F.REFERRED_BY, F.OTHER_PROJECT];
 
 const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot, onOpenLead }) => {
   const id = String(lead[F.ID]);
-  const [tab, setTab] = useState<TabId>('details');
+  // the journey is where an enquiry is worked; details stay one tab away
+  const [tab, setTab] = useState<TabId>('journey');
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -264,6 +267,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
   );
 
   const tabs: Array<{ id: TabId; label: string; icon: React.ReactNode; badge?: React.ReactNode }> = [
+    { id: 'journey', label: 'Journey', icon: <Route size={13} /> },
     { id: 'details', label: 'Details', icon: <User size={13} /> },
     { id: 'timeline', label: 'Timeline', icon: <History size={13} /> },
     { id: 'followups', label: 'Follow-ups', icon: <MessageSquare size={13} />, badge: followupCount(lead) || undefined },
@@ -440,6 +444,9 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
             </div>
           </div>
 
+          <div className={tab === 'journey' ? '' : 'hidden'}>
+            <JourneyTab lead={lead} inventory={inventory} canEdit={canEdit} canApprove={canDo(currentUser as any, 'inventory.approve')} active={tab === 'journey'} onChanged={bumpTimeline} />
+          </div>
           <div className={tab === 'timeline' ? '' : 'hidden'}>
             <TimelineTab leadId={id} active={tab === 'timeline'} version={`${lead[F.UPDATED_AT] || ''}|${lead[F.LAST_FOLLOWUP] || ''}|${timelineVersion}`} />
           </div>

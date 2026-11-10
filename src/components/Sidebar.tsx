@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, MessageCircle, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  Inbox, Send, Megaphone, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, type LucideIcon,
+  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, type LucideIcon,
 } from 'lucide-react';
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
@@ -55,6 +55,7 @@ interface Group { id: string; label: string; items: Item[] }
 function buildGroups(counts: SidebarCounts, direct = false): Group[] {
   return [
     { id: 'overview', label: 'Overview', items: [
+      { id: 'today', label: 'Today', icon: Sun },
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'mis', label: 'Sales MIS', icon: ChartColumn },
       { id: 'performance', label: 'YTD / MTD', icon: TrendingUp }, { id: 'reports', label: 'Reports', icon: FileChartColumn },
       { id: 'analytics', label: 'Website Analytics', icon: Globe2 }, { id: 'searchconsole', label: 'Search Console', icon: SearchCheck },
