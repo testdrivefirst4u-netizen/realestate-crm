@@ -178,3 +178,16 @@ describe('family-to-booking journey', () => {
     expect(isStopWord('stop by on Sunday?')).toBe(false);
   });
 });
+
+describe('browser phone helpers mirror the server', () => {
+  it('formats international numbers and keeps suffix-sharing numbers distinct', async () => {
+    const { formatPhone, samePhone } = await import('../src/core/phone');
+    expect(formatPhone('+971501234567')).toBe('+971 50 123 4567');
+    expect(formatPhone('+14155550178')).toBe('+1 415 555 0178');
+    expect(formatPhone('+447700900123')).toBe('+44 770 090 0123');
+    expect(formatPhone('+919845011223')).toBe('+91 98450 11223');
+    expect(samePhone('+19811122334', '+919811122334')).toBe(false);
+    expect(samePhone('9811122334', '+91 98111 22334')).toBe(true);
+    expect(samePhone('9811122334', '+1 981 112 2334')).toBe(false);
+  });
+});

@@ -156,6 +156,11 @@ export async function getTeamExceptions(ctx: Ctx, now = new Date()) {
     return { userId: u.id, name: u.name, role: u.role, open: a?.open || 0, overdue: a?.overdue || 0, untouched: a?.untouched || 0 };
   }).sort((x, y) => y.overdue - x.overdue || y.open - x.open);
 
+  // people read names, not ids
+  const unitIds = [...new Set([...approvals.map((a) => a.unitId), ...pendingQuotes.map((q) => q.unitId)])];
+  const leadIds = [...new Set([...approvals.map((a) => a.leadId), ...pendingQuotes.map((q) => q.leadId)])];
+  const unitNo = new Map((await (await col<any>(CFG.COLL.INVENTORY)).find({ _id: { $in: unitIds } }, { projection: { unitNumber: 1 } }).toArray()).map((u) => [String(u._id), String(u.unitNumber)]));
+  const leadName = new Map((await leads.find({ _id: { $in: leadIds } }, { projection: { name: 1 } }).toArray()).map((l) => [String(l._id), String(l.name)]));
   return {
     generatedAt: now.toISOString(),
     slaHours: sla / HOUR,
@@ -164,8 +169,8 @@ export async function getTeamExceptions(ctx: Ctx, now = new Date()) {
     missedCalls: await missedNotReturned(ctx, now),
     visitsNext48h: visits.map((l) => row(l, l.siteVisitDate, 'Visit')),
     stalled: stalled.map((l) => row(l, l.updatedAt, 'No change in 14 days')),
-    approvals: approvals.map((a) => ({ id: a._id, kind: a.kind, leadId: a.leadId, unitId: a.unitId, requestedBy: a.requestedBy, at: new Date(a.requestedAt).toISOString() })),
-    discountApprovals: pendingQuotes.map((q) => ({ id: q._id, leadId: q.leadId, unitId: q.unitId, version: q.version, discount: q.discount, total: q.total, by: q.createdBy, at: new Date(q.createdAt).toISOString() })),
+    approvals: approvals.map((a) => ({ id: a._id, kind: a.kind, leadId: a.leadId, leadName: leadName.get(a.leadId) || a.leadId, unitId: a.unitId, unitNumber: unitNo.get(a.unitId) || a.unitId, requestedBy: a.requestedBy, note: a.note || '', at: new Date(a.requestedAt).toISOString() })),
+    discountApprovals: pendingQuotes.map((q) => ({ id: q._id, leadId: q.leadId, leadName: leadName.get(q.leadId) || q.leadId, unitId: q.unitId, unitNumber: unitNo.get(q.unitId) || q.unitId, version: q.version, discount: q.discount, total: q.total, by: q.createdBy, at: new Date(q.createdAt).toISOString() })),
     workload,
   };
 }

@@ -535,7 +535,7 @@ export const api = {
     quotes: (leadId: string) => request<Quote[]>('listQuotes', { leadId }),
     saveQuote: (d: { leadId: string; unitId: string; basePrice?: number; charges?: Array<{ label: string; amount: number }>; discount?: number }) => request<Quote>('saveQuote', d),
     decideQuote: (id: string, approve: boolean, note = '') => request<Quote>('decideQuote', { id, approve, note }),
-    gate: (leadId: string, unitId: string) => request<{ missing: string[]; quote: Quote | null }>('getBookingGate', { leadId, unitId }),
+    gate: (leadId: string, unitId: string) => request<{ missing: string[]; quote: Quote | null; pending: { id: string; requestedBy: string; at: string } | null }>('getBookingGate', { leadId, unitId }),
     requestBooking: (leadId: string, unitId: string, note = '') => request<{ _id: string; status: string }>('requestBooking', { leadId, unitId, note }),
     decideBooking: (id: string, approve: boolean, note = '') => request<{ _id: string; status: string }>('decideBooking', { id, approve, note }),
   },

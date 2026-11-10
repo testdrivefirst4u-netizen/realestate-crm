@@ -213,14 +213,14 @@ const Team: React.FC<{ onOpenLead: (id: string) => void; users: Array<{ id: stri
   const [msg, setMsg] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
   const [acting, setActing] = useState('');
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const decide = async (kind: 'booking' | 'quote', id: string, approve: boolean) => {
+  const decide = async (kind: 'booking' | 'quote', id: string, approve: boolean, what: string) => {
     const note = approve ? '' : window.prompt('Reason for rejecting (shown to the agent)') || '';
     if (!approve && !note) return;
     setActing(id);
     try {
       if (kind === 'booking') await api.journey.decideBooking(id, approve, note);
       else await api.journey.decideQuote(id, approve, note);
-      setMsg({ tone: 'success', text: approve ? 'Approved.' : 'Rejected.' });
+      setMsg({ tone: 'success', text: `${approve ? 'Approved' : 'Rejected'}: ${what}.${approve && kind === 'booking' ? ' The unit is booked and the enquiry marked Booked.' : approve ? ' The agent can now send it.' : ' The agent sees your reason.'}` });
       await refresh();
     } catch (e) {
       setMsg({ tone: 'warning', text: toAppError(e).userMessage });
@@ -255,21 +255,21 @@ const Team: React.FC<{ onOpenLead: (id: string) => void; users: Array<{ id: stri
             {data!.approvals.map((a) => (
               <li key={a.id} className="px-3 py-2.5 flex flex-wrap items-center gap-3">
                 <button onClick={() => onOpenLead(a.leadId)} className="flex-1 min-w-0 text-left focus-visible:outline-2 focus-visible:outline-[#0B6BB0] rounded">
-                  <div className="text-sm font-semibold text-[#0B2A44]">Book unit {a.unitId} for {a.leadId}</div>
-                  <div className="text-[11px] text-[#5E778C]">Asked by {a.requestedBy} · {formatRelative(a.at)}</div>
+                  <div className="text-sm font-semibold text-[#0B2A44]">Book {a.unitNumber} for {a.leadName}</div>
+                  <div className="text-[11px] text-[#5E778C]">Asked by {a.requestedBy} · {formatRelative(a.at)}{a.note ? ` · “${a.note}”` : ''}</div>
                 </button>
-                <Button size="xs" variant="ghost" disabled={acting === a.id} onClick={() => decide('booking', a.id, false)}>Reject</Button>
-                <Button size="xs" variant="primary" loading={acting === a.id} onClick={() => decide('booking', a.id, true)}>Approve booking</Button>
+                <Button size="xs" variant="ghost" disabled={acting === a.id} onClick={() => decide('booking', a.id, false, `${a.unitNumber} for ${a.leadName}`)}>Reject</Button>
+                <Button size="xs" variant="primary" loading={acting === a.id} onClick={() => decide('booking', a.id, true, `${a.unitNumber} for ${a.leadName}`)}>Approve booking</Button>
               </li>
             ))}
             {data!.discountApprovals.map((q) => (
               <li key={q.id} className="px-3 py-2.5 flex flex-wrap items-center gap-3">
                 <button onClick={() => onOpenLead(q.leadId)} className="flex-1 min-w-0 text-left focus-visible:outline-2 focus-visible:outline-[#0B6BB0] rounded">
-                  <div className="text-sm font-semibold text-[#0B2A44]">Discount {formatINR(q.discount)} on unit {q.unitId} · {formatINR(q.total)} total</div>
+                  <div className="text-sm font-semibold text-[#0B2A44]">{formatINR(q.discount)} discount on {q.unitNumber} for {q.leadName} · {formatINR(q.total)} total</div>
                   <div className="text-[11px] text-[#5E778C]">Quotation v{q.version} by {q.by} · {formatRelative(q.at)}</div>
                 </button>
-                <Button size="xs" variant="ghost" disabled={acting === q.id} onClick={() => decide('quote', q.id, false)}>Reject</Button>
-                <Button size="xs" variant="primary" loading={acting === q.id} onClick={() => decide('quote', q.id, true)}>Approve discount</Button>
+                <Button size="xs" variant="ghost" disabled={acting === q.id} onClick={() => decide('quote', q.id, false, `discount on ${q.unitNumber} for ${q.leadName}`)}>Reject</Button>
+                <Button size="xs" variant="primary" loading={acting === q.id} onClick={() => decide('quote', q.id, true, `discount on ${q.unitNumber} for ${q.leadName}`)}>Approve discount</Button>
               </li>
             ))}
           </ul>

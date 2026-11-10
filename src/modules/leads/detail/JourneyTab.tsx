@@ -15,6 +15,7 @@ import { F } from '../../../core/config';
 import { toAppError } from '../../../core/errors';
 import { formatDateTime, formatRelative } from '../../../core/dates';
 import { formatINR } from '../../../core/format';
+import { formatPhone } from '../../../core/phone';
 import { NEXT_TYPES, OUTCOMES, PERSON_ROLE_LABEL, type Person, type PersonRole, type Quote } from '../../../core/journeyTypes';
 import type { InventoryUnit, Lead } from '../../../types/crm';
 import { Button, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
@@ -247,7 +248,7 @@ const PeopleSection: React.FC<{ leadId: string; people: Person[] | null; canEdit
                   <span className="text-[11px] font-normal text-[#5E778C]">{p.roles.map((r) => PERSON_ROLE_LABEL[r]).join(' · ')}{p.relationship ? ` · ${p.relationship}` : ''}</span>
                 </div>
                 <div className="text-xs text-[#5E778C] mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                  {p.phone && <span className="tabular-nums">{p.phone}</span>}
+                  {p.phone && <span className="tabular-nums">{formatPhone(p.phone)}</span>}
                   {p.preferredChannel && <span>Prefers {p.preferredChannel === 'call' ? 'a call' : p.preferredChannel}</span>}
                   {p.language && <span>{p.language}</span>}
                   {p.timeZone && <span className="inline-flex items-center gap-1"><Globe2 size={11} aria-hidden />{localTime(p.timeZone)} their time</span>}
@@ -327,13 +328,14 @@ const UnitSection: React.FC<{ leadId: string; lead: Lead; inventory: InventoryUn
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [gate, setGate] = useState<string[] | null>(null);
+  const [pending, setPending] = useState<{ requestedBy: string; at: string } | null>(null);
   const unit = inventory.find((u) => u.inventoryId === unitId);
   const current = quotes.find((q) => q.unitId === unitId && q.status !== 'superseded');
   const hasPayer = people.some((p) => p.roles.includes('payer'));
 
   useEffect(() => {
     if (!unitId) return setGate(null);
-    api.journey.gate(leadId, unitId).then((g) => setGate(g.missing), () => setGate(null));
+    api.journey.gate(leadId, unitId).then((g) => { setGate(g.missing); setPending(g.pending); }, () => { setGate(null); setPending(null); });
   }, [leadId, unitId, quotes, hasPayer]);
 
   const run = async (what: string, fn: () => Promise<unknown>) => {
@@ -394,7 +396,11 @@ const UnitSection: React.FC<{ leadId: string; lead: Lead; inventory: InventoryUn
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-[#0E8A86] inline-flex items-center gap-1"><Check size={12} aria-hidden />Ready to book: approved quotation and payer recorded.</span>
-                {canEdit && unit?.status !== 'Booked' && <Button variant="primary" loading={busy === 'book'} onClick={() => run('book', () => api.journey.requestBooking(leadId, unitId))}>Ask a manager to book</Button>}
+                {unit?.status === 'Booked' ? null : pending ? (
+                  <span className="text-xs text-[#92400E]">Booking requested by {pending.requestedBy} {formatRelative(pending.at)} · waiting for a manager</span>
+                ) : canEdit ? (
+                  <Button variant="primary" loading={busy === 'book'} onClick={() => run('book', () => api.journey.requestBooking(leadId, unitId))}>Ask a manager to book</Button>
+                ) : null}
               </div>
             )
           )}

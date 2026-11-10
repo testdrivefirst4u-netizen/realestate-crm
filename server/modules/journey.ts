@@ -277,14 +277,15 @@ export interface ApprovalDoc {
 const approvals = () => col<ApprovalDoc>('approvals');
 
 /** What is missing before a unit can be booked for a lead (empty = ready). */
-export async function bookingGate(leadId: string, unitId: string, ctx: Ctx): Promise<{ missing: string[]; quote: QuoteDoc | null }> {
+export async function bookingGate(leadId: string, unitId: string, ctx: Ctx): Promise<{ missing: string[]; quote: QuoteDoc | null; pending: { id: string; requestedBy: string; at: string } | null }> {
   const missing: string[] = [];
   const q = await (await quotes()).find({ leadId, unitId, status: { $in: ['approved', 'sent'] } }).sort({ version: -1 }).limit(1).next();
   if (!q) missing.push('An approved quotation for this unit');
   else if (q.validUntil && q.validUntil.getTime() < Date.now()) missing.push('A quotation that is still valid (the approved one has expired)');
   const people = await getLeadPeople(leadId, ctx);
   if (!people.some((p) => p.roles.includes('payer'))) missing.push('Who is paying (mark a person as payer)');
-  return { missing, quote: q };
+  const open = await (await approvals()).findOne({ kind: 'booking', leadId, unitId, status: 'pending' });
+  return { missing, quote: q, pending: open ? { id: open._id, requestedBy: open.requestedBy, at: open.requestedAt.toISOString() } : null };
 }
 
 export async function requestBooking(d: { leadId: string; unitId: string; note?: string }, ctx: Ctx): Promise<ApprovalDoc> {

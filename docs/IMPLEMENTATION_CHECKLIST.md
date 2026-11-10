@@ -37,7 +37,7 @@ Release A gates: typecheck ✅ · 1517/1517 tests ✅ · build ✅ · audit 0 �
 - [x] Versioned quotation, discount approval by another person
 - [x] Time-limited holds, booking request gated (approved quote + payer), manager approval, atomic
 - [x] Full E.164 phone identity (overseas family numbers stay distinct)
-- [x] UI: Today screen, lead Journey tab, tokens, visible focus — [ ] browser check and screenshots pending
+- [x] UI: Today screen, lead Journey tab, tokens, visible focus — browser-checked desktop + mobile, screenshots in docs/screenshots
 
 ## Release C — integrations and recovery
 - [x] Durable webhook inbox (Release A), connector health contract with reconnect / degraded states
@@ -51,4 +51,4 @@ Release A gates: typecheck ✅ · 1517/1517 tests ✅ · build ✅ · audit 0 �
 - [x] Payment milestones and append-only receipts; paid derived from the ledger
 - [ ] Consolidate Dashboard / YTD-MTD / Sales MIS with Today › Business (needs founders' confirmation)
 
-Gates after B–D: typecheck ✅ · 1526 tests ✅ · build ✅.
+Gates after B–D and the browser pass: typecheck ✅ · 1527 tests ✅ · build ✅.

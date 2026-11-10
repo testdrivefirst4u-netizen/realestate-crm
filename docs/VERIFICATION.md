@@ -56,9 +56,29 @@ Acceptance checks (all automated):
 | 1 timely + 9 overdue unanswered ≠ 100 % overall SLA | `tests/release-a-reporting.test.ts` |
 | Isolated restore drill (media, checksums, key) | `tests/release-a-recovery.test.ts` |
 
+## Browser verification (synthetic demo company, local MongoDB, `next dev`)
+
+Seeded with `scripts/seed-demo.ts`; signed in as each synthetic role. Screenshots in `docs/screenshots/`.
+
+| Check | Result |
+|---|---|
+| Sign-in lands on Today for every role | fixed during the check (the login API still sent everyone to /dashboard) — now verified |
+| Agent Today: uncontacted enquiry past SLA, missed call, overdue callback, visit | correct queues and late markers (01, 07) |
+| Journey: outcome → next step via keyboard (Enter), visible focus, confirmation | works (02) |
+| Journey: people with roles, Dubai local time, consent; quotation; booking gate | works (02, 03); added during the check: pending booking state instead of a second "Ask a manager" button (04), international number formatting, browser `samePhone` respecting country codes |
+| Manager Team: approvals, no owner, late, missed calls, visits, workload | works (05); approvals now show unit number and customer name instead of ids; approving books the unit and updates the queue |
+| Founder Business: no controls, numbers reconcile with the seed | works (06, 08): booked ₹2.31 Cr, collected ₹13.1 L, no invented estimate, SLA 25 % (1 of 4 due) |
+| Mobile 375 px: no horizontal scroll, 44 px targets, visible 2 px focus | verified (07, 08, 09) |
+
+Pre-existing, not caused by this branch: every page logs a React hydration mismatch from the full-page loader
+animation (`bc-loader`, `main` commit `73a9991`), which injects markup before hydration. Worth a separate fix.
+
+Final gates: typecheck ✅ · 115 files / 1527 tests ✅ · build ✅.
+
 ## Not verified
 
-- No browser check of Release A screens yet (the inventory drawer notices). Covered in Release B's browser pass.
+- Older screens (Dashboard, MIS, Inventory grid) were not restyled or re-checked visually.
+- Offline and error states of Today were implemented but only exercised in code, not by cutting the network.
 - No test against a real MongoDB Atlas replica set (transactions, real network failures), real Meta / Chat360 /
   telephony deliveries, or production data volumes.
 - Migration scripts were run only against synthetic test databases.
