@@ -21,6 +21,7 @@ import { assertLeadAccess, canSeeLead, leadFilter } from '../core/scope';
 import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, phoneProblem, shortId, str, truncate } from '../core/utils';
 import { scheduleLeadAlerts } from './leadAlerts';
 import { firstFollowup, nextFollowup as sequenceNextFollowup, parseSequence } from './sequences';
+import { userIdByName, userIdsByName, nameKey as ownerKey } from '../core/ownership';
 
 /** A lead as the browser sees it: keys are the sheet header names ('Prospect Name', 'Follow-up 3' …). */
 export type UiLead = Record<string, string>;
@@ -289,6 +290,8 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
     if (fallback) doc.assignedRm = fallback;
   }
   if (doc.assignedRm) doc.assignedAt = now;
+  // owner by immutable id (the name is only a label: renaming the agent keeps their leads)
+  (doc as any).assignedRmId = await userIdByName(doc.assignedRm);
   // follow-up sequence: a new open lead without a date gets its first follow-up (Settings › Alerts & follow-ups)
   const autoFollowup = firstFollowup(parseSequence((await settingsAll()).followupSequence), doc, now);
   if (autoFollowup) doc.nextFollowupAt = autoFollowup;
@@ -444,6 +447,11 @@ export async function updateLead(
     }
     const plan = planUpdate(before, patch as Record<string, unknown>, ctx, actor, new Date());
     if (!plan) return { lead: toUiLead(before)!, version: await getVersion(), unchanged: true };
+    if ('assignedRm' in plan.set) {
+      const ownerId = await userIdByName((plan.set as any).assignedRm);
+      (plan.set as any).assignedRmId = ownerId;
+      (plan.next as any).assignedRmId = ownerId;
+    }
 
     // conditional write: only if nobody saved in between
     // a new RM starts a fresh "first action" clock (auto-reassignment)
@@ -677,6 +685,11 @@ export async function importLeads(rows: UiLead[], strategy: string, ctx: Ctx | n
     const id = c.id || `ENQ-${String(nextNum++).padStart(4, '0')}`;
     return buildNewDoc(id, c.obj, actor, now);
   });
+
+  // owners by immutable id
+  const ownerIds = await userIdsByName();
+  for (const d of newDocs) (d as any).assignedRmId = ownerIds.get(ownerKey(d.assignedRm)) || '';
+  for (const u of updates.values()) if ('assignedRm' in u.set) (u.set as any).assignedRmId = ownerIds.get(ownerKey((u.set as any).assignedRm)) || '';
 
   // write
   const ops: AnyBulkWriteOperation<LeadDoc>[] = [

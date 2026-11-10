@@ -48,6 +48,8 @@ export function mergeDocs(keep: LeadDoc, others: LeadDoc[], actor: string, now =
     const from = others.map((o) => str(o[f])).find((v) => v && !(f === 'name' && isPlaceholderName(v)));
     if (from) (out as any)[f] = from;
   }
+  // the owner's id travels with the owner's name (the kept lead's own owner wins, as for the name)
+  if (str(out.assignedRm) !== str(keep.assignedRm)) (out as any).assignedRmId = str((others.find((o) => str(o.assignedRm) === str(out.assignedRm)) as any)?.assignedRmId);
   for (const f of DATE_FIELDS) if (time(out[f] as Date | null) === null) {
     const from = others.map((o) => o[f] as Date | null).find((d) => time(d) !== null);
     if (from) (out as any)[f] = from;

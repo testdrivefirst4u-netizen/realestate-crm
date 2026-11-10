@@ -14,17 +14,20 @@ type UserLike = Pick<PublicUser, 'name' | 'role'> | null | undefined;
 /* --------------------------------- tasks --------------------------------- */
 
 /** A restricted user sees tasks assigned to or created by them, and tasks of leads they can see. */
-export async function filterTasks<T extends { leadId?: string; assignedTo?: string; createdBy?: string }>(user: UserLike, tasks: T[]): Promise<T[]> {
+/** Is this user the person in a name/id pair? The id decides when the row has one; the name only on older rows. */
+export const isPerson = (r: { id?: string; name: string }, name: unknown, id: unknown) => (str(id) && r.id ? str(id) === r.id : sameName(name, r.name));
+
+export async function filterTasks<T extends { leadId?: string; assignedTo?: string; createdBy?: string; assignedToId?: string; createdById?: string }>(user: UserLike, tasks: T[]): Promise<T[]> {
   const r = await restrictionFor(user);
   if (!r) return tasks;
   const ids = (await visibleLeadIds(user))!;
-  return tasks.filter((t) => sameName(t.assignedTo, r.name) || sameName(t.createdBy, r.name) || (!!str(t.leadId) && ids.has(str(t.leadId))));
+  return tasks.filter((t) => isPerson(r, t.assignedTo, t.assignedToId) || isPerson(r, t.createdBy, t.createdById) || (!!str(t.leadId) && ids.has(str(t.leadId))));
 }
 
 export async function assertTaskAccess(ctx: Ctx, taskId: unknown) {
   const t: any = await (await col(CFG.COLL.TASKS)).findOne({ _id: str(taskId) as any });
   if (!t) return; // the service reports NOT_FOUND
-  const ok = (await filterTasks(ctx.user, [{ leadId: t.leadId, assignedTo: t.assignedTo, createdBy: t.createdBy }])).length > 0;
+  const ok = (await filterTasks(ctx.user, [{ leadId: t.leadId, assignedTo: t.assignedTo, createdBy: t.createdBy, assignedToId: t.assignedToId, createdById: t.createdById }])).length > 0;
   if (!ok) throw fail('NOT_FOUND', 'Task not found: ' + str(taskId));
 }
 

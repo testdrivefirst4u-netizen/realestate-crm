@@ -335,7 +335,17 @@ export async function updateUser(data: any, ctx: Ctx) {
 
   const update: any = { $set: set };
   if (Object.keys(unset).length) update.$unset = unset;
+  // a rename re-labels what the user owns (stamping their id) BEFORE their own name changes: if it stops part-way,
+  // every re-labelled lead already carries the id, so nothing is orphaned (server/core/ownership.ts)
+  const renamed = set.name !== undefined && String(set.name) !== String(u.name || '');
+  let renameReport: Record<string, number> | null = null;
+  if (renamed) {
+    const { cascadeRename } = await import('./ownership');
+    renameReport = { ...(await cascadeRename(String(u._id), String(u.name || ''), String(set.name))) };
+    update.$push = { previousNames: { name: String(u.name || ''), until: new Date() } };
+  }
   await (await users()).updateOne({ _id: u._id }, update);
+  if (renamed) await auditLog(ctx, 'User Renamed', 'Settings', u._id, `${u.name} → ${set.name}`, { before: { name: u.name }, after: { name: set.name, ...renameReport } });
   if (set.emailLower && set.emailLower !== u.emailLower) await releaseEmail(u.emailLower);
   const changed = Object.keys(set).filter((k) => k !== 'passwordHash' && k !== 'emailLower');
   await auditLog(ctx, 'User Updated', 'Settings', u._id, changed.join(', '), {

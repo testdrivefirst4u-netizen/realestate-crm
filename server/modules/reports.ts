@@ -23,6 +23,8 @@ export interface ReportSnapshotDoc {
   rows: Array<Array<string | number | boolean>>;
   generatedAt: Date;
   generatedBy: string;
+  /** Immutable creator key: a restricted user downloads only their own snapshots, also after a rename. */
+  generatedById?: string;
 }
 
 function cell(v: unknown): string | number | boolean {
@@ -54,7 +56,7 @@ export async function saveReportSnapshot(d: { title: string; range: string; rows
   const rows = d.rows.map((r) => headers.map((h) => cell(r[h])));
 
   const id = shortId('RPT');
-  const doc: ReportSnapshotDoc = { _id: id, title, range, headers, rows, generatedAt: new Date(), generatedBy: ctx?.user?.name || 'System' };
+  const doc: ReportSnapshotDoc = { _id: id, title, range, headers, rows, generatedAt: new Date(), generatedBy: ctx?.user?.name || 'System', generatedById: ctx?.user?.id || '' };
   await (await col<ReportSnapshotDoc>(CFG.COLL.REPORTS)).insertOne(doc);
   await auditLog(ctx, 'Report Exported', 'System', id, title + ' (' + range + ')');
   const out = { url: `/api/reports/${id}`, id };

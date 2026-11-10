@@ -29,13 +29,13 @@ export async function leadVisibility(): Promise<LeadVisibility> {
   return LEAD_VISIBILITY.includes(v) ? v : 'own';
 }
 
-/** The restriction for this user, or null when the user sees every lead. */
-export async function restrictionFor(user: UserLike): Promise<{ name: string; mode: Exclude<LeadVisibility, 'all'> } | null> {
+/** The restriction for this user, or null when the user sees every lead. `id` is the immutable owner key. */
+export async function restrictionFor(user: UserLike): Promise<{ id: string; name: string; mode: Exclude<LeadVisibility, 'all'> } | null> {
   // the CRM's own jobs run as the SYSTEM account (by id — a person's name can never make them that)
   if (!user || user.id === 'SYSTEM' || can(user, 'leads.viewAll')) return null;
   const mode = await leadVisibility();
   if (mode === 'all') return null;
-  return { name: str(user.name), mode };
+  return { id: str(user.id), name: str(user.name), mode };
 }
 
 const nameMatcher = (name: string) => new RegExp('^\\s*' + escapeRegex(name) + '\\s*$', 'i');
@@ -45,16 +45,21 @@ const sameName = (a: unknown, b: string) => str(a).toLowerCase() === b.trim().to
 export async function leadFilter(ctx: Ctx | null | undefined): Promise<Filter<any> | null> {
   const r = await restrictionFor(ctx?.user);
   if (!r) return null;
-  const own = { assignedRm: nameMatcher(r.name) };
+  // by immutable id; by name only on leads not yet stamped with an id (data from before scripts/migrate-owner-ids.ts)
+  const own = r.id
+    ? { $or: [{ assignedRmId: r.id }, { $and: [{ assignedRmId: { $in: ['', null] } }, { assignedRm: nameMatcher(r.name) }] }] }
+    : { assignedRm: nameMatcher(r.name) };
   if (r.mode === 'own') return own;
-  return { $or: [own, { assignedRm: { $in: ['', null] } }, { assignedRm: { $exists: false } }] };
+  return { $or: [own, { $and: [{ assignedRm: { $in: ['', null] } }, { assignedRmId: { $in: ['', null] } }] }] };
 }
 
-/** Pure check on a lead's Assigned RM value. */
-export function rmAllows(r: { name: string; mode: string } | null, assignedRm: unknown) {
+/** Pure check on a lead's owner (id first, then the display name on rows without an id). */
+export function rmAllows(r: { id?: string; name: string; mode: string } | null, assignedRm: unknown, assignedRmId?: unknown) {
   if (!r) return true;
+  const ownerId = str(assignedRmId);
+  if (ownerId && r.id) return ownerId === r.id;
   if (sameName(assignedRm, r.name)) return true;
-  return r.mode === 'own_unassigned' && !str(assignedRm);
+  return r.mode === 'own_unassigned' && !str(assignedRm) && !ownerId;
 }
 
 /** Ids of the leads this user may see (null = all). */
@@ -72,13 +77,13 @@ export async function canSeeLead(user: UserLike, leadId: unknown): Promise<boole
   if (!id) return true;
   const r = await restrictionFor(user);
   if (!r) return true;
-  const doc = await (await col(CFG.COLL.LEADS)).findOne({ _id: id as any }, { projection: { assignedRm: 1 } });
+  const doc = await (await col(CFG.COLL.LEADS)).findOne({ _id: id as any }, { projection: { assignedRm: 1, assignedRmId: 1 } });
   if (!doc) {
     // archived leads: only users who see everything
     const archived = await (await col(CFG.COLL.ARCHIVE)).findOne({ _id: id as any }, { projection: { _id: 1 } });
     return !archived;
   }
-  return rmAllows(r, (doc as any).assignedRm);
+  return rmAllows(r, (doc as any).assignedRm, (doc as any).assignedRmId);
 }
 
 /** Throw NOT_FOUND (never FORBIDDEN, so existence is not revealed) when the user may not see the lead. */

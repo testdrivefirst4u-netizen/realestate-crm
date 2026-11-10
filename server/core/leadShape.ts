@@ -32,6 +32,8 @@ export interface LeadDoc {
   nextFollowupAt: Date | null;
   notes: string;
   assignedRm: string;
+  /** Immutable owner key (the user's _id). The name above is a label kept for display and history. */
+  assignedRmId?: string;
   brochureShared: string;
   relationship: string;
   enquiredFor: string;
