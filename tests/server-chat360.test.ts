@@ -74,6 +74,33 @@ describe('message text', () => {
     expect(wr({ type: 'interactive', interactive: { type: 'nfm_reply', nfm_reply: { response_json: '{"budget":"1 Cr","flow_token":"t"}' } } })).toBe('budget: 1 Cr');
   });
 
+  it('keeps outgoing interactive messages the bot sends that OFFER buttons or a list (previously dropped)', () => {
+    const wr = (wab_response: any) => extractText({ wab_response });
+    // bot offering buttons, with a body question → body text kept
+    expect(wr({ type: 'interactive', interactive: { type: 'button', body: { text: 'Who are you looking for?' }, action: { buttons: [{ type: 'reply', reply: { id: '1', title: 'For Yourself' } }, { reply: { title: 'For Parents' } }] } } }))
+      .toBe('Who are you looking for?');
+    // bot offering buttons with no readable body → the options are kept so the message is not lost
+    expect(wr({ type: 'button', action: { buttons: [{ reply: { title: 'Confirm Site Visit' } }, { reply: { title: 'Talk to Advisor' } }] } }))
+      .toBe('Options: Confirm Site Visit / Talk to Advisor');
+    // bot offering a list
+    expect(wr({ type: 'interactive', interactive: { type: 'list', action: { sections: [{ rows: [{ id: 'a', title: 'Option A' }, { id: 'b', title: 'Option B' }] }] } } }))
+      .toBe('Options: Option A / Option B');
+    // bot/agent text sent as a plain string
+    expect(extractText({ message: 'Welcome to AMAYA by Vera Vita.' })).toBe('Welcome to AMAYA by Vera Vita.');
+  });
+
+  it('orders messages that share the same minute by arrival order, not at random (bot reply never jumps ahead of the message that triggered it)', async () => {
+    const coll = await col(CFG.COLL.CHAT_MESSAGES);
+    const minute = new Date('2026-11-10T02:04:00.000Z'); // Chat360 stamps only to the minute → these three tie
+    // insert in a scrambled order; the true order is user "Hello" → bot "Welcome" → user "Sandeep" (by createdAt/arrival)
+    await coll.insertMany([
+      { _id: 'T2' as any, direction: 'Outbound', phone: '+919111100001', phoneLast10: '9111100001', text: 'Welcome to AMAYA', timestamp: minute, createdAt: new Date('2026-11-10T02:04:31Z') },
+      { _id: 'T1' as any, direction: 'Inbound', phone: '+919111100001', phoneLast10: '9111100001', text: 'Hello', timestamp: minute, createdAt: new Date('2026-11-10T02:04:30Z') },
+      { _id: 'T3' as any, direction: 'Inbound', phone: '+919111100001', phoneLast10: '9111100001', text: 'Sandeep Chandra', timestamp: minute, createdAt: new Date('2026-11-10T02:04:32Z') },
+    ]);
+    expect((await messages('9111100001')).map((m) => m.text)).toEqual(['Hello', 'Welcome to AMAYA', 'Sandeep Chandra']);
+  });
+
   it('a message stored as "[Message]" is read again from its saved payload', async () => {
     await (await col(CFG.COLL.CHAT_MESSAGES)).insertOne({
       _id: 'M1' as any, direction: 'Inbound', phone: '+919876501234', phoneLast10: '9876501234', text: '[Message]', timestamp: new Date(),
@@ -610,6 +637,13 @@ describe('the whole conversation from Chat360 (its inbox API)', () => {
     expect(mapChat360Message(history[2])).toMatchObject({ text: '📄 Amaya Senior Living Brochure', mediaUrl: expect.stringContaining('Brochure.pdf') });
     expect(mapChat360Message(history[3])).toBeNull();
     expect(mapChat360Message(history[4])).toMatchObject({ direction: 'Outbound', agent: 'it@veravitaliving.com' });
+  });
+
+  it('recovers a bot message that only offered buttons / a list (no plain text) instead of dropping it from the thread', () => {
+    const withBody = { text: '', sender: 'bot', message_id: 'm-btn1', created_on: iso(t0 + 2000), message_type: 'interactive', extra: { data: { body: { text: 'Who are you looking for?' }, buttons: [{ title: 'For Yourself' }, { title: 'For Parents' }] } } };
+    expect(mapChat360Message(withBody)).toMatchObject({ direction: 'Outbound', agent: 'Chat360 Bot', text: 'Who are you looking for?' });
+    const optionsOnly = { text: '', sender: 'bot', message_id: 'm-btn2', created_on: iso(t0 + 3000), message_type: 'interactive', extra: { data: { buttons: [{ title: 'Confirm Site Visit' }, { title: 'Talk to Advisor' }] } } };
+    expect(mapChat360Message(optionsOnly)?.text).toBe('Options: Confirm Site Visit / Talk to Advisor');
   });
 
   it('opening a chat brings in the bot messages once; the customer message from the webhook is not doubled; the bot name fills the lead', async () => {

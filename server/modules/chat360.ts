@@ -257,7 +257,7 @@ export async function fixPlaceholderNames(force = false): Promise<number> {
     }
     if (!name) {
       // the answer to the chatbot's name question: the second message, within 15 minutes of the first
-      const firstTwo = await (await msgs()).find({ phoneLast10: l.phoneLast10, direction: 'Inbound' }).sort({ timestamp: 1 }).limit(2).project({ text: 1, timestamp: 1 }).toArray();
+      const firstTwo = await (await msgs()).find({ phoneLast10: l.phoneLast10, direction: 'Inbound' }).sort({ timestamp: 1, createdAt: 1, _id: 1 }).limit(2).project({ text: 1, timestamp: 1 }).toArray();
       if (firstTwo.length === 2 && new Date(firstTwo[1].timestamp).getTime() - new Date(firstTwo[0].timestamp).getTime() <= 15 * 60_000) name = nameFromReply(String(firstTwo[1].text || ''));
     }
     if (!name || !isPlaceholderName(l.name, l.phone)) continue;
@@ -282,8 +282,10 @@ export async function contacts(): Promise<any[]> {
 export async function messages(phone: string): Promise<any[]> {
   const key = last10(phone);
   if (!key) return [];
-  // newest 2000, returned oldest → newest
-  const rows = await (await msgs()).find({ phoneLast10: key }).sort({ timestamp: -1 }).limit(2000).toArray();
+  // newest 2000, returned oldest → newest. createdAt (insertion/arrival order) breaks ties when several
+  // messages share the same timestamp — Chat360 stamps only to the minute, so same-minute bursts would
+  // otherwise come back in an undefined order and appear shuffled in the thread.
+  const rows = await (await msgs()).find({ phoneLast10: key }).sort({ timestamp: -1, createdAt: -1, _id: -1 }).limit(2000).toArray();
   return rows.reverse().map(serializeMsg);
 }
 
@@ -393,6 +395,8 @@ const MEDIA_LABEL: Record<string, string> = { image: '📷 Photo', video: '🎥 
 export function extractText(p: any): string {
   if (!p || typeof p !== 'object') return '';
   const wr = p.wab_response || p.message || p.data || p;
+  // some providers send the bot/agent text as a plain string in `message`
+  if (typeof wr === 'string' && wr.trim()) return wr.trim();
   const candidates = [deepFind(wr, ['body']), deepFind(wr, ['text']), deepFind(wr, ['caption']), deepFind(p, ['message_text', 'msg', 'content', 'user_reply', 'button_text', 'selected_option'])];
   for (const c of candidates) {
     if (typeof c === 'string' && c.trim()) return c.trim();
@@ -401,6 +405,26 @@ export function extractText(p: any): string {
   // a tap on a button / list option the bot offered
   const reply = deepFind(wr, ['button_reply', 'list_reply']);
   if (reply && typeof reply === 'object' && (reply.title || reply.description)) return [reply.title, reply.description].filter(Boolean).map(String).join(' — ').trim();
+  // an OUTGOING interactive message the bot/agent sent that OFFERS choices (buttons or a list). Its body text may
+  // sit in a shape the candidates above miss, and without this the whole message was dropped (nothing to save).
+  const opts: string[] = [];
+  const pushOpt = (it: any) => {
+    const t = it && typeof it === 'object' ? (it.reply?.title ?? it.title ?? it.text ?? it.label) : it;
+    if (typeof t === 'string' && t.trim()) opts.push(t.trim());
+  };
+  const btns = deepFind(wr, ['buttons', 'quick_replies']);
+  if (Array.isArray(btns)) btns.forEach(pushOpt);
+  const secs = deepFind(wr, ['sections']);
+  if (Array.isArray(secs)) for (const s of secs) if (Array.isArray(s?.rows)) s.rows.forEach(pushOpt);
+  if (opts.length) {
+    const head = (() => {
+      const b = deepFind(wr, ['body']);
+      if (typeof b === 'string' && b.trim()) return b.trim();
+      if (b && typeof b === 'object' && typeof b.text === 'string' && b.text.trim()) return b.text.trim();
+      return ''; // never fall back to a loose `title` — that would grab a button's own label
+    })();
+    return [head, 'Options: ' + [...new Set(opts)].join(' / ')].filter(Boolean).join('\n');
+  }
   // a WhatsApp Flow form: its answers
   const flow = deepFind(wr, ['nfm_reply']);
   if (flow && typeof flow === 'object') {
@@ -622,7 +646,10 @@ async function saveSentByChat360(payload: any, phone: string, type: string, mid:
       }
     }
   }
-  const text = extractText(payload) || (payload.template_name ? `Template: ${payload.template_name}` : '');
+  const msgType = String(payload.msg_type || deepFind(payload.wab_response || payload, ['type']) || '').toLowerCase();
+  // last resort: an interactive/button/list message whose text we could not read is still a real message — keep it
+  // in the thread (never leave a gap) rather than dropping it.
+  const text = extractText(payload) || (payload.template_name ? `Template: ${payload.template_name}` : '') || (/interactive|button|list/.test(msgType) ? '[Interactive message]' : '');
   if (!text && !extractMedia(payload)) return 'ignored';
   const rec = await record({
     id: mid || undefined, eventId, dedupeKey: providerKey || undefined, direction: 'Outbound', phone, text,
@@ -881,6 +908,10 @@ export function mapChat360Message(m: any): Chat360HistoryMessage | null {
   const data = m.extra?.data || {};
   const isMedia = m.extra?.msg_type === 'media' || /media/i.test(str(data.nodeType));
   let text = chat360Text(str(m.text));
+  // A bot message that only OFFERED buttons / a list has no plain `text` — its body and options live in `data`.
+  // Without this the whole message was dropped (the gaps you saw in the CRM thread). Bot messages reach the CRM
+  // through this history sync, not the webhook, so this is where they must be recovered.
+  if (!text && !isMedia) text = extractText(data) || extractText(m.extra || {});
   let mediaUrl = '';
   if (isMedia) {
     mediaUrl = /^https:\/\//i.test(str(data.media_url)) ? str(data.media_url) : '';
@@ -954,7 +985,11 @@ export async function syncConversation(phone: string, opts: { force?: boolean } 
       const near = await coll.find({ phoneLast10: key, direction: m.direction, timestamp: { $gte: new Date(m.at.getTime() - 180_000), $lte: new Date(m.at.getTime() + 180_000) }, dedupeKey: { $not: /^c360:/ } }, { projection: { text: 1 } }).limit(20).toArray();
       const twin = near.find((x) => sameText(str(x.text), m.text));
       if (twin) {
-        await coll.updateOne({ _id: twin._id }, { $set: { c360MessageId: m.messageId } });
+        // Adopt Chat360's own history timestamp for the customer's webhook copy. Bot messages come only from this
+        // history sync, while customer messages arrive by webhook (stamped to the minute), so the two sources sat on
+        // different clocks and interleaved wrongly within a minute. Putting both on Chat360's history time fixes the
+        // order (a bot prompt now stays before the customer's reply it asked for).
+        await coll.updateOne({ _id: twin._id }, { $set: { c360MessageId: m.messageId, ...(m.at ? { timestamp: m.at } : {}) } });
         continue;
       }
     }
