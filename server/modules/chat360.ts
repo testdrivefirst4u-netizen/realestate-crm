@@ -392,11 +392,49 @@ export function deepFind(obj: any, keys: string[], depth = 0): any {
 
 const MEDIA_LABEL: Record<string, string> = { image: '📷 Photo', video: '🎥 Video', audio: '🎤 Voice note', voice: '🎤 Voice note', document: '📄 Document', sticker: 'Sticker', file: '📄 Document' };
 
+/**
+ * A chatbot "offer" message — one that asks a question and presents choices (Chat360 MULTI_CHOICE, or a WhatsApp
+ * interactive button / list the business sent). Returns the question (preferred) or, if there is none, the offered
+ * options, so the message is never lost. '' when the payload is not such a message.
+ */
+function extractOffer(wr: any): string {
+  if (!wr || typeof wr !== 'object') return '';
+  const sections = deepFind(wr, ['sections']);
+  let question = '';
+  const qt = deepFind(wr, ['questionText']);
+  if (typeof qt === 'string' && qt.trim()) question = chat360Text(qt);
+  if (!question && Array.isArray(sections)) {
+    const st = sections.map((s: any) => (s && typeof s.title === 'string' ? s.title.trim() : '')).find(Boolean);
+    if (st) question = chat360Text(st);
+  }
+  if (!question) {
+    const b = deepFind(wr, ['body']);
+    if (typeof b === 'string' && b.trim()) question = b.trim();
+    else if (b && typeof b === 'object' && typeof b.text === 'string' && b.text.trim()) question = b.text.trim();
+  }
+  const opts: string[] = [];
+  const pushOpt = (it: any) => {
+    const t = it && typeof it === 'object' ? (it.reply?.title ?? it.title ?? it.text ?? it.label) : it;
+    if (typeof t === 'string' && t.trim()) opts.push(t.trim());
+  };
+  const btns = deepFind(wr, ['buttons', 'quick_replies']);
+  if (Array.isArray(btns)) btns.forEach(pushOpt);
+  if (Array.isArray(sections)) for (const s of sections) if (Array.isArray(s?.rows)) s.rows.forEach(pushOpt);
+  if (question) return question;
+  if (opts.length) return 'Options: ' + [...new Set(opts)].join(' / ');
+  return '';
+}
+
 export function extractText(p: any): string {
   if (!p || typeof p !== 'object') return '';
   const wr = p.wab_response || p.message || p.data || p;
   // some providers send the bot/agent text as a plain string in `message`
   if (typeof wr === 'string' && wr.trim()) return wr.trim();
+  // A chatbot message that asks a question and offers choices (Chat360 MULTI_CHOICE / WhatsApp button or list). The
+  // question is in `questionText` (or a list section's title), the options in the button / list-row labels — the text
+  // is NOT in `message`/`text`. Handle this first: the generic lookups below would grab the first button's label.
+  const offered = extractOffer(wr);
+  if (offered) return offered;
   const candidates = [deepFind(wr, ['body']), deepFind(wr, ['text']), deepFind(wr, ['caption']), deepFind(p, ['message_text', 'msg', 'content', 'user_reply', 'button_text', 'selected_option'])];
   for (const c of candidates) {
     if (typeof c === 'string' && c.trim()) return c.trim();
@@ -405,26 +443,6 @@ export function extractText(p: any): string {
   // a tap on a button / list option the bot offered
   const reply = deepFind(wr, ['button_reply', 'list_reply']);
   if (reply && typeof reply === 'object' && (reply.title || reply.description)) return [reply.title, reply.description].filter(Boolean).map(String).join(' — ').trim();
-  // an OUTGOING interactive message the bot/agent sent that OFFERS choices (buttons or a list). Its body text may
-  // sit in a shape the candidates above miss, and without this the whole message was dropped (nothing to save).
-  const opts: string[] = [];
-  const pushOpt = (it: any) => {
-    const t = it && typeof it === 'object' ? (it.reply?.title ?? it.title ?? it.text ?? it.label) : it;
-    if (typeof t === 'string' && t.trim()) opts.push(t.trim());
-  };
-  const btns = deepFind(wr, ['buttons', 'quick_replies']);
-  if (Array.isArray(btns)) btns.forEach(pushOpt);
-  const secs = deepFind(wr, ['sections']);
-  if (Array.isArray(secs)) for (const s of secs) if (Array.isArray(s?.rows)) s.rows.forEach(pushOpt);
-  if (opts.length) {
-    const head = (() => {
-      const b = deepFind(wr, ['body']);
-      if (typeof b === 'string' && b.trim()) return b.trim();
-      if (b && typeof b === 'object' && typeof b.text === 'string' && b.text.trim()) return b.text.trim();
-      return ''; // never fall back to a loose `title` — that would grab a button's own label
-    })();
-    return [head, 'Options: ' + [...new Set(opts)].join(' / ')].filter(Boolean).join('\n');
-  }
   // a WhatsApp Flow form: its answers
   const flow = deepFind(wr, ['nfm_reply']);
   if (flow && typeof flow === 'object') {
@@ -920,8 +938,15 @@ export function mapChat360Message(m: any): Chat360HistoryMessage | null {
   }
   if (!text && !mediaUrl) return null;
   const inbound = sender === 'end_user';
-  const created = str(m.created_on);
-  const at = created ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(created) ? created : created + 'Z') : null;
+  // Chat360's text date fields mix UTC and IST with no marker, so they can't be trusted. Prefer its unix timestamp
+  // (seconds or milliseconds) when present; fall back to created_on (treated as UTC) only when there is no unix time.
+  const unix = deepFind(m, ['timestampInt', 'timestamp_int']);
+  const n = unix === undefined || unix === null ? NaN : Number(unix);
+  let at: Date | null = isFinite(n) && n > 0 ? new Date(n > 1e11 ? n : n * 1000) : null;
+  if (!at || isNaN(at.getTime())) {
+    const created = str(m.created_on);
+    at = created ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(created) ? created : created + 'Z') : null;
+  }
   return {
     messageId: str(m.message_id), direction: inbound ? 'Inbound' : 'Outbound', text: truncate(text, 4000), mediaUrl,
     agent: inbound ? '' : sender === 'bot' ? 'Chat360 Bot' : truncate(String(sender), 120), at: at && !isNaN(at.getTime()) ? at : null,

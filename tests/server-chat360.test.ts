@@ -89,6 +89,29 @@ describe('message text', () => {
     expect(extractText({ message: 'Welcome to AMAYA by Vera Vita.' })).toBe('Welcome to AMAYA by Vera Vita.');
   });
 
+  it('reads the real Chat360 MULTI_CHOICE shape: the question from questionText, not the first button label', () => {
+    // the actual `data` object Chat360 history returns for a button-list bot message
+    const data = {
+      buttons: [{ text: 'For Yourself' }, { text: 'For Parents' }, { text: 'For Relatives' }, { text: 'Investment Purpose' }],
+      nodeType: 'MULTI_CHOICE',
+      list_data: { sections: [{ rows: [{ id: 'For Yourself', title: 'For Yourself' }, { id: 'For Parents', title: 'For Parents' }], title: 'Who are you looking for?' }] },
+      questionText: 'Thank you Sandeep Chandra.\n<strong>Who are you looking for?</strong>',
+    };
+    expect(extractText(data)).toBe('Thank you Sandeep Chandra.\nWho are you looking for?');
+    // through the history parser, with the data under extra.data and no plain text
+    const mapped = mapChat360Message({ sender: 'bot', message_id: 'mc-1', text: '', message_type: 'MULTI_CHOICE', created_on: '2026-11-10T08:37:25', extra: { data } });
+    expect(mapped).toMatchObject({ direction: 'Outbound', agent: 'Chat360 Bot', text: 'Thank you Sandeep Chandra.\nWho are you looking for?' });
+    // a list message whose question is only the section title (no questionText)
+    expect(extractText({ list_data: { sections: [{ title: 'Would you like:', rows: [{ title: 'Confirm Site Visit' }, { title: 'Talk to Sales Advisor' }] }] } })).toBe('Would you like:');
+  });
+
+  it('times a history message by Chat360 unix timestamp (its text dates mix UTC and IST unmarked)', () => {
+    const secs = mapChat360Message({ sender: 'bot', message_id: 'ts-1', text: 'Hi', message_type: 'text', created_on: '10/11/2026 08:37:25', extra: { data: {} }, timestamp_int: '1794299845.511479' });
+    expect(secs?.at?.toISOString().slice(0, 19)).toBe('2026-11-10T08:37:25');
+    const ms = mapChat360Message({ sender: 'bot', message_id: 'ts-2', text: 'Hi', message_type: 'text', created_on: 'bogus', extra: { data: {} }, timestampInt: 1794299845511.479 });
+    expect(ms?.at?.toISOString().slice(0, 19)).toBe('2026-11-10T08:37:25');
+  });
+
   it('orders messages that share the same minute by arrival order, not at random (bot reply never jumps ahead of the message that triggered it)', async () => {
     const coll = await col(CFG.COLL.CHAT_MESSAGES);
     const minute = new Date('2026-11-10T02:04:00.000Z'); // Chat360 stamps only to the minute → these three tie
