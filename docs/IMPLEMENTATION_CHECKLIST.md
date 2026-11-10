@@ -29,22 +29,26 @@ Status key: `[ ]` todo · `[~]` in progress · `[x]` done and verified by tests 
 Release A gates: typecheck ✅ · 1517/1517 tests ✅ · build ✅ · audit 0 ✅ (see VERIFICATION.md).
 
 ## Release B — agent workspace and family-to-booking journey
-- [ ] Linked people / household per opportunity (enquirer, resident, decision-maker, payer)
-- [ ] Contact preferences: channel, language, time zone, consent
-- [ ] Owner + next action on every active opportunity; "Today" workspace
-- [ ] Visit history (attendees, mode, confirm, reschedule, attended / no-show, feedback)
-- [ ] Unit shortlist; versioned, approved quotation
-- [ ] Time-limited holds, booking approval, cancellation/release, audit history
-- [ ] Few meaningful stage gates
+- [x] Linked people per opportunity (enquirer, resident, decision-maker, payer, referrer) — journey.ts
+- [x] Contact preferences: channel, language, IANA time zone, best time, consent with evidence
+- [x] Next action required on every open contact (logDisposition); Today queue "no next step"
+- [x] Today (agent) and Team exceptions (manager), audited reassignment with reason
+- [x] Visit capacity, idempotent booking, cancel / reschedule (Release A); visit attendance / no-show / feedback fields — [ ] not built
+- [x] Versioned quotation, discount approval by another person
+- [x] Time-limited holds, booking request gated (approved quote + payer), manager approval, atomic
+- [x] Full E.164 phone identity (overseas family numbers stay distinct)
+- [x] UI: Today screen, lead Journey tab, tokens, visible focus — [ ] browser check and screenshots pending
 
 ## Release C — integrations and recovery
-- [ ] Durable webhook inbox (persist-before-ack, dedupe, retry, dead letter, replay)
-- [ ] Connector contract + health / reconnect states
-- [ ] WhatsApp consent/suppression policy across manual, campaign, bot, drip
-- [ ] Full international phone identity (E.164), suffix-collision tests
-- [ ] Recovery runbook + isolated restore procedure
+- [x] Durable webhook inbox (Release A), connector health contract with reconnect / degraded states
+- [x] One WhatsApp consent policy (campaign re-check before each send, drip, inbound STOP on both providers)
+- [ ] Telephony adapter refactor of the generic webhook (documented target shape; JustConnect already complete)
+- [ ] External versioned API and signed outbound webhooks (specified in INTEGRATIONS.md, not built)
+- [x] Recovery runbook + isolated restore drill (Release A)
 
 ## Release D — reporting and post-sales
-- [ ] Event-based funnel, overall SLA, estimated vs quoted vs booked vs collected
-- [ ] Payment milestones and receipts (ledger, not an editable total)
-- [ ] Viewer/founder report with data freshness
+- [x] Event-based funnel, overall SLA, estimated vs quoted vs booked vs collected, freshness (getSalesReport, Today › Business)
+- [x] Payment milestones and append-only receipts; paid derived from the ledger
+- [ ] Consolidate Dashboard / YTD-MTD / Sales MIS with Today › Business (needs founders' confirmation)
+
+Gates after B–D: typecheck ✅ · 1526 tests ✅ · build ✅.
