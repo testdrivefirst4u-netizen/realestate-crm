@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { CalendarCheck, Check, Clock, Loader2, MapPin } from 'lucide-react';
 
 interface Slot { at: string; label: string; left: number }
@@ -34,6 +34,12 @@ export function BookingClient({ slug, initial }: { slug: string; initial: Initia
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  // one request id per chosen time: if the connection drops and the visitor taps again, the visit is booked once
+  const requestIds = useRef(new Map<string, string>());
+  const requestIdFor = (slotAt: string) => {
+    if (!requestIds.current.has(slotAt)) requestIds.current.set(slotAt, `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+    return requestIds.current.get(slotAt)!;
+  };
 
   const day = days.find((d) => d.date === dayKey);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -55,7 +61,7 @@ export function BookingClient({ slug, initial }: { slug: string; initial: Initia
       const r = await fetch(`/api/public/visits/${encodeURIComponent(slug)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, at }),
+        body: JSON.stringify({ ...form, at, requestId: requestIdFor(at) }),
       });
       const b = await r.json().catch(() => null);
       if (b?.status === 'success') {
