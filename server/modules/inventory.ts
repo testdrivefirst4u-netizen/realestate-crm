@@ -390,6 +390,10 @@ export async function updateUnit(id: string, patch: any, ctx: Ctx, expectedLastM
       const ids = await visibleLeadIds(ctx.user);
       if (ids && !ids.has(toLead)) throw fail('NOT_FOUND', 'Lead not found: ' + toLead);
     }
+    // once payments are recorded as receipts, the paid total and next due date come from that ledger only
+    if ((beforeDoc as any).ledger && (fields.paidAmount !== undefined || fields.dueDate !== undefined)) {
+      throw fail('VALIDATION', 'Payments on this unit are recorded as receipts. Add a receipt (or void one) instead of editing the paid amount.');
+    }
     // money fields are buyer detail: only people who may see buyers change them
     if (ctx?.user && !can(ctx.user, 'inventory.customers') && ['quotedAmount', 'paidAmount', 'dueDate'].some((k) => (fields as any)[k] !== undefined) && fromLead) {
       const ids = await visibleLeadIds(ctx.user);

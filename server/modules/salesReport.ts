@@ -143,7 +143,7 @@ export function computeSalesReport(leads: ReportLead[], units: ReportUnit[], opt
       estimated: { amount: estimated, leads: withBudget, openLeadsWithoutBudget: openLeads.length - withBudget, basis: 'Budgets typed by agents on open leads (estimate)' },
       quoted: { amount: sum(reservedUnits.map((u) => u.quotedAmount)), units: reservedUnits.length, basis: 'Quoted amount on units reserved now' },
       booked: { amount: sum(bookedUnits.map((u) => u.quotedAmount || u.price)), units: bookedUnits.length, basis: 'Quoted (else list) price of booked and sold units' },
-      collected: { amount: sum(bookedUnits.map((u) => u.paidAmount)), units: bookedUnits.length, basis: 'Paid amounts entered on booked and sold units (not a receipts ledger)' },
+      collected: { amount: sum(bookedUnits.map((u) => u.paidAmount)), units: bookedUnits.length, basis: 'Receipts recorded on booked and sold units (older units: the paid amount entered by hand)' },
       hiddenUnits: units.length - visibleUnits.length,
     },
     cancellations,

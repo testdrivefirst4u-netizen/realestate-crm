@@ -71,6 +71,7 @@ import { actions as salesReportActions } from './modules/salesReport';
 import { actions as journeyActions } from './modules/journey';
 import { actions as workspaceActions } from './modules/workspace';
 import { actions as connectorHealthActions } from './modules/connectorHealth';
+import { actions as paymentActions } from './modules/payments';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -129,6 +130,7 @@ export const registry: ActionMap = {
   ...journeyActions,
   ...workspaceActions,
   ...connectorHealthActions,
+  ...paymentActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -185,7 +187,7 @@ const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', '
 const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getSlowLeads', 'logLeadExport', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
-  'getCalls', 'jcCallReport', 'getInventory', 'listVisitBookings', 'getSalesReport', 'getLeadPeople', 'listQuotes', 'getBookingGate', 'listApprovals', 'getToday', 'getTeamExceptions', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
+  'getCalls', 'jcCallReport', 'getInventory', 'listVisitBookings', 'getSalesReport', 'getLeadPeople', 'listQuotes', 'getBookingGate', 'listApprovals', 'getToday', 'getTeamExceptions', 'getPayments', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
   'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'getBusinessPhotos', 'getBusinessReviews', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
