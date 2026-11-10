@@ -272,6 +272,29 @@ describe('what comes back', () => {
     expect(sent).toEqual([]);
     expect((await rows(id))[0].status).toBe('skipped');
   });
+  it('an agent recording "opted out" while the campaign is queued stops later marketing sends (central consent)', async () => {
+    const list = phones(2);
+    const id = await started(list);
+    const { recordConsent } = await import('../server/modules/consent');
+    await inCo(() => recordConsent('+' + list[1].phone, 'denied', { source: 'agent', evidence: 'Asked on the call', by: 'Asha' }));
+    await run();
+    const r = await rows(id);
+    expect(r.find((x: any) => x.phone.endsWith(list[1].phone.slice(-10)))?.status).toBe('skipped');
+    expect(r.find((x: any) => x.phone.endsWith(list[0].phone.slice(-10)))?.status).not.toBe('skipped');
+    expect(sent).toHaveLength(1);
+  });
+  it('with the explicit-consent policy, only numbers with recorded consent get marketing', async () => {
+    const list = phones(2);
+    const { recordConsent } = await import('../server/modules/consent');
+    const { settingSet } = await import('../server/core/settings');
+    await inCo(() => settingSet('whatsappMarketingConsent', 'explicit', 'test'));
+    await inCo(() => recordConsent('+' + list[0].phone, 'granted', { source: 'website', evidence: 'Ticked the box', by: 'Website' }));
+    const id = await started(list);
+    await run();
+    const r = await rows(id);
+    expect(r.filter((x: any) => x.status === 'skipped').map((x: any) => x.error)).toEqual(['No recorded consent for WhatsApp marketing']);
+    expect(sent).toHaveLength(1);
+  });
 });
 
 describe('before it can start', () => {

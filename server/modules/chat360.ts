@@ -775,6 +775,8 @@ export async function handleWebhook(payload: any): Promise<unknown> {
     type: payload.msg_type || deepFind(payload.wab_response || {}, ['type']) || 'text', raw: payload, ts: payload.created,
   });
   if (!rec) return { ok: true, duplicate: true };
+  // STOP suppresses marketing to this number at once, whichever system sends it
+  await (await import('./consent')).noteInbound(phone, text).catch((e: any) => logError('consent.inbound', 'INTERNAL', e?.message));
 
   let lead: UiLead | null = null;
   try {

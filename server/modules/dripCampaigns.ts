@@ -252,6 +252,8 @@ async function stopReason(c: DripCampaign, en: Enrollment, lead: any): Promise<s
   const visit = String(lead[L.SITE_VISIT_STATUS] || '');
   if (c.stopOnVisit && [CFG.SITE_VISIT.SCHEDULED, CFG.SITE_VISIT.COMPLETED, CFG.SITE_VISIT.WALK_IN].includes(visit)) return `Site visit: ${visit}.`;
   const phone = last10(lead[L.PHONE]) || en.phoneLast10;
+  const policy = await (await import('./consent')).canSend(lead[L.PHONE] || phone, 'marketing');
+  if (!policy.ok) return policy.reason + '.';
   if (phone.length === 10) {
     const opted = await optOutCol();
     if (await opted.findOne({ _id: `whatsapp:${phone}` })) return 'This person asked not to be messaged.';

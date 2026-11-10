@@ -761,6 +761,7 @@ async function handleInbound(c: ConnectionDoc, m: any, contactList: any[]) {
   if (leadId) await addTimeline(leadId, 'chat_received', 'WhatsApp message received', truncate(preview, 300), name || 'Customer', 'Chat', rec.id);
   await addEvent('chat_received', 'Chat', phone, 'WhatsApp from ' + (displayName || e164(phone)), truncate(preview, 140), 'WhatsApp', { leadId });
   await bumpVersion();
+  await (await import('./consent')).noteInbound(phone, content.text).catch((e: any) => logError('consent.inbound', 'INTERNAL', e?.message));
   if ((currentTenant()?.features as any)?.whatsappCampaigns) await (await import('./whatsappCampaigns')).noteCampaignReply(phone, content.text).catch((e) => logError('whatsappCampaign.reply', 'INTERNAL', e?.message));
   if ((currentTenant()?.features as any)?.whatsappBots) await (await import('./whatsappBots')).onCustomerMessage({ phone: e164(phone), messageId: id, text: content.text, replyId: content.replyId || '', lead, name });
 }

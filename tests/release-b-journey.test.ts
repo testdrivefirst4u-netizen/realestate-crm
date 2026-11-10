@@ -81,7 +81,12 @@ describe('family-to-booking journey', () => {
     const noEvidence = await as('Asha', 'saveLeadPerson', { leadId: id, person: { name: 'Y', roles: ['other'], phone: '+1 206 555 0100', consent: { whatsappMarketing: 'granted' } } });
     expect(noEvidence.code).toBe('VALIDATION'); // consent needs evidence
     expect((await canSend('+971501234567', 'marketing')).ok).toBe(true);
-    expect((await canSend('9876500010', 'marketing')).ok).toBe(false); // no consent recorded for the parents
+    expect((await canSend('9876500010', 'marketing')).ok).toBe(true); // default policy: not opted out
+    const { settingSet } = await import('../server/core/settings');
+    await settingSet('whatsappMarketingConsent', 'explicit', 'test');
+    expect((await canSend('9876500010', 'marketing')).ok).toBe(false); // explicit policy: no consent recorded for the parents
+    expect((await canSend('+971501234567', 'marketing')).ok).toBe(true);
+    await settingSet('whatsappMarketingConsent', 'optOut', 'test');
 
     // Ravi cannot read or change Asha's customer's family
     expect((await as('Ravi', 'getLeadPeople', { leadId: id })).code).toBe('NOT_FOUND');
