@@ -6,6 +6,12 @@
  *  - the previous period is never fabricated (old code used 85% of current when zero)
  *  - all dates go through core/dates (CRM time zone), no UTC string slicing
  *  - "Last Follow-up Date & Time" is no longer treated as a first response
+ *  - SLA compliance is OVERALL: responded within 24 h ÷ (responded + enquiries older than 24 h with no response).
+ *    The old figure divided by responded leads only, so 1 quick reply + 9 ignored enquiries showed 100 %.
+ *    The responded-only figure is kept as slaOfRespondedPercent and labelled that way.
+ *  - funnel conversion counts a lead at a step only when the step is RECORDED (lead._milestones, written by the
+ *    server when it happens), never from the lead's current stage. Leads with no recorded steps count as enquiries only.
+ *  - "pipeline value" from notes / unit-type prices is an ESTIMATE and is named so on screen.
  */
 import { Lead } from '../types/crm';
 import { DEFAULT_UNIT_PRICE, F, FUNNEL_STAGES, STAGE_CLASS, STAGE_WEIGHTS, STAGES, UNIT_TYPE_PRICES } from './config';
@@ -86,11 +92,18 @@ export interface PerformanceReportData {
   overallConversionRate: number;
   qualificationRate: number;
   funnelMetrics: StagePerformanceMetric[];
+  /** Enquiries in the window with no recorded journey step yet (older data before milestones, or untouched). */
+  leadsWithoutEvidence: number;
   disqualifiedBreakdown: Array<{ reason: string; count: number; value: number }>;
   avgResponseTimeHours: number;
   medianResponseTimeHours: number;
+  /** Overall: within 24 h ÷ (responded + overdue unanswered). */
   slaCompliancePercent: number;
   slaLightningFastPercent: number;
+  /** Secondary: within 24 h ÷ responded only. */
+  slaOfRespondedPercent: number;
+  slaEligibleCount: number;
+  overdueUnansweredCount: number;
   totalRespondedCount: number;
   unrespondedCount: number;
   unrespondedLeads: Lead[];
@@ -166,13 +179,22 @@ export function calculatePerformanceMetrics(
   const qualifiedOrBooked = target.filter((l) => ([STAGES.QUALIFIED, STAGES.BOOKED] as string[]).includes(stageOf(l))).length;
   const qualificationRate = target.length ? (qualifiedOrBooked / target.length) * 100 : 0;
 
-  const rank: Record<string, number> = {};
-  FUNNEL_STAGES.forEach((s, i) => (rank[s] = i + 1));
-  const ranked = target.map((l) => rank[stageOf(l)] || 1);
+  // evidence-based "reached": a step counts only when it was recorded
+  const evidenceOf = (l: Lead): Record<string, string> => {
+    try {
+      return JSON.parse(String(l._milestones || '{}')) || {};
+    } catch {
+      return {};
+    }
+  };
+  const stepOf: Record<string, string> = { [STAGES.OPEN]: 'contacted', [STAGES.WARM]: 'qualified', [STAGES.HOT]: 'qualified', [STAGES.QUALIFIED]: 'qualified', [STAGES.BOOKED]: 'booked' };
+  const evidence = target.map(evidenceOf);
+  const reachedAt = (stage: string) => (stage === STAGES.NEW ? target.length : evidence.filter((e) => !!e[stepOf[stage]]).length);
+  const leadsWithoutEvidence = evidence.filter((e) => !Object.keys(e).length).length;
   const funnelMetrics: StagePerformanceMetric[] = FUNNEL_STAGES.map((stage, idx) => {
-    const r = rank[stage];
-    const reached = ranked.filter((x) => x >= r).length;
-    const reachedNext = ranked.filter((x) => x >= r + 1).length;
+    const reached = reachedAt(stage);
+    const reachedNext = idx < FUNNEL_STAGES.length - 1 ? reachedAt(FUNNEL_STAGES[idx + 1]) : reached;
+    const bookedReached = reachedAt(STAGES.BOOKED);
     const stageVal = stageValues[stage] || 0;
     return {
       stage,
@@ -181,7 +203,7 @@ export function calculatePerformanceMetrics(
       weightedValue: stageVal * (STAGE_WEIGHTS[stage] || 0),
       percentageOfPipeline: totalPipelineValue ? (stageVal / totalPipelineValue) * 100 : 0,
       conversionRateToNext: reached ? Math.min(100, Math.round((reachedNext / reached) * 100)) : idx === FUNNEL_STAGES.length - 1 ? 100 : 0,
-      cumulativeWinRate: reached ? Math.min(100, Math.round((bookedCount / reached) * 100)) : 0,
+      cumulativeWinRate: reached ? Math.min(100, Math.round((bookedReached / reached) * 100)) : 0,
     };
   });
 
@@ -207,8 +229,13 @@ export function calculatePerformanceMetrics(
     else bOver++;
   }
   const avgResponseTimeHours = times.length ? times.reduce((a, b) => a + b, 0) / times.length : 0;
-  const slaCompliancePercent = times.length ? ((b1 + b4 + b24) / times.length) * 100 : 0;
-  const slaLightningFastPercent = times.length ? ((b1 + b4) / times.length) * 100 : 0;
+  // overall SLA: an enquiry older than 24 h with no response counts against it (not left out)
+  const enquiredAt = (l: Lead) => enquiryDate(l)?.getTime() ?? now.getTime();
+  const overdueUnanswered = unresponded.filter((l) => now.getTime() - enquiredAt(l) > 24 * 3_600_000).length;
+  const slaEligible = times.length + overdueUnanswered;
+  const slaCompliancePercent = slaEligible ? ((b1 + b4 + b24) / slaEligible) * 100 : 0;
+  const slaLightningFastPercent = slaEligible ? ((b1 + b4) / slaEligible) * 100 : 0;
+  const slaOfRespondedPercent = times.length ? ((b1 + b4 + b24) / times.length) * 100 : 0;
   const evaluated = target.length || 1;
   const slaBuckets = [
     { label: '< 1 hr (Lightning)', count: b1, percent: Math.round((b1 / evaluated) * 100), color: '#2E7D32' },
@@ -220,10 +247,10 @@ export function calculatePerformanceMetrics(
   ];
 
   // RM metrics
-  const rmMap: Record<string, { leads: Lead[]; times: number[]; booked: number; bookedValue: number; value: number }> = {};
+  const rmMap: Record<string, { leads: Lead[]; times: number[]; booked: number; bookedValue: number; value: number; overdue: number }> = {};
   for (const lead of target) {
     const rm = String(lead[F.RM] || '').trim() || 'Unassigned';
-    rmMap[rm] = rmMap[rm] || { leads: [], times: [], booked: 0, bookedValue: 0, value: 0 };
+    rmMap[rm] = rmMap[rm] || { leads: [], times: [], booked: 0, bookedValue: 0, value: 0, overdue: 0 };
     const v = getLeadEstimatedValue(lead);
     rmMap[rm].leads.push(lead);
     rmMap[rm].value += v;
@@ -233,6 +260,7 @@ export function calculatePerformanceMetrics(
     }
     const h = responseTimeHours(lead);
     if (h !== null) rmMap[rm].times.push(h);
+    else if (!isBooked(lead) && now.getTime() - enquiredAt(lead) > 24 * 3_600_000) rmMap[rm].overdue++;
   }
   const rmMetrics: RMResponseMetric[] = Object.keys(rmMap)
     .map((rmName) => {
@@ -243,7 +271,8 @@ export function calculatePerformanceMetrics(
         respondedLeads: d.times.length,
         avgResponseHours: d.times.length ? d.times.reduce((a, b) => a + b, 0) / d.times.length : 0,
         medianResponseHours: median(d.times),
-        slaWithin24hPercent: d.times.length ? Math.round((d.times.filter((t) => t <= 24).length / d.times.length) * 100) : 0,
+        // overall, like the headline: overdue unanswered enquiries count against the RM
+        slaWithin24hPercent: d.times.length + d.overdue ? Math.round((d.times.filter((t) => t <= 24).length / (d.times.length + d.overdue)) * 100) : 0,
         totalPipelineValue: d.value,
         bookedCount: d.booked,
         bookedValue: d.bookedValue,
@@ -325,11 +354,15 @@ export function calculatePerformanceMetrics(
     overallConversionRate,
     qualificationRate,
     funnelMetrics,
+    leadsWithoutEvidence,
     disqualifiedBreakdown,
     avgResponseTimeHours,
     medianResponseTimeHours: median(times),
     slaCompliancePercent,
     slaLightningFastPercent,
+    slaOfRespondedPercent,
+    slaEligibleCount: slaEligible,
+    overdueUnansweredCount: overdueUnanswered,
     totalRespondedCount: times.length,
     unrespondedCount: unresponded.length,
     unrespondedLeads: unresponded,

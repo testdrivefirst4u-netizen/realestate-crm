@@ -157,6 +157,8 @@ export async function logCall(data: any, ctx: Ctx): Promise<any> {
   const doc = { ...fields, _id: id, loggedBy: actor, createdAt: new Date() };
   await c.insertOne(doc);
   const call = serialize(doc);
+  // a connected call is a contact (first one recorded as the journey's "contacted" step)
+  if (call.leadId && call.status === 'Completed') await (await import('../core/milestones')).markMilestones(call.leadId, ['contacted'], actor, new Date(call.startTime || Date.now()));
   if (call.leadId) {
     await addTimeline(call.leadId, 'call',
       (call.direction === 'Inbound' ? 'Incoming call' : 'Call made') + (call.status !== 'In Progress' ? ' · ' + call.status : ''),
@@ -189,6 +191,7 @@ export async function updateCall(id: string, patch: any, ctx: Ctx): Promise<any>
     await addTimeline(call.leadId, 'call', 'Call ended · ' + call.status, minutes(call.durationSec) + (call.outcome ? ' · ' + call.outcome : ''), actor, 'Call', call.id);
     await addEvent('call_logged', 'Lead', call.leadId, 'Call with ' + call.customerName, (call.outcome || call.status) + (call.durationSec ? ' · ' + minutes(call.durationSec) : ''), actor);
   }
+  if (call.leadId && call.status === 'Completed' && before.status !== 'Completed') await (await import('../core/milestones')).markMilestones(call.leadId, ['contacted'], actor, new Date(call.startTime || Date.now()));
   if (!before.leadId && call.leadId) await attachToLead(call, actor);
   await bumpVersion();
   return call;

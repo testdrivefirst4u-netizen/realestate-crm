@@ -22,6 +22,7 @@ import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, phoneProblem, s
 import { scheduleLeadAlerts } from './leadAlerts';
 import { firstFollowup, nextFollowup as sequenceNextFollowup, parseSequence } from './sequences';
 import { userIdByName, userIdsByName, nameKey as ownerKey } from '../core/ownership';
+import { markMilestones, milestonesFromChange } from '../core/milestones';
 
 /** A lead as the browser sees it: keys are the sheet header names ('Prospect Name', 'Follow-up 3' …). */
 export type UiLead = Record<string, string>;
@@ -306,6 +307,8 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
     }
   }
   const lead = toUiLead(doc)!;
+  // a lead can arrive already scheduled for a visit (online booking) or past a stage (import, manual entry)
+  await markMilestones(id, milestonesFromChange({ newStage: doc.stage, newSvs: doc.siteVisitStatus }), actor, now);
   const created = createdEffects(lead, actor, options.eventSource || 'crm');
   if (autoFollowup) created.timeline[0].details += ' · first follow-up ' + fmtHuman(autoFollowup);
   await runEffects(created);
@@ -460,6 +463,10 @@ export async function updateLead(
 
     const after = toUiLead(plan.next)!;
     await runEffects(updateEffects(before._id, plan, after, actor));
+    await markMilestones(before._id, milestonesFromChange({
+      newStage: plan.newStage, oldStage: plan.oldStage, newSvs: plan.newSvs, oldSvs: plan.oldSvs,
+      followupAdded: Array.isArray((plan.set as any).followups) && (plan.set as any).followups.length > (before.followups || []).length,
+    }), actor);
     await auditLog(ctx, 'Lead Updated', 'Lead', before._id, plan.changes.map((c) => c.field).join(', '), auditDiff(plan.changes));
     if (plan.rm) scheduleLeadAlerts(after, 'assigned'); // tell the newly assigned RM
     // a step the company reports to its ad accounts (plan feature adConversions; never fails the save)
@@ -501,6 +508,8 @@ export async function appendRemark(
       { returnDocument: 'after' }
     );
     if (!doc) continue;
+    // a person's follow-up is a contact; notes the CRM writes itself (visit requests, re-enquiries) are not
+    if (ctx?.user && ctx.user.id !== 'SYSTEM') await markMilestones(String(cur._id), ['contacted'], actor, now);
     await addTimeline(cur._id, 'remark_added', 'Follow-up #' + target + ' logged', text, actor, 'Lead', cur._id);
     if (nf) await addTimeline(cur._id, 'followup_scheduled', 'Next follow-up set', fmtHuman(nf), actor, 'Lead', cur._id);
     else if (auto) await addTimeline(cur._id, 'followup_scheduled', 'Next follow-up scheduled automatically', fmtHuman(auto), 'System', 'Lead', cur._id);

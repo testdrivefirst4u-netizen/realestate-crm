@@ -437,6 +437,9 @@ export async function updateUnit(id: string, patch: any, ctx: Ctx, expectedLastM
       const verb = { reserve: 'reserved', extend: 'reservation extended', book: 'booked', sell: 'sold', release: 'released', cancel: 'booking cancelled', block: unit.status, edit: unit.status, none: unit.status }[kind];
       await addTimeline(leadId, 'inventory', `Unit ${unit.unitId} ${verb}`, kind === 'reserve' || kind === 'extend' ? `Held until ${toIso(after.holdUntil)}` : '', actor, 'Inventory', unit.inventoryId);
     }
+    // journey milestones on the lead (first time each step happens)
+    const step = kind === 'reserve' ? 'reserved' : kind === 'book' ? 'booked' : kind === 'cancel' ? 'cancelled' : '';
+    if (step && leadId) await (await import('../core/milestones')).markMilestones(leadId, [step as any], actor, now);
     if (unit.status !== before.status) {
       // the event feed reaches everyone: no buyer name in it; the lead id lets the feed filter by lead access
       await addEvent('inventory_status', 'Inventory', unit.inventoryId, 'Unit ' + unit.unitId + ' is now ' + unit.status, 'Updated by ' + actor, actor, { leadId: unit.leadId || before.leadId || '' });

@@ -67,6 +67,7 @@ import { actions as whatsappBotActions } from './modules/whatsappBots';
 import { actions as whatsappCampaignActions } from './modules/whatsappCampaigns';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
 import { actions as visitActions } from './modules/visits';
+import { actions as salesReportActions } from './modules/salesReport';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -121,6 +122,7 @@ export const registry: ActionMap = {
   ...whatsappCampaignActions,
   ...connectedAccountActions,
   ...visitActions,
+  ...salesReportActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -177,7 +179,7 @@ const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', '
 const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getSlowLeads', 'logLeadExport', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
-  'getCalls', 'jcCallReport', 'getInventory', 'listVisitBookings', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
+  'getCalls', 'jcCallReport', 'getInventory', 'listVisitBookings', 'getSalesReport', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
   'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'getBusinessPhotos', 'getBusinessReviews', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);

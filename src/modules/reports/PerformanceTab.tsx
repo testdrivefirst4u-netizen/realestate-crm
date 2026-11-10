@@ -56,22 +56,24 @@ export const PerformanceTab: React.FC<Props> = ({ leads, rm, onOpenLead, onTable
     const summary = table('perf-summary', `Performance summary · last ${days} days`, rangeLabel, kh, [
       row(kh, ['Leads in window', perf.leadsInWindow]),
       row(kh, ['Leads without enquiry date (excluded)', perf.leadsWithoutDate]),
-      row(kh, ['Total pipeline value', formatINR(perf.totalPipelineValue)]),
-      row(kh, ['Weighted pipeline value', formatINR(perf.weightedPipelineValue)]),
+      row(kh, ['Estimated pipeline value (budgets, else unit-type price)', formatINR(perf.totalPipelineValue)]),
+      row(kh, ['Weighted estimated pipeline value', formatINR(perf.weightedPipelineValue)]),
       row(kh, ['Average lead value', formatINR(perf.avgLeadValue)]),
       row(kh, ['Previous period pipeline value', perf.previousPeriodPipelineValue === null ? 'n/a' : formatINR(perf.previousPeriodPipelineValue)]),
       row(kh, ['Pipeline growth vs previous period', perf.pipelineGrowthPercent === null ? 'n/a' : formatPercent(perf.pipelineGrowthPercent, 1)]),
       row(kh, ['Deals booked', perf.bookedCount]),
-      row(kh, ['Booked value', formatINR(perf.bookedValue)]),
+      row(kh, ['Booked value (estimated from budgets, not the agreed price)', formatINR(perf.bookedValue)]),
       row(kh, ['Win conversion rate', formatPercent(perf.overallConversionRate, 1)]),
       row(kh, ['Qualification rate', formatPercent(perf.qualificationRate, 1)]),
       row(kh, ['Average first response', formatHours(perf.totalRespondedCount ? perf.avgResponseTimeHours : null)]),
       row(kh, ['Median first response', formatHours(perf.totalRespondedCount ? perf.medianResponseTimeHours : null)]),
-      row(kh, ['24h SLA compliance', formatPercent(perf.slaCompliancePercent, 1)]),
+      row(kh, ['24h SLA compliance, overall (incl. overdue unanswered)', formatPercent(perf.slaCompliancePercent, 1)]),
+      row(kh, ['24h SLA, of responded leads only', formatPercent(perf.slaOfRespondedPercent, 1)]),
+      row(kh, ['Older than 24h with no response', perf.overdueUnansweredCount]),
       row(kh, ['Responded within 4h', formatPercent(perf.slaLightningFastPercent, 1)]),
       row(kh, ['Awaiting first contact', perf.unrespondedCount]),
     ]);
-    const fh = ['Stage', 'Leads', 'Stage Value', 'Weighted Value', 'Pipeline Share %', 'Conversion to Next %', 'Win Rate %'];
+    const fh = ['Stage', 'Leads now', 'Estimated Value', 'Weighted Value', 'Pipeline Share %', 'Recorded conversion to next %', 'Recorded win rate %'];
     const funnel = table('perf-funnel', `Funnel · last ${days} days`, rangeLabel, fh, perf.funnelMetrics.map((m) => row(fh, [m.stage, m.count, formatINR(m.totalValue), formatINR(m.weightedValue), formatPercent(m.percentageOfPipeline, 1), m.conversionRateToNext, m.cumulativeWinRate])));
     const rh = ['RM', 'Leads', 'Responded', 'Avg Response', 'Median Response', 'SLA 24h %', 'Pipeline Value', 'Booked', 'Booked Value'];
     const rms = table('perf-rm', `RM performance · last ${days} days`, rangeLabel, rh, perf.rmMetrics.map((r) => row(rh, [r.rmName, r.totalLeads, r.respondedLeads, formatHours(r.respondedLeads ? r.avgResponseHours : null), formatHours(r.respondedLeads ? r.medianResponseHours : null), r.slaWithin24hPercent, formatINR(r.totalPipelineValue), r.bookedCount, formatINR(r.bookedValue)])));
@@ -125,7 +127,7 @@ export const PerformanceTab: React.FC<Props> = ({ leads, rm, onOpenLead, onTable
           {/* Metric cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
-              label={`Total Pipeline Value (${days}D)`}
+              label={`Estimated Pipeline (${days}D)`}
               icon={<IndianRupee size={16} />}
               iconCls="bg-[#0B6BB0]/15 text-[#0B5E9C]"
               value={formatINR(perf.totalPipelineValue)}
@@ -159,10 +161,10 @@ export const PerformanceTab: React.FC<Props> = ({ leads, rm, onOpenLead, onTable
               footLeft={<>Median: <strong className="text-[#0B2A44]">{formatHours(perf.totalRespondedCount ? perf.medianResponseTimeHours : null)}</strong></>}
               footRight={
                 <span className={cx('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold', perf.slaCompliancePercent >= 80 ? 'bg-[#2E7D32]/10 text-[#2E7D32]' : 'bg-[#D97706]/10 text-[#92400E]')}>
-                  {perf.slaCompliancePercent.toFixed(0)}% within 24h
+                  {perf.slaCompliancePercent.toFixed(0)}% within 24h (overall)
                 </span>
               }
-              note={<>{perf.totalRespondedCount} responded · <span className={perf.unrespondedCount > 0 ? 'text-[#B06A55] font-semibold' : ''}>{perf.unrespondedCount} awaiting first contact</span></>}
+              note={<>{perf.totalRespondedCount} responded · <span className={perf.overdueUnansweredCount > 0 ? 'text-[#B06A55] font-semibold' : ''}>{perf.overdueUnansweredCount} overdue, never answered</span> · of responded only: {perf.slaOfRespondedPercent.toFixed(0)}%</>}
             />
             <MetricCard
               label="First Touch Velocity"
@@ -171,14 +173,14 @@ export const PerformanceTab: React.FC<Props> = ({ leads, rm, onOpenLead, onTable
               value={<span className="text-[#0B5E9C]">{perf.slaLightningFastPercent.toFixed(0)}%</span>}
               footLeft={<>Under 4 hours: <strong className="text-[#0B2A44]">{(perf.slaBuckets[0]?.count || 0) + (perf.slaBuckets[1]?.count || 0)} leads</strong></>}
               footRight={<span className="text-[11px] text-[#5E778C]">{perf.unrespondedCount === 0 ? 'All contacted' : 'Attention needed'}</span>}
-              note="Share of responded leads contacted within 4 hours"
+              note="Enquiries answered within 4 hours, out of all that are due (overdue unanswered count against it)"
             />
           </div>
 
           {/* Funnel */}
           <Card
             title={<span className="inline-flex items-center gap-2"><Layers size={17} className="text-[#0B6BB0]" />Conversion by stage & sales funnel</span>}
-            subtitle="Stage-to-stage advancement for the leads enquired in the window; click a stage to list its leads"
+            subtitle={<>Bars: where leads are now. Conversion and win rate: only steps recorded when they happened (contacted, qualified, booked).{perf.leadsWithoutEvidence ? <> {perf.leadsWithoutEvidence} lead{perf.leadsWithoutEvidence === 1 ? ' has' : 's have'} no recorded step yet.</> : null} Click a stage to list its leads.</>}
             actions={<span className="text-xs text-[#5E778C] bg-[#F2F7FB] px-3 py-1.5 rounded-lg border border-[#D3E3F0]/60">Funnel leads: <strong className="text-[#0B2A44]">{formatNumber(perf.leadsInWindow)}</strong></span>}
           >
             <div className="space-y-2.5">
@@ -202,7 +204,7 @@ export const PerformanceTab: React.FC<Props> = ({ leads, rm, onOpenLead, onTable
                         <span className="text-[#5E778C]">Value <strong className="text-[#0B2A44]">{formatINR(m.totalValue)}</strong></span>
                         <span className="text-[#5E778C]">Share <strong className="text-[#0B2A44]">{formatPercent(m.percentageOfPipeline, 1)}</strong></span>
                         {next ? (
-                          <span className="font-bold text-[#2E7D32] bg-[#E8F5E9] px-2 py-0.5 rounded text-[11px]">↓ {m.conversionRateToNext}% to {next.stage}</span>
+                          <span className="font-bold text-[#2E7D32] bg-[#E8F5E9] px-2 py-0.5 rounded text-[11px]" title="From recorded steps, not current stage">↓ {m.conversionRateToNext}% recorded to {next.stage}</span>
                         ) : (
                           <span className="font-bold text-white bg-[#2E7D32] px-2 py-0.5 rounded text-[11px] inline-flex items-center gap-1"><CheckCircle2 size={12} />Won</span>
                         )}
