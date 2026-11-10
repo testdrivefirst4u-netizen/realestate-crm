@@ -4,6 +4,7 @@
  */
 import crypto from 'node:crypto';
 import { CFG } from './config';
+import { sameIdentity } from './phone';
 
 export const tz = () => CFG.TIME_ZONE;
 
@@ -270,9 +271,11 @@ export function e164(phone: unknown) {
   if (d.length === 10) return '91' + d;
   return d;
 }
+/** Same phone number: the full international identity decides (server/core/phone.ts → sameIdentity). */
 export function samePhone(a: unknown, b: unknown) {
   const x = last10(a), y = last10(b);
-  return !!x && x.length === 10 && x === y;
+  if (!x || x.length !== 10 || x !== y) return false;
+  return sameIdentity(a, b);
 }
 
 export function safeJsonParse<T = any>(s: unknown, fallback: T | null = null): T | null {

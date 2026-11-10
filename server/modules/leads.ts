@@ -23,6 +23,7 @@ import { scheduleLeadAlerts } from './leadAlerts';
 import { firstFollowup, nextFollowup as sequenceNextFollowup, parseSequence } from './sequences';
 import { userIdByName, userIdsByName, nameKey as ownerKey } from '../core/ownership';
 import { markMilestones, milestonesFromChange } from '../core/milestones';
+import { sameIdentity } from '../core/phone';
 
 /** A lead as the browser sees it: keys are the sheet header names ('Prospect Name', 'Follow-up 3' …). */
 export type UiLead = Record<string, string>;
@@ -212,8 +213,10 @@ export async function getLeadDoc(id: string): Promise<LeadDoc | null> {
 export async function findLeadByPhone(phone: string): Promise<UiLead | null> {
   const key = last10(phone);
   if (!key || key.length < 10) return null;
-  const doc = await (await leadsCol()).find({ phoneLast10: key, stage: { $ne: S.DELETED } }).sort({ createdAt: -1, _id: -1 }).limit(1).next();
-  return toUiLead(doc);
+  // candidates share the last ten digits; the full international number decides (an overseas family member's
+  // +1 / +44 / +971 number is never another person's Indian number with the same ten digits)
+  const docs = await (await leadsCol()).find({ phoneLast10: key, stage: { $ne: S.DELETED } }).sort({ createdAt: -1, _id: -1 }).limit(20).toArray();
+  return toUiLead(docs.find((d) => sameIdentity(d.phone, phone)) || null);
 }
 
 /* -------------------------------- create -------------------------------- */

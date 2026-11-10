@@ -1,3 +1,4 @@
+// Run against main: copy into tests/ of a worktree of main (imports are relative to tests/). See docs/VERIFICATION.md.
 /** Reproductions of the review findings against the ORIGINAL code (main @ 16b330a). Each test asserts the defect. */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: () => {} }));
