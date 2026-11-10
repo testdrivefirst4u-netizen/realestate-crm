@@ -131,3 +131,22 @@ describe('finding 4: durable webhook intake', () => {
     expect(SYSTEM_CTX.user?.id).toBe('SYSTEM');
   });
 });
+
+describe('Release C: connector health', () => {
+  it('a revoked Facebook token shows needs_reconnect with the step to fix it; dead letters degrade a connector', async () => {
+    const { getConnectorHealth } = await import('../server/modules/connectorHealth');
+    const { runWithTenant } = await import('../server/core/tenant');
+    const { getTenantById } = await import('../server/platform/registry');
+    const { TOKEN_EXPIRED_MSG } = await import('../server/integrations/meta');
+    await (await import('../server/core/db')).pcol<any>('companies').then((c) => c.updateOne({ _id: 'CMP-test' }, { $set: { 'features.metaLeads': true, 'features.calls': true } }));
+    (await import('../server/platform/registry')).invalidateTenant();
+    const tenant = (await getTenantById('CMP-test'))!;
+    await (await col<any>('leadSources')).insertOne({ _id: 'SRC-0001', type: 'meta', name: 'Amaya Page', status: 'Active', config: { meta: { pageName: 'Amaya by Vera Vita', lastError: TOKEN_EXPIRED_MSG } } } as any);
+    await (await col<any>(COLL_INBOX)).insertOne({ _id: 'telephony:dead1', provider: 'telephony', status: 'dead', receivedAt: new Date() } as any);
+    const h = await runWithTenant(tenant, () => getConnectorHealth());
+    const meta = h.find((x) => x.id === 'metaLeads')!;
+    expect(meta).toMatchObject({ state: 'needs_reconnect', identity: 'Amaya by Vera Vita' });
+    expect(meta.action).toMatch(/Reconnect/);
+    expect(h.find((x) => x.id === 'telephony')).toMatchObject({ state: 'degraded', deadLetters: 1 });
+  });
+});

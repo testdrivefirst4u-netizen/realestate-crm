@@ -70,6 +70,7 @@ import { actions as visitActions } from './modules/visits';
 import { actions as salesReportActions } from './modules/salesReport';
 import { actions as journeyActions } from './modules/journey';
 import { actions as workspaceActions } from './modules/workspace';
+import { actions as connectorHealthActions } from './modules/connectorHealth';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -127,6 +128,7 @@ export const registry: ActionMap = {
   ...salesReportActions,
   ...journeyActions,
   ...workspaceActions,
+  ...connectorHealthActions,
 };
 
 const STATUS: Record<string, number> = {
