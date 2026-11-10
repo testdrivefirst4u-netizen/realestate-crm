@@ -90,3 +90,18 @@ export async function getConnectedAccounts(): Promise<ConnectedAccount[]> {
 export const actions: ActionMap = {
   getConnectedAccounts: { fn: () => getConnectedAccounts(), perm: 'integrations.connect' },
 };
+
+/* ------------------------------ webhook inbox ------------------------------ */
+// Operator-visible delivery failures and replay (server/core/webhookInbox.ts). Payload bodies are never listed.
+actions.getWebhookHealth = {
+  perm: 'integrations.connect',
+  fn: async (d) => (await import('../core/webhookInbox')).inboxHealth(d?.provider ? String(d.provider) : undefined),
+};
+actions.replayWebhookEvent = {
+  perm: 'integrations.connect',
+  fn: async (d, ctx) => {
+    const r = await (await import('../core/webhookInbox')).replay(String(d?.id || ''), ctx);
+    if (!r) throw (await import('../core/errors')).fail('NOT_FOUND', 'Event not found');
+    return { id: r._id, status: r.status, attempts: r.attempts, lastError: r.lastError };
+  },
+};

@@ -476,6 +476,34 @@ export function mapStatus(s: unknown) {
   return 'Completed';
 }
 
+/** 'In Progress' (or nothing) < every ended state: an ended call is never re-opened by a late callback. */
+export function statusRank(s: string): number {
+  return !s || s === 'In Progress' || s === 'Ringing' ? 0 : 1;
+}
+
+/** One claim per provider call, whatever server instance gets the callback first (unique _id). */
+async function claimProviderCall(provider: string, callId: string): Promise<boolean> {
+  try {
+    await (await col<any>('callClaims')).insertOne({ _id: `${provider}|${callId}`, at: new Date() });
+    return true;
+  } catch (e: any) {
+    if (e?.code === 11000) return false;
+    throw e;
+  }
+}
+
+/** The call another delivery is creating right now (a few short waits), or the one already stored. */
+async function waitForCall(provider: string, callId: string): Promise<any | null> {
+  for (let i = 0; i < 20; i++) {
+    const c = await (await calls()).findOne({ provider, providerCallId: callId });
+    if (c) return c;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  // the claim holder never finished (it crashed): fail, so the inbox retries and the claim is taken over
+  await (await col<any>('callClaims')).deleteOne({ _id: `${provider}|${callId}`, at: { $lt: new Date(Date.now() - 60_000) } });
+  throw new Error(`Call ${callId} is still being created by another delivery`);
+}
+
 /** Serialise deliveries per provider call id inside this process (provider retries arrive in parallel). */
 const callLocks = new Map<string, Promise<unknown>>();
 async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -506,16 +534,20 @@ export async function handleWebhook(payload: any, provider: string): Promise<unk
 
   return withLock(providerName + '|' + providerCallId, async () => {
     if (providerCallId) {
-      const existing = await (await calls()).findOne({ provider: providerName, providerCallId });
+      // across server instances: the first delivery of a call claims it; a parallel one waits for that call to exist
+      let existing: any = await (await calls()).findOne({ provider: providerName, providerCallId });
+      if (!existing && !(await claimProviderCall(providerName, providerCallId))) existing = await waitForCall(providerName, providerCallId);
       if (existing) {
-        // update (e.g. recording ready after the call ended)
+        // update (e.g. recording ready after the call ended). Callbacks can arrive out of order: a call that has
+        // ended never goes back to "in progress", and a shorter duration from an earlier leg never replaces a longer one.
         const patch: Record<string, any> = {};
-        if (pick('recordingUrl')) patch.recordingUrl = String(pick('recordingUrl'));
-        if (pick('endTime')) patch.endTime = pick('endTime');
-        if (pick('duration')) patch.durationSec = num(pick('duration'));
-        if (pick('status')) patch.status = mapStatus(pick('status'));
-        await updateCall(String(existing._id), patch, ctx);
-        return { ok: true, callId: String(existing._id), updated: true };
+        if (pick('recordingUrl') && String(pick('recordingUrl')) !== String(existing.recordingUrl || '')) patch.recordingUrl = String(pick('recordingUrl'));
+        if (pick('endTime') && !existing.endTime) patch.endTime = pick('endTime');
+        if (pick('duration') && num(pick('duration')) > num(existing.durationSec)) patch.durationSec = num(pick('duration'));
+        const next = pick('status') ? mapStatus(pick('status')) : '';
+        if (next && next !== existing.status && statusRank(next) >= statusRank(String(existing.status || ''))) patch.status = next;
+        if (Object.keys(patch).length) await updateCall(String(existing._id), patch, ctx);
+        return { ok: true, callId: String(existing._id), updated: Object.keys(patch).length > 0 };
       }
     }
     const from = str(pick('from')), to = str(pick('to'));

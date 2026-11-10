@@ -5,8 +5,9 @@
  *   POST /api/webhooks/chat360?secret=<CHAT360_WEBHOOK_SECRET>
  *   GET  (same URL, payload in the query string) is accepted for parity with the Apps Script doGet.
  *
- * JSON or form bodies. A missing/wrong secret → 403. After authentication the response is always HTTP 200
- * ({status:'success'|'error'}) so Chat360 does not retry forever on our own errors (they are logged).
+ * JSON or form bodies. A missing/wrong secret → 403. After authentication each delivery is stored first: 200 once
+ * stored (processed now, or retried by the CRM's own back-off, so Chat360 does not loop on our bugs), 503 only when
+ * it could not be stored — never a success for an event that was lost.
  */
 import { NextResponse } from 'next/server';
 import { runWithTenant } from '@/server/core/tenant';
@@ -14,7 +15,8 @@ import { getTenantBySlug } from '@/server/platform/registry';
 import { getSecret } from '@/server/core/settings';
 import { safeEqual, truncate } from '@/server/core/utils';
 import { logError } from '@/server/core/events';
-import { handleWebhook, noteWebhookEvent } from '@/server/modules/chat360';
+import { noteWebhookEvent } from '@/server/modules/chat360';
+import { acceptDelivery } from '@/server/core/webhookInbox';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,8 +70,11 @@ async function handleInCompany(req: Request) {
   try {
     const p = await readPayload(req, url);
     raw = p.raw;
-    const data = await handleWebhook(p.payload);
-    return NextResponse.json({ status: 'success', data }, { status: 200 });
+    // stored before it is acknowledged: 200 once stored (processed, or retried by the CRM), 503 when it could not be
+    const pl: any = p.payload || {};
+    const eventKey = String(pl.event_response_id || pl.m_id || pl.message_id || '');
+    const [status, body] = await acceptDelivery('chat360', p.payload, { dedupeKey: eventKey ? `${String(pl.event_type || pl.event || pl.type || '')}:${eventKey}` : '', raw: p.raw || JSON.stringify(p.payload) });
+    return NextResponse.json(body, { status });
   } catch (err: any) {
     await logError('webhook:chat360', err?.code || 'INTERNAL', err?.message, err?.stack, 'webhook', { raw: truncate(raw, 1500) });
     // Always 200 so the provider does not retry forever on our own bugs.

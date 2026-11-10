@@ -488,3 +488,29 @@ export const actions: ActionMap = {
   refreshInbox: { fn: () => refreshInbox(), perm: 'chat.view' },
 };
 
+
+/**
+ * Store each Page / Instagram entry of a Meta delivery in its company's webhook inbox, then process it
+ * (server/core/webhookInbox.ts). True when every entry for a known company was stored (processed or queued for
+ * retry); false when one could not be stored — the webhook then answers 500 so Meta delivers it again.
+ */
+export async function acceptSocialDelivery(body: any, _raw?: unknown): Promise<boolean> {
+  const object = String(body?.object || '');
+  if (object !== 'page' && object !== 'instagram') return true;
+  const ig = object === 'instagram';
+  const { receive, process: processInbox } = await import('../core/webhookInbox');
+  const crypto = await import('node:crypto');
+  for (const entry of Array.isArray(body?.entry) ? body.entry.slice(0, 50) : []) {
+    const account = String(entry?.id || '');
+    const companyId = account ? await companyOfSocial(ig ? 'ig' : 'fb', account) : null;
+    if (!companyId) continue;
+    const tenant = await getTenantById(companyId);
+    if (!tenant || tenant.status !== 'Active' || !tenant.features.socialInbox) continue;
+    const one = { object, entry: [entry] };
+    const key = crypto.createHash('sha256').update(JSON.stringify(one)).digest('hex');
+    // receive throws when the database cannot store it: that is the one case Meta must re-deliver
+    const rec = await runWithTenant(tenant, () => receive('meta-social', one, { dedupeKey: key }));
+    if (!rec.duplicate || rec.status === 'failed' || rec.status === 'received') await runWithTenant(tenant, () => processInbox(rec.id)).catch(() => undefined);
+  }
+  return true;
+}

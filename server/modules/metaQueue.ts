@@ -147,12 +147,15 @@ export async function handleMetaWebhookPost(req: Request, schedule: (fn: () => P
       return json({ status: 'error', code: 'INTERNAL', message: 'Could not save the message' }, 500);
     }
   }
-  // social inbox: comments and messages (stored at once; never blocks the lead queue)
-  try {
-    const { ingestSocialWebhook } = await import('./socialInbox');
-    await ingestSocialWebhook(body);
-  } catch (e: any) {
-    console.error('[webhook:meta] social inbox', e?.message);
+  // social inbox: comments and messages. Stored before the answer (a failure to process is retried by the CRM);
+  // one that cannot be stored answers 500 so Meta delivers it again, instead of being lost silently.
+  if (Array.isArray(body?.entry) && body.entry.some((en: any) => Array.isArray(en?.messaging) || (Array.isArray(en?.changes) && en.changes.some((c: any) => c?.field && c.field !== 'leadgen')))) {
+    const { acceptSocialDelivery } = await import('./socialInbox');
+    const ok = await acceptSocialDelivery(body, raw).catch((e: any) => {
+      console.error('[webhook:meta] social inbox could not be stored', e?.message);
+      return false;
+    });
+    if (!ok) return json({ status: 'error', code: 'INTERNAL', message: 'Could not store the message' }, 500);
   }
   try {
     const { ids, inserted } = await enqueueLeadgen(body);

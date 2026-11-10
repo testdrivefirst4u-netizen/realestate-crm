@@ -7,7 +7,8 @@
  *        (some providers, e.g. Exotel passthru applets, call back with GET).
  *
  * Field names are mapped through Settings → telephonyFieldMap. The call is stored/updated only — recordings
- * are transcribed when a user asks. A missing/wrong secret → 403; afterwards always HTTP 200.
+ * are transcribed when a user asks. A missing/wrong secret → 403. Each delivery is stored before it is acknowledged:
+ * 200 once stored (processed now, or retried by the CRM), 503 when it could not be stored, so the provider re-sends.
  */
 import { NextResponse } from 'next/server';
 import { runWithTenant } from '@/server/core/tenant';
@@ -15,7 +16,7 @@ import { getTenantBySlug } from '@/server/platform/registry';
 import { getSecret } from '@/server/core/settings';
 import { safeEqual, truncate } from '@/server/core/utils';
 import { logError } from '@/server/core/events';
-import { handleWebhook } from '@/server/modules/calls';
+import { acceptDelivery } from '@/server/core/webhookInbox';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,8 +68,9 @@ async function handleInCompany(req: Request) {
   try {
     const p = await readPayload(req, url);
     raw = p.raw;
-    const data = await handleWebhook(p.payload, provider);
-    return NextResponse.json({ status: 'success', data }, { status: 200 });
+    // stored before it is acknowledged (server/core/webhookInbox.ts): a failure we cannot store answers 503
+    const [status, body] = await acceptDelivery('telephony', p.payload, { meta: { provider }, raw: p.raw || JSON.stringify(p.payload) });
+    return NextResponse.json(body, { status });
   } catch (err: any) {
     await logError('webhook:telephony', err?.code || 'INTERNAL', err?.message, err?.stack, 'webhook', { provider, raw: truncate(raw, 1500) });
     return NextResponse.json({ status: 'error', code: err?.code || 'INTERNAL', message: 'Webhook could not be processed; the error has been logged.' }, { status: 200 });
