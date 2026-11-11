@@ -89,6 +89,19 @@ selling agent as if they were the owner.
 
 Final gates: typecheck ✅ · 116 files / 1535 tests ✅ · build ✅.
 
+## Release F (organisation, scorecards)
+
+`tests/release-f-org-scorecards.test.ts` (5 tests): level names and limits; placement rules (loop, same level,
+moving above someone's reports, self); a team-scoped manager sees only own + team + unassigned leads while an
+"all" manager and the founder see everything; the Team view, workload and reassignment stay inside the team;
+scorecards roll up and an agent sees only their own; targets set only from above, validated.
+
+Browser: agent Your month (16), team scorecard tree with roll-ups (17), Organisation panel and its loop refusal (18),
+read-only scorecard on Business. Fixed during the check: the site root, home-screen app start and 404 page opened
+the old Dashboard and /today was missing from the proxy's route list; the sidebar logo linked to Dashboard.
+
+Final gates: typecheck ✅ · 117 files / 1540 tests ✅ · build ✅.
+
 ## Not verified
 
 - RERA rules against the notified Telangana gazette text and Amaya's registered agreement (needs counsel).

@@ -33,7 +33,7 @@ import type {
 import type { LeadSourceActions } from '../../server/core/leadSourceTypes';
 import type { SheetActions, SheetAuth } from '../../server/core/sheetTypes';
 import type { MetaActions } from '../../server/core/metaTypes';
-import type { ConstructionStage, DemandLetter, EngagementData, PaymentPlan, PaymentStatement, Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
+import type { Measure, OrgPerson, Scorecard, ConstructionStage, DemandLetter, EngagementData, PaymentPlan, PaymentStatement, Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
 
 /** Request / response types of a lead-source RPC action (contract: server/core/leadSourceTypes.ts). */
 type LsReq<K extends keyof LeadSourceActions> = LeadSourceActions[K]['req'];
@@ -558,6 +558,15 @@ export const api = {
     demandLetter: (unitId: string, milestoneId: string) => request<DemandLetter>('getDemandLetter', { unitId, milestoneId }),
     reraSettings: () => request<{ interestRatePct: string; interestRateSource: string; projectNumber: string }>('getReraSettings'),
     saveReraSettings: (d: { interestRatePct: string; interestRateSource: string; projectNumber: string }) => request<{ interestRatePct: string; interestRateSource: string; projectNumber: string }>('saveReraSettings', d),
+  },
+
+  /** Organisation levels and scorecards (server/modules/org.ts, scorecard.ts). */
+  org: {
+    get: () => request<{ levels: string[]; people: OrgPerson[] }>('getOrg'),
+    saveLevels: (levels: string[]) => request<{ levels: string[]; people: OrgPerson[] }>('saveOrgLevels', { levels }),
+    place: (d: { userId: string; level: number | null; reportsTo: string; leadScope: 'team' | 'all' }) => request<{ levels: string[]; people: OrgPerson[] }>('placeOrgPerson', d),
+    scorecard: (month?: string) => request<Scorecard>('getScorecard', { month }),
+    setTargets: (userId: string, month: string, values: Partial<Record<Measure, number | string>>) => request<{ ok: true }>('setTargets', { userId, month, values }),
   },
 
   /** Release B: work queues (server/modules/workspace.ts) and the founder report (salesReport.ts). */

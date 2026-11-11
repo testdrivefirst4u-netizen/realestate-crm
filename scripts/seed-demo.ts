@@ -104,6 +104,18 @@ async function main() {
     await E.logEngagement({ leadId: lata, channel: 'call', kind: 'welcome', note: 'Welcome call with Lata and her daughter' }, asha);
     await E.logEngagement({ leadId: lata, channel: 'event', kind: 'eventAttended', note: 'Came to the experience-centre music evening' }, asha);
     await E.logEngagement({ leadId: kiran, channel: 'email', kind: 'content', note: 'Sent the healthcare partner note' }, asha);
+    // organisation and targets: Partner › Sales Head › agents (synthetic)
+    const O = await import('../server/modules/org');
+    const admin = await ctx('admin@demo.test');
+    const ids = Object.fromEntries((await O.orgPeople()).map((p) => [p.name, p.id]));
+    await O.placePerson({ userId: ids['Admin Demo'], level: 1, reportsTo: '' }, admin);
+    await O.placePerson({ userId: ids['Meera Iyer'], level: 2, reportsTo: ids['Admin Demo'], leadScope: 'all' }, admin);
+    await O.placePerson({ userId: ids['Asha Menon'], level: 5, reportsTo: ids['Meera Iyer'] }, admin);
+    await O.placePerson({ userId: ids['Ravi Kumar'], level: 5, reportsTo: ids['Meera Iyer'] }, admin);
+    const SC = await import('../server/modules/scorecard');
+    const month = SC.monthRange('').key;
+    await SC.setTargets({ userId: ids['Asha Menon'], month, values: { contacted: 20, visits: 6, quotations: 3, bookings: 2, collections: 2_500_000, touches: 15, respondedInTime: 90 } }, meera);
+    await SC.setTargets({ userId: ids['Ravi Kumar'], month, values: { contacted: 15, visits: 4, bookings: 1, respondedInTime: 90 } }, meera);
     await (await col<any>('leadBackups')).countDocuments();
     console.log('Seeded synthetic demo data in', tenant.dbName);
   });

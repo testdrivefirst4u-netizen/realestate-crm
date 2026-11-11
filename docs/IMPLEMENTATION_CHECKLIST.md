@@ -62,3 +62,12 @@ Gates after B–D and the browser pass: typecheck ✅ · 1527 tests ✅ · build
 - [ ] Needs counsel: real plan, interest rule and rate, GST per instalment, demand-letter wording (docs/RERA_AND_ENGAGEMENT.md)
 
 Gates: typecheck ✅ · 1535 tests ✅ · build ✅.
+
+## Release F — reporting lines and scorecards
+- [x] Five renamable levels; reports-to with seniority and loop checks; per-manager team or all-leads scope (admins assign)
+- [x] Team scope enforced on the server: leads, tasks, calls, chats, unit buyers, Team view, workload, reassignment
+- [x] Monthly scorecards from recorded events, rolled up through the tree; targets set by someone above; agent sees own
+- [x] UI: Your month, Team scorecard with targets, Organisation panel, read-only scorecard on Business; browser-checked
+- [x] Site root, home-screen app and 404 now open Today; /today added to the proxy so sign-in returns there
+
+Gates: typecheck ✅ · 1540 tests ✅ · build ✅.

@@ -20,7 +20,7 @@ import { can, listUsers, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
-import { leadFilter } from '../core/scope';
+import { leadFilter, restrictionFor } from '../core/scope';
 import { filterCalls, filterTasks } from '../core/scopeGuards';
 import { settingsAll } from '../core/settings';
 import { dateKey, makeZoned } from '../core/utils';
@@ -140,17 +140,21 @@ async function missedNotReturned(ctx: Ctx, now: Date) {
 export async function getTeamExceptions(ctx: Ctx, now = new Date()) {
   if (!can(ctx.user, 'leads.viewAll')) throw fail('FORBIDDEN', 'The team view is for managers');
   const leads = await col<any>(CFG.COLL.LEADS);
-  const open = { stage: { $nin: CLOSED } };
+  // a manager limited to their team (organisation) sees their team's exceptions only
+  const scope = (await leadFilter(ctx)) || {};
+  const r = await restrictionFor(ctx.user);
+  const open = { ...scope, stage: { $nin: CLOSED } };
   const sla = (await slaHours()) * HOUR;
   const unassigned = await leads.find({ ...open, $or: [{ assignedRm: { $in: ['', null] } }, { assignedRm: { $exists: false } }] } as any, { projection: PROJ }).sort({ enquiryDate: 1 }).limit(100).toArray();
   const untouched = await leads.find({ ...open, stage: S.NEW, 'milestones.contacted': { $exists: false }, enquiryDate: { $lt: new Date(now.getTime() - sla) } } as any, { projection: PROJ }).sort({ enquiryDate: 1 }).limit(100).toArray();
   const stalled = await leads.find({ ...open, stage: { $in: [S.QUALIFIED, S.WARM, S.HOT] }, updatedAt: { $lt: new Date(now.getTime() - 14 * 24 * HOUR) } } as any, { projection: PROJ }).sort({ updatedAt: 1 }).limit(100).toArray();
-  const visits = await leads.find({ siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, siteVisitDate: { $gte: now, $lt: new Date(now.getTime() + 48 * HOUR) } } as any, { projection: PROJ }).sort({ siteVisitDate: 1 }).limit(50).toArray();
-  const approvals = await (await col<any>('approvals')).find({ status: 'pending' }).sort({ requestedAt: 1 }).limit(50).toArray();
-  const pendingQuotes = await (await col<any>('quotes')).find({ status: 'pendingApproval' }).sort({ createdAt: 1 }).limit(50).toArray();
+  const visits = await leads.find({ ...scope, siteVisitStatus: CFG.SITE_VISIT.SCHEDULED, siteVisitDate: { $gte: now, $lt: new Date(now.getTime() + 48 * HOUR) } } as any, { projection: PROJ }).sort({ siteVisitDate: 1 }).limit(50).toArray();
+  const { filterByLead } = await import('../core/scope');
+  const approvals = await filterByLead(ctx.user, await (await col<any>('approvals')).find({ status: 'pending' }).sort({ requestedAt: 1 }).limit(50).toArray(), (a: any) => a.leadId);
+  const pendingQuotes = await filterByLead(ctx.user, await (await col<any>('quotes')).find({ status: 'pendingApproval' }).sort({ createdAt: 1 }).limit(50).toArray(), (q: any) => q.leadId);
 
   // workload per active agent (by immutable id, with the name as a label)
-  const users = (await listUsers()).filter((u) => u.status !== 'Disabled' && ['RM', 'Manager'].includes(u.role));
+  const users = (await listUsers()).filter((u) => u.status !== 'Disabled' && ['RM', 'Manager'].includes(u.role) && (!r || r.ids.includes(u.id)));
   const agg = await leads.aggregate<{ _id: string; open: number; overdue: number; untouched: number }>([
     { $match: open },
     { $group: { _id: { $ifNull: ['$assignedRmId', '$assignedRm'] }, open: { $sum: 1 }, overdue: { $sum: { $cond: [{ $lt: ['$nextFollowupAt', now] }, 1, 0] } }, untouched: { $sum: { $cond: [{ $and: [{ $eq: ['$stage', S.NEW] }, { $eq: [{ $type: '$milestones.contacted' }, 'missing'] }] }, 1, 0] } } } },
@@ -189,6 +193,10 @@ export async function reassignLeads(d: { leadIds: string[]; to: string; reason: 
   if (!ids.length) throw fail('VALIDATION', 'Choose the leads to reassign');
   const target = (await listUsers()).find((u) => u.id === d.to || u.name === d.to);
   if (!target || target.status === 'Disabled') throw fail('VALIDATION', 'Choose an active team member');
+  const r = await restrictionFor(ctx.user);
+  if (r && !r.ids.includes(target.id)) throw fail('FORBIDDEN', `${target.name} is not in your team`);
+  const { assertLeadAccess } = await import('../core/scope');
+  for (const id of ids) await assertLeadAccess(ctx, id);
   const { updateLead, appendRemark } = await import('./leads');
   let moved = 0;
   for (const id of ids) {

@@ -14,6 +14,24 @@
 Configurable per company (Settings › Roles & access): new items *See buyers and payments on every unit*
 (default on for Managers and View only, off for Agents) and *Cancel bookings and sales*.
 
+## Organisation, reporting lines and scorecards
+
+Admins set up to **five levels** (renamable; default Partner › Sales Head › Team Lead › Senior Sales Executive ›
+Sales Executive) in Today › Team › Organisation, and place each person: level, who they report to, and — for a
+Manager — whether they see **every lead** (default, as before) or **their team only** (their own leads, everyone
+below them at any depth, and unassigned leads to hand out). Rules: you can only report to a more senior level, no
+loops, nobody reports to themselves. Team scope is enforced on the server for leads, tasks, calls, chats, units'
+buyers, the Team view, workload and reassignment (`server/modules/org.ts`, `server/core/scope.ts`).
+
+**Scorecards** (`server/modules/scorecard.ts`), per calendar month, from recorded events only: new enquiries,
+answered in time (overall), contacted, connected calls, visits done, quotations, bookings, booked value, collected
+(receipts), customer touches.
+- Agent: **Your month** on My work — each measure against their target.
+- Manager / Admin: **Scorecard** on Team — the tree with each person's own figures or "with their team" totals;
+  targets for anyone below them (Admins: anyone but themselves).
+- Founder: the same tree, read-only, on Business.
+Team totals add up everyone below a person; the in-time % is recomputed from the counts, never averaged.
+
 ## Journey and gates
 
 Enquiry → owner (assignment, by id) → **contact** (outcome + required next step) → people & consent → visit

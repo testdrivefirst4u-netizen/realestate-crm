@@ -58,7 +58,7 @@ const nextConfig: NextConfig = {
   },
   // Each CRM screen is its own route under app/(crm)/; `/` opens the dashboard (the query, e.g. ?lead=…, is kept).
   async redirects() {
-    return [{ source: '/', destination: '/dashboard', permanent: false }];
+    return [{ source: '/', destination: '/today', permanent: false }];
   },
 };
 

@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
 
       {/* company */}
       <div className={`relative flex items-center ${narrow ? 'justify-center pt-5 pb-4' : 'gap-3 px-5 pt-5 pb-4'}`}>
-        <Link href={viewHref('dashboard')} prefetch={false} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
+        <Link href={viewHref('today')} prefetch={false} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
           <AppLogo size="sm" />
         </Link>
         {!narrow && (

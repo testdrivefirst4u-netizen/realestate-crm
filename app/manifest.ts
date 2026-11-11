@@ -7,7 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'CRM',
     description: 'Sales CRM for real-estate teams',
     id: '/dashboard',
-    start_url: '/dashboard',
+    // id stays '/dashboard' so phones that already installed the app keep it as the same app
+    start_url: '/today',
     scope: '/',
     display: 'standalone',
     background_color: '#F2F7FB',

@@ -17,6 +17,8 @@ import type { SalesReport, TeamData, TodayData, QueueRow } from '../../core/jour
 import type { UserAccount } from '../../types/crm';
 import { Button, ErrorState, InlineNotice, Select, cx, inputCls } from '../../components/ui';
 import { ConstructionPanel } from './ConstructionPanel';
+import { MyMonth, TeamScorecard } from './Scorecard';
+import { OrgPanel } from './OrgPanel';
 
 type Tab = 'mine' | 'team' | 'business';
 
@@ -67,6 +69,7 @@ export const TodayView: React.FC<{
       )}
       {tab === 'mine' && <MyWork onOpenLead={onOpenLead} online={online} />}
       {tab === 'team' && manager && <Team onOpenLead={onOpenLead} users={users} online={online} />}
+      {tab === 'team' && can('users.manage') && <OrgPanel />}
       {tab === 'business' && <Business />}
     </div>
   );
@@ -132,6 +135,7 @@ const MyWork: React.FC<{ onOpenLead: (id: string) => void; online: boolean }> = 
           <div><strong>Nothing waiting.</strong> Every enquiry has been contacted and has a next step. New enquiries and missed calls appear here as they arrive.</div>
         </div>
       )}
+      <MyMonth />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-5">
         <Queue id="new" title="New enquiries" hint={data ? `Call within ${data.slaHours} h` : ''} icon={<UserPlus size={14} />} rows={data?.newEnquiries} onOpen={onOpenLead} empty="No uncontacted enquiries." urgentFirst />
         <Queue id="missed" title="Missed calls to return" icon={<PhoneMissed size={14} />} rows={data?.missedCalls.map((c) => ({ leadId: c.leadId, name: c.name || c.phone, phone: c.phone, stage: '', rm: '', at: c.at, note: c.leadId ? 'Called you' : 'Not a lead yet', late: c.minutesAgo > 30 }))} onOpen={onOpenLead} empty="No missed calls waiting." />
@@ -335,6 +339,8 @@ const Team: React.FC<{ onOpenLead: (id: string) => void; users: Array<{ id: stri
         <Queue id="stalled" title="Stalled opportunities" hint="Qualified / warm / hot, unchanged for 14 days" rows={data?.stalled} onOpen={onOpenLead} empty="Nothing stalled." showRm wide />
       </div>
 
+      <TeamScorecard />
+
       <ConstructionPanel />
 
       <section aria-labelledby="h-workload">
@@ -432,6 +438,8 @@ const Business: React.FC = () => {
               <p className="text-xs text-[#0B2A44] pt-2">Cancellations in the period: <strong className="tabular-nums">{data.cancellations}</strong></p>
             </section>
           </div>
+
+          <TeamScorecard readOnly />
 
           <footer className="text-[11px] text-[#5E778C] border-t border-[#E3EDF5] pt-3 flex flex-wrap gap-x-4 gap-y-1">
             <span>Report made {formatDateTime(data.freshness.generatedAt, '')}</span>

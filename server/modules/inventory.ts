@@ -149,7 +149,10 @@ type Viewer = { user?: Ctx['user'] } | null | undefined;
  */
 export async function presentUnits<T extends ReturnType<typeof serializeUnit>>(units: T[], who: Viewer): Promise<Array<T | ReturnType<typeof redact>>> {
   const user = who?.user;
-  if (!user || user.id === 'SYSTEM' || can(user, 'inventory.customers')) return units;
+  if (!user || user.id === 'SYSTEM') return units;
+  // a manager limited to their team sees buyers of their team's leads only, whatever their role allows
+  const team = (user as any).leadScope === 'team' && String(user.role) === 'Manager';
+  if (!team && can(user, 'inventory.customers')) return units;
   // Without the permission, the buyer shows only on units of the user's own (restricted) leads. Someone who sees all
   // leads but was not given buyer details (a View only user the company limited) sees no buyers at all.
   const ids = await visibleLeadIds(user);

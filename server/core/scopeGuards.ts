@@ -7,7 +7,7 @@ import { CFG } from './config';
 import { col } from './db';
 import { fail } from './errors';
 import { last10, str } from './utils';
-import { restrictionFor, sameName, visibleLeadIds } from './scope';
+import { isMember, restrictionFor, sameName, visibleLeadIds, type Restriction } from './scope';
 
 type UserLike = Pick<PublicUser, 'name' | 'role'> | null | undefined;
 
@@ -15,7 +15,8 @@ type UserLike = Pick<PublicUser, 'name' | 'role'> | null | undefined;
 
 /** A restricted user sees tasks assigned to or created by them, and tasks of leads they can see. */
 /** Is this user the person in a name/id pair? The id decides when the row has one; the name only on older rows. */
-export const isPerson = (r: { id?: string; name: string }, name: unknown, id: unknown) => (str(id) && r.id ? str(id) === r.id : sameName(name, r.name));
+/** Is this name / id one of the restricted user's people (themselves, or their team for a team-scoped manager)? */
+export const isPerson = (r: Pick<Restriction, 'ids' | 'names'>, name: unknown, id: unknown) => isMember(r, name, id);
 
 export async function filterTasks<T extends { leadId?: string; assignedTo?: string; createdBy?: string; assignedToId?: string; createdById?: string }>(user: UserLike, tasks: T[]): Promise<T[]> {
   const r = await restrictionFor(user);
@@ -43,7 +44,7 @@ export async function filterCalls<T extends { leadId?: string; loggedBy?: string
   if (!r) return calls;
   const ids = (await visibleLeadIds(user))!;
   // the lead each unlinked call's number belongs to (its latest enquiry; one query for all of them)
-  const keys = [...new Set(calls.filter((c) => !str(c.leadId) && !sameName(c.loggedBy, r.name)).map((c) => last10(c.phone)).filter((k) => k.length === 10))];
+  const keys = [...new Set(calls.filter((c) => !str(c.leadId) && !isMember(r, c.loggedBy, (c as any).loggedById)).map((c) => last10(c.phone)).filter((k) => k.length === 10))];
   const owner = new Map<string, string>();
   if (keys.length) {
     for (const l of await (await col(CFG.COLL.LEADS)).find({ phoneLast10: { $in: keys }, stage: { $ne: CFG.STAGES.DELETED } } as any, { projection: { _id: 1, phoneLast10: 1 } }).sort({ createdAt: -1 }).toArray()) {
@@ -52,7 +53,7 @@ export async function filterCalls<T extends { leadId?: string; loggedBy?: string
   }
   return calls
     .filter((c) => {
-      if (sameName(c.loggedBy, r.name)) return true;
+      if (isMember(r, c.loggedBy, (c as any).loggedById)) return true;
       if (str(c.leadId)) return ids.has(str(c.leadId));
       const lead = owner.get(last10(c.phone));
       return lead ? ids.has(lead) : r.mode === 'own_unassigned';
@@ -103,7 +104,7 @@ export async function filterEvents<T extends { recordType?: string; recordId?: s
   const ids = (await visibleLeadIds(user))!;
   const taskIds = events.filter((e) => e.recordType === 'Task').map((e) => str(e.recordId));
   const tasks = taskIds.length ? await (await col(CFG.COLL.TASKS)).find({ _id: { $in: taskIds as any[] } }, { projection: { leadId: 1, assignedTo: 1, createdBy: 1 } }).toArray() : [];
-  const taskOk = new Map(tasks.map((t: any) => [str(t._id), sameName(t.assignedTo, r.name) || sameName(t.createdBy, r.name) || (!!str(t.leadId) && ids.has(str(t.leadId)))]));
+  const taskOk = new Map(tasks.map((t: any) => [str(t._id), isMember(r, t.assignedTo, t.assignedToId) || isMember(r, t.createdBy, t.createdById) || (!!str(t.leadId) && ids.has(str(t.leadId)))]));
   return events.filter((e) => {
     if (e.recordType === 'Task') return taskOk.get(str(e.recordId)) ?? true;
     const leadId = e.recordType === 'Lead' ? str(e.recordId) : str(e.payload?.leadId);

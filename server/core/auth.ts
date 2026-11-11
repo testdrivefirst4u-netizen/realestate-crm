@@ -43,6 +43,10 @@ export interface PublicUser {
   callVia: 'justconnect' | 'direct';
   /** Devices this account may be signed in on at once (default CFG.SESSION_MAX_DEVICES; an admin can allow up to 10). */
   maxDevices: number;
+  /** Organisation (server/modules/org.ts): level 1–5 (0 = not placed), manager's user id, and what a manager sees. */
+  orgLevel?: number;
+  reportsTo?: string;
+  leadScope?: 'team' | 'all';
 }
 
 export interface UserDoc {
@@ -66,6 +70,11 @@ export interface UserDoc {
   maxDevices?: number;
   /** The hidden Platform support account (opened by a super admin); never listed or counted. */
   support?: boolean;
+  /** Organisation (server/modules/org.ts): level 1 (most senior) … 5, who they report to, and for managers
+   *  whether they see every lead ('all', default) or their team's ('team'). */
+  orgLevel?: number;
+  reportsTo?: string;
+  leadScope?: 'team' | 'all';
   /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
   totpSecret?: string;
   /** The 30-second step of the last authenticator code used to sign in (that code and older ones are refused). */
@@ -156,6 +165,9 @@ export function publicUser(u: UserDoc): PublicUser {
     phone: u.phone || '',
     callVia: u.callVia === 'direct' ? 'direct' : 'justconnect',
     maxDevices: deviceLimit(u),
+    orgLevel: Number(u.orgLevel) || 0,
+    reportsTo: u.reportsTo || '',
+    leadScope: u.leadScope === 'team' ? 'team' : 'all',
   };
 }
 

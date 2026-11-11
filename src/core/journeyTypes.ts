@@ -77,3 +77,15 @@ export interface PaymentStatement {
   totals: { agreed: number; gst: number; paid: number; demanded: number; outstandingDemanded: number; overdue: number; interestAccrued: number; advanceCap: number | null };
 }
 export interface DemandLetter { demandNo: string; date: string; to: string; unit: string; project: string; agreementRef: string; instalment: string; amount: number; gst: number; total: number; dueDate: string; note: string }
+
+/* ------------------------------ organisation ------------------------------ */
+export interface OrgPerson { id: string; name: string; role: string; status: string; level: number | null; reportsTo: string; leadScope: 'team' | 'all' }
+export type Measure = 'enquiries' | 'respondedInTime' | 'contacted' | 'calls' | 'visits' | 'quotations' | 'bookings' | 'bookedValue' | 'collections' | 'touches';
+export const MEASURE_LABEL: Record<Measure, string> = {
+  enquiries: 'New enquiries', respondedInTime: 'Answered in time', contacted: 'Contacted', calls: 'Connected calls', visits: 'Visits done',
+  quotations: 'Quotations', bookings: 'Bookings', bookedValue: 'Booked value', collections: 'Collected', touches: 'Customer touches',
+};
+export const TARGETABLE: Measure[] = ['contacted', 'calls', 'visits', 'quotations', 'bookings', 'bookedValue', 'collections', 'touches', 'respondedInTime'];
+export type Counts = Record<Measure, number> & { slaEligible: number; slaWithin: number };
+export interface ScoreRow { id: string; name: string; role: string; level: number | null; levelName: string; reportsTo: string; depth: number; own: Counts; team: Counts; hasTeam: boolean; targets: Partial<Record<Measure, number>> }
+export interface Scorecard { month: string; levels: string[]; rows: ScoreRow[]; total: Counts; mine: ScoreRow | null; canSetTargetsFor: string[] }
