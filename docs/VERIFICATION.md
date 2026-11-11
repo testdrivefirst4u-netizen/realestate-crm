@@ -121,6 +121,24 @@ funnel read "0% before" (looked like a fall) — it now shows "—" and says the
 
 Final gates: typecheck ✅ · 118 files / 1551 tests ✅ · build ✅ · npm audit 0.
 
+## Security review of this branch (two fixes)
+
+A review of the whole branch for access control, phone masking, webhooks and the public booking page, tenant
+isolation, injection and XSS found two issues, each confirmed by a second, independent check:
+1. **Payments ignored "See buyers and payments"** for people who see every lead (View only, a Manager not limited
+   to a team, Agents when agents may see all leads): `getPayments` / `recordReceipt` served the ledger, receipt
+   references and lead of any booked unit. Fixed in `server/modules/payments.ts` — the same rule as the inventory
+   screen and the RERA statement: without the permission, only your own restricted set of customers, never all.
+2. **An agent could send a lower base price** to `saveQuote` and get an "approved" quotation with no discount, then
+   have the unit booked at that price. Fixed in `server/modules/journey.ts`: the base is the unit's list price;
+   only someone who approves discounts may quote another base; a unit with no price needs a typed base approved.
+   The booking approval now shows the price, list, charges and discount (23).
+Checked and found sound: every new action has a permission and record-level scope; viewers reach no write;
+`leadScope` and levels only by admins; self-approval blocked for discounts, receipt voids and own targets; phone
+fields masked by the router; webhook inbox per company; the public booking route returns only the time.
+
+`tests/security-review-fixes.test.ts` (5 tests). Gates: typecheck ✅ · 119 files / 1556 tests ✅ · build ✅.
+
 ## Not verified
 
 - RERA rules against the notified Telangana gazette text and Amaya's registered agreement (needs counsel).

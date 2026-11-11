@@ -340,6 +340,12 @@ const Team: React.FC<{ onOpenLead: (id: string) => void; users: Array<{ id: stri
               <li key={a.id} className="px-3 py-2.5 flex flex-wrap items-center gap-3">
                 <button onClick={() => onOpenLead(a.leadId)} className="flex-1 min-w-0 text-left focus-visible:outline-2 focus-visible:outline-[#0B6BB0] rounded">
                   <div className="text-sm font-semibold text-[#0B2A44]">Book {a.unitNumber} for {a.leadName}</div>
+                  <div className="text-[12px] text-[#0B2A44] tabular-nums">
+                    At <strong>{formatINR(a.quoteTotal)}</strong>
+                    {' = '}{a.listPrice && a.quoteBase !== a.listPrice ? <span className="text-[#B06A55]">base {formatINR(a.quoteBase)} (list {formatINR(a.listPrice)})</span> : `list ${formatINR(a.quoteBase)}`}
+                    {a.quoteTotal + a.quoteDiscount - a.quoteBase > 0 ? ` + ${formatINR(a.quoteTotal + a.quoteDiscount - a.quoteBase)} charges` : ''}
+                    {a.quoteDiscount ? ` − ${formatINR(a.quoteDiscount)} discount` : ''}
+                  </div>
                   <div className="text-[11px] text-[#5E778C]">Asked by {a.requestedBy} · {formatRelative(a.at)}{a.note ? ` · “${a.note}”` : ''}</div>
                 </button>
                 <Button size="xs" variant="ghost" disabled={acting === a.id} onClick={() => decide('booking', a.id, false, `${a.unitNumber} for ${a.leadName}`)}>Reject</Button>

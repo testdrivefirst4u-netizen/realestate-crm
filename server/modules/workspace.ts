@@ -168,7 +168,12 @@ export async function getTeamExceptions(ctx: Ctx, now = new Date()) {
   // people read names, not ids
   const unitIds = [...new Set([...approvals.map((a) => a.unitId), ...pendingQuotes.map((q) => q.unitId)])];
   const leadIds = [...new Set([...approvals.map((a) => a.leadId), ...pendingQuotes.map((q) => q.leadId)])];
-  const unitNo = new Map((await (await col<any>(CFG.COLL.INVENTORY)).find({ _id: { $in: unitIds } }, { projection: { unitNumber: 1 } }).toArray()).map((u) => [String(u._id), String(u.unitNumber)]));
+  const unitDocs = await (await col<any>(CFG.COLL.INVENTORY)).find({ _id: { $in: unitIds } }, { projection: { unitNumber: 1, price: 1 } }).toArray();
+  const unitNo = new Map(unitDocs.map((u) => [String(u._id), String(u.unitNumber)]));
+  const listPrice = new Map(unitDocs.map((u) => [String(u._id), Number(u.price) || 0]));
+  // the quotation each booking will be made at, so the approver sees the price and the discount
+  const quoteIds = approvals.map((a) => a.quoteId).filter(Boolean);
+  const quoteOf = new Map((await (await col<any>('quotes')).find({ _id: { $in: quoteIds } }, { projection: { total: 1, discount: 1, basePrice: 1, version: 1 } }).toArray()).map((q) => [String(q._id), q]));
   const leadName = new Map((await leads.find({ _id: { $in: leadIds } }, { projection: { name: 1 } }).toArray()).map((l) => [String(l._id), String(l.name)]));
   return {
     generatedAt: now.toISOString(),
@@ -178,7 +183,7 @@ export async function getTeamExceptions(ctx: Ctx, now = new Date()) {
     missedCalls: await missedNotReturned(ctx, now),
     visitsNext48h: visits.map((l) => row(l, l.siteVisitDate, 'Visit')),
     stalled: stalled.map((l) => row(l, l.updatedAt, 'No change in 14 days')),
-    approvals: approvals.map((a) => ({ id: a._id, kind: a.kind, leadId: a.leadId, leadName: leadName.get(a.leadId) || a.leadId, unitId: a.unitId, unitNumber: unitNo.get(a.unitId) || a.unitId, requestedBy: a.requestedBy, note: a.note || '', at: new Date(a.requestedAt).toISOString() })),
+    approvals: approvals.map((a) => ({ id: a._id, kind: a.kind, leadId: a.leadId, leadName: leadName.get(a.leadId) || a.leadId, unitId: a.unitId, unitNumber: unitNo.get(a.unitId) || a.unitId, requestedBy: a.requestedBy, note: a.note || '', at: new Date(a.requestedAt).toISOString(), quoteTotal: Number(quoteOf.get(String(a.quoteId))?.total) || 0, quoteDiscount: Number(quoteOf.get(String(a.quoteId))?.discount) || 0, quoteBase: Number(quoteOf.get(String(a.quoteId))?.basePrice) || 0, listPrice: listPrice.get(a.unitId) || 0 })),
     discountApprovals: pendingQuotes.map((q) => ({ id: q._id, leadId: q.leadId, leadName: leadName.get(q.leadId) || q.leadId, unitId: q.unitId, unitNumber: unitNo.get(q.unitId) || q.unitId, version: q.version, discount: q.discount, total: q.total, by: q.createdBy, at: new Date(q.createdAt).toISOString() })),
     workload,
   };

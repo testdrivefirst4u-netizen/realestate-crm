@@ -39,7 +39,7 @@ export interface TeamData {
   generatedAt: string; slaHours: number;
   unassigned: QueueRow[]; untouchedPastSla: QueueRow[]; visitsNext48h: QueueRow[]; stalled: QueueRow[];
   missedCalls: TodayData['missedCalls'];
-  approvals: Array<{ id: string; kind: string; leadId: string; leadName: string; unitId: string; unitNumber: string; requestedBy: string; note: string; at: string }>;
+  approvals: Array<{ id: string; kind: string; leadId: string; leadName: string; unitId: string; unitNumber: string; requestedBy: string; note: string; at: string; quoteTotal: number; quoteDiscount: number; quoteBase: number; listPrice: number }>;
   discountApprovals: Array<{ id: string; leadId: string; leadName: string; unitId: string; unitNumber: string; version: number; discount: number; total: number; by: string; at: string }>;
   workload: Array<{ userId: string; name: string; role: string; open: number; overdue: number; untouched: number }>;
 }

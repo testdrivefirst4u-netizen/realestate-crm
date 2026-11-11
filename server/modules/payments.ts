@@ -46,10 +46,12 @@ async function bookedUnit(unitId: string, ctx: Ctx) {
   if (!u) throw fail('NOT_FOUND', 'Unit not found');
   if (!['Booked', 'Sold'].includes(String(u.status))) throw fail('VALIDATION', 'Payments are recorded on booked units');
   await assertLeadAccess(ctx, u.leadId);
+  // payments are buyer detail: without 'See buyers and payments' only for your own customer — and someone who
+  // sees every lead but was not given it sees none (null = unrestricted lead visibility, NOT permission here)
   if (ctx?.user && !can(ctx.user, 'inventory.customers')) {
     const { visibleLeadIds } = await import('../core/scope');
     const ids = await visibleLeadIds(ctx.user);
-    if (ids && !ids.has(String(u.leadId))) throw fail('NOT_FOUND', 'Unit not found');
+    if (!ids || !ids.has(String(u.leadId))) throw fail('NOT_FOUND', 'Unit not found');
   }
   return u;
 }

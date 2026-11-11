@@ -216,13 +216,20 @@ export async function saveQuote(d: any, ctx: Ctx): Promise<QuoteDoc> {
   await assertLeadAccess(ctx, leadId);
   const unit = await (await col<any>(CFG.COLL.INVENTORY)).findOne({ _id: str(d?.unitId) });
   if (!unit) throw fail('NOT_FOUND', 'Unit not found');
-  const basePrice = money(d?.basePrice ?? unit.price);
+  // The base is the unit's list price. Only someone who approves discounts may quote another base; anyone else
+  // gets the list price, and where the unit has no price the base they type must be approved.
+  const listPrice = money(unit.price);
+  const mayPrice = can(ctx.user, 'inventory.approve');
+  let priceNeedsApproval = false;
+  let basePrice = listPrice;
+  if (mayPrice && d?.basePrice != null) basePrice = money(d.basePrice);
+  else if (!listPrice) { basePrice = money(d?.basePrice); priceNeedsApproval = basePrice > 0; }
   const charges = (Array.isArray(d?.charges) ? d.charges : []).slice(0, 20).map((c: any) => ({ label: truncate(str(c?.label), 60), amount: money(c?.amount) })).filter((c: any) => c.label && c.amount);
   const discount = money(d?.discount);
   const gross = basePrice + charges.reduce((a: number, c: any) => a + c.amount, 0);
   if (discount > gross) throw fail('VALIDATION', 'The discount is larger than the price');
   const limitPct = Number((await settingsAll()).quoteDiscountLimitPct ?? 2);
-  const needsApproval = gross > 0 && (discount / gross) * 100 > limitPct;
+  const needsApproval = priceNeedsApproval || (gross > 0 && (discount / gross) * 100 > limitPct);
   const c = await quotes();
   const last = await c.find({ leadId, unitId: unit._id }).sort({ version: -1 }).limit(1).next();
   const doc: QuoteDoc = {
