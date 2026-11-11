@@ -31,9 +31,9 @@ describe('payments ledger', () => {
     const unit = (await as('Meera', 'addInventoryUnit', { data: { unitId: 'T2-305', price: 13_400_000 } })).data.unit;
     await as('Meera', 'updateInventoryUnit', { id: unit.inventoryId, expectedRev: 0, data: { status: 'Booked', leadId: lead, quotedAmount: 10_000_000 } });
     const soon = (d: number) => new Date(Date.now() + d * 86400e3).toISOString();
-    expect((await as('Meera', 'setPaymentSchedule', { unitId: unit.inventoryId, milestones: [{ label: 'Token', amount: 500_000, dueDate: soon(-1) }] })).code).toBe('VALIDATION');
+    expect((await as('Meera', 'setPaymentSchedule', { unitId: unit.inventoryId, reason: 'Custom plan approved by MD (test)', milestones: [{ label: 'Token', amount: 500_000, dueDate: soon(-1) }] })).code).toBe('VALIDATION');
     expect((await as('Asha', 'setPaymentSchedule', { unitId: unit.inventoryId, milestones: [] })).code).toBe('FORBIDDEN');
-    const s = await as('Meera', 'setPaymentSchedule', { unitId: unit.inventoryId, milestones: [
+    const s = await as('Meera', 'setPaymentSchedule', { unitId: unit.inventoryId, reason: 'Custom plan approved by MD (test)', milestones: [
       { label: 'Token', amount: 1_000_000, dueDate: soon(-1) }, { label: 'On agreement', amount: 2_000_000, dueDate: soon(30) }, { label: 'On possession', amount: 7_000_000, dueDate: soon(400) },
     ] });
     expect(s.data).toMatchObject({ version: 1, total: 10_000_000 });

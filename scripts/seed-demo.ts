@@ -83,6 +83,27 @@ async function main() {
     await J.saveQuote({ leadId: dev, unitId: made['T2-402'].inventoryId, discount: 600000 }, await ctx('ravi@demo.test'));
     // a booked and partly paid unit for the founder report
     await updateUnit(made['T2-305'].inventoryId, { status: 'Booked', leadId: lata, customerName: 'Lata Subramanian', quotedAmount: 13_100_000, paidAmount: 1_310_000 }, meera, undefined, { expectedRev: 0 });
+    // RERA: construction stages, an EXAMPLE plan (replace with the plan in Amaya's registered agreement), settings
+    const R = await import('../server/modules/rera');
+    await R.saveConstructionStages([{ key: 'plinth', label: 'Completion of plinth' }, { key: 'slab3', label: 'Casting of 3rd floor slab' }, { key: 'slab8', label: 'Casting of terrace slab' }, { key: 'finishing', label: 'Flooring and finishing' }], meera);
+    const plan = await R.savePlan({ name: 'Construction-linked plan (EXAMPLE — not Amaya\'s registered plan)', agreementRef: 'Synthetic demo · replace with TG-RERA agreement version', gstPct: 5, noticeDays: 15, stages: [
+      { label: 'On booking', percent: 10, trigger: 'booking' }, { label: 'On registered agreement', percent: 20, trigger: 'agreement' },
+      { label: 'Completion of plinth', percent: 15, trigger: 'stage', stageKey: 'plinth' }, { label: '3rd floor slab', percent: 15, trigger: 'stage', stageKey: 'slab3' },
+      { label: 'Terrace slab', percent: 15, trigger: 'stage', stageKey: 'slab8' }, { label: 'Flooring and finishing', percent: 15, trigger: 'stage', stageKey: 'finishing' },
+      { label: 'On possession', percent: 10, trigger: 'possession' },
+    ] }, meera);
+    await R.saveReraSettings({ interestRatePct: '10.7', interestRateSource: 'Synthetic demo value — enter current SBI MCLR + 2 % and the rule', projectNumber: 'P022000DEMO' }, meera);
+    // Lata is a booked customer: plan applied, booking receipt, agreement registered, plinth certified
+    await (await col<any>('units')).updateOne({ _id: made['T2-305'].inventoryId }, { $set: { paidAmount: 0 } });
+    await R.applyPlan(made['T2-305'].inventoryId, plan._id, meera);
+    const P = await import('../server/modules/payments');
+    await P.recordReceipt({ unitId: made['T2-305'].inventoryId, amount: 1_310_000, reference: 'NEFT-DEMO-001', mode: 'bank' }, meera);
+    await R.recordAgreement(made['T2-305'].inventoryId, { documentNo: 'MDL/DEMO/2026' }, meera);
+    await R.certifyStage('plinth', { certificateRef: 'ARCH/DEMO/PLINTH' }, meera);
+    const E = await import('../server/modules/engagement');
+    await E.logEngagement({ leadId: lata, channel: 'call', kind: 'welcome', note: 'Welcome call with Lata and her daughter' }, asha);
+    await E.logEngagement({ leadId: lata, channel: 'event', kind: 'eventAttended', note: 'Came to the experience-centre music evening' }, asha);
+    await E.logEngagement({ leadId: kiran, channel: 'email', kind: 'content', note: 'Sent the healthcare partner note' }, asha);
     await (await col<any>('leadBackups')).countDocuments();
     console.log('Seeded synthetic demo data in', tenant.dbName);
   });

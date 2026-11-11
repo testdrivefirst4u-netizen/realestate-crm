@@ -416,6 +416,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 tasks={data.tasks}
                 inventory={data.inventory}
                 leads={data.leads}
+                users={data.users || []}
                 onOpenCopilot={openCopilot}
                 onOpenLead={openLead}
               />

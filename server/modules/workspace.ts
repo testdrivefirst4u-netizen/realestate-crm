@@ -88,6 +88,9 @@ export async function getToday(ctx: Ctx, now = new Date()) {
     .map((t: any) => ({ taskId: String(t._id), name: String(t.name), leadId: String(t.leadId || ''), lead: String(t.lead || ''), at: t.dateTime ? new Date(t.dateTime).toISOString() : '', late: !!t.dateTime && new Date(t.dateTime) < now }));
 
   const missedCalls = await missedNotReturned(ctx, now);
+  // engagement: open enquiries going quiet, and booked customers with an SOP step due (server/modules/engagement.ts)
+  const E = await import('./engagement');
+  const [cooling, customers] = await Promise.all([E.coolingLeads(ctx, now), E.customerQueue(ctx, now)]);
 
   // open enquiries without a next step: no follow-up date and no pending task
   const withTask = new Set(taskRows.filter((t) => t.leadId).map((t) => String(t.leadId)));
@@ -106,9 +109,11 @@ export async function getToday(ctx: Ctx, now = new Date()) {
     dueToday: today.map((l) => row(l, l.nextFollowupAt, 'Follow-up today')),
     upcomingVisits: visits.map((l) => row(l, l.siteVisitDate, 'Visit')),
     noNextAction: noNext,
+    cooling,
+    customers,
     counts: {
       newEnquiries: newEnquiries.length, late: newEnquiries.filter((r) => r.late).length, missedCalls: missedCalls.length, tasks: tasks.length,
-      overdueFollowups: overdue.length, dueToday: today.length, upcomingVisits: visits.length, noNextAction: noNext.length,
+      overdueFollowups: overdue.length, dueToday: today.length, upcomingVisits: visits.length, noNextAction: noNext.length, cooling: cooling.length, customers: customers.length,
     },
   };
 }

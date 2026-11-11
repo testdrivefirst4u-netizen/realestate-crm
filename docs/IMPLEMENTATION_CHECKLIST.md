@@ -52,3 +52,13 @@ Release A gates: typecheck ✅ · 1517/1517 tests ✅ · build ✅ · audit 0 �
 - [ ] Consolidate Dashboard / YTD-MTD / Sales MIS with Today › Business (needs founders' confirmation)
 
 Gates after B–D and the browser pass: typecheck ✅ · 1527 tests ✅ · build ✅.
+
+## Release E — Telangana RERA payment schedule and customer engagement
+- [x] Payment plans from the registered agreement (100 %, ≤ 10 % before registration, agreement reference), construction stages, certification raising demands once
+- [x] 10 % cap on demands and receipts before the registered agreement (RERA s. 13); deviations need a reason
+- [x] Statement: demanded / paid / outstanding / overdue, GST separate, interest accrued at the entered rate (never charged); demand letters (never sent)
+- [x] Engagement: touches from every channel + logged touches, health per enquiry and family member, SOP customer steps, Today queues
+- [x] Browser-checked desktop and mobile (screenshots 10–15)
+- [ ] Needs counsel: real plan, interest rule and rate, GST per instalment, demand-letter wording (docs/RERA_AND_ENGAGEMENT.md)
+
+Gates: typecheck ✅ · 1535 tests ✅ · build ✅.

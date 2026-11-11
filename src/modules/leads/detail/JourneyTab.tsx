@@ -19,6 +19,7 @@ import { formatPhone } from '../../../core/phone';
 import { NEXT_TYPES, OUTCOMES, PERSON_ROLE_LABEL, type Person, type PersonRole, type Quote } from '../../../core/journeyTypes';
 import type { InventoryUnit, Lead } from '../../../types/crm';
 import { Button, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
+import { EngagementSection, PaymentSection } from './CustomerSection';
 
 const STEPS: Array<{ id: string; label: string }> = [
   { id: 'contacted', label: 'Contacted' }, { id: 'qualified', label: 'Qualified' }, { id: 'visitScheduled', label: 'Visit set' },
@@ -47,7 +48,9 @@ export const JourneyTab: React.FC<{
   canApprove: boolean;
   active: boolean;
   onChanged: () => void;
-}> = ({ lead, inventory, canEdit, canApprove, active, onChanged }) => {
+  users?: Array<{ id: string; name: string; role: string }>;
+  canAssign?: boolean;
+}> = ({ lead, inventory, canEdit, canApprove, active, onChanged, users = [], canAssign = false }) => {
   const leadId = String(lead[F.ID]);
   const [people, setPeople] = useState<Person[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -80,8 +83,12 @@ export const JourneyTab: React.FC<{
     <div className="space-y-6">
       <Progress milestones={milestones} />
       <NextStep leadId={leadId} people={people || []} canEdit={canEdit} nextAt={String(lead[F.NEXT_FOLLOWUP] || '')} onDone={onChanged} />
+      <EngagementSection leadId={leadId} people={people || []} canEdit={canEdit} active={active} users={users.filter((u) => u.role !== 'Viewer')} canAssign={canAssign} />
       <PeopleSection leadId={leadId} people={people} canEdit={canEdit} onSaved={(p) => { setPeople(p); onChanged(); }} />
       <UnitSection leadId={leadId} lead={lead} inventory={inventory} quotes={quotes} people={people || []} canEdit={canEdit} canApprove={canApprove} onSaved={async () => { await load(); onChanged(); }} />
+      {inventory.filter((u) => u.leadId === leadId && (u.status === 'Booked' || u.status === 'Sold') && !u.restricted).map((u) => (
+        <PaymentSection key={u.inventoryId} unit={u} canApprove={canApprove} canEdit={canEdit} active={active} />
+      ))}
     </div>
   );
 };
@@ -361,7 +368,9 @@ const UnitSection: React.FC<{ leadId: string; lead: Lead; inventory: InventoryUn
         {unit?.status === 'Reserved' && unit.holdUntil && <span className="text-xs text-[#5E778C] pb-2">Held until {formatDateTime(unit.holdUntil, '')}</span>}
       </div>
 
-      {unitId && (
+      {unitId && (unit?.status === 'Booked' || unit?.status === 'Sold') && unit.leadId === leadId && !current ? (
+        <p className="mt-2 text-xs text-[#0E8A86] inline-flex items-center gap-1"><Check size={12} aria-hidden />{unit.status} for this customer. Payments are below.</p>
+      ) : unitId && (
         <div className="mt-3 rounded-xl border border-[#E3EDF5] bg-white p-3 space-y-3">
           {current ? (
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -387,7 +396,9 @@ const UnitSection: React.FC<{ leadId: string; lead: Lead; inventory: InventoryUn
               <Button type="submit" variant="secondary" loading={busy === 'quote'}>{current ? 'New version' : 'Create quotation'}</Button>
             </form>
           )}
-          {gate && (
+          {(unit?.status === 'Booked' || unit?.status === 'Sold') && unit.leadId === leadId ? (
+            <p className="text-xs text-[#0E8A86] inline-flex items-center gap-1"><Check size={12} aria-hidden />{unit.status} for this customer. Payments are below.</p>
+          ) : gate && (
             gate.length ? (
               <div className="text-xs text-[#0F2233]">
                 <div className="font-semibold mb-1">Before this unit can be booked:</div>

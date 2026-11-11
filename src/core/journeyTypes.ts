@@ -31,6 +31,8 @@ export interface TodayData {
   newEnquiries: QueueRow[]; overdueFollowups: QueueRow[]; dueToday: QueueRow[]; upcomingVisits: QueueRow[]; noNextAction: QueueRow[];
   missedCalls: Array<{ callId: string; leadId: string; name: string; phone: string; at: string; minutesAgo: number }>;
   tasks: Array<{ taskId: string; name: string; leadId: string; lead: string; at: string; late: boolean }>;
+  cooling: QueueRow[];
+  customers: Array<{ leadId: string; name: string; owner: string; rm?: string; health: string; due: Array<{ key: string; label: string; late: boolean }> }>;
   counts: Record<string, number>;
 }
 export interface TeamData {
@@ -49,3 +51,29 @@ export interface SalesReport {
   cancellations: number;
   freshness: { generatedAt: string; newestLeadChange: string; newestProviderEvent: string; lastLeadSnapshot: string; lastSnapshotVerified: boolean | null };
 }
+
+/* ----------------------- engagement and RERA payments ----------------------- */
+export interface Touch { at: string; channel: string; kind: string; direction: 'in' | 'out'; responded: boolean; source: string; note: string; personId: string }
+export interface Health { state: 'engaged' | 'cooling' | 'cold' | 'new'; lastResponseAt: string; lastTouchAt: string; touches30: number; responses30: number; daysSinceResponse: number | null }
+export interface EngagementData {
+  health: Health;
+  people: Array<Health & { personId: string; name: string }>;
+  touches: Touch[];
+  customer: null | { owner: string; ownerId: string; bookedAt: string; steps: Array<{ step: string; label: string; at: string; by: string }>; due: Array<{ key: string; label: string; late: boolean }> };
+}
+export const ENGAGEMENT_KINDS: Array<{ id: string; label: string }> = [
+  { id: 'progressUpdate', label: 'Progress update' }, { id: 'content', label: 'Content shared' }, { id: 'eventInvite', label: 'Event invite' }, { id: 'eventAttended', label: 'Event attended' },
+  { id: 'familyMeeting', label: 'Family meeting' }, { id: 'communityPreview', label: 'Community preview' }, { id: 'welcome', label: 'Welcome' }, { id: 'referralAsk', label: 'Referral ask' },
+  { id: 'feedback', label: 'Feedback' }, { id: 'paymentReminder', label: 'Payment reminder' }, { id: 'other', label: 'Other' },
+];
+export const ENGAGEMENT_CHANNELS = ['call', 'whatsapp', 'email', 'visit', 'event', 'meeting', 'video', 'letter', 'other'];
+export interface PaymentPlan { _id: string; name: string; agreementRef: string; gstPct: number; noticeDays: number; stages: Array<{ key: string; label: string; percent: number; trigger: string; stageKey?: string }> }
+export interface ConstructionStage { _id: string; label: string; order: number; certifiedOn: string | null; certificateRef: string; certifiedBy: string }
+export interface StatementLine { id: string; label: string; amount: number; gst: number; status: 'not due' | 'demanded' | 'part paid' | 'paid' | 'overdue'; paid: number; outstanding: number; dueDate: string; demandNo: string; daysLate: number; interestAccrued: number; trigger: string }
+export interface PaymentStatement {
+  unitId: string; unitNumber: string; planName: string; agreementRef: string; deviation: boolean; agreementRegisteredAt: string; agreementDocumentNo: string;
+  interestRateSource: string; projectRegistration: string; interestRatePct: number | null; unallocated: number;
+  lines: StatementLine[];
+  totals: { agreed: number; gst: number; paid: number; demanded: number; outstandingDemanded: number; overdue: number; interestAccrued: number; advanceCap: number | null };
+}
+export interface DemandLetter { demandNo: string; date: string; to: string; unit: string; project: string; agreementRef: string; instalment: string; amount: number; gst: number; total: number; dueDate: string; note: string }

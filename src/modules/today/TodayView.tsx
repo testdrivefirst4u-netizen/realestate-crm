@@ -16,6 +16,7 @@ import { formatINR } from '../../core/format';
 import type { SalesReport, TeamData, TodayData, QueueRow } from '../../core/journeyTypes';
 import type { UserAccount } from '../../types/crm';
 import { Button, ErrorState, InlineNotice, Select, cx, inputCls } from '../../components/ui';
+import { ConstructionPanel } from './ConstructionPanel';
 
 type Tab = 'mine' | 'team' | 'business';
 
@@ -139,6 +140,8 @@ const MyWork: React.FC<{ onOpenLead: (id: string) => void; online: boolean }> = 
         <Queue id="today" title="Follow-ups today" icon={<CalendarClock size={14} />} rows={data?.dueToday} onOpen={onOpenLead} empty="No follow-ups due today." />
         <Queue id="visits" title="Visits this week" icon={<MapPin size={14} />} rows={data?.upcomingVisits} onOpen={onOpenLead} empty="No visits scheduled in the next 7 days." showDate />
         <Queue id="nonext" title="Open enquiries with no next step" hint="Each needs one" rows={data?.noNextAction} onOpen={onOpenLead} empty="Every open enquiry has a next step." wide />
+        <Queue id="cooling" title="Going quiet" hint="Send something of value, not a check-in" rows={data?.cooling} onOpen={onOpenLead} empty="Every active enquiry has responded recently." />
+        <CustomerQueue rows={data?.customers} onOpen={onOpenLead} />
       </div>
     </div>
   );
@@ -151,6 +154,7 @@ const Summary: React.FC<{ data: TodayData | null }> = ({ data }) => {
     ['tasks', 'callbacks', data?.counts.tasks, false],
     ['overdue', 'overdue', data?.counts.overdueFollowups, (data?.counts.overdueFollowups || 0) > 0],
     ['visits', 'visits', data?.counts.upcomingVisits, false],
+    ['customers', 'customers', data?.counts.customers, false],
   ];
   return (
     <nav aria-label="Jump to" className="flex flex-wrap gap-1.5">
@@ -197,6 +201,40 @@ const Queue: React.FC<{ id: string; title: string; hint?: string; icon?: React.R
     </section>
   );
 };
+
+/** Booked customers with an SOP step due (welcome call, owner, community preview, monthly update, referral, re-engage). */
+const CustomerQueue: React.FC<{ rows?: TodayData['customers']; onOpen: (id: string) => void }> = ({ rows, onOpen }) => (
+  <section id="q-customers" aria-labelledby="h-customers" className="scroll-mt-20">
+    <div className="flex items-baseline justify-between gap-2 mb-1.5">
+      <h2 id="h-customers" className="text-sm font-bold text-[#0B2A44]">Customers: what is due {rows && <span className="text-[#5E778C] font-normal tabular-nums">{rows.length}</span>}</h2>
+      <span className="text-[11px] text-[#5E778C]">After booking</span>
+    </div>
+    {!rows ? (
+      <div className="h-12 rounded-lg bg-white/70 animate-pulse" aria-label="Loading customers" />
+    ) : !rows.length ? (
+      <p className="text-xs text-[#7E93A6] py-3 px-3 rounded-lg border border-dashed border-[#D3E3F0]">Every customer is up to date.</p>
+    ) : (
+      <ul className="rounded-xl border border-[#E3EDF5] bg-white divide-y divide-[#EEF3F8] overflow-hidden">
+        {rows.slice(0, 25).map((r) => (
+          <li key={r.leadId}>
+            <button onClick={() => onOpen(r.leadId)} className="w-full text-left px-3 py-2.5 min-h-12 hover:bg-[#F7FAFD] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0B6BB0]">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm font-semibold text-[#0B2A44] truncate">{r.name}</span>
+                <span className={cx('text-[11px] flex-shrink-0', r.health === 'cold' ? 'text-[#B06A55] font-semibold' : r.health === 'cooling' ? 'text-[#92400E]' : 'text-[#5E778C]')}>{HEALTH_LABEL[r.health] || r.health}</span>
+              </div>
+              <div className="text-[11px] text-[#5E778C] truncate">
+                {r.due.map((d, i) => <span key={d.key} className={d.late ? 'text-[#B06A55] font-semibold' : ''}>{i ? ' · ' : ''}{d.label}</span>)}
+                {r.owner ? ` · Owner ${r.owner}` : r.rm ? ` · Sold by ${r.rm}` : ''}
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+);
+
+const HEALTH_LABEL: Record<string, string> = { engaged: 'Engaged', cooling: 'Cooling', cold: 'Gone quiet', new: 'New' };
 
 const TaskQueue: React.FC<{ tasks?: TodayData['tasks']; onOpen: (id: string) => void }> = ({ tasks, onOpen }) => (
   <Queue id="tasks" title="Callbacks & tasks due" icon={<CalendarClock size={14} />} onOpen={onOpen} empty="No tasks due."
@@ -296,6 +334,8 @@ const Team: React.FC<{ onOpenLead: (id: string) => void; users: Array<{ id: stri
         <Queue id="tvisits" title="Visits in the next 48 h" rows={data?.visitsNext48h} onOpen={onOpenLead} empty="No visits in the next 48 hours." showDate showRm />
         <Queue id="stalled" title="Stalled opportunities" hint="Qualified / warm / hot, unchanged for 14 days" rows={data?.stalled} onOpen={onOpenLead} empty="Nothing stalled." showRm wide />
       </div>
+
+      <ConstructionPanel />
 
       <section aria-labelledby="h-workload">
         <h2 id="h-workload" className="text-sm font-bold text-[#0B2A44] mb-1.5">Workload</h2>

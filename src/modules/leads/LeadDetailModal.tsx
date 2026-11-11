@@ -52,6 +52,8 @@ export interface LeadDetailModalProps {
   inventory: InventoryUnit[];
   /** All leads — only for the city / state suggestions. */
   leads?: Lead[];
+  /** Team members (customer owner picker). */
+  users?: Array<{ id: string; name: string; role: string }>;
   /**
    * Opens the AI Copilot with this enquiry as context ("Ask Copilot", WhatsApp "Suggest a reply").
    * Optional — the buttons are hidden until App wires it (and while AI is not configured).
@@ -73,7 +75,7 @@ type PanelProps = Omit<LeadDetailModalProps, 'lead' | 'isOpen'> & { lead: Lead }
 
 const EDITABLE_TEXT: string[] = [F.NAME, F.PHONE, F.EMAIL, F.NOTES, F.COUNTRY, F.STATE, F.CITY, F.AREA, F.REFERRED_BY, F.OTHER_PROJECT];
 
-const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot, onOpenLead }) => {
+const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads = [], users = [], currentUser, onClose, onSaveLead, onAppendRemark, onAddTask, canEdit, aiConfigured, chatEnabled, callsFeature = true, whatsappFeature = true, tasks, inventory, onOpenCopilot, onOpenLead }) => {
   const id = String(lead[F.ID]);
   // the journey is where an enquiry is worked; details stay one tab away
   const [tab, setTab] = useState<TabId>('journey');
@@ -445,7 +447,7 @@ const LeadDetailPanel: React.FC<PanelProps> = ({ lead, config, settings, leads =
           </div>
 
           <div className={tab === 'journey' ? '' : 'hidden'}>
-            <JourneyTab lead={lead} inventory={inventory} canEdit={canEdit} canApprove={canDo(currentUser as any, 'inventory.approve')} active={tab === 'journey'} onChanged={bumpTimeline} />
+            <JourneyTab lead={lead} inventory={inventory} users={users} canEdit={canEdit} canApprove={canDo(currentUser as any, 'inventory.approve')} canAssign={canDo(currentUser as any, 'leads.viewAll')} active={tab === 'journey'} onChanged={bumpTimeline} />
           </div>
           <div className={tab === 'timeline' ? '' : 'hidden'}>
             <TimelineTab leadId={id} active={tab === 'timeline'} version={`${lead[F.UPDATED_AT] || ''}|${lead[F.LAST_FOLLOWUP] || ''}|${timelineVersion}`} />

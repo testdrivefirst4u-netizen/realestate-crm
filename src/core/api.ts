@@ -33,7 +33,7 @@ import type {
 import type { LeadSourceActions } from '../../server/core/leadSourceTypes';
 import type { SheetActions, SheetAuth } from '../../server/core/sheetTypes';
 import type { MetaActions } from '../../server/core/metaTypes';
-import type { Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
+import type { ConstructionStage, DemandLetter, EngagementData, PaymentPlan, PaymentStatement, Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
 
 /** Request / response types of a lead-source RPC action (contract: server/core/leadSourceTypes.ts). */
 type LsReq<K extends keyof LeadSourceActions> = LeadSourceActions[K]['req'];
@@ -538,6 +538,26 @@ export const api = {
     gate: (leadId: string, unitId: string) => request<{ missing: string[]; quote: Quote | null; pending: { id: string; requestedBy: string; at: string } | null }>('getBookingGate', { leadId, unitId }),
     requestBooking: (leadId: string, unitId: string, note = '') => request<{ _id: string; status: string }>('requestBooking', { leadId, unitId, note }),
     decideBooking: (id: string, approve: boolean, note = '') => request<{ _id: string; status: string }>('decideBooking', { id, approve, note }),
+  },
+
+  /** Customer engagement and the RERA payment schedule (server/modules/engagement.ts, rera.ts). */
+  customer: {
+    engagement: (leadId: string) => request<EngagementData>('getEngagement', { leadId }),
+    log: (d: { leadId: string; channel: string; kind: string; note?: string; personId?: string; responded?: boolean; at?: string }) => request<{ _id: string }>('logEngagement', d),
+    markStep: (leadId: string, step: string) => request<{ ok: true }>('markCustomerStep', { leadId, step }),
+    assignOwner: (leadId: string, userId: string) => request<{ ok: true; owner: string }>('assignCxOwner', { leadId, userId }),
+    statement: (unitId: string) => request<PaymentStatement>('getPaymentStatement', { unitId }),
+    plans: () => request<{ plans: PaymentPlan[]; stages: ConstructionStage[] }>('listPaymentPlans'),
+    savePlan: (plan: Partial<PaymentPlan>) => request<PaymentPlan>('savePaymentPlan', plan as any),
+    saveStages: (stages: Array<{ key: string; label: string }>) => request<ConstructionStage[]>('saveConstructionStages', { stages }),
+    certify: (key: string, certificateRef: string, certifiedOn?: string) => request<{ demands: number; alreadyCertified: boolean }>('certifyConstructionStage', { key, certificateRef, certifiedOn }),
+    applyPlan: (unitId: string, planId: string) => request<unknown>('applyPaymentPlan', { unitId, planId }),
+    recordAgreement: (unitId: string, documentNo: string, registeredOn?: string) => request<{ ok: true }>('recordAgreementRegistration', { unitId, documentNo, registeredOn }),
+    raiseDemand: (unitId: string, milestoneId: string) => request<{ ok: true }>('raisePaymentDemand', { unitId, milestoneId }),
+    recordReceipt: (d: { unitId: string; amount: number; reference: string; mode?: string; receivedOn?: string }) => request<{ _id: string }>('recordReceipt', d),
+    demandLetter: (unitId: string, milestoneId: string) => request<DemandLetter>('getDemandLetter', { unitId, milestoneId }),
+    reraSettings: () => request<{ interestRatePct: string; interestRateSource: string; projectNumber: string }>('getReraSettings'),
+    saveReraSettings: (d: { interestRatePct: string; interestRateSource: string; projectNumber: string }) => request<{ interestRatePct: string; interestRateSource: string; projectNumber: string }>('saveReraSettings', d),
   },
 
   /** Release B: work queues (server/modules/workspace.ts) and the founder report (salesReport.ts). */

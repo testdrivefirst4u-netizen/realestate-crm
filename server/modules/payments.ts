@@ -54,8 +54,14 @@ async function bookedUnit(unitId: string, ctx: Ctx) {
   return u;
 }
 
-export async function setSchedule(d: { unitId: string; milestones: Array<Partial<Milestone>> }, ctx: Ctx) {
+/**
+ * A schedule typed by hand. Units normally get theirs from the registered payment plan (server/modules/rera.ts);
+ * anything else departs from the standard terms, so it needs a reason (Amaya SOP 14: MD approval) and is marked.
+ */
+export async function setSchedule(d: { unitId: string; milestones: Array<Partial<Milestone>>; reason?: string }, ctx: Ctx) {
   if (!can(ctx.user, 'inventory.approve')) throw fail('FORBIDDEN', 'A manager sets the payment schedule');
+  const reason = truncate(str(d?.reason), 300);
+  if (!reason) throw fail('VALIDATION', 'A schedule outside the registered payment plan is a deviation: give the reason and who approved it');
   const u = await bookedUnit(d.unitId, ctx);
   const list = (Array.isArray(d.milestones) ? d.milestones : []).slice(0, 40).map((m) => {
     const label = truncate(str(m.label), 60);
@@ -69,7 +75,7 @@ export async function setSchedule(d: { unitId: string; milestones: Array<Partial
   const quoted = Number(u.quotedAmount || 0);
   if (quoted && total !== quoted) throw fail('VALIDATION', `The milestones add up to ₹${total.toLocaleString('en-IN')}, the agreed price is ₹${quoted.toLocaleString('en-IN')}`);
   const prev = await (await schedules()).findOne({ _id: u._id });
-  const doc: ScheduleDoc = { _id: u._id, leadId: String(u.leadId), version: (prev?.version || 0) + 1, milestones: list, total, updatedAt: new Date(), updatedBy: who(ctx) };
+  const doc: ScheduleDoc & { deviation: true; deviationReason: string } = { _id: u._id, leadId: String(u.leadId), version: (prev?.version || 0) + 1, milestones: list, total, updatedAt: new Date(), updatedBy: who(ctx), deviation: true, deviationReason: reason };
   await (await schedules()).replaceOne({ _id: u._id }, doc, { upsert: true });
   await auditLog(ctx, 'Payment Schedule Set', 'Inventory', u._id, `v${doc.version}: ${list.length} milestones, ₹${total}`, { before: prev || null, after: doc });
   await syncUnit(u._id);
@@ -87,6 +93,14 @@ export async function recordReceipt(d: { unitId: string; amount: unknown; receiv
   const mode = (['bank', 'cheque', 'upi', 'card', 'other'].includes(str(d.mode)) ? str(d.mode) : 'bank') as ReceiptDoc['mode'];
   const r = await receipts();
   if (await r.findOne({ unitId: u._id, reference, voided: { $exists: false } })) throw fail('CONFLICT', `A receipt with reference ${reference} is already recorded for this unit`);
+  // RERA Act s. 13: at most 10 % of the cost before the agreement for sale is registered
+  if (!u.agreementRegisteredAt) {
+    const cost = Number(u.quotedAmount || u.price || 0);
+    const already = (await r.find({ unitId: u._id, voided: { $exists: false } }).toArray()).reduce((a, x) => a + x.amount, 0);
+    if (cost > 0 && already + amount > Math.round(cost * 0.1)) {
+      throw fail('VALIDATION', `Before the agreement for sale is registered, at most 10 % of the cost (₹${Math.round(cost * 0.1).toLocaleString('en-IN')}) can be received (RERA, Section 13). ₹${already.toLocaleString('en-IN')} is already recorded. Record the registered agreement first.`);
+    }
+  }
   const doc: ReceiptDoc = { _id: shortId('RCPT'), unitId: u._id, leadId: String(u.leadId), amount, receivedOn: on, mode, reference, payerId: str(d.payerId), recordedBy: who(ctx), recordedAt: new Date() };
   await r.insertOne(doc);
   await addTimeline(String(u.leadId), 'payment', `Payment received: ₹${amount.toLocaleString('en-IN')}`, `${mode.toUpperCase()} · ${reference}`, who(ctx), 'Receipt', doc._id);

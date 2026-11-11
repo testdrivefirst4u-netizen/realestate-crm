@@ -75,7 +75,23 @@ animation (`bc-loader`, `main` commit `73a9991`), which injects markup before hy
 
 Final gates: typecheck ✅ · 115 files / 1527 tests ✅ · build ✅.
 
+## Release E (RERA schedule, engagement)
+
+`tests/release-e-rera-engagement.test.ts` (9 tests): plan validation (100 %, agreement reference, ≤ 10 % before registration,
+managers only); booking → 10 % cap on receipts and demands → registered agreement → stage certification raises one demand →
+interest at the entered rate → demand letter totals; another agent is refused the statement; deviations need a reason;
+oldest-first allocation; engagement health thresholds; SOP customer steps closed by logged touches; Today lists the customer.
+
+Browser (synthetic demo, desktop and 375 px): customer engagement and steps (11), payments statement (10, 15), demand letter (12),
+Today customer queue (13), Team construction and plans (14). Fixed during the check: the booking checklist and quotation form
+showed on already-booked units; the demand letter opened off-screen; amounts wrapped on mobile; the customer queue named the
+selling agent as if they were the owner.
+
+Final gates: typecheck ✅ · 116 files / 1535 tests ✅ · build ✅.
+
 ## Not verified
+
+- RERA rules against the notified Telangana gazette text and Amaya's registered agreement (needs counsel).
 
 - Older screens (Dashboard, MIS, Inventory grid) were not restyled or re-checked visually.
 - Offline and error states of Today were implemented but only exercised in code, not by cutting the network.
