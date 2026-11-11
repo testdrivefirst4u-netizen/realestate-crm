@@ -94,6 +94,11 @@ export async function countsByPerson(people: OrgPerson[], from: Date, to: Date, 
   return out;
 }
 
+export function prevMonthKey(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
 function sumCounts(list: Counts[]): Counts {
   const s = zero();
   for (const c of list) for (const k of Object.keys(s) as Array<keyof Counts>) if (k !== 'respondedInTime') s[k] += c[k];
@@ -103,7 +108,7 @@ function sumCounts(list: Counts[]): Counts {
 
 const targetsCol = () => col<any>('targets'); // _id `${userId}:${YYYY-MM}`
 
-export interface ScoreRow { id: string; name: string; role: string; level: number | null; levelName: string; reportsTo: string; depth: number; own: Counts; team: Counts; hasTeam: boolean; targets: Partial<Record<Measure, number>> }
+export interface ScoreRow { id: string; name: string; role: string; level: number | null; levelName: string; reportsTo: string; depth: number; own: Counts; team: Counts; prevOwn: Counts; prevTeam: Counts; hasTeam: boolean; targets: Partial<Record<Measure, number>> }
 
 /** The scorecard tree this user may see for a month. */
 export async function getScorecard(d: { month?: string }, ctx: Ctx, now = new Date()) {
@@ -117,6 +122,9 @@ export async function getScorecard(d: { month?: string }, ctx: Ctx, now = new Da
   if (!r && !can(me, 'leads.viewAll')) visible.clear(), visible.add(me.id);
   const shown = people.filter((p) => visible.has(p.id));
   const counts = await countsByPerson(people, from, to, now);
+  // the month before, on the same definitions, for comparison
+  const prev = monthRange(prevMonthKey(key));
+  const prevCounts = await countsByPerson(people, prev.from, prev.to, now);
   const targets = new Map((await targetsCol().then((c) => c.find({ month: key }).toArray())).map((t: any) => [String(t.userId), t.values || {}]));
   // tree over the people shown: roots are those whose manager is not shown
   const shownIds = new Set(shown.map((p) => p.id));
@@ -126,13 +134,14 @@ export async function getScorecard(d: { month?: string }, ctx: Ctx, now = new Da
   const rows: ScoreRow[] = [];
   const walk = (p: OrgPerson, depth: number) => {
     const ids = subtree(shown, p.id);
-    rows.push({ id: p.id, name: p.name, role: p.role, level: p.level, levelName: p.level ? levels[p.level - 1] || '' : '', reportsTo: p.reportsTo, depth, own: counts.get(p.id)!, team: sumCounts(ids.map((i) => counts.get(i)!)), hasTeam: ids.length > 1, targets: targets.get(p.id) || {} });
+    rows.push({ id: p.id, name: p.name, role: p.role, level: p.level, levelName: p.level ? levels[p.level - 1] || '' : '', reportsTo: p.reportsTo, depth, own: counts.get(p.id)!, team: sumCounts(ids.map((i) => counts.get(i)!)), prevOwn: prevCounts.get(p.id)!, prevTeam: sumCounts(ids.map((i) => prevCounts.get(i)!)), hasTeam: ids.length > 1, targets: targets.get(p.id) || {} });
     for (const c of (children.get(p.id) || []).sort((a, b) => (a.level || 9) - (b.level || 9) || a.name.localeCompare(b.name))) walk(c, depth + 1);
   };
   for (const p of roots.sort((a, b) => (a.level || 9) - (b.level || 9) || a.name.localeCompare(b.name))) walk(p, 0);
   return {
-    month: key, levels, rows,
+    month: key, prevMonth: prev.key, levels, rows,
     total: sumCounts(shown.map((p) => counts.get(p.id)!)),
+    prevTotal: sumCounts(shown.map((p) => prevCounts.get(p.id)!)),
     mine: rows.find((x) => x.id === me.id) || null,
     canSetTargetsFor: shown.filter((p) => mayTarget(ctx, p, people)).map((p) => p.id),
   };

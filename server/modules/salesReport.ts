@@ -162,6 +162,13 @@ export async function getSalesReport(d: any, ctx: Ctx) {
     .toArray()) as ReportLead[];
   const units = (await getUnitsFor(ctx)) as ReportUnit[];
   const report = computeSalesReport(leads, units, { from, to, now, slaHours: d?.slaHours ? Number(d.slaHours) : undefined });
+  // the same length of time just before, on the same definitions (value figures are as of now, so not compared)
+  const span = to.getTime() - from.getTime();
+  const prevFrom = new Date(from.getTime() - span - 1);
+  const prevTo = new Date(from.getTime() - 1);
+  // both cohorts are judged as of now: the same definition applied to two groups of enquiries
+  const p = computeSalesReport(leads, units, { from: prevFrom, to: prevTo, now, slaHours: d?.slaHours ? Number(d.slaHours) : undefined });
+  const previous = { range: p.range, enquiries: p.enquiries, funnel: p.funnel, sla: p.sla, cancellations: p.cancellations };
 
   // how fresh the numbers are
   const newestLead = await leadsCol.find(scope || {}, { projection: { updatedAt: 1 } }).sort({ updatedAt: -1 }).limit(1).next();
@@ -169,6 +176,7 @@ export async function getSalesReport(d: any, ctx: Ctx) {
   const lastBackup = await (await col<any>('leadBackups')).find({}, { projection: { createdAt: 1, verifyOk: 1 } }).sort({ createdAt: -1 }).limit(1).next().catch(() => null);
   return {
     ...report,
+    previous,
     freshness: {
       generatedAt: now.toISOString(),
       newestLeadChange: newestLead?.updatedAt ? new Date(newestLead.updatedAt).toISOString() : '',

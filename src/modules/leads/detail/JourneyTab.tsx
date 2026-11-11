@@ -16,10 +16,11 @@ import { toAppError } from '../../../core/errors';
 import { formatDateTime, formatRelative } from '../../../core/dates';
 import { formatINR } from '../../../core/format';
 import { formatPhone } from '../../../core/phone';
-import { NEXT_TYPES, OUTCOMES, PERSON_ROLE_LABEL, type Person, type PersonRole, type Quote } from '../../../core/journeyTypes';
+import { NEXT_TYPES, OUTCOMES, PERSON_ROLE_LABEL, type Person, type PersonRole, type Quote, type Suggestion } from '../../../core/journeyTypes';
 import type { InventoryUnit, Lead } from '../../../types/crm';
 import { Button, ErrorState, Field, InlineNotice, Select, cx, inputCls } from '../../../components/ui';
 import { EngagementSection, PaymentSection } from './CustomerSection';
+import { InsightCard } from './InsightCard';
 
 const STEPS: Array<{ id: string; label: string }> = [
   { id: 'contacted', label: 'Contacted' }, { id: 'qualified', label: 'Qualified' }, { id: 'visitScheduled', label: 'Visit set' },
@@ -55,6 +56,7 @@ export const JourneyTab: React.FC<{
   const [people, setPeople] = useState<Person[] | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loadError, setLoadError] = useState('');
+  const [prefill, setPrefill] = useState<Suggestion | null>(null);
   const load = useCallback(async () => {
     setLoadError('');
     try {
@@ -82,7 +84,8 @@ export const JourneyTab: React.FC<{
   return (
     <div className="space-y-6">
       <Progress milestones={milestones} />
-      <NextStep leadId={leadId} people={people || []} canEdit={canEdit} nextAt={String(lead[F.NEXT_FOLLOWUP] || '')} onDone={onChanged} />
+      <InsightCard leadId={leadId} active={active} version={String(lead[F.UPDATED_AT] || '')} canEdit={canEdit} onUse={(s) => { setPrefill({ ...s }); document.getElementById('journey-next')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
+      <NextStep leadId={leadId} people={people || []} canEdit={canEdit} nextAt={String(lead[F.NEXT_FOLLOWUP] || '')} onDone={onChanged} prefill={prefill} />
       <EngagementSection leadId={leadId} people={people || []} canEdit={canEdit} active={active} users={users.filter((u) => u.role !== 'Viewer')} canAssign={canAssign} />
       <PeopleSection leadId={leadId} people={people} canEdit={canEdit} onSaved={(p) => { setPeople(p); onChanged(); }} />
       <UnitSection leadId={leadId} lead={lead} inventory={inventory} quotes={quotes} people={people || []} canEdit={canEdit} canApprove={canApprove} onSaved={async () => { await load(); onChanged(); }} />
@@ -115,7 +118,7 @@ const Progress: React.FC<{ milestones: Record<string, string> }> = ({ milestones
 
 /* --------------------------------- next step -------------------------------- */
 
-const NextStep: React.FC<{ leadId: string; people: Person[]; canEdit: boolean; nextAt: string; onDone: () => void }> = ({ leadId, people, canEdit, nextAt, onDone }) => {
+const NextStep: React.FC<{ leadId: string; people: Person[]; canEdit: boolean; nextAt: string; onDone: () => void; prefill?: Suggestion | null }> = ({ leadId, people, canEdit, nextAt, onDone, prefill }) => {
   const [outcome, setOutcome] = useState('');
   const [note, setNote] = useState('');
   const [personId, setPersonId] = useState('');
@@ -124,7 +127,17 @@ const NextStep: React.FC<{ leadId: string; people: Person[]; canEdit: boolean; n
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
+  const [nextNote, setNextNote] = useState('');
   const closes = OUTCOMES.find((o) => o.id === outcome)?.closes;
+  // "Use this" on the suggestion fills the next action; the agent still records what happened and saves
+  useEffect(() => {
+    if (!prefill) return;
+    if (NEXT_TYPES.some((t) => t.id === prefill.nextType)) setNextType(prefill.nextType);
+    const at = new Date(prefill.at);
+    setWhen(toLocalInput(at.getTime() > Date.now() + 10 * 60_000 ? at : inHours(1)));
+    setNextNote(prefill.title);
+    if (prefill.personId && people.some((p) => p.id === prefill.personId)) setPersonId(prefill.personId);
+  }, [prefill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,10 +146,11 @@ const NextStep: React.FC<{ leadId: string; people: Person[]; canEdit: boolean; n
     if (!outcome) return setError('Choose what happened.');
     setBusy(true);
     try {
-      const r = await api.journey.disposition({ leadId, outcome, note, personId: personId || undefined, next: closes ? undefined : { type: nextType, at: new Date(when).toISOString() } });
+      const r = await api.journey.disposition({ leadId, outcome, note, personId: personId || undefined, next: closes ? undefined : { type: nextType, at: new Date(when).toISOString(), note: nextNote || undefined } });
       setSaved(r.nextAt ? `Saved. Next: ${NEXT_TYPES.find((t) => t.id === nextType)?.label} ${formatDateTime(r.nextAt, '')}` : 'Saved. The enquiry is closed.');
       setOutcome('');
       setNote('');
+      setNextNote('');
       onDone();
     } catch (err) {
       setError(toAppError(err).userMessage);
@@ -184,6 +198,9 @@ const NextStep: React.FC<{ leadId: string; people: Person[]; canEdit: boolean; n
                 <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={inputCls} required />
               </Field>
             </div>
+          )}
+          {!closes && nextNote && (
+            <p className="text-[11px] text-[#0B6BB0] flex items-center gap-2">Next action: {nextNote}<button type="button" onClick={() => setNextNote('')} className="text-[#5E778C] underline min-h-8">remove</button></p>
           )}
           {error && <InlineNotice tone="warning">{error}</InlineNotice>}
           {saved && <InlineNotice tone="success">{saved}</InlineNotice>}

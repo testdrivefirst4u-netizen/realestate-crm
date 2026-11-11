@@ -33,7 +33,7 @@ import type {
 import type { LeadSourceActions } from '../../server/core/leadSourceTypes';
 import type { SheetActions, SheetAuth } from '../../server/core/sheetTypes';
 import type { MetaActions } from '../../server/core/metaTypes';
-import type { Measure, OrgPerson, Scorecard, ConstructionStage, DemandLetter, EngagementData, PaymentPlan, PaymentStatement, Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
+import type { Insight, Measure, OrgPerson, Scorecard, ConstructionStage, DemandLetter, EngagementData, PaymentPlan, PaymentStatement, Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
 
 /** Request / response types of a lead-source RPC action (contract: server/core/leadSourceTypes.ts). */
 type LsReq<K extends keyof LeadSourceActions> = LeadSourceActions[K]['req'];
@@ -567,6 +567,12 @@ export const api = {
     place: (d: { userId: string; level: number | null; reportsTo: string; leadScope: 'team' | 'all' }) => request<{ levels: string[]; people: OrgPerson[] }>('placeOrgPerson', d),
     scorecard: (month?: string) => request<Scorecard>('getScorecard', { month }),
     setTargets: (userId: string, month: string, values: Partial<Record<Measure, number | string>>) => request<{ ok: true }>('setTargets', { userId, month, values }),
+  },
+
+  /** Customer insights: readiness, signals and the suggested next step (server/modules/insights.ts). */
+  insights: {
+    lead: (leadId: string) => request<Insight>('getLeadInsight', { leadId }),
+    nextSteps: () => request<Insight[]>('getNextSteps'),
   },
 
   /** Release B: work queues (server/modules/workspace.ts) and the founder report (salesReport.ts). */

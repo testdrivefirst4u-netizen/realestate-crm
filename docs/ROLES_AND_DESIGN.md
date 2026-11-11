@@ -32,6 +32,24 @@ answered in time (overall), contacted, connected calls, visits done, quotations,
 - Founder: the same tree, read-only, on Business.
 Team totals add up everyone below a person; the in-time % is recomputed from the counts, never averaged.
 
+## Comparisons and suggested next steps
+
+Every scorecard figure shows the change from the previous month (▲/▼); the Business report shows each funnel step
+and the response SLA for the same-length period before, judged the same way. Nothing is compared when the earlier
+period has no data.
+
+`server/modules/insights.ts` reads each customer's record and returns:
+- a **readiness score** (0–100) — the sum of listed signals: furthest step reached, recent response, decision-maker
+  and payer known, budget fits, minus overdue / no next step. Shown with its signals; it is an estimate from recorded
+  facts, not a prediction.
+- one **next step** with urgency (now / today / this week), the reason and the best time to contact (now if it is
+  10:00–19:00 where they are, else their next local 11:00), then what follows. Rules in order: return a missed call, first contact, payment due, hold
+  expiring, approval waiting, find the payer, confirm the visit, quotation, involve the family, invite to visit,
+  re-engage, customer-care steps, overdue follow-up, set a next step.
+- **risks**: going cold, abroad with no time zone, WhatsApp with no consent, budget below the unit's price.
+Today ranks the agent's customers by urgency, then score. Suggestions never send anything; "Use this" only fills in
+the next-step form. Scope is the same as for leads.
+
 ## Journey and gates
 
 Enquiry → owner (assignment, by id) → **contact** (outcome + required next step) → people & consent → visit

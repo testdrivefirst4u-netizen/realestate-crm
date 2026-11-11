@@ -102,6 +102,25 @@ the old Dashboard and /today was missing from the proxy's route list; the sideba
 
 Final gates: typecheck ✅ · 117 files / 1540 tests ✅ · build ✅.
 
+## Release G (previous-period comparisons, suggested next steps)
+
+`tests/release-g-insights.test.ts` (11 tests): a missed call comes first; a new enquiry past the response time gets
+a first call now with the reason; visited with no quotation after 3 days → quotation, with the score explained; a
+decision-maker abroad who never took part → family consultation timed for their day; gone quiet → something of value,
+and WhatsApp without consent flagged; an expiring reservation and an overdue payment are today's jobs, budget below
+price a risk; contact time is now inside 10:00–19:00 local, else the next local 11:00 (half-hour zones too); the
+report compares the same definitions over the previous period; next steps are ranked within the user's own customers
+and another agent's lead is hidden; urgency always outranks readiness; the scorecard carries the previous month.
+Rules not covered by a dedicated test: approval waiting, payer unknown, confirm visit, customer-care steps, no next
+step (exercised in the browser only for approval and confirm visit).
+
+Browser: Today's ranked "Suggested next steps" (19); the Journey card with readiness signals adding up to the score
+(20); "Use this" filling in the next-step form (21); Business showing the previous period (22). Fixed during the
+check: a 'now' item ranked below a 'today' one with a higher score; with no enquiries in the previous period the
+funnel read "0% before" (looked like a fall) — it now shows "—" and says there is nothing to compare.
+
+Final gates: typecheck ✅ · 118 files / 1551 tests ✅ · build ✅ · npm audit 0.
+
 ## Not verified
 
 - RERA rules against the notified Telangana gazette text and Amaya's registered agreement (needs counsel).

@@ -13,7 +13,7 @@ import { api } from '../../core/api';
 import { toAppError } from '../../core/errors';
 import { formatDateTime, formatRelative } from '../../core/dates';
 import { formatINR } from '../../core/format';
-import type { SalesReport, TeamData, TodayData, QueueRow } from '../../core/journeyTypes';
+import type { Insight, SalesReport, TeamData, TodayData, QueueRow } from '../../core/journeyTypes';
 import type { UserAccount } from '../../types/crm';
 import { Button, ErrorState, InlineNotice, Select, cx, inputCls } from '../../components/ui';
 import { ConstructionPanel } from './ConstructionPanel';
@@ -135,6 +135,7 @@ const MyWork: React.FC<{ onOpenLead: (id: string) => void; online: boolean }> = 
           <div><strong>Nothing waiting.</strong> Every enquiry has been contacted and has a next step. New enquiries and missed calls appear here as they arrive.</div>
         </div>
       )}
+      <NextSteps onOpen={onOpenLead} version={data?.generatedAt || ''} />
       <MyMonth />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-5">
         <Queue id="new" title="New enquiries" hint={data ? `Call within ${data.slaHours} h` : ''} icon={<UserPlus size={14} />} rows={data?.newEnquiries} onOpen={onOpenLead} empty="No uncontacted enquiries." urgentFirst />
@@ -207,6 +208,47 @@ const Queue: React.FC<{ id: string; title: string; hint?: string; icon?: React.R
 };
 
 /** Booked customers with an SOP step due (welcome call, owner, community preview, monthly update, referral, re-engage). */
+/** The best next steps across my enquiries and customers (server/modules/insights.ts), most urgent first. */
+const NextSteps: React.FC<{ onOpen: (id: string) => void; version: string }> = ({ onOpen, version }) => {
+  const [rows, setRows] = useState<Insight[] | null>(null);
+  const [error, setError] = useState('');
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    api.insights.nextSteps().then((r) => { setRows(r); setError(''); }, (e) => setError(toAppError(e).userMessage));
+  }, [version]);
+  if (error) return <InlineNotice tone="warning">Suggestions unavailable: {error}</InlineNotice>;
+  if (rows && !rows.length) return null;
+  const shown = rows ? (all ? rows : rows.slice(0, 6)) : [];
+  const URG: Record<string, string> = { now: 'bg-[#FAF0EC] text-[#8A3E28]', today: 'bg-[#FDF3E7] text-[#92400E]', 'this week': 'bg-[#F2F7FB] text-[#0B2A44]' };
+  return (
+    <section aria-labelledby="h-nextsteps">
+      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+        <h2 id="h-nextsteps" className="text-sm font-bold text-[#0B2A44]">Suggested next steps</h2>
+        <span className="text-[11px] text-[#5E778C]">From each customer's record · most urgent first</span>
+      </div>
+      {!rows ? <div className="h-24 rounded-xl bg-white/70 animate-pulse" aria-label="Reading records" /> : (
+        <ol className="rounded-xl border border-[#E3EDF5] bg-white divide-y divide-[#EEF3F8] overflow-hidden">
+          {shown.map((r) => (
+            <li key={r.leadId}>
+              <button onClick={() => onOpen(r.leadId)} className="w-full text-left px-3 py-2.5 min-h-12 hover:bg-[#F7FAFD] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0B6BB0] flex items-start gap-3">
+                <span className={cx('mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 w-[4.5rem] text-center', URG[r.next!.urgency])}>{r.next!.urgency}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-semibold text-[#0B2A44] truncate">{r.next!.title} <span className="font-normal text-[#5E778C]">· {r.name}</span></span>
+                    <span className="text-[11px] text-[#5E778C] flex-shrink-0 tabular-nums" title="Readiness (estimate)">{r.stageLabel} · {r.score}</span>
+                  </span>
+                  <span className="block text-[11px] text-[#5E778C] truncate">{r.next!.why}{r.next!.timeNote ? ` · ${r.next!.timeNote}` : ''}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {rows && rows.length > 6 && <button onClick={() => setAll(!all)} className="mt-1 text-xs text-[#0B6BB0] min-h-8">{all ? 'Show fewer' : `Show all ${rows.length}`}</button>}
+    </section>
+  );
+};
+
 const CustomerQueue: React.FC<{ rows?: TodayData['customers']; onOpen: (id: string) => void }> = ({ rows, onOpen }) => (
   <section id="q-customers" aria-labelledby="h-customers" className="scroll-mt-20">
     <div className="flex items-baseline justify-between gap-2 mb-1.5">
@@ -407,7 +449,7 @@ const Business: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
             <section aria-labelledby="h-funnel">
-              <h2 id="h-funnel" className="text-sm font-bold text-[#0B2A44]">From enquiry to booking <span className="font-normal text-[#5E778C]">· {data.enquiries} enquiries in the period</span></h2>
+              <h2 id="h-funnel" className="text-sm font-bold text-[#0B2A44]">From enquiry to booking <span className="font-normal text-[#5E778C]">· {data.enquiries} enquiries in the period{data.previous ? ` (${data.previous.enquiries} in the one before)` : ''}</span></h2>
               <p className="text-[11px] text-[#5E778C] mt-0.5">Counts only steps recorded when they happened.</p>
               <table className="w-full text-xs mt-2">
                 <tbody>
@@ -416,6 +458,7 @@ const Business: React.FC = () => {
                       <th scope="row" className="py-2 pr-3 text-left font-semibold text-[#0B2A44] w-32">{STEP_LABEL[f.step] || f.step}</th>
                       <td className="py-2 pr-3"><div className="h-2 rounded-full bg-[#E3EDF5]"><div className="h-2 rounded-full bg-[#0B6BB0]" style={{ width: `${Math.round((f.reached / max) * 100)}%` }} /></div></td>
                       <td className="py-2 text-right tabular-nums w-28"><strong>{f.reached}</strong> <span className="text-[#5E778C]">· {f.percentOfEnquiries}%</span></td>
+                      <td className="py-2 pl-3 text-right tabular-nums w-24 text-[11px] text-[#7E93A6]" title="Same step, previous period">{data.previous?.enquiries ? `${data.previous.funnel.find((p) => p.step === f.step)?.percentOfEnquiries ?? 0}% before` : data.previous ? '— before' : ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -435,6 +478,7 @@ const Business: React.FC = () => {
                 {data.sla.notYetDue ? ` ${data.sla.notYetDue} new enquiries are still inside their window.` : ''}
               </p>
               <p className="text-[11px] text-[#7E93A6]">Of those answered at all: {pct(data.sla.ofRespondedPercent)} in time.</p>
+              {data.previous && (data.previous.sla.eligible ? <p className="text-[11px] text-[#5E778C]">Previous period: <strong className="text-[#0B2A44]">{pct(data.previous.sla.overallPercent)}</strong> ({data.previous.sla.withinSla} of {data.previous.sla.eligible}) · cancellations {data.previous.cancellations}</p> : <p className="text-[11px] text-[#5E778C]">Previous period: no enquiries due yet to compare · cancellations {data.previous.cancellations}</p>)}
               <p className="text-xs text-[#0B2A44] pt-2">Cancellations in the period: <strong className="tabular-nums">{data.cancellations}</strong></p>
             </section>
           </div>

@@ -49,6 +49,7 @@ export interface SalesReport {
   sla: { hours: number; eligible: number; withinSla: number; respondedLate: number; overdueUnanswered: number; notYetDue: number; responded: number; overallPercent: number | null; ofRespondedPercent: number | null };
   value: Record<'estimated' | 'quoted' | 'booked' | 'collected', { amount: number; basis: string; units?: number; leads?: number; openLeadsWithoutBudget?: number }> & { hiddenUnits: number };
   cancellations: number;
+  previous?: { range: { from: string; to: string }; enquiries: number; funnel: SalesReport['funnel']; sla: SalesReport['sla']; cancellations: number };
   freshness: { generatedAt: string; newestLeadChange: string; newestProviderEvent: string; lastLeadSnapshot: string; lastSnapshotVerified: boolean | null };
 }
 
@@ -87,5 +88,14 @@ export const MEASURE_LABEL: Record<Measure, string> = {
 };
 export const TARGETABLE: Measure[] = ['contacted', 'calls', 'visits', 'quotations', 'bookings', 'bookedValue', 'collections', 'touches', 'respondedInTime'];
 export type Counts = Record<Measure, number> & { slaEligible: number; slaWithin: number };
-export interface ScoreRow { id: string; name: string; role: string; level: number | null; levelName: string; reportsTo: string; depth: number; own: Counts; team: Counts; hasTeam: boolean; targets: Partial<Record<Measure, number>> }
-export interface Scorecard { month: string; levels: string[]; rows: ScoreRow[]; total: Counts; mine: ScoreRow | null; canSetTargetsFor: string[] }
+export interface ScoreRow { id: string; name: string; role: string; level: number | null; levelName: string; reportsTo: string; depth: number; own: Counts; team: Counts; prevOwn: Counts; prevTeam: Counts; hasTeam: boolean; targets: Partial<Record<Measure, number>> }
+export interface Scorecard { month: string; prevMonth: string; levels: string[]; rows: ScoreRow[]; total: Counts; prevTotal: Counts; mine: ScoreRow | null; canSetTargetsFor: string[] }
+
+/* -------------------------------- insights -------------------------------- */
+export type Urgency = 'now' | 'today' | 'this week';
+export interface Suggestion { key: string; title: string; why: string; urgency: Urgency; nextType: string; at: string; personId: string; personName: string; timeNote: string }
+export interface Insight {
+  leadId: string; name: string; stageLabel: string; score: number; scoreLabel: string;
+  signals: Array<{ label: string; points: number }>; next: Suggestion | null;
+  also: Array<{ key: string; title: string; why: string; urgency: Urgency }>; risks: string[];
+}

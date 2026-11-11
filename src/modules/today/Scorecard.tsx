@@ -14,6 +14,15 @@ import { Button, ErrorState, InlineNotice, cx, inputCls } from '../../components
 
 const MONEY: Measure[] = ['bookedValue', 'collections'];
 const fmt = (m: Measure, v: number) => (MONEY.includes(m) ? formatINR(v) : m === 'respondedInTime' ? `${v}%` : String(v));
+/** Change against the previous month, as a small labelled delta (the in-time % in points). */
+export const Delta: React.FC<{ m: Measure; now: number; before: number; prevKey: string; hideIfNone?: boolean }> = ({ m, now, before, prevKey, hideIfNone }) => {
+  const d = Math.round((now - before) * 10) / 10;
+  if (hideIfNone && !d && !before) return null;
+  const word = prevKey ? new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(prevKey.slice(0, 4)), Number(prevKey.slice(5, 7)) - 1, 1))) : 'last month';
+  const text = d === 0 ? 'same as' : `${d > 0 ? '▲' : '▼'} ${MONEY.includes(m) ? formatINR(Math.abs(d)) : m === 'respondedInTime' ? `${Math.abs(d)} pts` : Math.abs(d)}`;
+  return <span className={cx('text-[10px] whitespace-nowrap', d > 0 ? 'text-[#0E8A86]' : d < 0 ? 'text-[#B06A55]' : 'text-[#7E93A6]')} title={`${fmt(m, before)} in ${word}`}>{text} {d === 0 ? word : `vs ${word}`}</span>;
+};
+
 const monthName = (key: string) => {
   const [y, m] = key.split('-').map(Number);
   return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, 1)));
@@ -75,6 +84,7 @@ export const MyMonth: React.FC = () => {
             <li key={m} className="bg-white px-3 py-2.5">
               <div className="text-[11px] text-[#5E778C]">{MEASURE_LABEL[m]}</div>
               <div className="mt-0.5 text-base font-bold tabular-nums text-[#0B2A44]">{m === 'respondedInTime' && !c.slaEligible ? '—' : fmt(m, v)}</div>
+              <Delta m={m} now={v} before={data.mine!.prevOwn[m]} prevKey={data.prevMonth} />
               {target !== undefined ? (
                 <>
                   <div className="mt-1 h-1.5 rounded-full bg-[#E3EDF5]" aria-hidden><div className={cx('h-1.5 rounded-full', pct! >= 100 ? 'bg-[#0E8A86]' : 'bg-[#0B6BB0]')} style={{ width: `${pct}%` }} /></div>
@@ -112,6 +122,7 @@ export const TeamScorecard: React.FC<{ readOnly?: boolean }> = ({ readOnly }) =>
       <td key={m} className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
         <span className={cx(target !== undefined ? (hit ? 'text-[#0E8A86] font-semibold' : 'text-[#0B2A44]') : 'text-[#0B2A44]')}>{m === 'respondedInTime' && !c.slaEligible ? '—' : fmt(m, v)}</span>
         {view === 'own' && target !== undefined && <div className="text-[10px] text-[#7E93A6]">/ {fmt(m, target)}</div>}
+        <div><Delta m={m} now={v} before={(view === 'team' ? r.prevTeam : r.prevOwn)[m]} prevKey={data.prevMonth} hideIfNone /></div>
       </td>
     );
   };
@@ -158,7 +169,7 @@ export const TeamScorecard: React.FC<{ readOnly?: boolean }> = ({ readOnly }) =>
             ))}
             <tr className="bg-[#F7FAFD]">
               <th scope="row" className="px-3 py-2 text-left font-semibold text-[#0B2A44]">Total</th>
-              {cols.map((m) => <td key={m} className="px-2 py-2 text-right tabular-nums font-semibold whitespace-nowrap">{m === 'respondedInTime' && !data.total.slaEligible ? '—' : fmt(m, data.total[m])}</td>)}
+              {cols.map((m) => <td key={m} className="px-2 py-2 text-right tabular-nums font-semibold whitespace-nowrap">{m === 'respondedInTime' && !data.total.slaEligible ? '—' : fmt(m, data.total[m])}<div className="font-normal"><Delta m={m} now={data.total[m]} before={data.prevTotal[m]} prevKey={data.prevMonth} /></div></td>)}
               {!readOnly && <td />}
             </tr>
           </tbody>

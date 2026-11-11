@@ -71,3 +71,13 @@ Gates: typecheck ✅ · 1535 tests ✅ · build ✅.
 - [x] Site root, home-screen app and 404 now open Today; /today added to the proxy so sign-in returns there
 
 Gates: typecheck ✅ · 1540 tests ✅ · build ✅.
+
+## Release G — comparisons and suggested next steps
+- [x] Scorecards show each measure against the previous month (own, with team, totals)
+- [x] Business report compares the same-length period before, on the same definitions; empty previous period shown as "—"
+- [x] Per-customer readiness score from recorded facts, with its signals listed (an estimate, not a prediction)
+- [x] One suggested next step per customer with urgency and reason, plus what comes after; risks (cold, abroad with no time zone, WhatsApp without consent)
+- [x] Today: ranked suggestions across the agent's customers; Journey: the card with "Use this" filling in the next step
+- [ ] Learning from outcomes (which suggestions led to bookings) — rules are fixed until there is enough history
+
+Gates: typecheck ✅ · 1551 tests ✅ · build ✅.
