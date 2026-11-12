@@ -39,6 +39,8 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'audit.view', group: 'Reports', label: 'See the audit log', perms: ['audit.view'] },
   { id: 'inventory.view', group: 'Inventory', label: 'See inventory', perms: ['inventory.view'] },
   { id: 'inventory.edit', group: 'Inventory', label: 'Edit inventory', perms: ['inventory.edit'], writes: true, needs: 'inventory.view' },
+  { id: 'inventory.customers', group: 'Inventory', label: 'See buyers and payments on every unit', perms: ['inventory.customers'], needs: 'inventory.view', note: 'Off: unit status and price only, and the buyer only on units linked to their own leads.' },
+  { id: 'inventory.approve', group: 'Inventory', label: 'Cancel bookings and sales', perms: ['inventory.approve'], writes: true, needs: 'inventory.edit', note: 'Puts a Booked or Sold unit back on sale.' },
   { id: 'chat.view', group: 'Messages and calls', label: 'See chats and Social Inbox', perms: ['chat.view'] },
   { id: 'chat.send', group: 'Messages and calls', label: 'Send messages', perms: ['chat.send'], writes: true, needs: 'chat.view' },
   { id: 'calls.view', group: 'Messages and calls', label: 'See call history', perms: ['calls.view'] },
@@ -62,9 +64,9 @@ export const ACCESS_ITEMS: AccessItem[] = [
 
 /** What a role can have before anything is chosen. Kept with the list: both sides must start from the same answer. */
 const STARTS: Record<ConfigurableRole, string[]> = {
-  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'reports.credits', 'audit.view', 'inventory.view', 'inventory.edit', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.campaigns', 'marketing.other', 'tasks', 'ai'],
+  Manager: ['leads.all', 'leads.create', 'leads.edit', 'leads.import', 'leads.export', 'leads.phones', 'reports.view', 'reports.export', 'reports.credits', 'audit.view', 'inventory.view', 'inventory.edit', 'inventory.customers', 'inventory.approve', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.campaigns', 'marketing.other', 'tasks', 'ai'],
   RM: ['leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'reports.view', 'inventory.view', 'chat.view', 'chat.send', 'calls.view', 'calls.log', 'tasks', 'ai'],
-  Viewer: ['leads.all', 'leads.phones', 'reports.view', 'audit.view', 'inventory.view', 'chat.view', 'calls.view'],
+  Viewer: ['leads.all', 'leads.phones', 'reports.view', 'audit.view', 'inventory.view', 'inventory.customers', 'chat.view', 'calls.view'],
 };
 
 export const itemOffered = (role: ConfigurableRole, item: AccessItem) => !(role === 'Viewer' && item.writes);

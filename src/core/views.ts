@@ -9,21 +9,26 @@ import { hasFeature, type FeatureName } from './features';
 import type { Permission } from './rbac';
 
 export type ViewId =
-  | 'dashboard' | 'mis' | 'performance' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
+  | 'today' | 'dashboard' | 'mis' | 'performance' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
   | 'documents' | 'templates' | 'reports' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics' | 'searchconsole' | 'businessprofile' | 'dripcampaigns' | 'whatsappcampaigns' | 'whatsappcredits' | 'chatbots' | 'competitors';
 
-export const VIEW_IDS: ViewId[] = ['dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcampaigns', 'whatsappcredits', 'chatbots', 'competitors'];
+export const VIEW_IDS: ViewId[] = ['today', 'dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcampaigns', 'whatsappcredits', 'chatbots', 'competitors'];
 
-export const DEFAULT_VIEW: ViewId = 'dashboard';
+export const DEFAULT_VIEW: ViewId = 'today';
 
 /** Page headings (top bar) and browser-tab titles. */
 export const VIEW_TITLES: Record<ViewId, string> = {
-  dashboard: 'Dashboard', mis: 'Sales MIS', performance: 'YTD / MTD', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
+  today: 'Today', dashboard: 'Dashboard', mis: 'Sales MIS', performance: 'YTD / MTD', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
   inventory: 'Inventory', chat360: 'WhatsApp', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
   inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcampaigns: 'WhatsApp Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'WhatsApp Chatbots', competitors: 'Competitor Ads',
 };
 
 export const viewHref = (view: ViewId) => `/${view}`;
+
+/** Where each person starts: everyone who works enquiries on Today; view-only users on its Business tab too. */
+export function homeViewFor(_role: string | undefined | null): ViewId {
+  return 'today';
+}
 
 /** `/leads` → 'leads'; anything else (including nested paths) → null. */
 export function viewFromPath(pathname: string | null | undefined): ViewId | null {

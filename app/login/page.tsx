@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation';
 import { getPageSession, safeNextPath } from '@/server/core/pageSession';
 import { validateSaSession } from '@/server/platform/superAdmins';
 import { PLATFORM_COOKIE } from '@/server/platform/cookie';
-import { DEFAULT_VIEW, viewHref } from '@/src/core/views';
+import { homeViewFor, viewHref } from '@/src/core/views';
 import { LoginClient } from './LoginClient';
 
 export const metadata: Metadata = { title: 'Sign in', robots: { index: false, follow: false } };
@@ -33,7 +33,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (isConsolePath(next)) {
     if (await consoleSession()) redirect(next!);
   } else {
-    if (await getPageSession()) redirect(next || viewHref(DEFAULT_VIEW));
+    const session = await getPageSession();
+    if (session) redirect(next || viewHref(homeViewFor(session.user.role)));
     if (!next && (await consoleSession())) redirect('/superadmin');
   }
   return <LoginClient next={next} photoUrl={loginPhoto()} />;

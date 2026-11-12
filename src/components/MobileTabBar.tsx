@@ -28,7 +28,7 @@ const Badge: React.FC<{ n?: number }> = ({ n }) =>
 
 export const MobileTabBar: React.FC<MobileTabBarProps> = ({ currentView, showChats, followupsToday, unreadChats, tasksPending, onMore }) => {
   const tabs: Array<{ id: ViewId; label: string; icon: React.ReactNode; count?: number }> = [
-    { id: 'dashboard', label: 'Home', icon: <Home size={20} /> },
+    { id: 'today', label: 'Today', icon: <Home size={20} /> },
     { id: 'leads', label: 'Leads', icon: <Users size={20} /> },
     { id: 'followups', label: 'Follow-ups', icon: <CalendarClock size={20} />, count: followupsToday },
     showChats

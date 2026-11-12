@@ -168,7 +168,9 @@ export const CFG = {
       'users.manageAgents', 'records.*', 'storage.*', 'marketing.*'],
     RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'tasks.*', 'inventory.view', 'reports.view',
       'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*'],
-    Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
+    // inventory.customers: buyers, phones and money on every unit (Agents see them only on their own leads' units).
+    // inventory.approve: cancel a booking or sale (Admins and Managers through inventory.*).
+    Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'inventory.customers', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
   } as Record<string, string[]>,
 
   /** Secret keys (stored encrypted in the `secrets` collection; an env var of the same name wins). */

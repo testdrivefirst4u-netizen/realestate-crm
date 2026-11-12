@@ -233,6 +233,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       key: 'customer', label: 'Customer', onSort: () => toggleSort('customer'), sortIndicator: indicator('customer'), className: 'min-w-[160px]',
       render: (u: InventoryUnit) => {
         const lead = u.leadId ? leadById.get(u.leadId) : undefined;
+        if (u.restricted) return <span className="text-[11px] text-[#5E778C]" title="Another agent's customer. Managers see the buyer.">Another agent's customer</span>;
         if (!u.customerName && !u.contact && !u.leadId) return <span className="text-[#7E93A6]">—</span>;
         return (
           <div className="min-w-0">
@@ -621,6 +622,16 @@ const UnitDrawer: React.FC<{
         )}
         {error && <InlineNotice tone="warning">{error}</InlineNotice>}
         {current.syncStatus === 'Error' && current.syncError && !error && <InlineNotice tone="warning">Last save failed: {current.syncError}</InlineNotice>}
+        {current.status === 'Reserved' && current.holdUntil && (
+          <InlineNotice tone={new Date(current.holdUntil).getTime() < Date.now() ? 'warning' : 'info'}>
+            {new Date(current.holdUntil).getTime() < Date.now()
+              ? <>The reservation lapsed {formatRelative(current.holdUntil)}. The unit can be reserved for another customer.</>
+              : <>Held for {current.leadId || 'a customer'} until {formatDateTime(current.holdUntil, '—')}. Book it before then, or it goes back on sale.</>}
+          </InlineNotice>
+        )}
+        {current.restricted && (
+          <InlineNotice tone="info">This unit belongs to another agent's customer. The buyer, payments and notes are shown to that agent and to managers.</InlineNotice>
+        )}
 
         {/* Read-only facts */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">

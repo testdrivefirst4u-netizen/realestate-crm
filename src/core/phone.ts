@@ -34,12 +34,46 @@ export function formatPhone(phone: string | undefined | null): string {
   if (e.length === 12 && e.startsWith('91')) {
     return `+91 ${e.slice(2, 7)} ${e.slice(7)}`;
   }
-  return phone ? String(phone).trim() : '';
+  // an international number written with its country code: "+971 50 123 4567"-style groups
+  const raw = String(phone || '').trim();
+  if (/^\+/.test(raw) && !isMaskedPhone(raw)) {
+    const d = digitsOnly(raw);
+    const cc = countryCode(d);
+    const rest = d.slice(cc.length);
+    const groups = rest.length === 10 ? [3, 3, 4] : rest.length === 9 ? [2, 3, 4] : rest.length === 8 ? [4, 4] : null;
+    if (!groups) return `+${cc} ${rest}`;
+    let i = 0;
+    return `+${cc} ${groups.map((n) => rest.slice(i, (i += n))).join(' ')}`;
+  }
+  return raw;
 }
 
+const CC3 = ['971', '966', '974', '973', '968', '965', '880', '977', '960', '353', '852'];
+const CC2 = ['91', '44', '61', '65', '60', '49', '33', '39', '31', '41', '81', '86', '27', '64', '92', '94', '62', '63', '66', '34', '46', '47', '45', '32'];
+function countryCode(d: string): string {
+  if (CC3.includes(d.slice(0, 3))) return d.slice(0, 3);
+  if (CC2.includes(d.slice(0, 2))) return d.slice(0, 2);
+  if (d.startsWith('1') || d.startsWith('7')) return d[0];
+  return d.slice(0, 2);
+}
+
+/** Written with an explicit country code (+…, 00…, or more than 10 digits). */
+const explicitCountry = (p: string) => /^\s*(\+|00)/.test(p) || (digitsOnly(p).length > 10 && !(digitsOnly(p).length === 11 && digitsOnly(p).startsWith('0')));
+
+/**
+ * Same customer number? The last ten digits narrow it; the country decides — a +1 / +44 / +971 family number is
+ * never the Indian number with the same ten digits (mirrors server/core/phone.ts → sameIdentity).
+ */
 export function samePhone(a: string | undefined | null, b: string | undefined | null): boolean {
   const la = last10(a), lb = last10(b);
-  return !!la && (la.length === 10 || isMaskedPhone(la)) && la === lb;
+  if (!(!!la && (la.length === 10 || isMaskedPhone(la)) && la === lb)) return false;
+  if (isMaskedPhone(la)) return true;
+  const ea = toE164Digits(a), eb = toE164Digits(b);
+  if (ea === eb) return true;
+  const xa = explicitCountry(String(a)), xb = explicitCountry(String(b));
+  if (xa && xb) return false;
+  const other = xa ? ea : eb; // the bare local number is Indian
+  return countryCode(other) === '91';
 }
 
 export function telLink(phone: string | undefined | null): string {

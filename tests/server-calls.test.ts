@@ -131,9 +131,11 @@ describe('telephony webhook', () => {
     expect((await telephonyPOST(mk('http://x/api/webhooks/telephony?company=test&provider=zoho&secret=bad'))).status).toBe(403);
     const ok = await telephonyPOST(mk('http://x/api/webhooks/telephony?company=test&provider=zoho', { 'x-webhook-secret': 'tel-secret' }));
     expect(ok.status).toBe(200);
-    expect(await ok.json()).toEqual({ status: 'success', data: { ok: true, callId: 'CALL-00001' } });
+    expect(await ok.json()).toMatchObject({ status: 'success', data: { ok: true, callId: 'CALL-00001' } });
+    // the identical delivery again is recognised as a duplicate (stored once, processed once)
     const again = await telephonyPOST(mk('http://x/api/webhooks/telephony?company=test&provider=zoho&secret=tel-secret'));
-    expect((await again.json()).data.updated).toBe(true);
+    expect(await again.json()).toMatchObject({ status: 'success', duplicate: true });
+    expect(await listCalls()).toHaveLength(1);
     expect((await listCalls())[0].provider).toBe('zoho');
   });
 });

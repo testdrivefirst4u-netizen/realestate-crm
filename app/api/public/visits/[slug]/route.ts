@@ -21,7 +21,7 @@ const STATUS: Record<string, number> = { VALIDATION: 400, NOT_FOUND: 404, CONFLI
 function cors(origin: string | null): Record<string, string> {
   return {
     'Cache-Control': 'no-store',
-    ...(origin ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600', Vary: 'Origin' } : {}),
+    ...(origin ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Idempotency-Key', 'Access-Control-Max-Age': '600', Vary: 'Origin' } : {}),
   };
 }
 
@@ -72,7 +72,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   return runWithTenant(tenant, async () => {
     if (!(await rateHit('visit-ip', ip, 6))) return json(errEnvelope('RATE_LIMIT', 'Too many bookings from this connection — please wait a minute'), 429, origin);
     try {
-      const r = await bookVisit(body);
+      // a retried submission (same request id in the body or Idempotency-Key header) returns the first booking
+      const r = await bookVisit({ ...body, requestId: body.requestId ?? req.headers.get('idempotency-key') ?? '' });
       return json({ status: 'success', data: { at: r.at } }, 201, origin);
     } catch (e: any) {
       if (e instanceof ApiError && STATUS[e.code]) return json(errEnvelope(e.code, e.message), STATUS[e.code], origin);

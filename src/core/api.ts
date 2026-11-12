@@ -33,6 +33,7 @@ import type {
 import type { LeadSourceActions } from '../../server/core/leadSourceTypes';
 import type { SheetActions, SheetAuth } from '../../server/core/sheetTypes';
 import type { MetaActions } from '../../server/core/metaTypes';
+import type { Insight, Measure, OrgPerson, Scorecard, ConstructionStage, DemandLetter, EngagementData, PaymentPlan, PaymentStatement, Person, Quote, SalesReport, TeamData, TodayData } from './journeyTypes';
 
 /** Request / response types of a lead-source RPC action (contract: server/core/leadSourceTypes.ts). */
 type LsReq<K extends keyof LeadSourceActions> = LeadSourceActions[K]['req'];
@@ -519,10 +520,67 @@ export const api = {
 
   inventory: {
     list: () => request<{ units: InventoryUnit[]; version: string }>('getInventory'),
-    update: (inventoryId: string, patch: Partial<InventoryUnit>, expectedLastModified?: string) =>
-      request<{ unit: InventoryUnit; version: string; conflict?: InventoryUnit }>('updateInventoryUnit', { id: inventoryId, data: patch, expectedLastModified }),
+    update: (inventoryId: string, patch: Partial<InventoryUnit>, expectedLastModified?: string, expectedRev?: number, idempotencyKey?: string) =>
+      request<{ unit: InventoryUnit; version: string; conflict?: InventoryUnit; reason?: string }>('updateInventoryUnit', { id: inventoryId, data: patch, expectedLastModified, expectedRev, idempotencyKey }),
     add: (unit: Partial<InventoryUnit>) => request<{ unit: InventoryUnit; version: string }>('addInventoryUnit', { data: unit }),
     importUnits: (units: Partial<InventoryUnit>[]) => request<{ created: number; skipped: number; version: string }>('importInventory', { units }),
+  },
+
+  /** Release B: people, next action, quotations, booking approval (server/modules/journey.ts). */
+  journey: {
+    people: (leadId: string) => request<Person[]>('getLeadPeople', { leadId }),
+    savePerson: (leadId: string, person: Partial<Person>) => request<Person[]>('saveLeadPerson', { leadId, person }),
+    removePerson: (leadId: string, personId: string) => request<Person[]>('removeLeadPerson', { leadId, personId }),
+    disposition: (d: { leadId: string; outcome: string; note?: string; personId?: string; next?: { type: string; at: string; note?: string } }) => request<{ ok: true; nextAt: string }>('logDisposition', d),
+    quotes: (leadId: string) => request<Quote[]>('listQuotes', { leadId }),
+    saveQuote: (d: { leadId: string; unitId: string; basePrice?: number; charges?: Array<{ label: string; amount: number }>; discount?: number }) => request<Quote>('saveQuote', d),
+    decideQuote: (id: string, approve: boolean, note = '') => request<Quote>('decideQuote', { id, approve, note }),
+    gate: (leadId: string, unitId: string) => request<{ missing: string[]; quote: Quote | null; pending: { id: string; requestedBy: string; at: string } | null }>('getBookingGate', { leadId, unitId }),
+    requestBooking: (leadId: string, unitId: string, note = '') => request<{ _id: string; status: string }>('requestBooking', { leadId, unitId, note }),
+    decideBooking: (id: string, approve: boolean, note = '') => request<{ _id: string; status: string }>('decideBooking', { id, approve, note }),
+  },
+
+  /** Customer engagement and the RERA payment schedule (server/modules/engagement.ts, rera.ts). */
+  customer: {
+    engagement: (leadId: string) => request<EngagementData>('getEngagement', { leadId }),
+    log: (d: { leadId: string; channel: string; kind: string; note?: string; personId?: string; responded?: boolean; at?: string }) => request<{ _id: string }>('logEngagement', d),
+    markStep: (leadId: string, step: string) => request<{ ok: true }>('markCustomerStep', { leadId, step }),
+    assignOwner: (leadId: string, userId: string) => request<{ ok: true; owner: string }>('assignCxOwner', { leadId, userId }),
+    statement: (unitId: string) => request<PaymentStatement>('getPaymentStatement', { unitId }),
+    plans: () => request<{ plans: PaymentPlan[]; stages: ConstructionStage[] }>('listPaymentPlans'),
+    savePlan: (plan: Partial<PaymentPlan>) => request<PaymentPlan>('savePaymentPlan', plan as any),
+    saveStages: (stages: Array<{ key: string; label: string }>) => request<ConstructionStage[]>('saveConstructionStages', { stages }),
+    certify: (key: string, certificateRef: string, certifiedOn?: string) => request<{ demands: number; alreadyCertified: boolean }>('certifyConstructionStage', { key, certificateRef, certifiedOn }),
+    applyPlan: (unitId: string, planId: string) => request<unknown>('applyPaymentPlan', { unitId, planId }),
+    recordAgreement: (unitId: string, documentNo: string, registeredOn?: string) => request<{ ok: true }>('recordAgreementRegistration', { unitId, documentNo, registeredOn }),
+    raiseDemand: (unitId: string, milestoneId: string) => request<{ ok: true }>('raisePaymentDemand', { unitId, milestoneId }),
+    recordReceipt: (d: { unitId: string; amount: number; reference: string; mode?: string; receivedOn?: string }) => request<{ _id: string }>('recordReceipt', d),
+    demandLetter: (unitId: string, milestoneId: string) => request<DemandLetter>('getDemandLetter', { unitId, milestoneId }),
+    reraSettings: () => request<{ interestRatePct: string; interestRateSource: string; projectNumber: string }>('getReraSettings'),
+    saveReraSettings: (d: { interestRatePct: string; interestRateSource: string; projectNumber: string }) => request<{ interestRatePct: string; interestRateSource: string; projectNumber: string }>('saveReraSettings', d),
+  },
+
+  /** Organisation levels and scorecards (server/modules/org.ts, scorecard.ts). */
+  org: {
+    get: () => request<{ levels: string[]; people: OrgPerson[] }>('getOrg'),
+    saveLevels: (levels: string[]) => request<{ levels: string[]; people: OrgPerson[] }>('saveOrgLevels', { levels }),
+    place: (d: { userId: string; level: number | null; reportsTo: string; leadScope: 'team' | 'all' }) => request<{ levels: string[]; people: OrgPerson[] }>('placeOrgPerson', d),
+    scorecard: (month?: string) => request<Scorecard>('getScorecard', { month }),
+    setTargets: (userId: string, month: string, values: Partial<Record<Measure, number | string>>) => request<{ ok: true }>('setTargets', { userId, month, values }),
+  },
+
+  /** Customer insights: readiness, signals and the suggested next step (server/modules/insights.ts). */
+  insights: {
+    lead: (leadId: string) => request<Insight>('getLeadInsight', { leadId }),
+    nextSteps: () => request<Insight[]>('getNextSteps'),
+  },
+
+  /** Release B: work queues (server/modules/workspace.ts) and the founder report (salesReport.ts). */
+  workspace: {
+    today: () => request<TodayData>('getToday'),
+    team: () => request<TeamData>('getTeamExceptions'),
+    reassign: (leadIds: string[], to: string, reason: string) => request<{ moved: number; to: string }>('reassignLeads', { leadIds, to, reason }),
+    salesReport: (from?: string, to?: string) => request<SalesReport>('getSalesReport', { from, to }),
   },
 
   records: {

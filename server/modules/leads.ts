@@ -21,6 +21,9 @@ import { assertLeadAccess, canSeeLead, leadFilter } from '../core/scope';
 import { dedupeUnitTypes, fmtHuman, fmtSheet, last10, parseDate, phoneProblem, shortId, str, truncate } from '../core/utils';
 import { scheduleLeadAlerts } from './leadAlerts';
 import { firstFollowup, nextFollowup as sequenceNextFollowup, parseSequence } from './sequences';
+import { userIdByName, userIdsByName, nameKey as ownerKey } from '../core/ownership';
+import { markMilestones, milestonesFromChange } from '../core/milestones';
+import { sameIdentity } from '../core/phone';
 
 /** A lead as the browser sees it: keys are the sheet header names ('Prospect Name', 'Follow-up 3' …). */
 export type UiLead = Record<string, string>;
@@ -210,8 +213,10 @@ export async function getLeadDoc(id: string): Promise<LeadDoc | null> {
 export async function findLeadByPhone(phone: string): Promise<UiLead | null> {
   const key = last10(phone);
   if (!key || key.length < 10) return null;
-  const doc = await (await leadsCol()).find({ phoneLast10: key, stage: { $ne: S.DELETED } }).sort({ createdAt: -1, _id: -1 }).limit(1).next();
-  return toUiLead(doc);
+  // candidates share the last ten digits; the full international number decides (an overseas family member's
+  // +1 / +44 / +971 number is never another person's Indian number with the same ten digits)
+  const docs = await (await leadsCol()).find({ phoneLast10: key, stage: { $ne: S.DELETED } }).sort({ createdAt: -1, _id: -1 }).limit(20).toArray();
+  return toUiLead(docs.find((d) => sameIdentity(d.phone, phone)) || null);
 }
 
 /* -------------------------------- create -------------------------------- */
@@ -289,6 +294,8 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
     if (fallback) doc.assignedRm = fallback;
   }
   if (doc.assignedRm) doc.assignedAt = now;
+  // owner by immutable id (the name is only a label: renaming the agent keeps their leads)
+  (doc as any).assignedRmId = await userIdByName(doc.assignedRm);
   // follow-up sequence: a new open lead without a date gets its first follow-up (Settings › Alerts & follow-ups)
   const autoFollowup = firstFollowup(parseSequence((await settingsAll()).followupSequence), doc, now);
   if (autoFollowup) doc.nextFollowupAt = autoFollowup;
@@ -303,6 +310,8 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
     }
   }
   const lead = toUiLead(doc)!;
+  // a lead can arrive already scheduled for a visit (online booking) or past a stage (import, manual entry)
+  await markMilestones(id, milestonesFromChange({ newStage: doc.stage, newSvs: doc.siteVisitStatus }), actor, now);
   const created = createdEffects(lead, actor, options.eventSource || 'crm');
   if (autoFollowup) created.timeline[0].details += ' · first follow-up ' + fmtHuman(autoFollowup);
   await runEffects(created);
@@ -444,6 +453,11 @@ export async function updateLead(
     }
     const plan = planUpdate(before, patch as Record<string, unknown>, ctx, actor, new Date());
     if (!plan) return { lead: toUiLead(before)!, version: await getVersion(), unchanged: true };
+    if ('assignedRm' in plan.set) {
+      const ownerId = await userIdByName((plan.set as any).assignedRm);
+      (plan.set as any).assignedRmId = ownerId;
+      (plan.next as any).assignedRmId = ownerId;
+    }
 
     // conditional write: only if nobody saved in between
     // a new RM starts a fresh "first action" clock (auto-reassignment)
@@ -452,6 +466,10 @@ export async function updateLead(
 
     const after = toUiLead(plan.next)!;
     await runEffects(updateEffects(before._id, plan, after, actor));
+    await markMilestones(before._id, milestonesFromChange({
+      newStage: plan.newStage, oldStage: plan.oldStage, newSvs: plan.newSvs, oldSvs: plan.oldSvs,
+      followupAdded: Array.isArray((plan.set as any).followups) && (plan.set as any).followups.length > (before.followups || []).length,
+    }), actor);
     await auditLog(ctx, 'Lead Updated', 'Lead', before._id, plan.changes.map((c) => c.field).join(', '), auditDiff(plan.changes));
     if (plan.rm) scheduleLeadAlerts(after, 'assigned'); // tell the newly assigned RM
     // a step the company reports to its ad accounts (plan feature adConversions; never fails the save)
@@ -493,6 +511,8 @@ export async function appendRemark(
       { returnDocument: 'after' }
     );
     if (!doc) continue;
+    // a person's follow-up is a contact; notes the CRM writes itself (visit requests, re-enquiries) are not
+    if (ctx?.user && ctx.user.id !== 'SYSTEM') await markMilestones(String(cur._id), ['contacted'], actor, now);
     await addTimeline(cur._id, 'remark_added', 'Follow-up #' + target + ' logged', text, actor, 'Lead', cur._id);
     if (nf) await addTimeline(cur._id, 'followup_scheduled', 'Next follow-up set', fmtHuman(nf), actor, 'Lead', cur._id);
     else if (auto) await addTimeline(cur._id, 'followup_scheduled', 'Next follow-up scheduled automatically', fmtHuman(auto), 'System', 'Lead', cur._id);
@@ -677,6 +697,11 @@ export async function importLeads(rows: UiLead[], strategy: string, ctx: Ctx | n
     const id = c.id || `ENQ-${String(nextNum++).padStart(4, '0')}`;
     return buildNewDoc(id, c.obj, actor, now);
   });
+
+  // owners by immutable id
+  const ownerIds = await userIdsByName();
+  for (const d of newDocs) (d as any).assignedRmId = ownerIds.get(ownerKey(d.assignedRm)) || '';
+  for (const u of updates.values()) if ('assignedRm' in u.set) (u.set as any).assignedRmId = ownerIds.get(ownerKey((u.set as any).assignedRm)) || '';
 
   // write
   const ops: AnyBulkWriteOperation<LeadDoc>[] = [

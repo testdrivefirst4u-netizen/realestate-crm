@@ -103,3 +103,40 @@ code, pre, .font-mono {
   .crm-ocean { font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif; }
   .crm-ocean h1, .crm-ocean h2, .crm-ocean h3, .crm-ocean h4 { color: #0B2A44; }
 }
+
+/* ----------------------------------------------------------------------------
+ * Design tokens (docs/DESIGN_SYSTEM.md). Components still use the literal values of src/components/ui.tsx;
+ * new and refactored code reads these so the palette can change in one place.
+ * ------------------------------------------------------------------------- */
+:root {
+  --c-ink: #0B2A44;        /* headings, primary text, selected controls */
+  --c-text: #26211E;       /* body text on the warm page */
+  --c-muted: #5E778C;      /* secondary text — 4.6:1 on white */
+  --c-faint: #7E93A6;      /* tertiary, never for essential text */
+  --c-line: #D3E3F0;       /* borders */
+  --c-line-soft: #EEF3F8;  /* row dividers */
+  --c-page: #F4F0EB;       /* warm Amaya page */
+  --c-surface: #FFFFFF;
+  --c-accent: #0B6BB0;     /* links, focus, progress */
+  --c-success: #0E8A86;
+  --c-warn: #92400E;
+  --c-danger: #B06A55;
+  --radius-control: 0.5rem;
+  --radius-panel: 0.75rem;
+  --touch: 2.75rem;        /* 44 px minimum touch target on mobile */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Visible focus for keyboard users everywhere (mouse clicks do not show it). */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+@media (pointer: coarse) {
+  :where(button, [role="tab"], a.min-h-9) { min-height: var(--touch); }
+}

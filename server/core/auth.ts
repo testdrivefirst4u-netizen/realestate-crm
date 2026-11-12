@@ -43,6 +43,10 @@ export interface PublicUser {
   callVia: 'justconnect' | 'direct';
   /** Devices this account may be signed in on at once (default CFG.SESSION_MAX_DEVICES; an admin can allow up to 10). */
   maxDevices: number;
+  /** Organisation (server/modules/org.ts): level 1–5 (0 = not placed), manager's user id, and what a manager sees. */
+  orgLevel?: number;
+  reportsTo?: string;
+  leadScope?: 'team' | 'all';
 }
 
 export interface UserDoc {
@@ -66,6 +70,11 @@ export interface UserDoc {
   maxDevices?: number;
   /** The hidden Platform support account (opened by a super admin); never listed or counted. */
   support?: boolean;
+  /** Organisation (server/modules/org.ts): level 1 (most senior) … 5, who they report to, and for managers
+   *  whether they see every lead ('all', default) or their team's ('team'). */
+  orgLevel?: number;
+  reportsTo?: string;
+  leadScope?: 'team' | 'all';
   /** Two-step sign-in: encrypted TOTP secret (on), or the one being set up (pending). */
   totpSecret?: string;
   /** The 30-second step of the last authenticator code used to sign in (that code and older ones are refused). */
@@ -156,6 +165,9 @@ export function publicUser(u: UserDoc): PublicUser {
     phone: u.phone || '',
     callVia: u.callVia === 'direct' ? 'direct' : 'justconnect',
     maxDevices: deviceLimit(u),
+    orgLevel: Number(u.orgLevel) || 0,
+    reportsTo: u.reportsTo || '',
+    leadScope: u.leadScope === 'team' ? 'team' : 'all',
   };
 }
 
@@ -335,7 +347,17 @@ export async function updateUser(data: any, ctx: Ctx) {
 
   const update: any = { $set: set };
   if (Object.keys(unset).length) update.$unset = unset;
+  // a rename re-labels what the user owns (stamping their id) BEFORE their own name changes: if it stops part-way,
+  // every re-labelled lead already carries the id, so nothing is orphaned (server/core/ownership.ts)
+  const renamed = set.name !== undefined && String(set.name) !== String(u.name || '');
+  let renameReport: Record<string, number> | null = null;
+  if (renamed) {
+    const { cascadeRename } = await import('./ownership');
+    renameReport = { ...(await cascadeRename(String(u._id), String(u.name || ''), String(set.name))) };
+    update.$push = { previousNames: { name: String(u.name || ''), until: new Date() } };
+  }
   await (await users()).updateOne({ _id: u._id }, update);
+  if (renamed) await auditLog(ctx, 'User Renamed', 'Settings', u._id, `${u.name} → ${set.name}`, { before: { name: u.name }, after: { name: set.name, ...renameReport } });
   if (set.emailLower && set.emailLower !== u.emailLower) await releaseEmail(u.emailLower);
   const changed = Object.keys(set).filter((k) => k !== 'passwordHash' && k !== 'emailLower');
   await auditLog(ctx, 'User Updated', 'Settings', u._id, changed.join(', '), {

@@ -79,7 +79,7 @@ describe('phone tab bar', () => {
     const { MobileTabBar } = await import('../src/components/MobileTabBar');
     const render = (p: Record<string, unknown>) => renderToStaticMarkup(createElement(MobileTabBar, { currentView: 'leads', showChats: true, onMore: () => {}, ...p } as any));
     const html = render({ followupsToday: 5 });
-    for (const l of ['Home', 'Leads', 'Follow-ups', 'WhatsApp', 'More screens']) expect(html).toContain(`aria-label="${l}"`);
+    for (const l of ['Today', 'Leads', 'Follow-ups', 'WhatsApp', 'More screens']) expect(html).toContain(`aria-label="${l}"`);
     expect(html).toMatch(/aria-label="Leads" aria-current="page"/);
     expect(html).toContain('>5</span>');
     expect(html).not.toContain('New enquiry');

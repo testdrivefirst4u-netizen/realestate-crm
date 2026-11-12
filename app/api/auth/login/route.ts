@@ -14,6 +14,7 @@ import { isSuperAdminEmail } from '@/server/platform/superAdmins';
 import { setPlatformSessionCookie } from '@/server/platform/cookie';
 import { isSameOrigin, requestBase, setSessionCookie } from '@/server/core/request';
 import { errEnvelope } from '@/server/core/errors';
+import { homeViewFor, viewHref } from '@/src/core/views';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
   const crm = await dispatch('login', { email, password, ...(code ? { code } : {}) }, base);
   const data: any = (crm.body as any).data;
   if (crm.status !== 200 || !data?.token || !crm.companyId) return json(crm.body, crm.status);
-  const res = json({ status: 'success', data: { area: 'crm', redirect: '/dashboard', user: data.user, expiresAt: data.expiresAt, token: 'cookie' } }, 200);
+  const res = json({ status: 'success', data: { area: 'crm', redirect: viewHref(homeViewFor(data.user?.role)), user: data.user, expiresAt: data.expiresAt, token: 'cookie' } }, 200);
   setSessionCookie(res, crm.companyId, data.token, data.expiresAt);
   return res;
 }

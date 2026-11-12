@@ -1,0 +1,150 @@
+# Verification record
+
+Environment: macOS (Darwin 25.5), Node 24.15.0, MongoDB from `mongodb-memory-server` (in-memory, per test file),
+synthetic data only. No production account, database, provider or message was touched.
+
+## Baseline — `main` @ `16b330a` (the reviewed commit; no later upstream commits)
+
+| Gate | Result |
+|---|---|
+| `npm ci` | OK |
+| `npm run typecheck` | OK |
+| Full suite (`vitest run`) | 1479 passed, **1 failed** (`server-drip` "goes step by step…"), 3 unhandled teardown errors → exit 1 |
+
+The drip failure was the test, not production: enrolment is stamped with the real clock while the worker in the
+test runs on a fixed `noon` (10 Nov 2026), so on any later day the first step was "not due". Fixed in the test.
+
+## Findings reproduced on the original code
+
+`docs/evidence/reproduce-on-main.test.ts`, run in a worktree of `main` — every assertion below **holds on main**
+(i.e. the defect is real); the same file fails on this branch because the defects are fixed:
+
+| # | Defect asserted on main | Result on main |
+|---|---|---|
+| 1 | An agent's bootstrap contains another agent's buyer name, lead id and paid amount | reproduced |
+| 2 | 20 simultaneous reservations of one unit: more than one reports success | reproduced |
+| 3 | After an admin renames an agent, the agent sees 0 of their leads | reproduced |
+| 4 | A telephony event the CRM fails to save is answered HTTP 200 | reproduced |
+| 5 | 10 simultaneous bookings of a 2-place visit slot: more than 2 succeed | reproduced |
+| 6 | 1 timely reply + 9 ignored enquiries shows 100 % SLA | reproduced |
+| 7 | Backups live in the same database (code reading: `server/modules/backups.ts`) | confirmed by inspection |
+
+Prior local work (`~/Claude/crm-test/meta-lead-fixes.patch`, F-001…F-005, Meta lead intake) targets an older base and
+does not apply; on current `main` the intake claim / sync-report code had already been rewritten upstream
+(`metaSync.ts` counts only `created` / `duplicate`). Not re-applied.
+
+## Release A — results on this branch
+
+| Gate | Result |
+|---|---|
+| `npm run typecheck` | OK |
+| Full suite | **113 files, 1517 tests passed, 0 failed** (before the teardown-noise filter: exit 1 only from 4 `MongoClientClosedError` teardown errors, now ignored by that exact class) |
+| `npm run build` | OK |
+| `npm audit --omit=dev` | 0 vulnerabilities |
+
+Acceptance checks (all automated):
+
+| Requirement | Test |
+|---|---|
+| Restricted customer fields never reach unauthorised users (bootstrap, inventory, write responses, event feed; AI context is built from the same redacted data; report snapshots by owner id) | `tests/release-a-inventory.test.ts` |
+| Cross-tenant access denied; suspended company's session stops | `tests/release-a-tenancy.test.ts` |
+| Renaming an agent preserves ownership and visibility | `tests/release-a-ownership.test.ts` |
+| 20 simultaneous attempts to reserve one unit → exactly one winner | `tests/release-a-inventory.test.ts` |
+| Concurrent visit bookings cannot exceed capacity | `tests/release-a-visits.test.ts` |
+| Repeated provider events → one business result | `tests/release-a-webhooks.test.ts` |
+| Database failure before event persistence → 503, never success | `tests/release-a-webhooks.test.ts` |
+| 1 timely + 9 overdue unanswered ≠ 100 % overall SLA | `tests/release-a-reporting.test.ts` |
+| Isolated restore drill (media, checksums, key) | `tests/release-a-recovery.test.ts` |
+
+## Browser verification (synthetic demo company, local MongoDB, `next dev`)
+
+Seeded with `scripts/seed-demo.ts`; signed in as each synthetic role. Screenshots in `docs/screenshots/`.
+
+| Check | Result |
+|---|---|
+| Sign-in lands on Today for every role | fixed during the check (the login API still sent everyone to /dashboard) — now verified |
+| Agent Today: uncontacted enquiry past SLA, missed call, overdue callback, visit | correct queues and late markers (01, 07) |
+| Journey: outcome → next step via keyboard (Enter), visible focus, confirmation | works (02) |
+| Journey: people with roles, Dubai local time, consent; quotation; booking gate | works (02, 03); added during the check: pending booking state instead of a second "Ask a manager" button (04), international number formatting, browser `samePhone` respecting country codes |
+| Manager Team: approvals, no owner, late, missed calls, visits, workload | works (05); approvals now show unit number and customer name instead of ids; approving books the unit and updates the queue |
+| Founder Business: no controls, numbers reconcile with the seed | works (06, 08): booked ₹2.31 Cr, collected ₹13.1 L, no invented estimate, SLA 25 % (1 of 4 due) |
+| Mobile 375 px: no horizontal scroll, 44 px targets, visible 2 px focus | verified (07, 08, 09) |
+
+Pre-existing, not caused by this branch: every page logs a React hydration mismatch from the full-page loader
+animation (`bc-loader`, `main` commit `73a9991`), which injects markup before hydration. Worth a separate fix.
+
+Final gates: typecheck ✅ · 115 files / 1527 tests ✅ · build ✅.
+
+## Release E (RERA schedule, engagement)
+
+`tests/release-e-rera-engagement.test.ts` (9 tests): plan validation (100 %, agreement reference, ≤ 10 % before registration,
+managers only); booking → 10 % cap on receipts and demands → registered agreement → stage certification raises one demand →
+interest at the entered rate → demand letter totals; another agent is refused the statement; deviations need a reason;
+oldest-first allocation; engagement health thresholds; SOP customer steps closed by logged touches; Today lists the customer.
+
+Browser (synthetic demo, desktop and 375 px): customer engagement and steps (11), payments statement (10, 15), demand letter (12),
+Today customer queue (13), Team construction and plans (14). Fixed during the check: the booking checklist and quotation form
+showed on already-booked units; the demand letter opened off-screen; amounts wrapped on mobile; the customer queue named the
+selling agent as if they were the owner.
+
+Final gates: typecheck ✅ · 116 files / 1535 tests ✅ · build ✅.
+
+## Release F (organisation, scorecards)
+
+`tests/release-f-org-scorecards.test.ts` (5 tests): level names and limits; placement rules (loop, same level,
+moving above someone's reports, self); a team-scoped manager sees only own + team + unassigned leads while an
+"all" manager and the founder see everything; the Team view, workload and reassignment stay inside the team;
+scorecards roll up and an agent sees only their own; targets set only from above, validated.
+
+Browser: agent Your month (16), team scorecard tree with roll-ups (17), Organisation panel and its loop refusal (18),
+read-only scorecard on Business. Fixed during the check: the site root, home-screen app start and 404 page opened
+the old Dashboard and /today was missing from the proxy's route list; the sidebar logo linked to Dashboard.
+
+Final gates: typecheck ✅ · 117 files / 1540 tests ✅ · build ✅.
+
+## Release G (previous-period comparisons, suggested next steps)
+
+`tests/release-g-insights.test.ts` (11 tests): a missed call comes first; a new enquiry past the response time gets
+a first call now with the reason; visited with no quotation after 3 days → quotation, with the score explained; a
+decision-maker abroad who never took part → family consultation timed for their day; gone quiet → something of value,
+and WhatsApp without consent flagged; an expiring reservation and an overdue payment are today's jobs, budget below
+price a risk; contact time is now inside 10:00–19:00 local, else the next local 11:00 (half-hour zones too); the
+report compares the same definitions over the previous period; next steps are ranked within the user's own customers
+and another agent's lead is hidden; urgency always outranks readiness; the scorecard carries the previous month.
+Rules not covered by a dedicated test: approval waiting, payer unknown, confirm visit, customer-care steps, no next
+step (exercised in the browser only for approval and confirm visit).
+
+Browser: Today's ranked "Suggested next steps" (19); the Journey card with readiness signals adding up to the score
+(20); "Use this" filling in the next-step form (21); Business showing the previous period (22). Fixed during the
+check: a 'now' item ranked below a 'today' one with a higher score; with no enquiries in the previous period the
+funnel read "0% before" (looked like a fall) — it now shows "—" and says there is nothing to compare.
+
+Final gates: typecheck ✅ · 118 files / 1551 tests ✅ · build ✅ · npm audit 0.
+
+## Security review of this branch (two fixes)
+
+A review of the whole branch for access control, phone masking, webhooks and the public booking page, tenant
+isolation, injection and XSS found two issues, each confirmed by a second, independent check:
+1. **Payments ignored "See buyers and payments"** for people who see every lead (View only, a Manager not limited
+   to a team, Agents when agents may see all leads): `getPayments` / `recordReceipt` served the ledger, receipt
+   references and lead of any booked unit. Fixed in `server/modules/payments.ts` — the same rule as the inventory
+   screen and the RERA statement: without the permission, only your own restricted set of customers, never all.
+2. **An agent could send a lower base price** to `saveQuote` and get an "approved" quotation with no discount, then
+   have the unit booked at that price. Fixed in `server/modules/journey.ts`: the base is the unit's list price;
+   only someone who approves discounts may quote another base; a unit with no price needs a typed base approved.
+   The booking approval now shows the price, list, charges and discount (23).
+Checked and found sound: every new action has a permission and record-level scope; viewers reach no write;
+`leadScope` and levels only by admins; self-approval blocked for discounts, receipt voids and own targets; phone
+fields masked by the router; webhook inbox per company; the public booking route returns only the time.
+
+`tests/security-review-fixes.test.ts` (5 tests). Gates: typecheck ✅ · 119 files / 1556 tests ✅ · build ✅.
+
+## Not verified
+
+- RERA rules against the notified Telangana gazette text and Amaya's registered agreement (needs counsel).
+
+- Older screens (Dashboard, MIS, Inventory grid) were not restyled or re-checked visually.
+- Offline and error states of Today were implemented but only exercised in code, not by cutting the network.
+- No test against a real MongoDB Atlas replica set (transactions, real network failures), real Meta / Chat360 /
+  telephony deliveries, or production data volumes.
+- Migration scripts were run only against synthetic test databases.

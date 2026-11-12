@@ -33,7 +33,8 @@ async function handle(_req: Request, { params }: { params: Promise<{ id: string 
   const { id } = await params;
   const snap = await getReportSnapshot(id);
   // snapshots can contain any lead: users limited to their own leads only get the ones they generated
-  const own = (await restrictionFor(session.user)) === null || (snap && String(snap.generatedBy).trim().toLowerCase() === session.user.name.trim().toLowerCase());
+  const mine = (s: NonNullable<typeof snap>) => (s.generatedById ? s.generatedById === session.user.id : String(s.generatedBy).trim().toLowerCase() === session.user.name.trim().toLowerCase());
+  const own = (await restrictionFor(session.user)) === null || (snap && mine(snap));
   if (!snap || !own) return json(404, 'NOT_FOUND', 'Report not found');
 
   // a file downloaded directly, past the router's mask

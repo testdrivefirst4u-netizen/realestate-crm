@@ -217,8 +217,10 @@ async function pause(id: string, reason: string) {
 /** Send one person. Refusals about the whole account put them back in the queue; anything else is final, so nobody gets it twice. */
 async function sendOne(c: CampaignDoc, r: RecipientDoc, lead: any, company: string, now: Date): Promise<'ok' | 'pause' | 'done'> {
   const recipients = await recipientsCol();
-  if (await (await optOutCol()).findOne({ _id: `whatsapp:${r.phoneLast10}` }, { projection: { _id: 1 } })) {
-    await recipients.updateOne({ _id: r._id }, { $set: { status: 'skipped', error: 'Asked not to be messaged.' } });
+  // checked again right before sending: an opt-out that arrived while the campaign was queued stops it here
+  const allowed = await (await import('./consent')).canSend(r.phone, 'marketing');
+  if (!allowed.ok || (await (await optOutCol()).findOne({ _id: `whatsapp:${r.phoneLast10}` }, { projection: { _id: 1 } }))) {
+    await recipients.updateOne({ _id: r._id }, { $set: { status: 'skipped', error: allowed.ok ? 'Asked not to be messaged.' : allowed.reason } });
     return 'done';
   }
   const person = { name: str(lead?.name) || r.name, rm: str(lead?.assignedRm), unit: str(lead?.unitType) };

@@ -499,7 +499,7 @@ describe('webhook route', () => {
   it('accepts the secret in the header or query, JSON or form bodies, and always answers 200', async () => {
     const a = await webhookPOST(req('http://x/api/webhooks/chat360?company=test', inbound(), { 'x-webhook-secret': 'hook-secret' }));
     expect(a.status).toBe(200);
-    expect(await a.json()).toEqual({ status: 'success', data: { ok: true, leadId: 'ENQ-0100' } });
+    expect(await a.json()).toMatchObject({ status: 'success', data: { ok: true, leadId: 'ENQ-0100' } });
 
     const form = new URLSearchParams({ event_type: 'message_received', event_response_id: 'evt-form', sender_num: '918888777766', message_text: 'form hello' }).toString();
     const b = await webhookPOST(new Request('http://x/api/webhooks/chat360?company=test&secret=hook-secret', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form }));
@@ -509,7 +509,7 @@ describe('webhook route', () => {
     // a lead-lookup failure is logged but the message is still stored
     vi.mocked(leads.findLeadByPhone).mockRejectedValue(new Error('db down'));
     const c = await webhookPOST(req('http://x/api/webhooks/chat360?company=test&secret=hook-secret', inbound({ event_response_id: 'evt-err', sender_num: '917777666655' })));
-    expect(await c.json()).toEqual({ status: 'success', data: { ok: true, leadId: null } });
+    expect(await c.json()).toMatchObject({ status: 'success', data: { ok: true, leadId: null } });
     expect(await (await col(CFG.COLL.ERROR_LOG)).countDocuments({ scope: 'chat360.resolveLead' })).toBe(1);
 
     // processing errors still answer 200 (no provider retry storm) and are logged

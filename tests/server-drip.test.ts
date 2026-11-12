@@ -143,6 +143,9 @@ describe('sending', () => {
   it('goes step by step, with each wait, filling in the details', async () => {
     await running();
     const id = await newLead();
+    // Enrolment is stamped with the real clock; the worker runs on the fixed `noon`. Put the first step on the
+    // worker's clock so the test does not depend on what day it runs (it failed on any day after 10 Nov 2026).
+    await due(id);
     await run();
     expect(chatSend).toHaveBeenCalledTimes(1);
     expect((chatSend.mock.calls[0] as any)[0]).toMatchObject({ templateName: 'welcome', params: ['Ravi'], leadId: id });

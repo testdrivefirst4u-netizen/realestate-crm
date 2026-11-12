@@ -568,6 +568,10 @@ export async function runLeadWatch(now = new Date()) {
   const missed = await alertUnreturnedMissed(cfg, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { alerted: 0 }; });
   const payments = await sendPaymentReminders(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0 }; });
   const credits = await sweepCredits(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { released: 0, charged: 0 }; });
+  // lapsed unit reservations go back on sale (each a guarded compare-and-set write)
+  const holds = currentTenant() && !currentTenant()!.features.inventory ? { released: 0 } : await (await import('./inventory')).releaseExpiredHolds(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { released: 0 }; });
+  // webhook events that failed to process: retried with back-off, dead-lettered after the last attempt
+  const webhooks = await (await import('../core/webhookInbox')).runInboxDue(now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { done: 0, failed: 0, dead: 0 }; });
   // only a company with campaigns ever loads them
   let campaigns = { sent: 0, more: false };
   if ((currentTenant()?.features as any)?.whatsappCampaigns) {
@@ -575,7 +579,7 @@ export async function runLeadWatch(now = new Date()) {
     campaigns = await worker.runCampaignsDue(20000, now).catch(async (e) => { await logError('salesOps.watch', 'INTERNAL', e?.message, e?.stack); return { sent: 0, more: false }; });
     if (campaigns.more && campaigns.sent) await worker.nudgeWorker();
   }
-  return { slow, reassigned, visits, summary, missed, payments, credits, campaigns };
+  return { slow, reassigned, visits, summary, missed, payments, credits, holds, webhooks, campaigns };
 }
 
 /* ------------------------------- leaderboard ----------------------------- */

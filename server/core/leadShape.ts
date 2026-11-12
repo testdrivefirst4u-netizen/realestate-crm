@@ -34,6 +34,8 @@ export interface LeadDoc {
   nextFollowupAt: Date | null;
   notes: string;
   assignedRm: string;
+  /** Immutable owner key (the user's _id). The name above is a label kept for display and history. */
+  assignedRmId?: string;
   brochureShared: string;
   relationship: string;
   enquiredFor: string;
@@ -144,6 +146,13 @@ export function toUiLead(doc: LeadDoc | null | undefined): UiLead | null {
   for (const f of fus) out[followupHeader(f.n)] = formatFollowup(f).trim();
   for (const [k, v] of Object.entries(doc.extra || {})) {
     if (out[k] === undefined) out[k] = v === null || v === undefined ? '' : String(v).trim();
+  }
+  // recorded journey milestones, read-only (keys starting with _ are never written back: fromUiPatch)
+  const ms = (doc as any).milestones;
+  if (ms && typeof ms === 'object') {
+    const ui: Record<string, string> = {};
+    for (const [k, v] of Object.entries(ms as Record<string, any>)) if (v?.at) ui[k] = new Date(v.at).toISOString() + (v.source === 'backfill' ? '~' : '');
+    if (Object.keys(ui).length) out._milestones = JSON.stringify(ui);
   }
   return out;
 }

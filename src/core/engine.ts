@@ -937,10 +937,12 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
       const optimistic = { ...before, ...patch, syncStatus: 'Pending' as const };
       patchData((p) => ({ ...p, inventory: p.inventory.map((u) => (u === before ? optimistic : u)) }));
       try {
-        const res = await write(() => api.inventory.update(before.inventoryId || before.unitId, patch, before.lastModified));
+        // one key per save: a retried request (slow network, double click) is applied once
+        const opKey = `${before.inventoryId}:${before.rev ?? 'lm'}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const res = await write(() => api.inventory.update(before.inventoryId || before.unitId, patch, before.lastModified, before.rev, opKey));
         if (res.conflict) {
           patchData((p) => ({ ...p, inventory: p.inventory.map((u) => (u.inventoryId === before.inventoryId ? { ...res.conflict!, syncStatus: 'Conflict' } : u)) }));
-          toast('Unit changed elsewhere', `Unit ${before.unitId} was edited by someone else. Showing the latest version — please re-apply your change.`, 'warning');
+          toast('Unit not changed', res.reason || `Unit ${before.unitId} was edited by someone else. Showing the latest version — please re-apply your change.`, 'warning');
           return { ok: false, conflict: res.conflict };
         }
         patchData((p) => ({ ...p, inventory: p.inventory.map((u) => (u.inventoryId === before.inventoryId || u.unitId === before.unitId ? res.unit : u)) }));

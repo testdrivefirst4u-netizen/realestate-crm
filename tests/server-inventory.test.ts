@@ -41,9 +41,9 @@ describe('inventory', () => {
     const ctx = await t.ctx('Admin');
     const { unit } = await addUnit({ unitId: 'D404' }, ctx);
     expect(unit).toMatchObject({ quotedAmount: 0, paidAmount: 0 });
-    const { unit: u } = await updateUnit(unit.inventoryId, { quotedAmount: '₹ 1,20,00,000', paidAmount: 3000000 }, ctx);
+    const { unit: u } = await updateUnit(unit.inventoryId, { quotedAmount: '₹ 1,20,00,000', paidAmount: 3000000 }, ctx, undefined, { expectedRev: unit.rev });
     expect(u).toMatchObject({ quotedAmount: 12000000, paidAmount: 3000000 });
-    expect((await updateUnit('D404', { paidAmount: -5 }, ctx)).unit.paidAmount).toBe(0);
+    expect((await updateUnit('D404', { paidAmount: -5 }, ctx, undefined, { expectedRev: u.rev })).unit.paidAmount).toBe(0);
   });
 
   it('rejects a missing or duplicate unit number (case-insensitive)', async () => {
@@ -56,7 +56,7 @@ describe('inventory', () => {
   it('updates by inventory id or unit number, stamps booked date, clears customer on release', async () => {
     const ctx = await t.ctx('Manager', 'Ravi');
     const { unit } = await addUnit({ unitId: 'C303' }, ctx);
-    const booked = await updateUnit(unit.inventoryId, { status: 'Booked', customerName: 'Mr Rao', leadId: 'ENQ-0007' }, ctx);
+    const booked = await updateUnit(unit.inventoryId, { status: 'Booked', customerName: 'Mr Rao', leadId: 'ENQ-0007' }, ctx, undefined, { expectedRev: unit.rev });
     expect(booked.conflict).toBeUndefined();
     expect(booked.unit.status).toBe('Booked');
     expect(booked.unit.bookedDate).not.toBe('');
@@ -70,7 +70,7 @@ describe('inventory', () => {
     const audit = await (await col(CFG.COLL.AUDIT_LOG)).find({ action: 'Unit Updated' }).toArray();
     expect(audit.length).toBe(1);
 
-    const released = await updateUnit('C303', { status: 'Available' }, ctx);
+    const released = await updateUnit('C303', { status: 'Available' }, ctx, undefined, { expectedRev: booked.unit.rev });
     expect(released.unit.inventoryId).toBe(unit.inventoryId);
     expect(released.unit.customerName).toBe('');
     expect(released.unit.leadId).toBe('');

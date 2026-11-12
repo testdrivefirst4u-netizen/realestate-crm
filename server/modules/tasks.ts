@@ -12,6 +12,7 @@ import { fail } from '../core/errors';
 import { addEvent, addTimeline } from '../core/events';
 import { escapeRegex, fmtHuman, parseDate, str, toIso } from '../core/utils';
 import { getLead, resolveSuppliedId } from './leads';
+import { userIdByName } from '../core/ownership';
 
 export interface ChecklistEntry { text: string; checked: boolean }
 
@@ -29,6 +30,9 @@ export interface TaskDoc {
   completedAt: Date | null;
   snoozedUntil: Date | null;
   createdBy: string;
+  /** Immutable owner keys (user _id); the names above are labels. */
+  assignedToId?: string;
+  createdById?: string;
 }
 
 /** API shape (src/types/crm.ts → TaskItem). */
@@ -46,6 +50,8 @@ export interface TaskItem {
   completedAt: string;
   snoozedUntil: string;
   createdBy: string;
+  assignedToId?: string;
+  createdById?: string;
 }
 
 const tasksCol = () => col<TaskDoc>(CFG.COLL.TASKS);
@@ -80,6 +86,8 @@ export function serializeTask(r: TaskDoc): TaskItem {
     completedAt: toIso(r.completedAt),
     snoozedUntil: toIso(r.snoozedUntil),
     createdBy: str(r.createdBy),
+    assignedToId: str(r.assignedToId),
+    createdById: str(r.createdById),
   };
 }
 
@@ -114,6 +122,9 @@ export async function addTask(data: any, ctx: Ctx | null): Promise<{ id: string;
     checklist: normalizeChecklist(Array.isArray(data.checklist) ? data.checklist : []), assignedTo: String(data.assignedTo || actor),
     createdAt: now, completedAt: null, snoozedUntil: null, createdBy: actor,
   };
+  // owners by immutable id (names are labels: a renamed agent keeps their tasks)
+  (doc as any).assignedToId = await userIdByName(doc.assignedTo);
+  (doc as any).createdById = ctx?.user && ctx.user.id !== 'SYSTEM' && ctx.user.name === actor ? ctx.user.id : await userIdByName(actor);
   await tasks.insertOne(doc);
   const task = serializeTask(doc);
   if (leadId) await addTimeline(leadId, 'task_created', 'Task created: ' + task.name, 'Due ' + fmtHuman(when), actor, 'Task', id);
@@ -137,7 +148,7 @@ export async function updateTask(id: string, patch: any, ctx: Ctx | null): Promi
   if (patch.leadId !== undefined) { set.leadId = String(patch.leadId); fields.push('Lead ID'); }
   if (patch.datetime !== undefined) { set.dateTime = parseDate(patch.datetime); fields.push('Date Time'); }
   if (patch.checklist !== undefined) { set.checklist = normalizeChecklist(Array.isArray(patch.checklist) ? patch.checklist : []); fields.push('Checklist'); }
-  if (patch.assignedTo !== undefined) { set.assignedTo = String(patch.assignedTo); fields.push('Assigned To'); }
+  if (patch.assignedTo !== undefined) { set.assignedTo = String(patch.assignedTo); set.assignedToId = await userIdByName(set.assignedTo); fields.push('Assigned To'); }
   if (patch.snoozedUntil !== undefined) { set.snoozedUntil = parseDate(patch.snoozedUntil); fields.push('Snoozed Until'); }
   if (patch.completed !== undefined) {
     set.completed = !!patch.completed;

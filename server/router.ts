@@ -66,6 +66,17 @@ import { actions as whatsappCreditActions } from './modules/whatsappCredits';
 import { actions as whatsappBotActions } from './modules/whatsappBots';
 import { actions as whatsappCampaignActions } from './modules/whatsappCampaigns';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
+import { actions as visitActions } from './modules/visits';
+import { actions as salesReportActions } from './modules/salesReport';
+import { actions as journeyActions } from './modules/journey';
+import { actions as workspaceActions } from './modules/workspace';
+import { actions as connectorHealthActions } from './modules/connectorHealth';
+import { actions as paymentActions } from './modules/payments';
+import { actions as reraActions } from './modules/rera';
+import { actions as engagementActions } from './modules/engagement';
+import { actions as orgActions } from './modules/org';
+import { actions as scorecardActions } from './modules/scorecard';
+import { actions as insightActions } from './modules/insights';
 
 export const registry: ActionMap = {
   ...systemActions,
@@ -119,6 +130,17 @@ export const registry: ActionMap = {
   ...whatsappBotActions,
   ...whatsappCampaignActions,
   ...connectedAccountActions,
+  ...visitActions,
+  ...salesReportActions,
+  ...journeyActions,
+  ...workspaceActions,
+  ...connectorHealthActions,
+  ...paymentActions,
+  ...reraActions,
+  ...engagementActions,
+  ...orgActions,
+  ...scorecardActions,
+  ...insightActions,
 };
 
 const STATUS: Record<string, number> = {
@@ -175,7 +197,7 @@ const NO_COMPANY_ACTIONS = new Set(['ping', 'setupStatus', 'createFirstAdmin', '
 const VIEWER_ACTIONS = new Set([
   'ping', 'setupStatus', 'logError', 'login', 'logout', 'me',
   'getBootstrap', 'getEvents', 'getAllLeads', 'getSlowLeads', 'logLeadExport', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
-  'getCalls', 'jcCallReport', 'getInventory', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
+  'getCalls', 'jcCallReport', 'getInventory', 'listVisitBookings', 'getSalesReport', 'getLeadPeople', 'listQuotes', 'getBookingGate', 'listApprovals', 'getToday', 'getTeamExceptions', 'getPayments', 'listPaymentPlans', 'getReraSettings', 'getPaymentStatement', 'getDemandLetter', 'getEngagement', 'getCustomerQueue', 'getOrg', 'getScorecard', 'getLeadInsight', 'getNextSteps', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
   'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'getBusinessPhotos', 'getBusinessReviews', 'listCompetitors', 'listMetaAds',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
