@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import dns from 'dns/promises';
 import net from 'net';
+import type { Readable } from 'node:stream';
 import type { ActionMap } from '../core/actions';
 import { auditLog, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
@@ -45,7 +46,7 @@ const RUN_BUDGET_MS = 90000;
 const STOP_WORDS = /^\s*(stop|unsubscribe|opt[ -]?out|cancel|remove me|do not (message|contact) me)\s*[.!]*\s*$/i;
 
 export type DripChannel = 'whatsapp' | 'email' | 'task';
-export interface DripStep { id: string; channel: DripChannel; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
+export interface DripStep { id: string; channel: DripChannel; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string; attachments: string[] }
 export interface DripCampaign { _id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStep[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; testedAt: Date | null; createdBy: string; createdAt: Date; updatedAt: Date }
 interface Enrollment { _id: string; campaignId: string; leadId: string; phoneLast10: string; email: string; stepIndex: number; nextAt: Date | null; status: 'active' | 'completed' | 'stopped'; stopReason: string; enrolledAt: Date; attempts: number; sendingStep: string; updatedAt: Date }
 interface DripLog { _id: string; campaignId: string; leadId: string; stepId: string; channel: DripChannel; status: 'sent' | 'skipped' | 'failed' | 'stopped'; detail: string; day: string; at: Date }
@@ -70,7 +71,7 @@ function readStep(raw: any, i: number): DripStep {
   if (!['whatsapp', 'email', 'task'].includes(channel)) throw bad(`Step ${n}: choose WhatsApp, e-mail or an RM task.`);
   const waitMinutes = Math.round(Number(raw?.waitMinutes) || 0);
   if (waitMinutes < 0 || waitMinutes > MAX_WAIT_MIN) throw bad(`Step ${n}: the wait can be up to 90 days.`);
-  const step: DripStep = { id: String(raw?.id || '') || shortId('STEP'), channel, waitMinutes, template: '', params: [], subject: '', body: '', taskName: '' };
+  const step: DripStep = { id: String(raw?.id || '') || shortId('STEP'), channel, waitMinutes, template: '', params: [], subject: '', body: '', taskName: '', attachments: (Array.isArray(raw?.attachments) ? raw.attachments : []).map((a: unknown) => String(a || '').trim()).filter(Boolean).slice(0, 10) };
   if (channel === 'whatsapp') {
     step.template = truncate(String(raw?.template || '').trim(), 200);
     if (!step.template) throw bad(`Step ${n}: enter the approved WhatsApp template's name.`);
@@ -201,13 +202,31 @@ export async function unsubscribeEmail(email: string): Promise<void> {
   await (await optOutCol()).updateOne({ _id: `email:${cleanEmail(email)}` }, { $set: { channel: 'email', at: new Date(), how: 'Unsubscribe link' } }, { upsert: true });
 }
 
-async function sendMail(to: string, subject: string, body: string): Promise<void> {
+/** Build nodemailer attachments from stored file ids (missing or unreadable ones are skipped). */
+async function mailAttachments(ids: string[]): Promise<Array<{ filename: string; content: Readable; contentType: string }>> {
+  if (!ids?.length) return [];
+  const { statFile, openFileStream } = await import('./storage');
+  const out: Array<{ filename: string; content: Readable; contentType: string }> = [];
+  for (const id of ids.slice(0, 10)) {
+    try {
+      const info = await statFile(id);
+      if (info) out.push({ filename: info.name || 'attachment', content: await openFileStream(info), contentType: info.mime });
+    } catch {
+      /* skip an unreadable attachment rather than fail the whole send */
+    }
+  }
+  return out;
+}
+
+async function sendMail(to: string, subject: string, body: string, attachments: string[] = []): Promise<void> {
   const m = await loadMail();
   if (!m?.host || !m.pass) throw fail('NOT_CONFIGURED', "The company's mail account is not set up.");
   const url = unsubscribeUrl(to);
+  const files = await mailAttachments(attachments);
   await transport({ ...m, pass: decryptSecret(m.pass) }).sendMail({
     from: m.fromName ? { name: m.fromName, address: m.fromEmail } : m.fromEmail, to, subject,
     text: `${body}\n\n--\nTo stop these e-mails: ${url}`,
+    ...(files.length ? { attachments: files } : {}),
     headers: { 'List-Unsubscribe': `<${url}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
   });
 }
@@ -222,7 +241,17 @@ function varsOf(lead: any): Record<string, string> {
 
 async function sendWhatsapp(phone: string, step: DripStep, vars: Record<string, string>, leadId?: string) {
   const { send } = await import('./chat360');
-  await send({ phone, leadId, templateName: step.template, params: step.params.map((p) => fillVars(p, vars)) }, SYSTEM_CTX);
+  const params = step.params.map((p) => fillVars(p, vars));
+  // a media-header template carries its header image/document/video as `link` (Chat360)
+  if (step.attachments?.[0]) {
+    try {
+      const { publicMediaUrl } = await import('./socialPosts');
+      params.unshift(`link=${publicMediaUrl(step.attachments[0])}`);
+    } catch {
+      /* no media link available */
+    }
+  }
+  await send({ phone, leadId, templateName: step.template, params }, SYSTEM_CTX);
 }
 
 /* -------------------------------- enrolment -------------------------------- */
@@ -319,7 +348,7 @@ async function sendStep(step: DripStep, lead: any): Promise<string> {
     const to = cleanEmail(lead[L.EMAIL]);
     if (!EMAIL.test(to)) return 'No e-mail address.';
     if (await (await optOutCol()).findOne({ _id: `email:${to}` })) return 'They unsubscribed from e-mails.';
-    await sendMail(to, fillVars(step.subject, vars), fillVars(step.body, vars));
+    await sendMail(to, fillVars(step.subject, vars), fillVars(step.body, vars), step.attachments);
     await addTimeline(leadId, 'drip_email', `Drip e-mail sent: ${truncate(fillVars(step.subject, vars), 120)}`, '', 'System');
     return '';
   }

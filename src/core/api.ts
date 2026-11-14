@@ -312,7 +312,7 @@ export interface BusinessPhotos { error: string; location: string; photos: Busin
 /** Post scheduler › Instagram view (server: modules/instagramProfile.ts). */
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
-export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
+export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string; attachments: string[] }
 export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
 export interface WaCampaignView {
   id: string; name: string; status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'stopped'; template: string; language: string; category: string; params: string[]; headerFileId: string; perDay: number; audience: string; skippedAtStart: Record<string, number>; tested: boolean;

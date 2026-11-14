@@ -17,7 +17,8 @@ const VAR_HINT = 'You can use {name}, {first_name}, {rm}, {source} and {company}
 
 const waitText = (m: number) => (!m ? 'Straight away' : m % 1440 === 0 ? `After ${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `After ${m / 60} hour${m === 60 ? '' : 's'}` : `After ${m} minutes`);
 const hourText = (h: number) => `${h % 12 || 12} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
-const newStep = (channel: Channel = 'whatsapp'): DripStepInput => ({ id: '', channel, waitMinutes: 0, template: '', params: [], subject: '', body: '', taskName: '' });
+const newStep = (channel: Channel = 'whatsapp'): DripStepInput => ({ id: '', channel, waitMinutes: 0, template: '', params: [], subject: '', body: '', taskName: '', attachments: [] });
+const readBase64 = (file: File) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1] || ''); r.onerror = () => reject(r.error); r.readAsDataURL(file); });
 
 /* ------------------------------- previews -------------------------------- */
 const PREVIEW_VARS: Record<string, string> = { name: 'Rahul Sharma', first_name: 'Rahul', rm: 'Priya', source: 'Facebook', company: 'your company' };
@@ -28,15 +29,17 @@ function previewBody(body: string, params: string[]): string {
   return fillTokens(body).replace(/\{\{\s*(\d+)\s*\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
 }
 
-const WaPreview: React.FC<{ tpl?: DripTemplate; params: string[]; typed: string }> = ({ tpl, params, typed }) => {
+const WaPreview: React.FC<{ tpl?: DripTemplate; params: string[]; typed: string; attached?: string }> = ({ tpl, params, typed, attached }) => {
   if (!tpl) return typed ? <p className="mt-1 text-[11px] text-[#8A5A00]">Pick “{typed}” from the list to preview it — its text comes from WhatsApp.</p> : null;
   return (
     <div className="mt-1 rounded-xl bg-[#E5DDD5] p-3">
       <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#5E778C]">Preview · WhatsApp</p>
       <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-sm bg-[#DCF8C6] px-3 py-2 shadow-sm">
-        {tpl.header === 'image' && tpl.sampleUrl
-          ? <img src={tpl.sampleUrl} alt="" className="mb-1.5 max-h-44 w-full rounded object-cover" />
-          : tpl.header !== 'none' && <div className="mb-1.5 flex items-center gap-1.5 rounded bg-white/70 px-2 py-1.5 text-[11px] font-medium capitalize text-[#0B2A44]"><FileText size={13} aria-hidden="true" />{tpl.header} attachment</div>}
+        {attached
+          ? <div className="mb-1.5 flex items-center gap-1.5 rounded bg-white/70 px-2 py-1.5 text-[11px] font-medium text-[#0B2A44]"><FileText size={13} aria-hidden="true" /><span className="truncate">{attached}</span></div>
+          : tpl.header === 'image' && tpl.sampleUrl
+            ? <img src={tpl.sampleUrl} alt="" className="mb-1.5 max-h-44 w-full rounded object-cover" />
+            : tpl.header !== 'none' && <div className="mb-1.5 flex items-center gap-1.5 rounded bg-white/70 px-2 py-1.5 text-[11px] font-medium capitalize text-[#0B2A44]"><FileText size={13} aria-hidden="true" />{tpl.header} attachment</div>}
         <div className="whitespace-pre-wrap text-[12.5px] leading-snug text-[#0B2A44]">{previewBody(tpl.body, params) || <span className="text-[#7E93A6]">(this template has no body text)</span>}</div>
       </div>
     </div>
@@ -57,7 +60,29 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
   const [d, setD] = useState<Draft>(first);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
+  const [attNames, setAttNames] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState(false);
   const step = (i: number, patch: Partial<DripStepInput>) => setD((x) => ({ ...x, steps: x.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }));
+  const addFiles = async (i: number, files: FileList | null, single: boolean) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const added: string[] = [];
+      const names: Record<string, string> = {};
+      for (const f of Array.from(files)) {
+        const res = await api.chat360.uploadFile({ name: f.name, mime: f.type, base64: await readBase64(f) });
+        added.push(res.fileId); names[res.fileId] = res.name || f.name;
+        if (single) break;
+      }
+      setAttNames((m) => ({ ...m, ...names }));
+      setD((x) => ({ ...x, steps: x.steps.map((s, j) => (j === i ? { ...s, attachments: single ? added.slice(0, 1) : [...(s.attachments || []), ...added].slice(0, 10) } : s)) }));
+    } catch (e) {
+      toast('Upload failed', errText('drip.upload', e), 'alert');
+    } finally {
+      setUploading(false);
+    }
+  };
+  const attName = (id: string) => attNames[id] || 'attached file';
   const unit = (m: number) => (m && m % 1440 === 0 ? 1440 : m && m % 60 === 0 ? 60 : m ? 1 : 1440);
   const save = async () => {
     setBusy(true);
@@ -119,7 +144,17 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
                       <input className={inputCls} value={s.template} onChange={(e) => step(i, { template: e.target.value })} placeholder={(data.templates || []).length ? 'Or type the template name' : 'welcome_message'} />
                     </Field>
                     <Field label="Template values, one per line" hint={`In the template's order, or as first_name={first_name}. ${VAR_HINT}`}><textarea rows={2} className={inputCls} value={s.params.join('\n')} onChange={(e) => step(i, { params: e.target.value.split('\n') })} placeholder="{first_name}" /></Field>
-                    <WaPreview tpl={(data.templates || []).find((t) => t.name.toLowerCase() === (s.template || '').toLowerCase())} params={s.params} typed={s.template} />
+                    {(() => {
+                      const tpl = (data.templates || []).find((t) => t.name.toLowerCase() === (s.template || '').toLowerCase());
+                      return tpl && tpl.header !== 'none' ? (
+                        <Field label={`Header ${tpl.header}`} hint={`This template has a ${tpl.header} header. Attach the ${tpl.header} to send — or leave empty to use the template's sample.`}>
+                          {s.attachments?.[0]
+                            ? <div className="flex items-center gap-2 text-xs text-[#0B2A44]"><FileText size={13} /><span className="truncate max-w-[220px]">{attName(s.attachments[0])}</span><button type="button" className="text-[#C0392B] hover:underline" onClick={() => step(i, { attachments: [] })}>Remove</button></div>
+                            : <label className="inline-flex cursor-pointer items-center gap-1.5 rounded border border-dashed border-[#B9D2E6] px-3 py-1.5 text-xs text-[#0B6BB0] hover:bg-[#F2F8FD]"><Plus size={13} />{uploading ? 'Uploading…' : `Attach ${tpl.header}`}<input type="file" className="hidden" accept={tpl.header === 'image' ? 'image/*' : tpl.header === 'video' ? 'video/*' : '.pdf,application/pdf,.doc,.docx'} onChange={(e) => void addFiles(i, e.target.files, true)} /></label>}
+                        </Field>
+                      ) : null;
+                    })()}
+                    <WaPreview tpl={(data.templates || []).find((t) => t.name.toLowerCase() === (s.template || '').toLowerCase())} params={s.params} typed={s.template} attached={s.attachments?.[0] ? attName(s.attachments[0]) : ''} />
                   </>
                 )}
                 {s.channel === 'email' && (
@@ -127,6 +162,12 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
                     {!data.email.ready && <InlineNotice tone="warning">{data.email.reason}</InlineNotice>}
                     <Field label="Subject"><input className={inputCls} value={s.subject} maxLength={200} onChange={(e) => step(i, { subject: e.target.value })} /></Field>
                     <Field label="E-mail text" hint={`${VAR_HINT} An unsubscribe link is added for you.`}><textarea rows={5} className={inputCls} value={s.body} onChange={(e) => step(i, { body: e.target.value })} /></Field>
+                    <Field label="Attachments" hint="PDF, image or document files sent with the e-mail (optional).">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(s.attachments || []).map((id) => <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-[#D3E3F0] bg-[#F7FBFE] px-2.5 py-1 text-[11px] text-[#0B2A44]"><FileText size={12} /><span className="truncate max-w-[160px]">{attName(id)}</span><button type="button" className="text-[#C0392B]" aria-label="Remove attachment" onClick={() => step(i, { attachments: (s.attachments || []).filter((x) => x !== id) })}>×</button></span>)}
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded border border-dashed border-[#B9D2E6] px-3 py-1.5 text-[11px] text-[#0B6BB0] hover:bg-[#F2F8FD]"><Plus size={12} />{uploading ? 'Uploading…' : 'Add file'}<input type="file" multiple className="hidden" accept="image/*,video/*,.pdf,application/pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => void addFiles(i, e.target.files, false)} /></label>
+                      </div>
+                    </Field>
                     <EmailPreview subject={s.subject} body={s.body} />
                   </>
                 )}

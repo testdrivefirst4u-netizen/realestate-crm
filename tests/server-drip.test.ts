@@ -162,6 +162,17 @@ describe('who joins', () => {
 });
 
 describe('sending', () => {
+  it('a WhatsApp step with a header attachment sends it to the template as a link', async () => {
+    await running([{ ...WA, attachments: ['FILE1'] }]);
+    const id = await newLead();
+    await due(id);
+    await run();
+    expect(chatSend).toHaveBeenCalledTimes(1);
+    const arg = (chatSend.mock.calls[0] as any)[0];
+    expect(arg.params[0]).toMatch(/^link=https?:\/\/\S+\/api\/public\/media\/\S*FILE1/); // the media link comes first
+    expect(arg.params).toContain('Ravi'); // the body value is still sent
+  });
+
   it('goes step by step, with each wait, filling in the details', async () => {
     await running();
     const id = await newLead();
