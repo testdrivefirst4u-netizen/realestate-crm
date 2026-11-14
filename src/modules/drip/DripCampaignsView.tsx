@@ -223,9 +223,16 @@ const TestWindow: React.FC<{ c: DripCampaignView; onClose: () => void; onDone: (
 };
 
 /** WhatsApp (Chat360) connection status for drip — the counterpart of the mail account card, so the WhatsApp channel's readiness is visible on the screen (not only as a warning inside a step). */
-const WhatsAppCard: React.FC<{ status: DripOverview['whatsapp'] }> = ({ status }) => (
+const WhatsAppCard: React.FC<{ status: DripOverview['whatsapp']; balance: DripOverview['whatsappBalance'] }> = ({ status, balance }) => (
   <Card title={<span className="inline-flex items-center gap-2"><MessageCircle size={15} /> WhatsApp (Chat360)</span>}
     subtitle="How drip WhatsApp steps are sent.">
+    {balance && (
+      <div className="mb-2 text-xs">
+        <span className="text-[#5E778C]">Chat360 balance: </span>
+        <span className={cx('font-semibold tabular-nums', balance.credit < 200 ? 'text-[#C0392B]' : 'text-[#0B2A44]')}>{balance.currency === 'INR' ? '₹' : balance.currency + ' '}{balance.credit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        {balance.credit < 200 && <span className="ml-1 text-[#C0392B]">· running low — top up in Chat360</span>}
+      </div>
+    )}
     {status.ready
       ? <InlineNotice tone="success">Connected. WhatsApp steps send your approved templates automatically. WhatsApp only allows approved templates for leads who haven’t messaged in the last 24 hours — set them up in Chat360.</InlineNotice>
       : <InlineNotice tone="warning">{status.reason} Connect WhatsApp in Settings → Integrations → Chat360, then reopen this page.</InlineNotice>}
@@ -358,7 +365,7 @@ export const DripCampaignsView: React.FC = () => {
           </div>
         </Card>
       ))}
-      {data && <WhatsAppCard status={data.whatsapp} />}
+      {data && <WhatsAppCard status={data.whatsapp} balance={data.whatsappBalance} />}
       {data?.mail && <MailCard mail={data.mail} ready={data.email.ready} onSaved={() => void load()} />}
       {editing && data && <Builder draft={editing} data={data} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />}
       {testing && <TestWindow c={testing} onClose={() => setTesting(null)} onDone={() => void load()} />}

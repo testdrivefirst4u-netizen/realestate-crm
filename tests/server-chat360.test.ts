@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, backfillFromChat360, enquiredForFrom, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateNames, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
+import { apiKeyShapeProblem, backfillFromChat360, enquiredForFrom, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, chat360Balance, templateNames, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -268,14 +268,14 @@ describe('customer names', () => {
 /* ------------------------------- outbound -------------------------------- */
 
 /** A JWT whose expiry the CRM can read (signature irrelevant here). */
-const jwt = (secondsFromNow = 3600) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ token_type: 'access', exp: Math.floor(Date.now() / 1000) + secondsFromNow })).toString('base64url')}.sig`;
+const jwt = (secondsFromNow = 3600, userId?: number) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ token_type: 'access', exp: Math.floor(Date.now() / 1000) + secondsFromNow, ...(userId ? { user_id: userId } : {}) })).toString('base64url')}.sig`;
 const TEMPLATE_ID = '14d78939-1111-4222-8333-6bef933da888';
 
 /**
  * A fake Chat360: answers by URL like the real API (https://api.chat360.io/). Override any endpoint;
  * every call is kept in `calls`.
  */
-function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templates' | 'maketemplate', (init: RequestInit) => Response>> = {}) {
+function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templates' | 'maketemplate' | 'credits', (init: RequestInit) => Response>> = {}) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any, init: any = {}) => {
@@ -285,6 +285,7 @@ function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templa
     if (url.endsWith('/api/whatsapp/whatsapp-session-messages')) return over.session ? over.session(init) : json({ messages: [{ id: 'wamid.S1' }] });
     if (url.endsWith('/service/v1/task')) return over.task ? over.task(init) : json({ message_id: 'wamid.T1' });
     if (url.includes('/api/whatsappbot/maketemplate')) return over.maketemplate ? over.maketemplate(init) : json({ detail: 'not found' }, 404);
+    if (url.includes('/api/credits/')) return over.credits ? over.credits(init) : json({ credit: 689.7267, currency: 'INR', free_messages: 0 });
     if (url.endsWith('/service/template/data')) return over.templates ? over.templates(init) : json({ data: [{ name: 'other', template_id: '00000000-0000-4000-8000-000000000000' }, { name: 'welcome', template_id: TEMPLATE_ID }] });
     return json({ detail: 'not found' }, 404);
   });
@@ -367,6 +368,11 @@ describe('outbound', () => {
   it('falls back to the service template list when the dashboard list is unavailable', async () => {
     fakeChat360(); // maketemplate → 404, service list → the default two templates
     expect(await templateNames()).toEqual(['other', 'welcome']);
+  });
+
+  it('reads the Chat360 wallet balance (rounded, with its currency)', async () => {
+    fakeChat360({ login: () => new Response(JSON.stringify({ access: jwt(3600, 104984), refresh: jwt(86400) }), { status: 200 }) });
+    expect(await chat360Balance()).toEqual({ credit: 689.73, currency: 'INR' });
   });
 
   it('explains what is missing or rejected', async () => {

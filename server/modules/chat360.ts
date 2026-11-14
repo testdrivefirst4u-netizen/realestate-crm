@@ -239,6 +239,22 @@ export async function templateNames(): Promise<string[]> {
   return (await templateDetails()).map((t) => t.name);
 }
 
+/** The company's Chat360 wallet balance (GET /api/credits/<accountId>, field `credit`), or null when it can't be read. */
+export async function chat360Balance(): Promise<{ credit: number; currency: string } | null> {
+  const cfg = await chatCfg();
+  if (!cfg.loginEmail || !cfg.loginPassword) return null; // the balance endpoint needs the signed-in login
+  try {
+    const admin = jwtUserId(await accessToken(cfg));
+    if (!admin) return null;
+    const body = await chat360Get(cfg, `/api/credits/${encodeURIComponent(admin)}`);
+    const credit = Number(body?.credit);
+    if (!isFinite(credit)) return null;
+    return { credit: Math.round(credit * 100) / 100, currency: str(body?.currency) || 'INR' };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Template variables: Chat360 names them (`{"first_name": "Meera"}`). `name=value` entries keep their name;
  * plain entries are numbered 1, 2, 3… in order.
@@ -1405,6 +1421,7 @@ export async function test(): Promise<{ ok: boolean; message: string }> {
 
 export const actions: ActionMap = {
   chat360GetContacts: { fn: async (_d, ctx) => filterContacts(ctx.user, await contacts()), perm: 'chat.view' },
+  chat360Balance: { fn: () => chat360Balance(), perm: 'chat.view' },
   // the chat's messages, with the whole conversation (chatbot and agents) brought in from Chat360 first
   chat360GetMessages: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return messagesWithSync(d.phone); }, perm: 'chat.view' },
   chat360UploadFile: { fn: (d, ctx) => uploadWhatsappFile(d, ctx), perm: 'chat.send' },

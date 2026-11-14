@@ -339,7 +339,7 @@ export type WaDirectView =
   | { connected: false; webhookUrl: string; signup: WaSignupConfig }
   | { connected: true; webhookUrl: string; signup: WaSignupConfig; mode: 'manual' | 'cloud' | 'coexistence'; syncOpen: boolean; sync: { contactsAsked: boolean; historyAsked: boolean; progress: number; declined: boolean; error: string }; phoneNumberId: string; wabaId: string; displayPhone: string; verifiedName: string; access: { permanent: boolean; expiresAt: string; canSwitch: boolean }; connectedAt: string; connectedBy: string; lastInboundAt: string; quality: string; platform: string; problem: string; templates: WaDirectTemplate[] };
 export interface DripTemplate { name: string; body: string; header: 'none' | 'image' | 'document' | 'video'; sampleUrl: string }
-export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; stageOptions: string[]; stageCounts: Record<string, number>; templates: DripTemplate[]; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
+export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; whatsappBalance: { credit: number; currency: string } | null; email: { ready: boolean; reason: string }; stageOptions: string[]; stageCounts: Record<string, number>; templates: DripTemplate[]; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
 export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; delivery: string; at: string }
 export interface DripFunnelStep { step: number; channel: string; label: string; sent: number; failed: number; skipped: number }
 export interface DripEnrolledLead { leadId: string; name: string; step: number; totalSteps: number; nextAt: string; enrolledAt: string }
@@ -602,6 +602,7 @@ export const api = {
 
   chat360: {
     contacts: () => request<Chat360Contact[]>('chat360GetContacts'),
+    balance: () => request<{ credit: number; currency: string } | null>('chat360Balance'),
     messages: (phone: string) => request<Chat360Message[]>('chat360GetMessages', { phone }),
     send: (payload: { leadId?: string; phone: string; text?: string; templateName?: string; templateLanguage?: string; params?: string[]; fileId?: string }) =>
       request<{ message: Chat360Message }>('chat360Send', payload, payload.fileId ? { timeoutMs: 60000 } : undefined),

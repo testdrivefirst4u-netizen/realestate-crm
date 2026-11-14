@@ -563,6 +563,8 @@ export async function getDrip(ctx: Ctx) {
       stats: { running: n(entered, r._id, 'active'), finished: n(entered, r._id, 'completed'), stopped: n(entered, r._id, 'stopped'), sent: n(logged, r._id, 'sent'), skipped: n(logged, r._id, 'skipped'), failed: n(logged, r._id, 'failed'), ...results.get(r._id)! },
     })),
     whatsapp: await whatsappSetup(),
+    // the company's Chat360 wallet balance (null on a direct connection, or when it can't be read)
+    whatsappBalance: await (await import('./chat360')).chat360Balance().catch(() => null),
     // the company's own lead stages, so a campaign's "start at stage" is picked from a list, not typed
     stageOptions: (await getLeadsConfig().catch(() => ({ options: {} as Record<string, string[]> }))).options[CFG.LEAD.STAGE] || [],
     // how many leads are currently in each stage, shown next to the stage picker
