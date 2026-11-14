@@ -313,7 +313,7 @@ export interface BusinessPhotos { error: string; location: string; photos: Busin
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
 export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
-export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
+export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
 export interface WaCampaignView {
   id: string; name: string; status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'stopped'; template: string; language: string; category: string; params: string[]; headerFileId: string; perDay: number; audience: string; skippedAtStart: Record<string, number>; tested: boolean;
   scheduledAt: string; startedAt: string; finishedAt: string; pauseReason: string; createdBy: string; createdAt: string;
@@ -796,7 +796,7 @@ export const api = {
   },
   drip: {
     get: () => request<DripOverview>('getDrip'),
-    save: (d: { id?: string; name: string; sources: string[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; steps: DripStepInput[] }) => request<{ id: string }>('saveDripCampaign', d),
+    save: (d: { id?: string; name: string; sources: string[]; stages: string[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; steps: DripStepInput[] }) => request<{ id: string }>('saveDripCampaign', d),
     test: (d: { id: string; phone: string; email: string }) => request<{ results: Array<{ step: number; channel: string; ok: boolean; message: string }>; passed: boolean }>('testDripCampaign', d, { timeoutMs: 120000 }),
     setStatus: (id: string, status: 'active' | 'paused' | 'archived') => request<{ ok: true }>('setDripStatus', { id, status }),
     activity: (id: string) => request<{ rows: DripActivityRow[] }>('getDripActivity', { id }),

@@ -110,6 +110,28 @@ describe('campaign rules', () => {
   });
 });
 
+describe('stage trigger', () => {
+  it('a campaign targeting a stage starts a lead the moment it reaches that stage, not on creation', async () => {
+    await running([WA], { stages: ['Warm'] });
+    const id = await newLead(); // created as New → a stage campaign does not start it yet
+    expect(await enrollment(id)).toBeNull();
+    await inCo(() => updateLead(id, { 'Lead Stage': 'Warm' } as any, null)); // reaches Warm → joins now
+    expect(await enrollment(id)).toMatchObject({ status: 'active', stepIndex: 0 });
+  });
+
+  it('a stage campaign respects the source filter and does not start on an unrelated stage', async () => {
+    await running([WA], { stages: ['Warm'], sources: ['Website'] });
+    const other = await newLead({ 'Enquiry Source': 'Facebook' });
+    await inCo(() => updateLead(other, { 'Lead Stage': 'Warm' } as any, null)); // right stage, wrong source
+    expect(await enrollment(other)).toBeNull();
+    const web = await newLead({ 'Enquiry Source': 'Website' });
+    await inCo(() => updateLead(web, { 'Lead Stage': 'Hot' } as any, null)); // right source, wrong stage
+    expect(await enrollment(web)).toBeNull();
+    await inCo(() => updateLead(web, { 'Lead Stage': 'Warm' } as any, null)); // both match → joins
+    expect(await enrollment(web)).toMatchObject({ status: 'active' });
+  });
+});
+
 describe('who joins', () => {
   it('a new lead joins an active campaign, not a draft, and only with the right source', async () => {
     const { id: draft } = await inCo(() => saveDripCampaign({ name: 'Draft', steps: [WA] }, ctx));

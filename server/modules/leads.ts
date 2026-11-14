@@ -475,6 +475,8 @@ export async function updateLead(
     // a step the company reports to its ad accounts (plan feature adConversions; never fails the save)
     const reached = { stage: plan.newStage !== undefined && plan.newStage !== plan.oldStage ? plan.newStage : undefined, siteVisit: plan.newSvs && plan.newSvs !== plan.oldSvs ? plan.newSvs : undefined };
     if (reached.stage || reached.siteVisit) await (await import('./adConversions')).queueConversions(before._id, reached);
+    // a drip campaign that starts when a lead reaches a stage (plan feature dripCampaigns; never fails the save)
+    if (reached.stage) await (await import('./dripCampaigns')).enrollOnStage(after, reached.stage).catch(() => '');
     return { lead: after, version: await bumpVersion(), changes: plan.changes };
   }
   throw fail('CONFLICT', 'This lead is being edited by someone else right now. Please try again.');

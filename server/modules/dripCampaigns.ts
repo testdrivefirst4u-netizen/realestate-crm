@@ -46,7 +46,7 @@ const STOP_WORDS = /^\s*(stop|unsubscribe|opt[ -]?out|cancel|remove me|do not (m
 
 export type DripChannel = 'whatsapp' | 'email' | 'task';
 export interface DripStep { id: string; channel: DripChannel; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string }
-export interface DripCampaign { _id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; steps: DripStep[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; testedAt: Date | null; createdBy: string; createdAt: Date; updatedAt: Date }
+export interface DripCampaign { _id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStep[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; testedAt: Date | null; createdBy: string; createdAt: Date; updatedAt: Date }
 interface Enrollment { _id: string; campaignId: string; leadId: string; phoneLast10: string; email: string; stepIndex: number; nextAt: Date | null; status: 'active' | 'completed' | 'stopped'; stopReason: string; enrolledAt: Date; attempts: number; sendingStep: string; updatedAt: Date }
 interface DripLog { _id: string; campaignId: string; leadId: string; stepId: string; channel: DripChannel; status: 'sent' | 'skipped' | 'failed' | 'stopped'; detail: string; day: string; at: Date }
 interface MailDoc { _id: 'dripEmail'; host: string; port: number; user: string; pass: string; fromName: string; fromEmail: string; updatedAt: Date; updatedBy: string }
@@ -98,7 +98,9 @@ function readCampaign(d: any) {
   const dailyLimit = Number(d?.dailyLimit ?? 200);
   if (!Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 2000) throw bad('The daily limit is 1 to 2,000 messages.');
   const sources = [...new Set((Array.isArray(d?.sources) ? d.sources : []).map((s: unknown) => String(s).trim()).filter(Boolean))].slice(0, 50) as string[];
-  return { name, steps, hoursFrom, hoursTo, dailyLimit, sources, stopOnVisit: d?.stopOnVisit !== false };
+  // Stages that start the campaign: a lead joins when it reaches one of these (empty = start new leads, as before).
+  const stages = [...new Set((Array.isArray(d?.stages) ? d.stages : []).map((s: unknown) => String(s).trim()).filter(Boolean))].slice(0, 50) as string[];
+  return { name, steps, hoursFrom, hoursTo, dailyLimit, sources, stages, stopOnVisit: d?.stopOnVisit !== false };
 }
 
 export async function saveDripCampaign(d: any, ctx: Ctx): Promise<{ id: string }> {
@@ -206,15 +208,24 @@ async function sendWhatsapp(phone: string, step: DripStep, vars: Record<string, 
 
 /* -------------------------------- enrolment -------------------------------- */
 
-/** A new lead joins the first active campaign that fits, unless that person is already in one. Never fails the lead's save. */
-export async function enrollNewLead(lead: any, now = new Date()): Promise<string> {
+/**
+ * Enroll a lead into the first active campaign that fits, unless that person is already in one. Never fails the lead's save.
+ * - `isNew` (lead just created): campaigns with no stages ("new-lead" campaigns) fit, source permitting.
+ * - a campaign WITH stages fits only when the lead is AT one of those stages (so it starts the moment a lead reaches it).
+ */
+async function tryEnroll(lead: any, opts: { stage?: string; isNew: boolean }, now: Date): Promise<string> {
   try {
     if (!(currentTenant()?.features as any)?.dripCampaigns) return '';
     const leadId = String(lead?.[L.ID] || '');
     if (!leadId) return '';
     const source = String(lead?.[L.SOURCE] || '').trim().toLowerCase();
+    const stage = String(opts.stage ?? lead?.[L.STAGE] ?? '').trim().toLowerCase();
     const list = await (await campaignsCol()).find({ status: 'active' }).sort({ createdAt: 1 }).toArray();
-    const fit = list.find((c) => !c.sources.length || c.sources.some((s) => s.toLowerCase() === source));
+    const fit = list.find((c) => {
+      if (c.sources.length && !c.sources.some((s) => s.toLowerCase() === source)) return false;
+      const stages = c.stages || [];
+      return stages.length ? !!stage && stages.some((s) => s.toLowerCase() === stage) : opts.isNew;
+    });
     if (!fit?.steps.length) return '';
     const phoneLast10 = last10(lead?.[L.PHONE]);
     const email = cleanEmail(lead?.[L.EMAIL]);
@@ -228,6 +239,12 @@ export async function enrollNewLead(lead: any, now = new Date()): Promise<string
     return '';
   }
 }
+
+/** A new lead joins the first active campaign that fits (new-lead campaigns, and stage campaigns whose stage the lead starts in). */
+export const enrollNewLead = (lead: any, now = new Date()): Promise<string> => tryEnroll(lead, { isNew: true }, now);
+
+/** A lead that has just reached `stage` joins the first active campaign targeting that stage. */
+export const enrollOnStage = (lead: any, stage: string, now = new Date()): Promise<string> => tryEnroll(lead, { stage, isNew: false }, now);
 
 /* --------------------------------- sending --------------------------------- */
 
@@ -478,7 +495,7 @@ export async function getDrip(ctx: Ctx) {
   const results = await dripResults(ids);
   return {
     campaigns: rows.map((r) => ({
-      id: r._id, name: r.name, status: r.status, sources: r.sources, steps: r.steps, hoursFrom: r.hoursFrom, hoursTo: r.hoursTo, dailyLimit: r.dailyLimit, stopOnVisit: r.stopOnVisit, tested: !!r.testedAt, createdBy: r.createdBy,
+      id: r._id, name: r.name, status: r.status, sources: r.sources, stages: r.stages || [], steps: r.steps, hoursFrom: r.hoursFrom, hoursTo: r.hoursTo, dailyLimit: r.dailyLimit, stopOnVisit: r.stopOnVisit, tested: !!r.testedAt, createdBy: r.createdBy,
       stats: { running: n(entered, r._id, 'active'), finished: n(entered, r._id, 'completed'), stopped: n(entered, r._id, 'stopped'), sent: n(logged, r._id, 'sent'), skipped: n(logged, r._id, 'skipped'), failed: n(logged, r._id, 'failed'), ...results.get(r._id)! },
     })),
     whatsapp: await whatsappSetup(),

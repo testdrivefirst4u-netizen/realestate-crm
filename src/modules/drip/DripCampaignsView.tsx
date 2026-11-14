@@ -18,7 +18,7 @@ const VAR_HINT = 'You can use {name}, {first_name}, {rm}, {source} and {company}
 const waitText = (m: number) => (!m ? 'Straight away' : m % 1440 === 0 ? `After ${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `After ${m / 60} hour${m === 60 ? '' : 's'}` : `After ${m} minutes`);
 const hourText = (h: number) => `${h % 12 || 12} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
 const newStep = (channel: Channel = 'whatsapp'): DripStepInput => ({ id: '', channel, waitMinutes: 0, template: '', params: [], subject: '', body: '', taskName: '' });
-const blank = () => ({ id: '', name: '', sources: '', hoursFrom: 9, hoursTo: 20, dailyLimit: 200, stopOnVisit: true, steps: [newStep()] });
+const blank = () => ({ id: '', name: '', sources: '', stages: '', hoursFrom: 9, hoursTo: 20, dailyLimit: 200, stopOnVisit: true, steps: [newStep()] });
 type Draft = ReturnType<typeof blank>;
 
 const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void; onSaved: () => void }> = ({ draft: first, data, onClose, onSaved }) => {
@@ -31,7 +31,7 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
     setBusy(true);
     setProblem('');
     try {
-      await api.drip.save({ id: d.id || undefined, name: d.name, sources: d.sources.split(',').map((s) => s.trim()).filter(Boolean), hoursFrom: d.hoursFrom, hoursTo: d.hoursTo, dailyLimit: d.dailyLimit, stopOnVisit: d.stopOnVisit, steps: d.steps });
+      await api.drip.save({ id: d.id || undefined, name: d.name, sources: d.sources.split(',').map((s) => s.trim()).filter(Boolean), stages: d.stages.split(',').map((s) => s.trim()).filter(Boolean), hoursFrom: d.hoursFrom, hoursTo: d.hoursTo, dailyLimit: d.dailyLimit, stopOnVisit: d.stopOnVisit, steps: d.steps });
       toast('Campaign saved', 'Send a test before starting it.', 'success');
       onSaved();
     } catch (e) {
@@ -46,6 +46,7 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
         {problem && <InlineNotice tone="warning">{problem}</InlineNotice>}
         <Field label="Campaign name"><input className={inputCls} value={d.name} maxLength={120} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="New Facebook leads" /></Field>
         <Field label="Which new leads join" hint="Enquiry sources, separated by commas, such as Facebook, Website. Leave empty for all new leads. Imported leads never join."><input className={inputCls} value={d.sources} onChange={(e) => setD({ ...d, sources: e.target.value })} placeholder="All new leads" /></Field>
+        <Field label="Or start when a lead reaches a stage" hint="Lead stages, separated by commas, such as Warm, Qualified. A lead joins the moment it reaches one of these — even an older lead that moves up later. Leave empty to start new leads only (above)."><input className={inputCls} value={d.stages} onChange={(e) => setD({ ...d, stages: e.target.value })} placeholder="e.g. Warm, Qualified" /></Field>
         <div className="space-y-2">
           {d.steps.map((s, i) => (
             <React.Fragment key={i}>
@@ -127,6 +128,16 @@ const TestWindow: React.FC<{ c: DripCampaignView; onClose: () => void; onDone: (
   );
 };
 
+/** WhatsApp (Chat360) connection status for drip — the counterpart of the mail account card, so the WhatsApp channel's readiness is visible on the screen (not only as a warning inside a step). */
+const WhatsAppCard: React.FC<{ status: DripOverview['whatsapp'] }> = ({ status }) => (
+  <Card title={<span className="inline-flex items-center gap-2"><MessageCircle size={15} /> WhatsApp (Chat360)</span>}
+    subtitle="How drip WhatsApp steps are sent.">
+    {status.ready
+      ? <InlineNotice tone="success">Connected. WhatsApp steps send your approved templates automatically. WhatsApp only allows approved templates for leads who haven’t messaged in the last 24 hours — set them up in Chat360.</InlineNotice>
+      : <InlineNotice tone="warning">{status.reason} Connect WhatsApp in Settings → Integrations → Chat360, then reopen this page.</InlineNotice>}
+  </Card>
+);
+
 const MailCard: React.FC<{ mail: NonNullable<DripOverview['mail']>; ready: boolean; onSaved: () => void }> = ({ mail, ready, onSaved }) => {
   const [f, setF] = useState({ ...mail, pass: '' });
   const [busy, setBusy] = useState(false);
@@ -197,7 +208,7 @@ export const DripCampaignsView: React.FC = () => {
       toast('Could not load activity', errText('drip.activity', e), 'alert');
     }
   };
-  const toDraft = (c: DripCampaignView): Draft => ({ id: c.id, name: c.name, sources: c.sources.join(', '), hoursFrom: c.hoursFrom, hoursTo: c.hoursTo, dailyLimit: c.dailyLimit, stopOnVisit: c.stopOnVisit, steps: c.steps });
+  const toDraft = (c: DripCampaignView): Draft => ({ id: c.id, name: c.name, sources: c.sources.join(', '), stages: (c.stages || []).join(', '), hoursFrom: c.hoursFrom, hoursTo: c.hoursTo, dailyLimit: c.dailyLimit, stopOnVisit: c.stopOnVisit, steps: c.steps });
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
@@ -210,7 +221,7 @@ export const DripCampaignsView: React.FC = () => {
       {data && !data.campaigns.length && <EmptyState icon={<Send size={22} />} title="No campaigns yet" description="Create your first one. It starts as a draft, so nothing is sent until you test and start it." />}
       {data?.campaigns.map((c) => (
         <Card key={c.id} title={<span className="inline-flex flex-wrap items-center gap-2">{c.name}<Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge></span>}
-          subtitle={`${c.sources.length ? c.sources.join(', ') : 'All new leads'} · ${hourText(c.hoursFrom)} to ${hourText(c.hoursTo)} India time · up to ${c.dailyLimit} a day`}>
+          subtitle={`${c.stages && c.stages.length ? `Starts at stage: ${c.stages.join(', ')}${c.sources.length ? ` (from ${c.sources.join(', ')})` : ''}` : c.sources.length ? c.sources.join(', ') : 'All new leads'} · ${hourText(c.hoursFrom)} to ${hourText(c.hoursTo)} India time · up to ${c.dailyLimit} a day`}>
           <ol className="flex flex-wrap items-center gap-1.5">
             {c.steps.map((s, i) => {
               const Icon = CHANNELS[s.channel].icon;
@@ -241,6 +252,7 @@ export const DripCampaignsView: React.FC = () => {
           </div>
         </Card>
       ))}
+      {data && <WhatsAppCard status={data.whatsapp} />}
       {data?.mail && <MailCard mail={data.mail} ready={data.email.ready} onSaved={() => void load()} />}
       {editing && data && <Builder draft={editing} data={data} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />}
       {testing && <TestWindow c={testing} onClose={() => setTesting(null)} onDone={() => void load()} />}
