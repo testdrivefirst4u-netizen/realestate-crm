@@ -603,6 +603,7 @@ export const api = {
   chat360: {
     contacts: () => request<Chat360Contact[]>('chat360GetContacts'),
     balance: () => request<{ credit: number; currency: string } | null>('chat360Balance'),
+    createTemplate: (d: { name: string; category: string; language: string; text: string; footer?: string; customCategory?: string }) => request<{ title: string; status: 'draft'; templateHash: string }>('chat360CreateTemplate', d, { timeoutMs: 30000 }),
     messages: (phone: string) => request<Chat360Message[]>('chat360GetMessages', { phone }),
     send: (payload: { leadId?: string; phone: string; text?: string; templateName?: string; templateLanguage?: string; params?: string[]; fileId?: string }) =>
       request<{ message: Chat360Message }>('chat360Send', payload, payload.fileId ? { timeoutMs: 60000 } : undefined),

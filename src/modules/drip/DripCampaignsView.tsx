@@ -270,8 +270,45 @@ const MailCard: React.FC<{ mail: NonNullable<DripOverview['mail']>; ready: boole
   );
 };
 
+const TEMPLATE_CATEGORIES: ReadonlyArray<readonly [string, string]> = [['UTILITY', 'Utility — reminders, updates, confirmations'], ['MARKETING', 'Marketing — offers, promotions, news'], ['AUTHENTICATION', 'Authentication — one-time codes']];
+const TEMPLATE_LANGUAGES: ReadonlyArray<readonly [string, string]> = [['en', 'English'], ['en_US', 'English (US)'], ['hi', 'Hindi'], ['te', 'Telugu'], ['ta', 'Tamil'], ['kn', 'Kannada'], ['ml', 'Malayalam'], ['mr', 'Marathi'], ['gu', 'Gujarati'], ['bn', 'Bengali'], ['pa', 'Punjabi'], ['ur', 'Urdu']];
+
+const CreateTemplateModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
+  const [f, setF] = useState({ name: '', category: 'UTILITY', language: 'en', text: '', footer: '' });
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
+  const save = async () => {
+    setBusy(true); setProblem('');
+    try {
+      await api.chat360.createTemplate({ name: f.name, category: f.category, language: f.language, text: f.text, footer: f.footer });
+      toast('Draft created in Chat360', 'Submit it for approval in Chat360 (Campaigns → Templates). Once Meta approves it, it appears here.', 'success');
+      onSaved();
+    } catch (e) { setProblem(errText('drip.createTemplate', e)); } finally { setBusy(false); }
+  };
+  const addVar = () => setF((x) => ({ ...x, text: `${x.text}{{${(x.text.match(/\{\{\d+\}\}/g)?.length || 0) + 1}}}` }));
+  return (
+    <Modal open onClose={onClose} title="New WhatsApp template" width="md" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!f.name.trim() || !f.text.trim()} onClick={() => void save()}>Save draft in Chat360</Button></>}>
+      <div className="space-y-3">
+        {problem && <InlineNotice tone="warning">{problem}</InlineNotice>}
+        <Field label="Template name" hint="Lowercase letters, numbers and underscores, e.g. welcome_message."><input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })} placeholder="welcome_message" /></Field>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Category"><select className={inputCls} value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{TEMPLATE_CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+          <Field label="Language"><select className={inputCls} value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>{TEMPLATE_LANGUAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+        </div>
+        <Field label="Message text" hint="Use {{1}}, {{2}}… for values you fill when sending.">
+          <textarea rows={5} className={inputCls} value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} placeholder="Hello {{1}}, your site visit is confirmed for {{2}}." />
+          <button type="button" className="mt-1 text-[11px] text-[#0B6BB0] hover:underline" onClick={addVar}>+ Add a variable</button>
+        </Field>
+        <Field label="Footer (optional)" hint="A short line at the bottom, e.g. your company name."><input className={inputCls} maxLength={60} value={f.footer} onChange={(e) => setF({ ...f, footer: e.target.value })} /></Field>
+        <p className="text-[11px] text-[#5E778C]">This saves a <strong>draft</strong> in Chat360. To start sending it, open Chat360 → Campaigns → Templates and submit it for WhatsApp approval — once approved it appears here automatically.</p>
+      </div>
+    </Modal>
+  );
+};
+
 export const DripCampaignsView: React.FC = () => {
   const [data, setData] = useState<DripOverview | null>(null);
+  const [newTemplate, setNewTemplate] = useState(false);
   const [failed, setFailed] = useState('');
   const [editing, setEditing] = useState<Draft | null>(null);
   const [testing, setTesting] = useState<DripCampaignView | null>(null);
@@ -327,6 +364,7 @@ export const DripCampaignsView: React.FC = () => {
     <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 text-xs text-[#5E778C]">A series of messages new leads get over time, on WhatsApp, by e-mail, or as reminders for the RM.</p>
+        <Button variant="secondary" size="sm" icon={<MessageCircle size={14} />} disabled={!data} onClick={() => setNewTemplate(true)}>New WhatsApp template</Button>
         <Button variant="primary" size="sm" icon={<Plus size={14} />} disabled={!data} onClick={() => setEditing(blank())}>New campaign</Button>
       </div>
       {failed && <InlineNotice tone="warning">{failed}</InlineNotice>}
@@ -365,6 +403,7 @@ export const DripCampaignsView: React.FC = () => {
           </div>
         </Card>
       ))}
+      {newTemplate && <CreateTemplateModal onClose={() => setNewTemplate(false)} onSaved={() => { setNewTemplate(false); void load(); }} />}
       {data && <WhatsAppCard status={data.whatsapp} balance={data.whatsappBalance} />}
       {data?.mail && <MailCard mail={data.mail} ready={data.email.ready} onSaved={() => void load()} />}
       {editing && data && <Builder draft={editing} data={data} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); }} />}

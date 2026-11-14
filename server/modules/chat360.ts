@@ -239,6 +239,58 @@ export async function templateNames(): Promise<string[]> {
   return (await templateDetails()).map((t) => t.name);
 }
 
+/** Languages offered when creating a template (code → label). Chat360 lists 66; these are the common Indian ones. */
+export const TEMPLATE_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' }, { code: 'en_US', label: 'English (US)' }, { code: 'hi', label: 'Hindi' }, { code: 'te', label: 'Telugu' }, { code: 'ta', label: 'Tamil' },
+  { code: 'kn', label: 'Kannada' }, { code: 'ml', label: 'Malayalam' }, { code: 'mr', label: 'Marathi' }, { code: 'gu', label: 'Gujarati' }, { code: 'bn', label: 'Bengali' }, { code: 'pa', label: 'Punjabi' }, { code: 'ur', label: 'Urdu' },
+];
+const TEMPLATE_CATEGORIES = ['MARKETING', 'UTILITY', 'AUTHENTICATION'];
+
+/**
+ * Create a WhatsApp template DRAFT in Chat360 (POST /api/whatsappbot/template_draft). A text template only for now —
+ * the draft is saved in Chat360 (approval_status "3"); the business submits it for Meta approval from Chat360, after
+ * which it appears in the CRM template list. Needs the signed-in login.
+ */
+export async function createTemplateDraft(d: any, ctx: Ctx): Promise<{ title: string; status: 'draft'; templateHash: string }> {
+  const cfg = await chatCfg();
+  if (!cfg.loginEmail || !cfg.loginPassword) throw fail('NOT_CONFIGURED', 'Save the Chat360 login (e-mail + password) under Settings → Integrations → Chat360 to create templates.');
+  if (!cfg.businessNumber) cfg.businessNumber = await learnBusinessNumber();
+  if (!cfg.businessNumber) throw fail('NOT_CONFIGURED', 'Add your business WhatsApp number under Settings → Integrations → Chat360 first.');
+  // WhatsApp template names are lowercase letters, numbers and underscores: turn anything else into an underscore
+  const title = String(d?.name || '').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 512);
+  if (!title) throw fail('VALIDATION', 'Enter a template name (letters, numbers and underscores), e.g. welcome_message.');
+  const category = String(d?.category || '').toUpperCase();
+  if (!TEMPLATE_CATEGORIES.includes(category)) throw fail('VALIDATION', 'Choose a category: Marketing, Utility or Authentication.');
+  const code = String(d?.language || 'en').trim() || 'en';
+  const text = String(d?.text || '').trim();
+  if (!text) throw fail('VALIDATION', 'Enter the template text. Use {{1}}, {{2}} for values you fill in when sending.');
+  if (text.length > 1024) throw fail('VALIDATION', 'The template text is up to 1024 characters.');
+  const footer = truncate(String(d?.footer || '').trim(), 60);
+  const body = {
+    extra: { button: false, button_list: [], button_type: 'hybrid', is_call_request: false },
+    temp_header: { text: '' }, business_number: cfg.businessNumber,
+    template_category: category, template_code: code, template_text: text, template_type: 'text', title,
+    custom_category: truncate(String(d?.customCategory || '').trim(), 60),
+    media_example: { url: '' }, media_id: '', allow_category_change: true,
+    carousel: [], url_tracking: false, params: {}, button_params: {}, footer: { text: footer }, carousel_params: [],
+  };
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(joinUrl(cfg.baseUrl, '/api/whatsappbot/template_draft'), { method: 'POST', headers: { ...bearerHeaders(await accessToken(cfg)), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.status === 401) res = await fetchWithTimeout(joinUrl(cfg.baseUrl, '/api/whatsappbot/template_draft'), { method: 'POST', headers: { ...bearerHeaders(await accessToken(cfg, true)), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (e: any) {
+    throw upstream('Could not reach Chat360 to create the template: ' + (e?.name === 'AbortError' ? 'timed out' : e?.message || e));
+  }
+  const out = safeJsonParse<any>(await res.text(), {}) || {};
+  if (res.status < 200 || res.status >= 300) {
+    await logError('chat360.createTemplate', 'UPSTREAM_' + res.status, truncate(JSON.stringify(out), 300), '', ctx.user?.email || '');
+    const why = str(out?.detail || out?.message || out?.error);
+    throw fail(res.status === 409 || /exist/i.test(why) ? 'CONFLICT' : 'SERVER', why ? `Chat360: ${why}` : `Chat360 did not accept the template (HTTP ${res.status}).`);
+  }
+  await auditLog(ctx, 'WhatsApp Template Draft Created', 'Settings', title, `${category} · ${code}`);
+  return { title, status: 'draft', templateHash: str(out?.template_hash) };
+}
+
 /** The company's Chat360 wallet balance (GET /api/credits/<accountId>, field `credit`), or null when it can't be read. */
 export async function chat360Balance(): Promise<{ credit: number; currency: string } | null> {
   const cfg = await chatCfg();
@@ -1422,6 +1474,7 @@ export async function test(): Promise<{ ok: boolean; message: string }> {
 export const actions: ActionMap = {
   chat360GetContacts: { fn: async (_d, ctx) => filterContacts(ctx.user, await contacts()), perm: 'chat.view' },
   chat360Balance: { fn: () => chat360Balance(), perm: 'chat.view' },
+  chat360CreateTemplate: { fn: (d, ctx) => createTemplateDraft(d, ctx), perm: 'chat.send' },
   // the chat's messages, with the whole conversation (chatbot and agents) brought in from Chat360 first
   chat360GetMessages: { fn: async (d, ctx) => { await assertPhoneAccess(ctx, d.phone); return messagesWithSync(d.phone); }, perm: 'chat.view' },
   chat360UploadFile: { fn: (d, ctx) => uploadWhatsappFile(d, ctx), perm: 'chat.send' },
