@@ -122,6 +122,19 @@ export async function saveDripCampaign(d: any, ctx: Ctx): Promise<{ id: string }
 
 /* -------------------------------- channels --------------------------------- */
 
+/** Approved WhatsApp template names for the step dropdown — from the direct connection when on it, otherwise Chat360. [] on any error. */
+async function whatsappTemplates(): Promise<string[]> {
+  try {
+    if ((currentTenant()?.features as any)?.whatsappDirect) {
+      const direct = await import('./whatsappDirect');
+      if (await direct.isConnected()) return [...new Set((await direct.approvedTemplates()).map((t: any) => String(t?.name || '')).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    }
+    return await (await import('./chat360')).templateNames();
+  } catch {
+    return [];
+  }
+}
+
 async function whatsappSetup(): Promise<{ ready: boolean; reason: string }> {
   if (!(currentTenant()?.features as any)?.chat360) return { ready: false, reason: "WhatsApp (Chat360) isn't included in this company's plan." };
   const direct = (currentTenant()?.features as any)?.whatsappDirect && (await (await import('./whatsappDirect')).isConnected());
@@ -501,6 +514,8 @@ export async function getDrip(ctx: Ctx) {
     whatsapp: await whatsappSetup(),
     // the company's own lead stages, so a campaign's "start at stage" is picked from a list, not typed
     stageOptions: (await getLeadsConfig().catch(() => ({ options: {} as Record<string, string[]> }))).options[CFG.LEAD.STAGE] || [],
+    // approved WhatsApp templates, so a step's template is picked from a list (the field still allows typing a name)
+    templates: await whatsappTemplates(),
     email: await emailSetup(),
     // the account details only for those who may change them, and never the password
     mail: ctx.user && (await import('../core/auth')).can(ctx.user, 'integrations.connect') ? { host: m?.host || '', port: m?.port || 587, user: m?.user || '', fromName: m?.fromName || '', fromEmail: m?.fromEmail || '', passSet: !!m?.pass } : null,

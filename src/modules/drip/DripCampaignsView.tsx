@@ -77,7 +77,15 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
                 {s.channel === 'whatsapp' && (
                   <>
                     {!data.whatsapp.ready && <InlineNotice tone="warning">{data.whatsapp.reason}</InlineNotice>}
-                    <Field label="Approved template name" hint="From Chat360. WhatsApp only allows approved templates for leads who haven't messaged you in the last 24 hours."><input className={inputCls} value={s.template} onChange={(e) => step(i, { template: e.target.value })} placeholder="welcome_message" /></Field>
+                    <Field label="Approved template" hint="Choose one of your approved WhatsApp templates. WhatsApp only allows approved templates for leads who haven't messaged you in the last 24 hours.">
+                      {(data.templates || []).length > 0 && (
+                        <select className={cx(inputCls, 'mb-1.5')} aria-label="Pick an approved template" value={data.templates.includes(s.template) ? s.template : ''} onChange={(e) => { if (e.target.value) step(i, { template: e.target.value }); }}>
+                          <option value="">Pick an approved template…</option>
+                          {data.templates.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      )}
+                      <input className={inputCls} value={s.template} onChange={(e) => step(i, { template: e.target.value })} placeholder={(data.templates || []).length ? 'Or type the template name' : 'welcome_message'} />
+                    </Field>
                     <Field label="Template values, one per line" hint={`In the template's order, or as first_name={first_name}. ${VAR_HINT}`}><textarea rows={2} className={inputCls} value={s.params.join('\n')} onChange={(e) => step(i, { params: e.target.value.split('\n') })} placeholder="{first_name}" /></Field>
                   </>
                 )}

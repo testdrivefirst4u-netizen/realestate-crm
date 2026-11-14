@@ -171,6 +171,53 @@ async function templateIdFor(cfg: ChatCfg, nameOrId: string): Promise<string> {
 }
 
 /**
+ * Collect usable template names from a Chat360 (or Meta-style) response. Chat360's dashboard list uses `title` +
+ * `approval_status` ("1" approved, "4" not applied); the service API uses `name`/`element_name` + a word status.
+ * A template is skipped when it is deleted or its status says rejected / not-applied / pending.
+ */
+function collectTemplateNames(node: unknown, out: Set<string>, depth = 0): void {
+  if (!node || typeof node !== 'object' || depth > 7) return;
+  if (Array.isArray(node)) { for (const x of node) collectTemplateNames(x, out, depth + 1); return; }
+  const o = node as Record<string, unknown>;
+  const name = ['title', 'template_elementname', 'name', 'template_name', 'element_name'].map((k) => (typeof o[k] === 'string' ? (o[k] as string) : '')).find(Boolean);
+  const isTemplate = ['template_hash', 'template_id', 'id', 'uuid', 'template_namespace'].some((k) => !!str(o[k])) || ['approval_status', 'status', 'template_code', 'language', 'components', 'category', 'template_category', 'namespace'].some((k) => k in o);
+  const status = str(o.approval_status ?? o.status ?? o.template_status).toUpperCase();
+  const unusable = o.delete_flag === true || status === '4' || /REJECT|DISABL|DELET|PAUSE|PENDING|DRAFT|FAIL/.test(status);
+  if (name && isTemplate && !unusable) out.add(name.trim());
+  for (const v of Object.values(o)) collectTemplateNames(v, out, depth + 1);
+}
+
+/** Approved Chat360 template names for a dropdown ([] when the list can't be fetched; the UI then lets the name be typed). */
+export async function templateNames(): Promise<string[]> {
+  const cfg = await chatCfg();
+  const out = new Set<string>();
+  // The dashboard's template list (Campaigns → Templates). It needs the signed-in login, and its own paging is
+  // unreliable (later pages 400), so ask for one big page.
+  if (cfg.loginEmail && cfg.loginPassword) {
+    try {
+      const path = '/api/whatsappbot/maketemplate?page=1&gap=200&title=&sort_order=&template_code=&fetch_success_count=false&fetch_failed_count=false';
+      const res = await fetchWithTimeout(joinUrl(cfg.baseUrl, path), { method: 'GET', headers: bearerHeaders(await accessToken(cfg)) });
+      if (res.ok) collectTemplateNames((safeJsonParse<any>(await res.text(), null) || {}).data, out);
+    } catch {
+      /* fall back to the service list */
+    }
+    if (out.size) return [...out].sort((a, b) => a.localeCompare(b));
+  }
+  // Fallback: the service template list (works with the API key on some accounts).
+  if (!cfg.apiKey && !(cfg.loginEmail && cfg.loginPassword)) return [];
+  const list = (headers: Record<string, string>) => fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers });
+  let res: Response;
+  try {
+    res = await list(apiKeyHeaders(cfg));
+    if ((res.status === 401 || res.status === 403) && cfg.loginEmail && cfg.loginPassword) res = await list(bearerHeaders(await accessToken(cfg)));
+  } catch {
+    return [];
+  }
+  if (res.ok) collectTemplateNames(safeJsonParse<any>(await res.text(), null), out);
+  return [...out].sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Template variables: Chat360 names them (`{"first_name": "Meera"}`). `name=value` entries keep their name;
  * plain entries are numbered 1, 2, 3… in order.
  */

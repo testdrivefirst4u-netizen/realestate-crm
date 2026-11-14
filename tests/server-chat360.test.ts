@@ -17,7 +17,7 @@ import { CFG } from '../server/core/config';
 import { getSettings, settingSet, updateSettings } from '../server/core/settings';
 import type { Ctx } from '../server/core/auth';
 import * as leads from '../server/modules/leads';
-import { apiKeyShapeProblem, backfillFromChat360, enquiredForFrom, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
+import { apiKeyShapeProblem, backfillFromChat360, enquiredForFrom, businessNumberFrom, contacts, extractName, extractText, fixPlaceholderNames, handleWebhook, mapChat360Message, nameFromReply, syncConversation, mapContact, markRead, messages, send, templateNames, templateParamData, test as chatTest, webhookStats } from '../server/modules/chat360';
 import { POST as webhookPOST } from '../app/api/webhooks/chat360/route';
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -275,7 +275,7 @@ const TEMPLATE_ID = '14d78939-1111-4222-8333-6bef933da888';
  * A fake Chat360: answers by URL like the real API (https://api.chat360.io/). Override any endpoint;
  * every call is kept in `calls`.
  */
-function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templates', (init: RequestInit) => Response>> = {}) {
+function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templates' | 'maketemplate', (init: RequestInit) => Response>> = {}) {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any, init: any = {}) => {
@@ -284,6 +284,7 @@ function fakeChat360(over: Partial<Record<'login' | 'session' | 'task' | 'templa
     if (url.endsWith('/api/auth/login')) return over.login ? over.login(init) : json({ user: { id: 1 }, access: jwt(), refresh: jwt(86400) });
     if (url.endsWith('/api/whatsapp/whatsapp-session-messages')) return over.session ? over.session(init) : json({ messages: [{ id: 'wamid.S1' }] });
     if (url.endsWith('/service/v1/task')) return over.task ? over.task(init) : json({ message_id: 'wamid.T1' });
+    if (url.includes('/api/whatsappbot/maketemplate')) return over.maketemplate ? over.maketemplate(init) : json({ detail: 'not found' }, 404);
     if (url.endsWith('/service/template/data')) return over.templates ? over.templates(init) : json({ data: [{ name: 'other', template_id: '00000000-0000-4000-8000-000000000000' }, { name: 'welcome', template_id: TEMPLATE_ID }] });
     return json({ detail: 'not found' }, 404);
   });
@@ -350,6 +351,22 @@ describe('outbound', () => {
     await send({ phone: '9876501234', templateName: TEMPLATE_ID }, ctx);
     expect(c.to('/service/template/data')).toHaveLength(1);
     await expect(send({ phone: '9876501234', templateName: 'nope' }, ctx)).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringContaining('no approved template called “nope”') });
+  });
+
+  it('lists approved template names from the Chat360 dashboard list (title + approval_status), leaving out not-applied and deleted', async () => {
+    // the real Chat360 maketemplate shape: title = name, approval_status "1" approved / "4" not applied
+    fakeChat360({ maketemplate: () => new Response(JSON.stringify({ data: [
+      { title: 'btl_diwali_2026', template_hash: 'b7c006bc-db72-4640-9d19-dd99f519e8fa', approval_status: '1', template_code: 'en', template_category: 'UTILITY', curl_code: { template_title: 'btl_diwali_2026', template_code: 'en' } },
+      { title: 'dussehragreetings', template_hash: 'bd128027-5db0-4dcc-899a-63b11668b774', approval_status: '1', template_code: 'en' },
+      { title: 'not_applied_one', template_hash: 'x', approval_status: '4' },
+      { title: 'old_deleted', template_hash: 'y', approval_status: '1', delete_flag: true },
+    ], total_page: 1 }), { status: 200 }) });
+    expect(await templateNames()).toEqual(['btl_diwali_2026', 'dussehragreetings']);
+  });
+
+  it('falls back to the service template list when the dashboard list is unavailable', async () => {
+    fakeChat360(); // maketemplate → 404, service list → the default two templates
+    expect(await templateNames()).toEqual(['other', 'welcome']);
   });
 
   it('explains what is missing or rejected', async () => {
