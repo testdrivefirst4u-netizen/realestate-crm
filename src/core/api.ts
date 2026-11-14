@@ -338,7 +338,7 @@ export interface WaProfileView { profile: { about: string; address: string; desc
 export type WaDirectView =
   | { connected: false; webhookUrl: string; signup: WaSignupConfig }
   | { connected: true; webhookUrl: string; signup: WaSignupConfig; mode: 'manual' | 'cloud' | 'coexistence'; syncOpen: boolean; sync: { contactsAsked: boolean; historyAsked: boolean; progress: number; declined: boolean; error: string }; phoneNumberId: string; wabaId: string; displayPhone: string; verifiedName: string; access: { permanent: boolean; expiresAt: string; canSwitch: boolean }; connectedAt: string; connectedBy: string; lastInboundAt: string; quality: string; platform: string; problem: string; templates: WaDirectTemplate[] };
-export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
+export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; stageOptions: string[]; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
 export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; at: string }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }

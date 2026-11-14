@@ -28,7 +28,7 @@ import { appUrl, decryptSecret, encryptSecret, getSecret } from '../core/setting
 import { currentTenant, runWithTenant } from '../core/tenant';
 import { shortId, truncate } from '../core/utils';
 import { listActiveTenants } from '../platform/registry';
-import { getLead } from './leads';
+import { getLead, getLeadsConfig } from './leads';
 import { isPrivateAddress } from './searchConsole';
 import { addTask } from './tasks';
 
@@ -499,6 +499,8 @@ export async function getDrip(ctx: Ctx) {
       stats: { running: n(entered, r._id, 'active'), finished: n(entered, r._id, 'completed'), stopped: n(entered, r._id, 'stopped'), sent: n(logged, r._id, 'sent'), skipped: n(logged, r._id, 'skipped'), failed: n(logged, r._id, 'failed'), ...results.get(r._id)! },
     })),
     whatsapp: await whatsappSetup(),
+    // the company's own lead stages, so a campaign's "start at stage" is picked from a list, not typed
+    stageOptions: (await getLeadsConfig().catch(() => ({ options: {} as Record<string, string[]> }))).options[CFG.LEAD.STAGE] || [],
     email: await emailSetup(),
     // the account details only for those who may change them, and never the password
     mail: ctx.user && (await import('../core/auth')).can(ctx.user, 'integrations.connect') ? { host: m?.host || '', port: m?.port || 587, user: m?.user || '', fromName: m?.fromName || '', fromEmail: m?.fromEmail || '', passSet: !!m?.pass } : null,

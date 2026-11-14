@@ -46,7 +46,18 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
         {problem && <InlineNotice tone="warning">{problem}</InlineNotice>}
         <Field label="Campaign name"><input className={inputCls} value={d.name} maxLength={120} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="New Facebook leads" /></Field>
         <Field label="Which new leads join" hint="Enquiry sources, separated by commas, such as Facebook, Website. Leave empty for all new leads. Imported leads never join."><input className={inputCls} value={d.sources} onChange={(e) => setD({ ...d, sources: e.target.value })} placeholder="All new leads" /></Field>
-        <Field label="Or start when a lead reaches a stage" hint="Lead stages, separated by commas, such as Warm, Qualified. A lead joins the moment it reaches one of these — even an older lead that moves up later. Leave empty to start new leads only (above)."><input className={inputCls} value={d.stages} onChange={(e) => setD({ ...d, stages: e.target.value })} placeholder="e.g. Warm, Qualified" /></Field>
+        <Field label="Or start when a lead reaches a stage" hint="Tick the stages that should start this campaign. A lead joins the moment it reaches one of them — even an older lead that moves up later. Leave all unticked to start new leads only (above).">
+          {(() => {
+            const chosen = new Set(d.stages.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+            const toggle = (st: string) => {
+              const picked = (data.stageOptions || []).filter((o) => (o.toLowerCase() === st.toLowerCase() ? !chosen.has(st.toLowerCase()) : chosen.has(o.toLowerCase())));
+              setD({ ...d, stages: picked.join(', ') });
+            };
+            return (data.stageOptions || []).length
+              ? <div className="flex flex-wrap gap-1.5">{data.stageOptions.map((st) => <label key={st} className={cx('inline-flex items-center gap-1.5 cursor-pointer rounded-full border px-2.5 py-1 text-[11px]', chosen.has(st.toLowerCase()) ? 'border-[#0B6BB0] bg-[#E8F2FB] text-[#0B2A44] font-medium' : 'border-[#D3E3F0] bg-white text-[#44505c]')}><input type="checkbox" className="h-3.5 w-3.5" checked={chosen.has(st.toLowerCase())} onChange={() => toggle(st)} />{st}</label>)}</div>
+              : <input className={inputCls} value={d.stages} onChange={(e) => setD({ ...d, stages: e.target.value })} placeholder="e.g. Warm, Qualified" />;
+          })()}
+        </Field>
         <div className="space-y-2">
           {d.steps.map((s, i) => (
             <React.Fragment key={i}>
