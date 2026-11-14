@@ -22,12 +22,12 @@ import type { Readable } from 'node:stream';
 import type { ActionMap } from '../core/actions';
 import { auditLog, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
-import { col, nextSeq } from '../core/db';
+import { bumpVersion, col, nextSeq } from '../core/db';
 import { fail } from '../core/errors';
 import { addTimeline } from '../core/events';
 import { appUrl, decryptSecret, encryptSecret, getSecret } from '../core/settings';
 import { currentTenant, runWithTenant } from '../core/tenant';
-import { shortId, truncate } from '../core/utils';
+import { shortId, str, truncate } from '../core/utils';
 import { listActiveTenants } from '../platform/registry';
 import { getLead, getLeadsConfig } from './leads';
 import { isPrivateAddress } from './searchConsole';
@@ -575,8 +575,76 @@ export async function getDrip(ctx: Ctx) {
 }
 
 export async function getDripActivity(d: any) {
-  const rows = await (await logsCol()).find({ campaignId: String(d?.id || '') }).sort({ at: -1 }).limit(100).toArray();
-  return { rows: rows.map((r) => ({ id: r._id, leadId: r.leadId, channel: r.channel, status: r.status, detail: r.detail, at: r.at.toISOString() })) };
+  const id = String(d?.id || '');
+  const c = await (await campaignsCol()).findOne({ _id: id });
+  const logs = await logsCol();
+  const rows = await logs.find({ campaignId: id }).sort({ at: -1 }).limit(100).toArray();
+
+  // per-step funnel: how many were sent / failed / skipped at each step, in step order
+  const byStep = await logs.aggregate<{ _id: { s: string; st: string }; n: number }>([{ $match: { campaignId: id } }, { $group: { _id: { s: '$stepId', st: '$status' }, n: { $sum: 1 } } }]).toArray();
+  const stepStat = (stepId: string, status: string) => byStep.find((x) => x._id.s === stepId && x._id.st === status)?.n || 0;
+  const funnel = (c?.steps || []).map((s, i) => ({ step: i + 1, channel: s.channel, label: s.channel === 'whatsapp' ? s.template : s.channel === 'email' ? s.subject : s.taskName, sent: stepStat(s.id, 'sent'), failed: stepStat(s.id, 'failed'), skipped: stepStat(s.id, 'skipped') }));
+
+  // why things failed: the top reasons, grouped
+  const reasons = await logs.aggregate<{ _id: string; n: number }>([{ $match: { campaignId: id, status: 'failed' } }, { $group: { _id: '$detail', n: { $sum: 1 } } }, { $sort: { n: -1 } }, { $limit: 8 }]).toArray();
+  const failReasons = reasons.map((r) => ({ reason: str(r._id) || 'Unknown error', n: r.n }));
+
+  // who is in the campaign now, and at which step
+  const active = await (await enrollCol()).find({ campaignId: id, status: 'active' }).sort({ enrolledAt: -1 }).limit(200).toArray();
+  const names = new Map<string, string>();
+  for (const l of await (await col<{ _id: string; name?: string }>(CFG.COLL.LEADS)).find({ _id: { $in: [...new Set(active.map((e) => e.leadId))] } }, { projection: { name: 1 } }).toArray()) names.set(l._id, String(l.name || ''));
+  const enrolled = active.map((e) => ({ leadId: e.leadId, name: names.get(e.leadId) || e.leadId, step: e.stepIndex + 1, totalSteps: c?.steps.length || 0, nextAt: e.nextAt ? e.nextAt.toISOString() : '', enrolledAt: e.enrolledAt.toISOString() }));
+
+  return {
+    rows: rows.map((r) => ({ id: r._id, leadId: r.leadId, channel: r.channel, status: r.status, detail: r.detail, at: r.at.toISOString() })),
+    funnel, failReasons, enrolled,
+    failedCount: await logs.countDocuments({ campaignId: id, status: 'failed' }),
+  };
+}
+
+/** Stop one lead's enrolment in a campaign (from the enrolled-leads list). */
+export async function stopDripLead(d: any, ctx: Ctx): Promise<{ ok: true }> {
+  const campaignId = String(d?.id || '');
+  const leadId = String(d?.leadId || '');
+  const r = await (await enrollCol()).updateOne({ campaignId, leadId, status: 'active' }, { $set: { status: 'stopped', stopReason: 'Stopped by an administrator.', nextAt: null, sendingStep: '', updatedAt: new Date() } });
+  if (!r.matchedCount) throw fail('NOT_FOUND', 'That lead is not currently in this campaign.');
+  await addTimeline(leadId, 'drip_stopped', 'Drip campaign stopped by an administrator', '', ctx.user?.name || 'System').catch(() => undefined);
+  await bumpVersion();
+  return { ok: true };
+}
+
+/** Resend the steps that failed in the last 7 days (skipping leads that should no longer be messaged). */
+export async function retryDripFailed(d: any, ctx: Ctx): Promise<{ resent: number; failed: number; skipped: number }> {
+  const c = await (await campaignsCol()).findOne({ _id: String(d?.id || '') });
+  if (!c) throw fail('NOT_FOUND', 'Campaign not found');
+  const now = new Date();
+  const failed = await (await logsCol()).find({ campaignId: c._id, status: 'failed', at: { $gte: new Date(now.getTime() - 7 * 24 * 3600_000) } }).sort({ at: -1 }).limit(300).toArray();
+  const stepById = new Map(c.steps.map((s) => [s.id, s]));
+  const done = new Set<string>();
+  const logs = await logsCol();
+  let resent = 0, failedAgain = 0, skipped = 0;
+  for (const f of failed) {
+    const key = `${f.leadId}:${f.stepId}`;
+    if (done.has(key)) continue;
+    done.add(key);
+    const step = stepById.get(f.stepId);
+    const lead = step ? await getLead(f.leadId) : null;
+    if (!step || !lead) { skipped++; continue; }
+    const en = await (await enrollCol()).findOne({ campaignId: c._id, leadId: f.leadId });
+    const why = await stopReason(c, (en || { enrolledAt: new Date(0), phoneLast10: last10(lead[L.PHONE]) }) as Enrollment, lead);
+    if (why) { skipped++; continue; }
+    try {
+      const skip = await sendStep(step, lead);
+      await logs.insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: f.leadId, stepId: step.id, channel: step.channel, status: skip ? 'skipped' : 'sent', detail: skip || 'Resent after a failure', day: dayOf(now), at: new Date() });
+      skip ? skipped++ : resent++;
+    } catch (e: any) {
+      await logs.insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: f.leadId, stepId: step.id, channel: step.channel, status: 'failed', detail: truncate(String(e?.message || e), 300), day: dayOf(now), at: new Date() });
+      failedAgain++;
+    }
+  }
+  await auditLog(ctx, 'Drip Failed Steps Retried', 'Settings', c._id, `${resent} resent, ${failedAgain} failed, ${skipped} skipped`);
+  await bumpVersion();
+  return { resent, failed: failedAgain, skipped };
 }
 
 const feature = () => {
@@ -589,5 +657,7 @@ export const actions: ActionMap = {
   saveDripCampaign: { fn: (d, ctx) => { feature(); return saveDripCampaign(d, ctx); }, perm: 'marketing.drip' },
   testDripCampaign: { fn: (d, ctx) => { feature(); return testDripCampaign(d, ctx); }, perm: 'marketing.drip' },
   setDripStatus: { fn: (d, ctx) => { feature(); return setDripStatus(d, ctx); }, perm: 'marketing.drip' },
+  stopDripLead: { fn: (d, ctx) => { feature(); return stopDripLead(d, ctx); }, perm: 'marketing.drip' },
+  retryDripFailed: { fn: (d, ctx) => { feature(); return retryDripFailed(d, ctx); }, perm: 'marketing.drip' },
   saveDripEmail: { fn: (d, ctx) => { feature(); return saveDripEmail(d, ctx); }, perm: 'integrations.connect' },
 };

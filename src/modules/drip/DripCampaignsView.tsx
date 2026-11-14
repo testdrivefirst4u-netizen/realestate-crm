@@ -4,7 +4,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Activity, ArrowDown, FileText, Mail, MessageCircle, Pause, Pencil, Play, Plus, Send, Settings2, Trash2, UserCheck } from 'lucide-react';
-import { api, type DripActivityRow, type DripCampaignView, type DripOverview, type DripStepInput, type DripTemplate } from '../../core/api';
+import { api, type DripActivity, type DripCampaignView, type DripOverview, type DripStepInput, type DripTemplate } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, EmptyState, Field, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
@@ -268,7 +268,8 @@ export const DripCampaignsView: React.FC = () => {
   const [failed, setFailed] = useState('');
   const [editing, setEditing] = useState<Draft | null>(null);
   const [testing, setTesting] = useState<DripCampaignView | null>(null);
-  const [activity, setActivity] = useState<{ c: DripCampaignView; rows: DripActivityRow[] | null } | null>(null);
+  const [activity, setActivity] = useState<{ c: DripCampaignView; data: DripActivity | null } | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [busy, setBusy] = useState('');
   const load = useCallback(async () => {
     try {
@@ -293,10 +294,21 @@ export const DripCampaignsView: React.FC = () => {
       setBusy('');
     }
   };
+  const reloadActivity = async (c: DripCampaignView) => { try { setActivity({ c, data: await api.drip.activity(c.id) }); } catch { /* keep current */ } };
+  const stopLead = async (c: DripCampaignView, leadId: string) => {
+    try { await api.drip.stopLead(c.id, leadId); toast('Lead stopped', 'They will get no more messages from this campaign.', 'success'); await reloadActivity(c); void load(); }
+    catch (e) { toast('Could not stop', errText('drip.stopLead', e), 'alert'); }
+  };
+  const retryFailed = async (c: DripCampaignView) => {
+    setRetrying(true);
+    try { const r = await api.drip.retryFailed(c.id); toast('Retry done', `${r.resent} resent · ${r.failed} failed again · ${r.skipped} skipped.`, r.failed ? 'warning' : 'success'); await reloadActivity(c); void load(); }
+    catch (e) { toast('Retry failed', errText('drip.retry', e), 'alert'); }
+    finally { setRetrying(false); }
+  };
   const openActivity = async (c: DripCampaignView) => {
-    setActivity({ c, rows: null });
+    setActivity({ c, data: null });
     try {
-      setActivity({ c, rows: (await api.drip.activity(c.id)).rows });
+      setActivity({ c, data: await api.drip.activity(c.id) });
     } catch (e) {
       setActivity(null);
       toast('Could not load activity', errText('drip.activity', e), 'alert');
@@ -352,11 +364,49 @@ export const DripCampaignsView: React.FC = () => {
       {testing && <TestWindow c={testing} onClose={() => setTesting(null)} onDone={() => void load()} />}
       {activity && (
         <Modal open onClose={() => setActivity(null)} title={`Activity: ${activity.c.name}`} width="lg" footer={<Button variant="secondary" onClick={() => setActivity(null)}>Close</Button>}>
-          {activity.rows === null ? <p className="p-6 text-center text-xs text-[#5E778C]">Loading…</p> : !activity.rows.length ? <p className="p-6 text-center text-xs text-[#5E778C]">Nothing yet.</p> : (
-            <div className="overflow-x-auto"><table className="w-full min-w-[520px] border-collapse text-xs text-[#0B2A44]">
-              <thead><tr className="border-b border-[#D3E3F0] text-left text-[#5E778C]"><th scope="col" className="p-2 font-medium">When</th><th scope="col" className="p-2 font-medium">Lead</th><th scope="col" className="p-2 font-medium">Channel</th><th scope="col" className="p-2 font-medium">Result</th></tr></thead>
-              <tbody className="divide-y divide-[#EEF4F9]">{activity.rows.map((r) => <tr key={r.id} className="align-top"><td className="whitespace-nowrap p-2">{new Date(r.at).toLocaleString()}</td><td className="p-2">{r.leadId}</td><td className="p-2">{r.status === 'stopped' ? '—' : CHANNELS[r.channel as Channel]?.label}</td><td className="p-2"><span className="font-medium capitalize">{r.status}</span>{r.detail ? `: ${r.detail}` : ''}</td></tr>)}</tbody>
-            </table></div>
+          {activity.data === null ? <p className="p-6 text-center text-xs text-[#5E778C]">Loading…</p> : (
+            <div className="space-y-4">
+              {/* per-step funnel */}
+              {activity.data.funnel.length > 0 && (
+                <section>
+                  <h4 className="mb-1.5 text-xs font-bold text-[#0B2A44]">Each step</h4>
+                  <div className="overflow-x-auto"><table className="w-full min-w-[480px] border-collapse text-xs text-[#0B2A44]">
+                    <thead><tr className="border-b border-[#D3E3F0] text-left text-[#5E778C]"><th className="p-2 font-medium">Step</th><th className="p-2 font-medium">Sent</th><th className="p-2 font-medium">Skipped</th><th className="p-2 font-medium">Failed</th></tr></thead>
+                    <tbody className="divide-y divide-[#EEF4F9]">{activity.data.funnel.map((f) => <tr key={f.step}><td className="p-2"><span className="font-medium">{f.step}.</span> {CHANNELS[f.channel as Channel]?.label} <span className="text-[#7E93A6]">· {f.label || '—'}</span></td><td className="p-2 tabular-nums">{f.sent}</td><td className="p-2 tabular-nums text-[#7E93A6]">{f.skipped}</td><td className={cx('p-2 tabular-nums', f.failed ? 'font-semibold text-[#C0392B]' : 'text-[#7E93A6]')}>{f.failed}</td></tr>)}</tbody>
+                  </table></div>
+                </section>
+              )}
+              {/* why things failed + retry */}
+              {activity.data.failReasons.length > 0 && (
+                <section className="rounded-lg border border-[#F3D6D0] bg-[#FDF3F1] p-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-bold text-[#8B2E22]">Why {activity.data.failedCount} failed</h4>
+                    <Button variant="secondary" size="xs" loading={retrying} onClick={() => void retryFailed(activity.c)}>Retry failed</Button>
+                  </div>
+                  <ul className="space-y-1 text-[11px] text-[#7A3B30]">{activity.data.failReasons.map((r, k) => <li key={k} className="flex justify-between gap-3"><span className="min-w-0 flex-1">{r.reason}</span><span className="tabular-nums font-semibold">{r.n}</span></li>)}</ul>
+                </section>
+              )}
+              {/* who is in the campaign now */}
+              {activity.data.enrolled.length > 0 && (
+                <section>
+                  <h4 className="mb-1.5 text-xs font-bold text-[#0B2A44]">In the campaign now ({activity.data.enrolled.length})</h4>
+                  <div className="overflow-x-auto"><table className="w-full min-w-[480px] border-collapse text-xs text-[#0B2A44]">
+                    <thead><tr className="border-b border-[#D3E3F0] text-left text-[#5E778C]"><th className="p-2 font-medium">Lead</th><th className="p-2 font-medium">At step</th><th className="p-2 font-medium">Next</th><th className="p-2 font-medium"></th></tr></thead>
+                    <tbody className="divide-y divide-[#EEF4F9]">{activity.data.enrolled.map((e) => <tr key={e.leadId}><td className="p-2"><span className="font-medium">{e.name}</span> <span className="text-[#7E93A6]">{e.leadId}</span></td><td className="p-2 tabular-nums">{e.step}/{e.totalSteps}</td><td className="p-2 whitespace-nowrap text-[#5E778C]">{e.nextAt ? new Date(e.nextAt).toLocaleString() : '—'}</td><td className="p-2 text-right"><button type="button" className="text-[11px] text-[#C0392B] hover:underline" onClick={() => void stopLead(activity.c, e.leadId)}>Stop</button></td></tr>)}</tbody>
+                  </table></div>
+                </section>
+              )}
+              {/* recent log */}
+              <section>
+                <h4 className="mb-1.5 text-xs font-bold text-[#0B2A44]">Recent activity</h4>
+                {!activity.data.rows.length ? <p className="p-4 text-center text-xs text-[#5E778C]">Nothing yet.</p> : (
+                  <div className="overflow-x-auto"><table className="w-full min-w-[520px] border-collapse text-xs text-[#0B2A44]">
+                    <thead><tr className="border-b border-[#D3E3F0] text-left text-[#5E778C]"><th className="p-2 font-medium">When</th><th className="p-2 font-medium">Lead</th><th className="p-2 font-medium">Channel</th><th className="p-2 font-medium">Result</th></tr></thead>
+                    <tbody className="divide-y divide-[#EEF4F9]">{activity.data.rows.map((r) => <tr key={r.id} className="align-top"><td className="whitespace-nowrap p-2">{new Date(r.at).toLocaleString()}</td><td className="p-2">{r.leadId}</td><td className="p-2">{r.status === 'stopped' ? '—' : CHANNELS[r.channel as Channel]?.label}</td><td className="p-2"><span className={cx('font-medium capitalize', r.status === 'failed' && 'text-[#C0392B]')}>{r.status}</span>{r.detail ? `: ${r.detail}` : ''}</td></tr>)}</tbody>
+                  </table></div>
+                )}
+              </section>
+            </div>
           )}
         </Modal>
       )}

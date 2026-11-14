@@ -8,7 +8,7 @@ import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { dispatch } from '../server/router';
 import { addLead, updateLead } from '../server/modules/leads';
-import { fillVars, nextOpen, runDripDue, saveDripCampaign, saveDripEmail, setDripStatus, testDripCampaign, unsubscribeEmail, unsubscribeUrl, unsubSigOk, getDrip } from '../server/modules/dripCampaigns';
+import { fillVars, nextOpen, runDripDue, saveDripCampaign, saveDripEmail, setDripStatus, testDripCampaign, unsubscribeEmail, unsubscribeUrl, unsubSigOk, getDrip, getDripActivity, stopDripLead } from '../server/modules/dripCampaigns';
 
 const chatSend = vi.hoisted(() => vi.fn(async () => ({ message: {} })));
 const mailSend = vi.hoisted(() => vi.fn(async () => ({})));
@@ -158,6 +158,23 @@ describe('who joins', () => {
     expect(await inCo(async () => (await col<any>('dripEnrollments')).countDocuments({}))).toBe(0);
     await t.company('test', { dripCampaigns: false, chat360: true });
     expect(await enrollment(await newLead())).toBeNull();
+  });
+});
+
+describe('activity', () => {
+  it('shows the per-step funnel and who is enrolled, and an admin can stop a lead', async () => {
+    await running([WA, MAIL]);
+    const camp = await inCo(async () => (await col<any>('dripCampaigns')).findOne({ status: 'active' }));
+    const id = await newLead();
+    await due(id);
+    await run(); // step 1 (WhatsApp) sent → advanced to step 2
+    const act = await inCo(() => getDripActivity({ id: camp._id }));
+    expect(act.funnel).toHaveLength(2);
+    expect(act.funnel[0]).toMatchObject({ step: 1, channel: 'whatsapp', sent: 1 });
+    expect(act.enrolled).toHaveLength(1);
+    expect(act.enrolled[0]).toMatchObject({ leadId: id, step: 2, totalSteps: 2 });
+    await inCo(() => stopDripLead({ id: camp._id, leadId: id }, ctx));
+    expect((await inCo(() => getDripActivity({ id: camp._id }))).enrolled).toHaveLength(0);
   });
 });
 

@@ -341,6 +341,9 @@ export type WaDirectView =
 export interface DripTemplate { name: string; body: string; header: 'none' | 'image' | 'document' | 'video'; sampleUrl: string }
 export interface DripOverview { campaigns: DripCampaignView[]; whatsapp: { ready: boolean; reason: string }; email: { ready: boolean; reason: string }; stageOptions: string[]; stageCounts: Record<string, number>; templates: DripTemplate[]; mail: { host: string; port: number; user: string; fromName: string; fromEmail: string; passSet: boolean } | null }
 export interface DripActivityRow { id: string; leadId: string; channel: string; status: string; detail: string; at: string }
+export interface DripFunnelStep { step: number; channel: string; label: string; sent: number; failed: number; skipped: number }
+export interface DripEnrolledLead { leadId: string; name: string; step: number; totalSteps: number; nextAt: string; enrolledAt: string }
+export interface DripActivity { rows: DripActivityRow[]; funnel: DripFunnelStep[]; failReasons: Array<{ reason: string; n: number }>; enrolled: DripEnrolledLead[]; failedCount: number }
 /** Search Console (server: modules/searchConsole.ts). */
 export interface SearchConsoleView { connected: boolean; email: string; sites: string[]; siteUrl: string; setupError: string; connectUrl: string }
 export interface SearchRow { name: string; clicks: number; impressions: number; ctr: number; position: number }
@@ -800,7 +803,9 @@ export const api = {
     save: (d: { id?: string; name: string; sources: string[]; stages: string[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; steps: DripStepInput[] }) => request<{ id: string }>('saveDripCampaign', d),
     test: (d: { id: string; phone: string; email: string }) => request<{ results: Array<{ step: number; channel: string; ok: boolean; message: string }>; passed: boolean }>('testDripCampaign', d, { timeoutMs: 120000 }),
     setStatus: (id: string, status: 'active' | 'paused' | 'archived') => request<{ ok: true }>('setDripStatus', { id, status }),
-    activity: (id: string) => request<{ rows: DripActivityRow[] }>('getDripActivity', { id }),
+    activity: (id: string) => request<DripActivity>('getDripActivity', { id }),
+    stopLead: (id: string, leadId: string) => request<{ ok: true }>('stopDripLead', { id, leadId }),
+    retryFailed: (id: string) => request<{ resent: number; failed: number; skipped: number }>('retryDripFailed', { id }, { timeoutMs: 120000 }),
     saveEmail: (d: { host: string; port: number; user: string; pass: string; fromName: string; fromEmail: string }) => request<{ ok: true }>('saveDripEmail', d, { timeoutMs: 30000 }),
   },
   businessProfile: {
