@@ -122,14 +122,20 @@ export async function saveDripCampaign(d: any, ctx: Ctx): Promise<{ id: string }
 
 /* -------------------------------- channels --------------------------------- */
 
-/** Approved WhatsApp template names for the step dropdown — from the direct connection when on it, otherwise Chat360. [] on any error. */
-async function whatsappTemplates(): Promise<string[]> {
+export interface DripTemplate { name: string; body: string; header: 'none' | 'image' | 'document' | 'video'; sampleUrl: string }
+
+/** Approved WhatsApp templates (name, body, header) for the step dropdown and preview — from the direct connection when on it, otherwise Chat360. [] on any error. */
+async function whatsappTemplates(): Promise<DripTemplate[]> {
   try {
     if ((currentTenant()?.features as any)?.whatsappDirect) {
       const direct = await import('./whatsappDirect');
-      if (await direct.isConnected()) return [...new Set((await direct.approvedTemplates()).map((t: any) => String(t?.name || '')).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      if (await direct.isConnected()) {
+        return (await direct.approvedTemplates())
+          .map((t: any) => ({ name: String(t?.name || ''), body: String(t?.body || ''), header: (['image', 'document', 'video'].includes(String(t?.headerMedia || '').toLowerCase()) ? String(t.headerMedia).toLowerCase() : 'none') as DripTemplate['header'], sampleUrl: '' }))
+          .filter((t) => t.name);
+      }
     }
-    return await (await import('./chat360')).templateNames();
+    return await (await import('./chat360')).templateDetails();
   } catch {
     return [];
   }

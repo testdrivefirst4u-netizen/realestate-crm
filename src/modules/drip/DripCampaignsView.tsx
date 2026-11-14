@@ -3,8 +3,8 @@
  * e-mail or an RM task, for new leads. A campaign starts as a draft and needs a test send before it can run.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Activity, ArrowDown, Mail, MessageCircle, Pause, Pencil, Play, Plus, Send, Settings2, Trash2, UserCheck } from 'lucide-react';
-import { api, type DripActivityRow, type DripCampaignView, type DripOverview, type DripStepInput } from '../../core/api';
+import { Activity, ArrowDown, FileText, Mail, MessageCircle, Pause, Pencil, Play, Plus, Send, Settings2, Trash2, UserCheck } from 'lucide-react';
+import { api, type DripActivityRow, type DripCampaignView, type DripOverview, type DripStepInput, type DripTemplate } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, EmptyState, Field, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
@@ -18,6 +18,38 @@ const VAR_HINT = 'You can use {name}, {first_name}, {rm}, {source} and {company}
 const waitText = (m: number) => (!m ? 'Straight away' : m % 1440 === 0 ? `After ${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `After ${m / 60} hour${m === 60 ? '' : 's'}` : `After ${m} minutes`);
 const hourText = (h: number) => `${h % 12 || 12} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
 const newStep = (channel: Channel = 'whatsapp'): DripStepInput => ({ id: '', channel, waitMinutes: 0, template: '', params: [], subject: '', body: '', taskName: '' });
+
+/* ------------------------------- previews -------------------------------- */
+const PREVIEW_VARS: Record<string, string> = { name: 'Rahul Sharma', first_name: 'Rahul', rm: 'Priya', source: 'Facebook', company: 'your company' };
+const fillTokens = (text: string) => String(text || '').replace(/\{(\w+)\}/g, (all, k) => (k in PREVIEW_VARS ? PREVIEW_VARS[k] : all));
+/** Fill a template body: {name}… variables with sample values, and {{1}}, {{2}}… with the step's values in order. */
+function previewBody(body: string, params: string[]): string {
+  const vals = (params || []).map((p) => fillTokens(p.includes('=') ? p.split('=').slice(1).join('=') : p));
+  return fillTokens(body).replace(/\{\{\s*(\d+)\s*\}\}/g, (m, n) => vals[Number(n) - 1] ?? m);
+}
+
+const WaPreview: React.FC<{ tpl?: DripTemplate; params: string[]; typed: string }> = ({ tpl, params, typed }) => {
+  if (!tpl) return typed ? <p className="mt-1 text-[11px] text-[#8A5A00]">Pick “{typed}” from the list to preview it — its text comes from WhatsApp.</p> : null;
+  return (
+    <div className="mt-1 rounded-xl bg-[#E5DDD5] p-3">
+      <p className="mb-1.5 text-[10px] uppercase tracking-wide text-[#5E778C]">Preview · WhatsApp</p>
+      <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-sm bg-[#DCF8C6] px-3 py-2 shadow-sm">
+        {tpl.header === 'image' && tpl.sampleUrl
+          ? <img src={tpl.sampleUrl} alt="" className="mb-1.5 max-h-44 w-full rounded object-cover" />
+          : tpl.header !== 'none' && <div className="mb-1.5 flex items-center gap-1.5 rounded bg-white/70 px-2 py-1.5 text-[11px] font-medium capitalize text-[#0B2A44]"><FileText size={13} aria-hidden="true" />{tpl.header} attachment</div>}
+        <div className="whitespace-pre-wrap text-[12.5px] leading-snug text-[#0B2A44]">{previewBody(tpl.body, params) || <span className="text-[#7E93A6]">(this template has no body text)</span>}</div>
+      </div>
+    </div>
+  );
+};
+
+const EmailPreview: React.FC<{ subject: string; body: string }> = ({ subject, body }) => (!subject && !body) ? null : (
+  <div className="mt-1 rounded-lg border border-[#E3EDF5] bg-white p-3 text-xs">
+    <p className="mb-1 text-[10px] uppercase tracking-wide text-[#5E778C]">Preview · E-mail</p>
+    <div className="font-semibold text-[#0B2A44]">{fillTokens(subject) || '(no subject)'}</div>
+    <div className="mt-1 whitespace-pre-wrap text-[#44505c]">{fillTokens(body)}</div>
+  </div>
+);
 const blank = () => ({ id: '', name: '', sources: '', stages: '', hoursFrom: 9, hoursTo: 20, dailyLimit: 200, stopOnVisit: true, steps: [newStep()] });
 type Draft = ReturnType<typeof blank>;
 
@@ -79,14 +111,15 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
                     {!data.whatsapp.ready && <InlineNotice tone="warning">{data.whatsapp.reason}</InlineNotice>}
                     <Field label="Approved template" hint="Choose one of your approved WhatsApp templates. WhatsApp only allows approved templates for leads who haven't messaged you in the last 24 hours.">
                       {(data.templates || []).length > 0 && (
-                        <select className={cx(inputCls, 'mb-1.5')} aria-label="Pick an approved template" value={data.templates.includes(s.template) ? s.template : ''} onChange={(e) => { if (e.target.value) step(i, { template: e.target.value }); }}>
+                        <select className={cx(inputCls, 'mb-1.5')} aria-label="Pick an approved template" value={data.templates.some((t) => t.name === s.template) ? s.template : ''} onChange={(e) => { if (e.target.value) step(i, { template: e.target.value }); }}>
                           <option value="">Pick an approved template…</option>
-                          {data.templates.map((t) => <option key={t} value={t}>{t}</option>)}
+                          {data.templates.map((t) => <option key={t.name} value={t.name}>{t.name}{t.header !== 'none' ? ` · ${t.header}` : ''}</option>)}
                         </select>
                       )}
                       <input className={inputCls} value={s.template} onChange={(e) => step(i, { template: e.target.value })} placeholder={(data.templates || []).length ? 'Or type the template name' : 'welcome_message'} />
                     </Field>
                     <Field label="Template values, one per line" hint={`In the template's order, or as first_name={first_name}. ${VAR_HINT}`}><textarea rows={2} className={inputCls} value={s.params.join('\n')} onChange={(e) => step(i, { params: e.target.value.split('\n') })} placeholder="{first_name}" /></Field>
+                    <WaPreview tpl={(data.templates || []).find((t) => t.name.toLowerCase() === (s.template || '').toLowerCase())} params={s.params} typed={s.template} />
                   </>
                 )}
                 {s.channel === 'email' && (
@@ -94,6 +127,7 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
                     {!data.email.ready && <InlineNotice tone="warning">{data.email.reason}</InlineNotice>}
                     <Field label="Subject"><input className={inputCls} value={s.subject} maxLength={200} onChange={(e) => step(i, { subject: e.target.value })} /></Field>
                     <Field label="E-mail text" hint={`${VAR_HINT} An unsubscribe link is added for you.`}><textarea rows={5} className={inputCls} value={s.body} onChange={(e) => step(i, { body: e.target.value })} /></Field>
+                    <EmailPreview subject={s.subject} body={s.body} />
                   </>
                 )}
                 {s.channel === 'task' && <Field label="What should the RM do?" hint={VAR_HINT}><input className={inputCls} value={s.taskName} onChange={(e) => step(i, { taskName: e.target.value })} placeholder="Call {name} about a site visit" /></Field>}

@@ -187,23 +187,38 @@ function collectTemplateNames(node: unknown, out: Set<string>, depth = 0): void 
   for (const v of Object.values(o)) collectTemplateNames(v, out, depth + 1);
 }
 
-/** Approved Chat360 template names for a dropdown ([] when the list can't be fetched; the UI then lets the name be typed). */
-export async function templateNames(): Promise<string[]> {
+/** A WhatsApp template for the drip builder: its name, body text, header kind and a sample header image (for preview). */
+export interface WaTemplate { name: string; body: string; header: 'none' | 'image' | 'document' | 'video'; sampleUrl: string }
+const headerKind = (t: unknown): WaTemplate['header'] => {
+  const s = String(t || '').toLowerCase();
+  return s === 'image' || s === 'document' || s === 'video' ? s : 'none';
+};
+const isApprovedStatus = (s: string) => s === '1' || /approv/i.test(s);
+
+/** Approved Chat360 templates with body + header, for the drip dropdown and preview ([] when the list can't be fetched). */
+export async function templateDetails(): Promise<WaTemplate[]> {
   const cfg = await chatCfg();
-  const out = new Set<string>();
-  // The dashboard's template list (Campaigns → Templates). It needs the signed-in login, and its own paging is
-  // unreliable (later pages 400), so ask for one big page.
+  // The dashboard's template list (Campaigns → Templates): body text, header type and a sample image. Needs the
+  // signed-in login, and its own paging is unreliable (later pages 400), so ask for one big page.
   if (cfg.loginEmail && cfg.loginPassword) {
     try {
       const path = '/api/whatsappbot/maketemplate?page=1&gap=200&title=&sort_order=&template_code=&fetch_success_count=false&fetch_failed_count=false';
       const res = await fetchWithTimeout(joinUrl(cfg.baseUrl, path), { method: 'GET', headers: bearerHeaders(await accessToken(cfg)) });
-      if (res.ok) collectTemplateNames((safeJsonParse<any>(await res.text(), null) || {}).data, out);
+      if (res.ok) {
+        const data = ((safeJsonParse<any>(await res.text(), null) || {}).data) as any[];
+        const byName = new Map<string, WaTemplate>();
+        for (const t of Array.isArray(data) ? data : []) {
+          const name = str(t?.title || t?.template_elementname);
+          if (!name || t?.delete_flag || !isApprovedStatus(str(t?.approval_status ?? t?.status))) continue;
+          if (!byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), { name, body: str(t?.template_text), header: headerKind(t?.template_type), sampleUrl: /^https:\/\//i.test(str(t?.sample_url)) ? str(t?.sample_url) : '' });
+        }
+        if (byName.size) return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+      }
     } catch {
-      /* fall back to the service list */
+      /* fall back to the service list (names only) */
     }
-    if (out.size) return [...out].sort((a, b) => a.localeCompare(b));
   }
-  // Fallback: the service template list (works with the API key on some accounts).
+  // Fallback: the service template list (works with the API key on some accounts) — names only, no body.
   if (!cfg.apiKey && !(cfg.loginEmail && cfg.loginPassword)) return [];
   const list = (headers: Record<string, string>) => fetchWithTimeout(joinUrl(cfg.baseUrl, TEMPLATE_LIST_PATH), { method: 'GET', headers });
   let res: Response;
@@ -213,8 +228,15 @@ export async function templateNames(): Promise<string[]> {
   } catch {
     return [];
   }
-  if (res.ok) collectTemplateNames(safeJsonParse<any>(await res.text(), null), out);
-  return [...out].sort((a, b) => a.localeCompare(b));
+  if (!res.ok) return [];
+  const names = new Set<string>();
+  collectTemplateNames(safeJsonParse<any>(await res.text(), null), names);
+  return [...names].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, body: '', header: 'none' as const, sampleUrl: '' }));
+}
+
+/** Just the approved template names (built on templateDetails). */
+export async function templateNames(): Promise<string[]> {
+  return (await templateDetails()).map((t) => t.name);
 }
 
 /**
