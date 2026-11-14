@@ -176,6 +176,20 @@ describe('activity', () => {
     await inCo(() => stopDripLead({ id: camp._id, leadId: id }, ctx));
     expect((await inCo(() => getDripActivity({ id: camp._id }))).enrolled).toHaveLength(0);
   });
+
+  it('records the WhatsApp message id and surfaces delivery / read', async () => {
+    await running([WA]);
+    chatSend.mockImplementation(async () => ({ message: { id: 'wamid.DRIP1' } }));
+    const camp = await inCo(async () => (await col<any>('dripCampaigns')).findOne({ status: 'active' }));
+    const id = await newLead();
+    await due(id);
+    await run();
+    const logDoc = await inCo(async () => (await col<any>('dripLogs')).findOne({ campaignId: camp._id, leadId: id, status: 'sent' }));
+    expect(logDoc.providerId).toBe('wamid.DRIP1'); // stored so a receipt can match it
+    // a read receipt (what the Chat360 webhook records) is reflected in the summary
+    await inCo(async () => (await col<any>('dripLogs')).updateMany({ providerId: 'wamid.DRIP1' }, { $set: { delivery: 'read' } }));
+    expect((await inCo(() => getDripActivity({ id: camp._id }))).delivery).toMatchObject({ sent: 1, delivered: 1, read: 1 });
+  });
 });
 
 describe('sending', () => {

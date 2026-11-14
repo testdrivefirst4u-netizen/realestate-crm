@@ -49,7 +49,7 @@ export type DripChannel = 'whatsapp' | 'email' | 'task';
 export interface DripStep { id: string; channel: DripChannel; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string; attachments: string[] }
 export interface DripCampaign { _id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStep[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; testedAt: Date | null; createdBy: string; createdAt: Date; updatedAt: Date }
 interface Enrollment { _id: string; campaignId: string; leadId: string; phoneLast10: string; email: string; stepIndex: number; nextAt: Date | null; status: 'active' | 'completed' | 'stopped'; stopReason: string; enrolledAt: Date; attempts: number; sendingStep: string; updatedAt: Date }
-interface DripLog { _id: string; campaignId: string; leadId: string; stepId: string; channel: DripChannel; status: 'sent' | 'skipped' | 'failed' | 'stopped'; detail: string; day: string; at: Date }
+interface DripLog { _id: string; campaignId: string; leadId: string; stepId: string; channel: DripChannel; status: 'sent' | 'skipped' | 'failed' | 'stopped'; detail: string; day: string; at: Date; providerId?: string; delivery?: 'delivered' | 'read' | 'failed' }
 interface MailDoc { _id: 'dripEmail'; host: string; port: number; user: string; pass: string; fromName: string; fromEmail: string; updatedAt: Date; updatedBy: string }
 
 const campaignsCol = () => col<DripCampaign>('dripCampaigns');
@@ -254,7 +254,7 @@ function varsOf(lead: any): Record<string, string> {
   return { name, first_name: name.split(/\s+/)[0] || '', rm: String(lead?.[L.RM] || ''), source: String(lead?.[L.SOURCE] || ''), company: String(currentTenant()?.name || '') };
 }
 
-async function sendWhatsapp(phone: string, step: DripStep, vars: Record<string, string>, leadId?: string) {
+async function sendWhatsapp(phone: string, step: DripStep, vars: Record<string, string>, leadId?: string): Promise<string> {
   const { send } = await import('./chat360');
   const params = step.params.map((p) => fillVars(p, vars));
   // a media-header template carries its header image/document/video as `link` (Chat360)
@@ -266,7 +266,8 @@ async function sendWhatsapp(phone: string, step: DripStep, vars: Record<string, 
       /* no media link available */
     }
   }
-  await send({ phone, leadId, templateName: step.template, params }, SYSTEM_CTX);
+  const r = await send({ phone, leadId, templateName: step.template, params }, SYSTEM_CTX);
+  return str((r as any)?.message?.id); // the WhatsApp message id, so delivery/read receipts can update this step's log
 }
 
 /* -------------------------------- enrolment -------------------------------- */
@@ -320,8 +321,8 @@ export function nextOpen(now: Date, from: number, to: number): Date {
   return new Date(day - IST_MS);
 }
 
-async function log(c: DripCampaign, en: Enrollment, step: DripStep | null, status: DripLog['status'], detail: string, now: Date) {
-  await (await logsCol()).insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: en.leadId, stepId: step?.id || '', channel: step?.channel || 'task', status, detail: truncate(detail, 300), day: dayOf(now), at: now });
+async function log(c: DripCampaign, en: Enrollment, step: DripStep | null, status: DripLog['status'], detail: string, now: Date, providerId = '') {
+  await (await logsCol()).insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: en.leadId, stepId: step?.id || '', channel: step?.channel || 'task', status, detail: truncate(detail, 300), day: dayOf(now), at: now, ...(providerId ? { providerId } : {}) });
 }
 
 /** Why this lead should get nothing more, if anything. Recording a STOP for good on the way. */
@@ -350,25 +351,25 @@ async function stopReason(c: DripCampaign, en: Enrollment, lead: any): Promise<s
 }
 
 /** Send one step. Returns why it was skipped, if it was. Throws when the send failed. */
-async function sendStep(step: DripStep, lead: any): Promise<string> {
+async function sendStep(step: DripStep, lead: any): Promise<{ skip: string; providerId: string }> {
   const vars = varsOf(lead);
   const leadId = String(lead[L.ID]);
   if (step.channel === 'whatsapp') {
     const phone = String(lead[L.PHONE] || '');
-    if (last10(phone).length !== 10) return 'No phone number.';
-    await sendWhatsapp(phone, step, vars, leadId);
-    return '';
+    if (last10(phone).length !== 10) return { skip: 'No phone number.', providerId: '' };
+    const providerId = await sendWhatsapp(phone, step, vars, leadId);
+    return { skip: '', providerId };
   }
   if (step.channel === 'email') {
     const to = cleanEmail(lead[L.EMAIL]);
-    if (!EMAIL.test(to)) return 'No e-mail address.';
-    if (await (await optOutCol()).findOne({ _id: `email:${to}` })) return 'They unsubscribed from e-mails.';
+    if (!EMAIL.test(to)) return { skip: 'No e-mail address.', providerId: '' };
+    if (await (await optOutCol()).findOne({ _id: `email:${to}` })) return { skip: 'They unsubscribed from e-mails.', providerId: '' };
     await sendMail(to, fillVars(step.subject, vars), fillVars(step.body, vars), step.attachments);
     await addTimeline(leadId, 'drip_email', `Drip e-mail sent: ${truncate(fillVars(step.subject, vars), 120)}`, '', 'System');
-    return '';
+    return { skip: '', providerId: '' };
   }
   await addTask({ name: fillVars(step.taskName, vars), leadId, assignedTo: String(lead[L.RM] || '') || 'Unassigned', datetime: new Date().toISOString() }, SYSTEM_CTX);
-  return '';
+  return { skip: '', providerId: '' };
 }
 
 /** Runs one due enrolment, with a lease so two runs never take the same one. */
@@ -415,10 +416,10 @@ async function runOne(en0: Enrollment, c: DripCampaign, now: Date): Promise<stri
   }
   await e.updateOne({ _id: en._id }, { $set: { sendingStep: step.id } });
   try {
-    const skipped = await sendStep(step, lead);
-    await log(c, en, step, skipped ? 'skipped' : 'sent', skipped, now);
+    const { skip, providerId } = await sendStep(step, lead);
+    await log(c, en, step, skip ? 'skipped' : 'sent', skip, now, providerId);
     await advance();
-    return skipped ? 'skipped' : 'sent';
+    return skip ? 'skipped' : 'sent';
   } catch (err: any) {
     const said = truncate(String(err?.message || err), 300);
     const attempts = en.attempts + 1;
@@ -595,9 +596,14 @@ export async function getDripActivity(d: any) {
   for (const l of await (await col<{ _id: string; name?: string }>(CFG.COLL.LEADS)).find({ _id: { $in: [...new Set(active.map((e) => e.leadId))] } }, { projection: { name: 1 } }).toArray()) names.set(l._id, String(l.name || ''));
   const enrolled = active.map((e) => ({ leadId: e.leadId, name: names.get(e.leadId) || e.leadId, step: e.stepIndex + 1, totalSteps: c?.steps.length || 0, nextAt: e.nextAt ? e.nextAt.toISOString() : '', enrolledAt: e.enrolledAt.toISOString() }));
 
+  // WhatsApp delivery / read receipts recorded against sent messages
+  const dl = await logs.aggregate<{ _id: string; n: number }>([{ $match: { campaignId: id, delivery: { $exists: true } } }, { $group: { _id: '$delivery', n: { $sum: 1 } } }]).toArray();
+  const dCount = (s: string) => dl.find((x) => x._id === s)?.n || 0;
+  const delivery = { sent: await logs.countDocuments({ campaignId: id, status: 'sent', channel: 'whatsapp' }), delivered: dCount('delivered') + dCount('read'), read: dCount('read'), failed: dCount('failed') };
+
   return {
-    rows: rows.map((r) => ({ id: r._id, leadId: r.leadId, channel: r.channel, status: r.status, detail: r.detail, at: r.at.toISOString() })),
-    funnel, failReasons, enrolled,
+    rows: rows.map((r) => ({ id: r._id, leadId: r.leadId, channel: r.channel, status: r.status, detail: r.detail, delivery: r.delivery || '', at: r.at.toISOString() })),
+    funnel, failReasons, enrolled, delivery,
     failedCount: await logs.countDocuments({ campaignId: id, status: 'failed' }),
   };
 }
@@ -634,8 +640,8 @@ export async function retryDripFailed(d: any, ctx: Ctx): Promise<{ resent: numbe
     const why = await stopReason(c, (en || { enrolledAt: new Date(0), phoneLast10: last10(lead[L.PHONE]) }) as Enrollment, lead);
     if (why) { skipped++; continue; }
     try {
-      const skip = await sendStep(step, lead);
-      await logs.insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: f.leadId, stepId: step.id, channel: step.channel, status: skip ? 'skipped' : 'sent', detail: skip || 'Resent after a failure', day: dayOf(now), at: new Date() });
+      const { skip, providerId } = await sendStep(step, lead);
+      await logs.insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: f.leadId, stepId: step.id, channel: step.channel, status: skip ? 'skipped' : 'sent', detail: skip || 'Resent after a failure', day: dayOf(now), at: new Date(), ...(providerId ? { providerId } : {}) });
       skip ? skipped++ : resent++;
     } catch (e: any) {
       await logs.insertOne({ _id: shortId('DL'), campaignId: c._id, leadId: f.leadId, stepId: step.id, channel: step.channel, status: 'failed', detail: truncate(String(e?.message || e), 300), day: dayOf(now), at: new Date() });

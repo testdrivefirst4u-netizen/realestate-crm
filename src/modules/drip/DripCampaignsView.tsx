@@ -366,6 +366,12 @@ export const DripCampaignsView: React.FC = () => {
         <Modal open onClose={() => setActivity(null)} title={`Activity: ${activity.c.name}`} width="lg" footer={<Button variant="secondary" onClick={() => setActivity(null)}>Close</Button>}>
           {activity.data === null ? <p className="p-6 text-center text-xs text-[#5E778C]">Loading…</p> : (
             <div className="space-y-4">
+              {/* WhatsApp delivery / read */}
+              {activity.data.delivery.sent > 0 && (
+                <section className="grid grid-cols-4 gap-2 rounded-lg bg-[#F7FBFE] border border-[#E3EDF5] p-3 text-center">
+                  {([['WhatsApp sent', activity.data.delivery.sent], ['Delivered', activity.data.delivery.delivered], ['Read', activity.data.delivery.read], ['Failed', activity.data.delivery.failed]] as Array<[string, number]>).map(([label, v]) => <div key={label}><dt className="text-[10.5px] text-[#5E778C]">{label}</dt><dd className="text-base font-semibold text-[#0B2A44] tabular-nums">{v.toLocaleString('en-IN')}</dd></div>)}
+                </section>
+              )}
               {/* per-step funnel */}
               {activity.data.funnel.length > 0 && (
                 <section>
@@ -402,7 +408,7 @@ export const DripCampaignsView: React.FC = () => {
                 {!activity.data.rows.length ? <p className="p-4 text-center text-xs text-[#5E778C]">Nothing yet.</p> : (
                   <div className="overflow-x-auto"><table className="w-full min-w-[520px] border-collapse text-xs text-[#0B2A44]">
                     <thead><tr className="border-b border-[#D3E3F0] text-left text-[#5E778C]"><th className="p-2 font-medium">When</th><th className="p-2 font-medium">Lead</th><th className="p-2 font-medium">Channel</th><th className="p-2 font-medium">Result</th></tr></thead>
-                    <tbody className="divide-y divide-[#EEF4F9]">{activity.data.rows.map((r) => <tr key={r.id} className="align-top"><td className="whitespace-nowrap p-2">{new Date(r.at).toLocaleString()}</td><td className="p-2">{r.leadId}</td><td className="p-2">{r.status === 'stopped' ? '—' : CHANNELS[r.channel as Channel]?.label}</td><td className="p-2"><span className={cx('font-medium capitalize', r.status === 'failed' && 'text-[#C0392B]')}>{r.status}</span>{r.detail ? `: ${r.detail}` : ''}</td></tr>)}</tbody>
+                    <tbody className="divide-y divide-[#EEF4F9]">{activity.data.rows.map((r) => <tr key={r.id} className="align-top"><td className="whitespace-nowrap p-2">{new Date(r.at).toLocaleString()}</td><td className="p-2">{r.leadId}</td><td className="p-2">{r.status === 'stopped' ? '—' : CHANNELS[r.channel as Channel]?.label}</td><td className="p-2"><span className={cx('font-medium capitalize', r.status === 'failed' && 'text-[#C0392B]')}>{r.status}</span>{r.delivery ? <span className="capitalize text-[#0B6BB0]"> · {r.delivery}</span> : null}{r.detail ? `: ${r.detail}` : ''}</td></tr>)}</tbody>
                   </table></div>
                 )}
               </section>

@@ -856,6 +856,8 @@ export async function handleWebhook(payload: any): Promise<unknown> {
       const r = await (await msgs()).updateOne({ $or: [{ _id: mid }, { eventId: mid }] }, { $set: { status } });
       known = r.matchedCount > 0;
       changed = r.modifiedCount > 0;
+      // a drip-campaign WhatsApp message carries this id: record its delivery / read / failure against that step's log
+      if (status !== 'sent') await (await col('dripLogs')).updateMany({ providerId: mid }, { $set: { delivery: status } } as any).catch(() => undefined);
     }
     if (outgoingEvent && !known) {
       const r = await saveSentByChat360(payload, phone, type, mid, eventId, providerKey);
