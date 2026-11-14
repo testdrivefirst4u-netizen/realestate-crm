@@ -111,7 +111,7 @@ const Builder: React.FC<{ draft: Draft; data: DripOverview; onClose: () => void;
               setD({ ...d, stages: picked.join(', ') });
             };
             return (data.stageOptions || []).length
-              ? <div className="flex flex-wrap gap-1.5">{data.stageOptions.map((st) => <label key={st} className={cx('inline-flex items-center gap-1.5 cursor-pointer rounded-full border px-2.5 py-1 text-[11px]', chosen.has(st.toLowerCase()) ? 'border-[#0B6BB0] bg-[#E8F2FB] text-[#0B2A44] font-medium' : 'border-[#D3E3F0] bg-white text-[#44505c]')}><input type="checkbox" className="h-3.5 w-3.5" checked={chosen.has(st.toLowerCase())} onChange={() => toggle(st)} />{st}</label>)}</div>
+              ? <div className="flex flex-wrap gap-1.5">{data.stageOptions.map((st) => { const n = data.stageCounts?.[st]; return <label key={st} className={cx('inline-flex items-center gap-1.5 cursor-pointer rounded-full border px-2.5 py-1 text-[11px]', chosen.has(st.toLowerCase()) ? 'border-[#0B6BB0] bg-[#E8F2FB] text-[#0B2A44] font-medium' : 'border-[#D3E3F0] bg-white text-[#44505c]')}><input type="checkbox" className="h-3.5 w-3.5" checked={chosen.has(st.toLowerCase())} onChange={() => toggle(st)} />{st}{n != null ? <span className="text-[#7E93A6] tabular-nums">· {n}</span> : null}</label>; })}</div>
               : <input className={inputCls} value={d.stages} onChange={(e) => setD({ ...d, stages: e.target.value })} placeholder="e.g. Warm, Qualified" />;
           })()}
         </Field>

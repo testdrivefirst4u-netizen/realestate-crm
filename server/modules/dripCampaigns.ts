@@ -142,6 +142,21 @@ async function whatsappTemplates(): Promise<DripTemplate[]> {
   }
 }
 
+/** How many live leads are currently in each stage (bin / deleted left out), for the stage picker. */
+async function stageCounts(): Promise<Record<string, number>> {
+  try {
+    const rows = await (await col<any>(CFG.COLL.LEADS)).aggregate([
+      { $match: { stage: { $nin: [CFG.STAGES.DELETED, CFG.STAGES.TRASH] } } },
+      { $group: { _id: '$stage', n: { $sum: 1 } } },
+    ]).toArray();
+    const out: Record<string, number> = {};
+    for (const r of rows as Array<{ _id: string; n: number }>) if (r._id) out[String(r._id)] = r.n;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 async function whatsappSetup(): Promise<{ ready: boolean; reason: string }> {
   if (!(currentTenant()?.features as any)?.chat360) return { ready: false, reason: "WhatsApp (Chat360) isn't included in this company's plan." };
   const direct = (currentTenant()?.features as any)?.whatsappDirect && (await (await import('./whatsappDirect')).isConnected());
@@ -549,6 +564,8 @@ export async function getDrip(ctx: Ctx) {
     whatsapp: await whatsappSetup(),
     // the company's own lead stages, so a campaign's "start at stage" is picked from a list, not typed
     stageOptions: (await getLeadsConfig().catch(() => ({ options: {} as Record<string, string[]> }))).options[CFG.LEAD.STAGE] || [],
+    // how many leads are currently in each stage, shown next to the stage picker
+    stageCounts: await stageCounts(),
     // approved WhatsApp templates, so a step's template is picked from a list (the field still allows typing a name)
     templates: await whatsappTemplates(),
     email: await emailSetup(),
