@@ -16,6 +16,7 @@ import { settingsAll } from '../core/settings';
 import { currentTenant } from '../core/tenant';
 import { dateKey, last10, makeZoned, shortId, str, truncate } from '../core/utils';
 import { generateText } from './ai';
+import { mergeKnowledge } from './botRuntime';
 import { appendRemark, getLead, updateLead, type UiLead } from './leads';
 import { idsByName, sendPush } from './push';
 import { MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult, sameFlow } from './whatsappBotEngine';
@@ -184,7 +185,7 @@ async function withChatLock<T>(key: string, fn: () => Promise<T>, now = new Date
   return null;
 }
 
-const SAVE_FIELD: Record<string, string> = { name: L.NAME, email: L.EMAIL, unit: L.UNIT_TYPE, city: CFG.LEAD_GEO.CITY, budget: 'Budget', purpose: 'Purpose' };
+const SAVE_FIELD: Record<string, string> = { name: L.NAME, email: L.EMAIL, phone: L.PHONE, unit: L.UNIT_TYPE, city: CFG.LEAD_GEO.CITY, budget: 'Budget', purpose: 'Purpose' };
 
 async function applyEffects(session: SessionDoc, effects: Effect[]): Promise<{ visits: number; answers: number }> {
   const done = { visits: 0, answers: 0 };
@@ -297,12 +298,14 @@ export async function onCustomerMessage(i: { phone: string; messageId: string; t
       const leadName = i.lead ? String(i.lead[L.NAME] || '') : '';
       const name = leadName && !/^WhatsApp\b/.test(leadName) ? leadName : i.name;
       if (name) vars.name = name;
+      // freeze the bot's text plus the live company knowledge onto this chat, so the AI answers from both
+      const kn = bot.steps.some((s) => s.type === 'ai') ? await mergeKnowledge(bot.knowledge) : bot.knowledge;
       const session: SessionDoc = {
-        _id: shortId('BS'), botId: bot._id, botName: bot.name, phone: i.phone, phoneLast10: phoneKey, leadId: i.lead ? i.lead[L.ID] || '' : '', steps: bot.steps, knowledge: bot.knowledge,
+        _id: shortId('BS'), botId: bot._id, botName: bot.name, phone: i.phone, phoneLast10: phoneKey, leadId: i.lead ? i.lead[L.ID] || '' : '', steps: bot.steps, knowledge: kn,
         state: { stepId: '', phase: '', day: '', retries: 0, aiReplies: 0, sent: 0, vars }, status: 'active', endReason: '', visits: 0, answers: 0, startedAt: now, lastAt: now,
       };
       await sessions.insertOne(session);
-      await advance(session, startChat({ steps: bot.steps }, await engineContext(bot.knowledge, now, company), vars), now);
+      await advance(session, startChat({ steps: bot.steps }, await engineContext(kn, now, company), vars), now);
     }, now);
   } catch (e: any) {
     await logError('whatsappBot', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { phone: phoneKey });

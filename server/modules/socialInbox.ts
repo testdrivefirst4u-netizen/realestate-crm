@@ -77,6 +77,10 @@ async function store(item: Omit<InboxItem, 'read' | 'direction'> & { direction?:
   const linked = await (await inboxCol()).findOne({ thread: doc.thread, leadId: { $exists: true, $ne: '' } }, { projection: { leadId: 1 } });
   if (linked?.leadId) await (await inboxCol()).updateOne({ _id: doc._id }, { $set: { leadId: linked.leadId } });
   if (doc.direction === 'in') await alert(doc).catch(() => undefined);
+  // offer a new inbound DM to the active chatbot (Instagram / Facebook); dynamic import avoids a load-time cycle
+  if (doc.direction === 'in' && doc.kind === 'message') {
+    try { await (await import('./socialBot')).onSocialMessage(doc); } catch (e: any) { console.error('[socialBot]', e?.message); }
+  }
   return true;
 }
 
@@ -446,6 +450,8 @@ export async function replyInbox(d: any, ctx: Ctx): Promise<{ ok: true }> {
     text, direction: 'out', at: new Date(), read: true, by: ctx.user?.name || '', ...(last.parent ? { parent: last.parent } : {}), ...(last.leadId ? { leadId: last.leadId } : {}),
   } }, { upsert: true });
   await c.updateMany({ thread, direction: 'in', read: false }, { $set: { read: true } });
+  // a person replying from the CRM stops the bot in this thread for good (the bot itself replies as 'Social bot')
+  if ((ctx.user?.name || '') !== 'Social bot') { try { await (await import('./socialBot')).stopSocialBot(thread); } catch { /* best effort */ } }
   return { ok: true };
 }
 

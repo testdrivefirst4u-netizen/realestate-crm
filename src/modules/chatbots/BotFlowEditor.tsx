@@ -1,7 +1,7 @@
 /** The chatbot builder: a map you can drag. Boxes move, dots connect, lines can be re-pointed or removed, and every change can be undone. */
 import React, { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Background, BackgroundVariant, BaseEdge, EdgeLabelRenderer, Handle, MarkerType, MiniMap, Panel, Position, ReactFlow, ReactFlowProvider, applyNodeChanges, getBezierPath, useNodesInitialized, useReactFlow, useUpdateNodeInternals, useViewport, type Connection, type Edge, type EdgeProps, type EdgeChange, type FinalConnectionState, type Node, type NodeChange, type NodeProps } from '@xyflow/react';
+import { Background, BackgroundVariant, BaseEdge, EdgeLabelRenderer, Handle, MiniMap, Panel, Position, ReactFlow, ReactFlowProvider, applyNodeChanges, getBezierPath, useNodesInitialized, useReactFlow, useUpdateNodeInternals, useViewport, type Connection, type Edge, type EdgeProps, type EdgeChange, type FinalConnectionState, type Node, type NodeChange, type NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { AlertTriangle, CalendarDays, CheckCircle2, CircleHelp, GitBranch, LayoutGrid, Maximize, MessageSquare, Minus, Plus, Redo2, Sparkles, Trash2, Undo2, UserRound, X } from 'lucide-react';
 import { api, type BotStepView } from '../../core/api';
@@ -21,10 +21,16 @@ const KINDS: Record<BotStepView['type'], { label: string; hint: string; icon: Re
   handoff: { label: 'Hand to the team', hint: 'Says this, stops the bot and alerts the RM. The path ends here.', icon: UserRound, tint: '#EEF2F6', ink: '#3E5A70' },
   end: { label: 'End the chat', hint: 'Says this, if anything, and stops. The path ends here.', icon: CheckCircle2, tint: '#EEF2F6', ink: '#3E5A70' },
 };
-const SAVE_OPTIONS = [{ value: '', label: 'Do not save' }, { value: 'name', label: 'Name' }, { value: 'email', label: 'E-mail' }, { value: 'unit', label: 'Unit interested in' }, { value: 'city', label: 'City' }, { value: 'budget', label: 'Budget' }, { value: 'purpose', label: 'Purpose' }, { value: 'notes', label: 'Add as a remark' }];
+const SAVE_OPTIONS = [{ value: '', label: 'Do not save' }, { value: 'name', label: 'Name' }, { value: 'email', label: 'E-mail' }, { value: 'phone', label: 'Phone number' }, { value: 'unit', label: 'Unit interested in' }, { value: 'city', label: 'City' }, { value: 'budget', label: 'Budget' }, { value: 'purpose', label: 'Purpose' }, { value: 'notes', label: 'Add as a remark' }];
 const TRIGGERS = [{ value: 'new', label: 'First message from a new customer' }, { value: 'keyword', label: 'A customer sends a keyword' }, { value: 'any', label: 'Any message, if nobody replied in the last day' }];
-const LINE = '#9CB6CA';
-const LINE_ON = '#0B6BB0';
+const LINE = '#808080';
+const LINE_ON = '#00C0FF';
+const TRAY = '#DBF1FB';
+const BUBBLE = '#39C7F5';
+const BUBBLE_INK = '#06364a';
+const PORT_IN = '#C0FF00';
+const PORT_OUT = '#00C0FF';
+const AVATAR = '#BDBDBD';
 
 let counter = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(counter++).toString(36)}`;
@@ -42,7 +48,7 @@ type BoxNode = Node<BoxData, 'bot'>;
 type LineData = { exit: Exit; hover: boolean; lit: boolean };
 type LineEdge = Edge<LineData, 'bot'>;
 
-const dot = (ink: string): React.CSSProperties => ({ width: 13, height: 13, background: '#fff', border: `2px solid ${ink}` });
+const port = (color: string): React.CSSProperties => ({ width: 18, height: 18, borderRadius: '50%', background: `radial-gradient(circle, ${color} 0 5px, #ffffff 6px)`, border: '1px solid rgba(0,0,0,.12)', boxShadow: '0 1px 2px rgba(0,0,0,.2)' });
 
 const OpenPath: React.FC<{ exit: Exit }> = ({ exit }) => {
   const a = useContext(ActionsContext)!;
@@ -58,42 +64,60 @@ const Box: React.FC<NodeProps<BoxNode>> = memo(({ id, data, selected }) => {
   useEffect(() => sync(id), [id, rows, sync]);
   const single = step.type !== 'choice' && step.type !== 'handoff' && step.type !== 'end';
   return (
-    <div className={cx('group relative rounded-xl border-2 bg-white shadow-sm transition-shadow hover:shadow-md', selected ? 'border-[#0B6BB0]' : problem ? 'border-[#F2B8B5]' : 'border-[#D3E3F0]')} style={{ width: NODE_W }}>
+    <div className={cx('group relative rounded-[8px] border bg-white transition-shadow', selected ? 'border-transparent shadow-[0_0_9px_#80CAFF]' : problem ? 'border-[#F2B8B5] shadow-sm' : 'border-[#E0E0E0] shadow-[0_2px_6px_rgba(0,0,0,0.14)]')} style={{ width: NODE_W }}>
       {start && <span className="absolute -top-6 left-0 rounded-full bg-[#067647] px-2 py-0.5 text-[10.5px] font-semibold text-white">Start</span>}
       {unconnected && !start && <span className="absolute -top-6 left-0 rounded-full bg-[#FFF8E6] px-2 py-0.5 text-[10.5px] font-semibold text-[#8A5A00] ring-1 ring-[#F2D58A]">Nothing leads here</span>}
-      <Handle type="target" position={Position.Left} isConnectableStart={false} style={{ ...dot('#7E93A6'), top: 18 }} />
-      <div className="flex h-[34px] items-center gap-1.5 rounded-t-[10px] px-2.5 text-[11.5px] font-semibold" style={{ background: K.tint, color: K.ink }}>
-        <K.icon size={13} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{K.label}</span>
-        {problem && <AlertTriangle size={13} className="flex-none text-[#B42318]" aria-label="Needs fixing" />}
-        <button type="button" aria-label={`Remove step ${number}`} disabled={!removable} title={removable ? 'Remove this step' : 'The first step needs one path to hand over to. Change what it does instead.'} onClick={(e) => { e.stopPropagation(); a.remove(id); }} className={cx('nodrag nopan flex-none rounded p-0.5 text-[#B42318] hover:bg-white focus-visible:opacity-100 disabled:cursor-not-allowed disabled:text-[#9CB6CA]', selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}><Trash2 size={13} /></button>
-        <span className="flex-none tabular-nums opacity-70">{number}</span>
+      <Handle type="target" position={Position.Left} isConnectableStart={false} style={port(PORT_IN)} />
+      <div className="px-2.5 pt-1.5">
+        <div className="flex items-center justify-between text-[10.5px] font-semibold tracking-wide text-[#9AA6B2]">
+          <span className="tabular-nums">ID: {step.id.slice(1, 6).toUpperCase()}</span>
+          <span className="tabular-nums">#{number}</span>
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-white" style={{ background: AVATAR }}><K.icon size={15} aria-hidden="true" /></span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#1b2733]">{K.label}</span>
+          {problem && <AlertTriangle size={14} className="flex-none text-[#B42318]" aria-label="Needs fixing" />}
+          <button type="button" aria-label={`Remove step ${number}`} disabled={!removable} title={removable ? 'Remove this step' : 'The first step needs one path to hand over to. Change what it does instead.'} onClick={(e) => { e.stopPropagation(); a.remove(id); }} className={cx('nodrag nopan flex-none rounded p-0.5 text-[#8a97a3] hover:bg-[#F2F7FB] hover:text-[#B42318] focus-visible:opacity-100 disabled:cursor-not-allowed disabled:text-[#cfd6dd]', selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}><Trash2 size={14} /></button>
+        </div>
       </div>
-      <p className="line-clamp-3 h-[66px] break-words px-2.5 py-1.5 text-[12px] leading-snug text-[#0B2A44]">{step.text || <span className="text-[#7E93A6]">{step.type === 'visit' ? 'Which day suits you?' : step.type === 'end' ? 'Stops quietly' : 'No message yet'}</span>}</p>
-      {step.type === 'choice' && (
-        <ul className="space-y-0 border-t border-[#E3EDF5] py-1.5">
-          {step.options.map((o) => (
-            <li key={o.id} className="relative flex h-[34px] items-center px-2.5">
-              <span className="min-w-0 flex-1 truncate rounded-md bg-[#FFF4E5] px-2 py-1 text-[11.5px] font-semibold text-[#9A5B00]" title={o.label}>{o.label || 'Option'}</span>
-              <Handle id={o.id} type="source" position={Position.Right} isConnectableEnd={false} style={dot('#9A5B00')} />
-              {open.includes(o.id) && <OpenPath exit={{ stepId: id, optionId: o.id }} />}
-            </li>
-          ))}
-        </ul>
-      )}
-      {single && <Handle id="next" type="source" position={Position.Right} isConnectableEnd={false} style={dot(K.ink)} />}
+      <div className="px-2.5 pb-2.5 pt-2">
+        {step.type === 'choice' ? (
+          <div className="rounded-md p-1.5" style={{ background: TRAY }}>
+            {step.text && <div className="mb-1 line-clamp-2 break-words rounded px-2 py-1 text-[11.5px] leading-snug" style={{ background: BUBBLE, color: BUBBLE_INK }}>{step.text}</div>}
+            <ul className="space-y-1">
+              {step.options.map((o) => (
+                <li key={o.id} className="relative flex h-[30px] items-center rounded px-2 text-[11.5px] font-medium" style={{ background: BUBBLE, color: BUBBLE_INK }} title={o.label}>
+                  <span className="min-w-0 flex-1 truncate">{o.label || 'Option'}</span>
+                  <Handle id={o.id} type="source" position={Position.Right} isConnectableEnd={false} style={port(PORT_OUT)} />
+                  {open.includes(o.id) && <OpenPath exit={{ stepId: id, optionId: o.id }} />}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="rounded-md p-1.5" style={{ background: TRAY }}>
+            {step.text ? (
+              <div className="line-clamp-3 break-words rounded px-2 py-1 text-[12px] leading-snug" style={{ background: BUBBLE, color: BUBBLE_INK }}>{step.text}</div>
+            ) : (
+              <div className="rounded px-2 py-1 text-[12px] italic text-[#5E8597]">{step.type === 'visit' ? 'Which day suits you?' : step.type === 'end' ? 'Stops quietly' : 'No message yet'}</div>
+            )}
+          </div>
+        )}
+      </div>
+      {single && <Handle id="next" type="source" position={Position.Right} isConnectableEnd={false} style={port(PORT_OUT)} />}
       {single && open.includes('next') && <OpenPath exit={{ stepId: id }} />}
     </div>
   );
 });
 Box.displayName = 'Box';
 
-const Line: React.FC<EdgeProps<LineEdge>> = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, selected, data }) => {
+const Line: React.FC<EdgeProps<LineEdge>> = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data }) => {
   const a = useContext(ActionsContext)!;
   const [path, x, y] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
   const on = selected || data?.lit || data?.hover;
   return (
     <>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={26} style={{ stroke: on ? LINE_ON : LINE, strokeWidth: on ? 2.25 : 1.5 }} />
+      <BaseEdge id={id} path={path} interactionWidth={26} style={{ stroke: on ? LINE_ON : LINE, strokeWidth: on ? 3.5 : 3, strokeLinecap: 'round' }} />
       {(selected || data?.hover) && data && (
         <EdgeLabelRenderer>
           <div className="nodrag nopan absolute flex gap-1" style={{ transform: `translate(-50%,-50%) translate(${x}px,${y}px)`, pointerEvents: 'all', zIndex: 1002 }} onMouseEnter={() => a.hover(id)} onMouseLeave={() => a.hover('')}>
@@ -111,15 +135,15 @@ const edgeTypes = { bot: Line };
 
 const AddMenu: React.FC<{ x: number; y: number; aiAvailable: boolean; onPick: (t: BotStepView['type']) => void; onClose: () => void }> = ({ x, y, aiAvailable, onPick, onClose }) => {
   const types = (Object.keys(KINDS) as Array<BotStepView['type']>).filter((t) => t !== 'ai' || aiAvailable);
-  const left = Math.max(8, Math.min(x + 6, window.innerWidth - 232));
-  const top = Math.max(8, Math.min(y + 6, window.innerHeight - (types.length * 34 + 20)));
+  const left = Math.max(8, Math.min(x + 6, window.innerWidth - 300));
+  const top = Math.max(8, Math.min(y + 6, window.innerHeight - (types.length * 48 + 20)));
   return (
     <>
       <div className="absolute inset-0 z-40" onClick={onClose} aria-hidden="true" />
-      <div role="menu" aria-label="Add a step" className="fixed z-50 w-56 rounded-lg border border-[#D3E3F0] bg-white p-1 shadow-xl" style={{ left, top }}>
+      <div role="menu" aria-label="Add a step" className="fixed z-50 w-72 rounded-lg border border-[#D3E3F0] bg-white p-1 shadow-xl" style={{ left, top }}>
         {types.map((t) => {
           const K = KINDS[t];
-          return <button key={t} type="button" role="menuitem" onClick={() => onPick(t)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium text-[#0B2A44] hover:bg-[#F2F7FB]"><span className="flex h-6 w-6 flex-none items-center justify-center rounded" style={{ background: K.tint, color: K.ink }}><K.icon size={13} aria-hidden="true" /></span>{K.label}</button>;
+          return <button key={t} type="button" role="menuitem" onClick={() => onPick(t)} className="flex w-full items-center gap-2.5 rounded px-2 py-2 text-left hover:bg-[#F2F7FB]"><span className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-white" style={{ background: AVATAR }}><K.icon size={15} aria-hidden="true" /></span><span className="min-w-0"><span className="block truncate text-xs font-medium text-[#1b2733]">{K.label}</span><span className="block truncate text-[11px] text-[#7a8794]">{K.hint}</span></span></button>;
         })}
       </div>
     </>
@@ -138,11 +162,11 @@ const Inspector: React.FC<{ step: BotStepView; number: number; all: BotStepView[
   };
   return (
     <aside className="flex h-full w-full flex-col border-t border-[#D3E3F0] bg-white lg:w-[340px] lg:flex-none lg:border-l lg:border-t-0" aria-label={`Edit step ${number}`}>
-      <div className="flex items-center justify-between border-b border-[#E3EDF5] px-4 py-2.5">
-        <p className="text-sm font-bold text-[#0B2A44]">Step {number}</p>
-        <button type="button" aria-label="Close" onClick={onClose} className="rounded p-1 text-[#5E778C] hover:bg-[#F2F7FB]"><X size={16} /></button>
+      <div className="flex items-center justify-between px-4 py-3" style={{ background: '#192D3E' }}>
+        <p className="min-w-0 truncate text-[15px] font-medium text-white">Step {number} · {K.label}</p>
+        <button type="button" aria-label="Close" onClick={onClose} className="flex-none rounded p-1 text-white/90 hover:bg-white/10"><X size={16} /></button>
       </div>
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="flex-1 space-y-3 overflow-y-auto p-4" style={{ background: '#F7F7F7' }}>
         <Field label="What it does" hint={K.hint}><Select value={step.type} onChange={(e) => changeType(e.target.value as BotStepView['type'])} options={(Object.keys(KINDS) as Array<BotStepView['type']>).filter((t) => t !== 'ai' || aiAvailable || step.type === 'ai').map((t) => ({ value: t, label: KINDS[t].label }))} /></Field>
         <Field label={step.type === 'end' || step.type === 'visit' || step.type === 'handoff' ? 'Message (optional)' : 'Message'} hint="You can use {name}, {first_name}, {company}, {unit} and {visit}."><textarea className={inputCls} rows={4} maxLength={1024} value={step.text} onChange={(e) => set('text', e.target.value)} /></Field>
         {step.type === 'question' && (
@@ -337,7 +361,7 @@ const Editor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => v
       const id = `${s.id}:${x.handle}`;
       const lit = !!selected && (s.id === selected || x.target === selected);
       const on = lit || id === selectedEdge || id === hoverEdge;
-      return { id, type: 'bot' as const, zIndex: on ? 1001 : 0, source: s.id, sourceHandle: x.handle, target: x.target, selected: id === selectedEdge, reconnectable: 'target' as const, markerEnd: { type: MarkerType.ArrowClosed, color: on ? LINE_ON : LINE, width: 18, height: 18 }, data: { exit: x.exit, hover: id === hoverEdge, lit } };
+      return { id, type: 'bot' as const, zIndex: on ? 1001 : 0, source: s.id, sourceHandle: x.handle, target: x.target, selected: id === selectedEdge, reconnectable: 'target' as const, data: { exit: x.exit, hover: id === hoverEdge, lit } };
     }));
   }, [steps, selected, selectedEdge, hoverEdge]);
 
@@ -420,7 +444,7 @@ const Editor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => v
       {problems.length > 0 && !problem && <p className="flex items-center gap-1.5 border-b border-[#F8D9B0] bg-[#FFF8E6] px-4 py-1.5 text-xs text-[#8A5A00]"><AlertTriangle size={13} className="flex-none" aria-hidden="true" /><span className="min-w-0 truncate">{problems[0]}{problems.length > 1 ? ` And ${problems.length - 1} more.` : ''}</span></p>}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div ref={pane} className="relative min-h-0 min-w-0 flex-1">
+        <div ref={pane} className="relative min-h-0 min-w-0 flex-1" style={{ background: '#F3F3F3' }}>
           <ActionsContext.Provider value={actions}>
             <ReactFlow<BoxNode, LineEdge>
               nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
@@ -437,9 +461,9 @@ const Editor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => v
               onReconnectEnd={(e, old, _h, state) => { reconnecting.current = false; if (!state.isValid && old.data) link(old.data.exit, boxAt(clientPoint(e))); }}
               minZoom={0.25} maxZoom={1.5} snapToGrid snapGrid={[8, 8]}
               selectNodesOnDrag={false} deleteKeyCode={null} selectionKeyCode={null} multiSelectionKeyCode={null} zoomOnDoubleClick={false} connectionRadius={28}
-              connectionLineStyle={{ stroke: LINE_ON, strokeWidth: 2 }} attributionPosition="bottom-left"
+              connectionLineStyle={{ stroke: LINE_ON, strokeWidth: 3 }} attributionPosition="bottom-left"
             >
-              <Background variant={BackgroundVariant.Dots} gap={18} size={1.5} color="#C9D9E6" />
+              <Background variant={BackgroundVariant.Lines} gap={20} size={1} color="rgba(150,150,150,0.10)" />
               <Toolbar canUndo={flow.history.past.length > 0} canRedo={flow.history.future.length > 0} onUndo={doUndo} onRedo={doRedo} onArrange={tidy} />
               <MiniMap pannable zoomable className="!hidden md:!block" nodeColor={(n) => KINDS[(n as BoxNode).data.step.type].ink} maskColor="rgba(11,42,68,0.08)" />
               {steps.length > 0 && <Panel position="top-right" className="hidden rounded-md bg-white/80 px-2 py-1 text-[11px] text-[#5E778C] xl:block">Drag a box to move it. Drag a dot to another box to connect.</Panel>}

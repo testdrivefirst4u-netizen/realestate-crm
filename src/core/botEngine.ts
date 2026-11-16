@@ -5,8 +5,8 @@
  */
 
 export type StepType = 'message' | 'question' | 'choice' | 'visit' | 'ai' | 'handoff' | 'end';
-export type SaveTo = '' | 'name' | 'email' | 'unit' | 'city' | 'budget' | 'purpose' | 'notes';
-export const SAVE_TO: SaveTo[] = ['', 'name', 'email', 'unit', 'city', 'budget', 'purpose', 'notes'];
+export type SaveTo = '' | 'name' | 'email' | 'phone' | 'unit' | 'city' | 'budget' | 'purpose' | 'notes';
+export const SAVE_TO: SaveTo[] = ['', 'name', 'email', 'phone', 'unit', 'city', 'budget', 'purpose', 'notes'];
 
 export interface BotOption { id: string; label: string; next: string }
 export interface BotStep {
