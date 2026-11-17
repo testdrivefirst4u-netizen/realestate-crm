@@ -16,8 +16,8 @@ export const CFG = {
   SESSION_MAX_DEVICES: 2,
   /** The most an admin can allow one account (a login shared by a team, e.g. a front desk). */
   SESSION_MAX_DEVICES_LIMIT: 10,
-  /** Signed out after this long with no activity (the browser warns a minute before). */
-  SESSION_IDLE_MINUTES: 60,
+  /** Signed out after this long with no activity. 0 turns idle sign-out off entirely: stay signed in until an explicit logout. */
+  SESSION_IDLE_MINUTES: 0,
   SESSION_COOKIE: 'amaya_session',
   EVENTS_KEEP: 3000,
   ERROR_LOG_KEEP: 2000,

@@ -554,9 +554,9 @@ export async function validateSession(token: string): Promise<{ user: PublicUser
     await (await sessions()).deleteOne({ _id: s._id });
     return null;
   }
-  // signed out after an hour without activity (sessions from before this rule start counting now). The Platform
-  // support account has its own short session, used from the console, and is left out.
-  if (!u.support) {
+  // Idle sign-out: only when SESSION_IDLE_MINUTES > 0. With it off (0), a person stays signed in until they log out.
+  // The Platform support account has its own short session, used from the console, and is left out.
+  if (!u.support && CFG.SESSION_IDLE_MINUTES > 0) {
     if (!s.lastActive) {
       await (await sessions()).updateOne({ _id: s._id }, { $set: { lastActive: new Date() } });
     } else if (Date.now() - s.lastActive.getTime() > (CFG.SESSION_IDLE_MINUTES + IDLE_GRACE_MINUTES) * 60_000) {

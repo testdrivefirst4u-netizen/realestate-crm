@@ -75,25 +75,21 @@ describe('device limit', () => {
   });
 });
 
-describe('idle sign-out', () => {
-  it('an hour without activity signs the device out; activity (touchSession) keeps it signed in', async () => {
+describe('idle sign-out is off (stay signed in until an explicit logout)', () => {
+  it('a long-idle session stays signed in when SESSION_IDLE_MINUTES is 0', async () => {
+    expect(CFG.SESSION_IDLE_MINUTES).toBe(0);
     const token = await signIn('ravi@sess.test', LAPTOP);
     const sessions = await col(CFG.COLL.SESSIONS);
     const ago = (min: number) => new Date(Date.now() - min * 60_000);
-    // 50 minutes idle: still in; using the CRM resets the clock
-    await sessions.updateOne({ userId: 'USR-0002' }, { $set: { lastActive: ago(50) } });
-    expect((await as(token, 'touchSession')).status).toBe('success');
-    const s = await sessions.findOne({ userId: 'USR-0002' });
-    expect(Date.now() - s!.lastActive.getTime()).toBeLessThan(5000);
-    // background refreshes do not count as activity
-    await sessions.updateOne({ userId: 'USR-0002' }, { $set: { lastActive: ago(CFG.SESSION_IDLE_MINUTES + 5) } });
-    expect(await as(token, 'getEvents', { since: 0 })).toMatchObject({ code: 'AUTH_REQUIRED', message: SESSION_END_MESSAGES.idle });
+    // hours with no activity: still signed in, because idle sign-out is turned off
+    await sessions.updateOne({ userId: 'USR-0002' }, { $set: { lastActive: ago(600) } });
+    expect((await as(token, 'getEvents', { since: 0 })).status).toBe('success');
   });
 
-  it('sessions from before this rule are not signed out at once', async () => {
+  it('logging out still ends the session', async () => {
     const token = await signIn('ravi@sess.test', LAPTOP);
-    await (await col(CFG.COLL.SESSIONS)).updateOne({ userId: 'USR-0002' }, { $unset: { lastActive: '' } });
-    expect((await as(token, 'me')).status).toBe('success');
+    expect((await as(token, 'logout')).status).toBe('success');
+    expect(await as(token, 'me')).toMatchObject({ code: 'AUTH_REQUIRED' });
   });
 });
 
