@@ -1,7 +1,7 @@
 /**
  * Where someone is signed in: My profile › "Where you're signed in" (own devices; sign one or all others out) and
- * Settings › Team (an admin opens a person's devices and signs them out). At most 2 devices per person — signing in on
- * a third signs the oldest out — and a device is signed out after an hour without activity.
+ * Settings › Team (an admin opens a person's devices and signs them out). Up to 10 devices per person by default —
+ * signing in on one more signs the oldest out. A device stays signed in until an explicit logout.
  */
 import React, { useEffect, useState } from 'react';
 import { Laptop, LogOut, Smartphone, Tablet } from 'lucide-react';
@@ -43,7 +43,7 @@ export const DeviceRows: React.FC<{ rows: DeviceSession[] | null; onEnd?: (s: De
   );
 };
 
-export const DevicesCard: React.FC<{ limit?: number }> = ({ limit = 2 }) => {
+export const DevicesCard: React.FC<{ limit?: number }> = ({ limit = 10 }) => {
   const [rows, setRows] = useState<DeviceSession[] | null>(null);
   const [busy, setBusy] = useState('');
   const load = () => api.auth.sessions().then(setRows).catch((e) => { setRows([]); toast('Could not load your devices', toAppError(e).userMessage, 'alert'); });
@@ -64,7 +64,7 @@ export const DevicesCard: React.FC<{ limit?: number }> = ({ limit = 2 }) => {
   return (
     <Card
       title={<span className="inline-flex items-center gap-2">Where you&rsquo;re signed in {rows && <Badge>{rows.length} of {limit}</Badge>}</span>}
-      subtitle={`You can be signed in on ${limit} devices at a time — signing in on one more signs the oldest out. You are signed out after an hour without activity. Don't recognise a device? Sign it out and change your password.`}
+      subtitle={`You can be signed in on ${limit} devices at a time — signing in on one more signs the oldest out. You stay signed in until you log out. Don't recognise a device? Sign it out and change your password.`}
       actions={others > 0 ? <Button size="sm" variant="secondary" loading={busy === 'all'} onClick={() => void run('all', api.auth.endOtherSessions, 'Signed out of your other devices')} icon={<LogOut size={13} />}>Sign out other devices</Button> : undefined}
     >
       <DeviceRows rows={rows} busyId={busy} onEnd={(s) => void run(s.id, () => api.auth.endSession(s.id), `Signed out: ${s.device}`)} />

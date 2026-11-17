@@ -13,7 +13,7 @@ export const CFG = {
 
   SESSION_HOURS: 720, // 30 days: stay signed in until the user logs out (no idle auto sign-out)
   /** Devices one person may be signed in on at once: signing in on one more signs out the oldest. */
-  SESSION_MAX_DEVICES: 2,
+  SESSION_MAX_DEVICES: 10,
   /** The most an admin can allow one account (a login shared by a team, e.g. a front desk). */
   SESSION_MAX_DEVICES_LIMIT: 10,
   /** Signed out after this long with no activity. 0 turns idle sign-out off entirely: stay signed in until an explicit logout. */

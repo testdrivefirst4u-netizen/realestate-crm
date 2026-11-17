@@ -1,4 +1,4 @@
-/** Devices: at most 2 sessions per person (a 3rd signs out the oldest), idle sign-out after an hour, device lists. */
+/** Devices: up to 10 sessions per person by default (one more signs out the oldest), no idle sign-out, device lists. */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../server/modules/push', async (orig) => ({ ...(await orig<any>()), sendPush: vi.fn(async () => ({ sent: 0, failed: 0 })) }));
 import { startTestDb } from './helpers/mongo';
@@ -29,7 +29,9 @@ beforeEach(async () => {
 });
 
 describe('device limit', () => {
-  it('a 3rd sign-in signs out the oldest device, which is told why; the person hears about new sign-ins', async () => {
+  it('once at the device limit, one more sign-in signs out the oldest device, which is told why; the person hears about new sign-ins', async () => {
+    // pin Ravi to 2 devices so the "oldest signs out" mechanic is exercised without ten sign-ins
+    await (await col(CFG.COLL.USERS)).updateOne({ emailLower: 'ravi@sess.test' }, { $set: { maxDevices: 2 } });
     const phone = await signIn('ravi@sess.test', PHONE);
     const laptop = await signIn('ravi@sess.test', LAPTOP);
     expect((await as(phone, 'me')).status).toBe('success');
@@ -44,20 +46,19 @@ describe('device limit', () => {
     expect(sendPush).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ title: 'New sign-in to your CRM account' }));
   });
 
-  it('an admin can allow a shared login more devices (up to 10); only admins may change it', async () => {
+  it('up to 10 devices by default (the 11th signs the oldest out); an admin can restrict a login, and only admins may change it', async () => {
     const admin = await signIn('asha@sess.test', LAPTOP);
     const users = (await as(admin, 'listUsers')).data;
     const ravi = users.find((u: any) => u.email === 'ravi@sess.test');
-    expect(ravi.maxDevices).toBe(2);
+    expect(ravi.maxDevices).toBe(10); // the default is now 10 devices
     expect(await as(admin, 'saveUser', { data: { id: ravi.id, maxDevices: 11 } })).toMatchObject({ status: 'error', code: 'VALIDATION' });
-    expect((await as(admin, 'saveUser', { data: { id: ravi.id, maxDevices: 10 } })).status).toBe('success');
     const tokens: string[] = [];
     for (let i = 0; i < 10; i++) tokens.push(await signIn('ravi@sess.test', i % 2 ? PHONE : LAPTOP));
     for (const tk of tokens) expect((await as(tk, 'me')).status).toBe('success'); // all 10 stay signed in
     await signIn('ravi@sess.test', TABLET); // the 11th signs the oldest out
     expect(await as(tokens[0], 'me')).toMatchObject({ status: 'error', code: 'AUTH_REQUIRED' });
     expect((await as(tokens[1], 'me')).status).toBe('success');
-    // back to 2 (the default)
+    // an admin can still restrict a login to fewer devices
     expect((await as(admin, 'saveUser', { data: { id: ravi.id, maxDevices: 2 } })).status).toBe('success');
     expect((await as(admin, 'listUsers')).data.find((u: any) => u.id === ravi.id).maxDevices).toBe(2);
   });

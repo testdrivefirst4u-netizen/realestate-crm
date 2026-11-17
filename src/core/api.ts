@@ -440,7 +440,7 @@ export const api = {
     updateProfile: (data: { name?: string; avatar?: string | null; phone?: string; callVia?: 'justconnect' | 'direct' }) => request<UserAccount>('updateProfile', { data }),
     /** The person is using the CRM here: starts the 1-hour idle clock again. */
     touch: () => request<{ ok: boolean; idleMinutes: number }>('touchSession', {}),
-    /** Where I am signed in (at most 2 devices), and signing one or all others out. */
+    /** Where I am signed in (up to 10 devices by default), and signing one or all others out. */
     sessions: () => request<DeviceSession[]>('mySessions', {}),
     endSession: (id: string) => request<DeviceSession[]>('endMySession', { id }),
     endOtherSessions: () => request<DeviceSession[]>('endMyOtherSessions', {}),

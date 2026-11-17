@@ -76,7 +76,7 @@ interface UserForm {
   initialPhone: string;
   /** How Call works for them. */
   callVia: 'justconnect' | 'direct';
-  /** Devices at once (2 by default; admins can allow up to 10 for a shared login). */
+  /** Devices at once (10 by default; admins can restrict a login to fewer). */
   maxDevices: number;
   role: UserRole;
   status: 'Active' | 'Disabled';
@@ -87,7 +87,7 @@ interface UserForm {
   initialAvatar: string;
 }
 
-const emptyUser = (): UserForm => ({ name: '', email: '', phone: '', initialPhone: '', callVia: 'justconnect', maxDevices: 2, role: 'RM', status: 'Active', password: '', avatar: '', initialAvatar: '' });
+const emptyUser = (): UserForm => ({ name: '', email: '', phone: '', initialPhone: '', callVia: 'justconnect', maxDevices: 10, role: 'RM', status: 'Active', password: '', avatar: '', initialAvatar: '' });
 
 export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers, currentUser, onRefreshAll, onUpdateProfile }) => {
   const [rows, setRows] = useState<UserAccount[] | null>(null);
@@ -188,7 +188,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
   };
 
   const openEdit = (u: UserAccount) => {
-    setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', initialPhone: u.phone || '', callVia: u.callVia === 'direct' ? 'direct' : 'justconnect', maxDevices: u.maxDevices || 2, role: normalizeRole(u.role), status: u.status === 'Disabled' ? 'Disabled' : 'Active', password: '', avatar: u.avatar || '', initialAvatar: u.avatar || '' });
+    setForm({ id: u.id, name: u.name, email: u.email, phone: u.phone || '', initialPhone: u.phone || '', callVia: u.callVia === 'direct' ? 'direct' : 'justconnect', maxDevices: u.maxDevices || 10, role: normalizeRole(u.role), status: u.status === 'Disabled' ? 'Disabled' : 'Active', password: '', avatar: u.avatar || '', initialAvatar: u.avatar || '' });
     setFormError(null);
     setShowPw(false);
     setEditOpen(true);
@@ -432,8 +432,8 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
             <Select value={form.callVia} onChange={(e) => setForm({ ...form, callVia: e.target.value as 'justconnect' | 'direct' })} options={[{ value: 'justconnect', label: 'JustConnect (business number)' }, { value: 'direct', label: 'Phone dialer (direct)' }]} />
           </Field>
           {can(currentUser, 'users.manage') && (
-            <Field label="Devices at once" hint={form.maxDevices > 2 ? `This login can be open on ${form.maxDevices} phones or computers at the same time — use it for a login a team shares. Signing in on one more signs the oldest out.` : 'Signing in on one more device signs the oldest out. Allow more (up to 10) for a login a team shares.'}>
-              <Select value={String(form.maxDevices)} onChange={(e) => setForm({ ...form, maxDevices: Number(e.target.value) })} options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: i + 1 === 2 ? '2 (default)' : String(i + 1) }))} />
+            <Field label="Devices at once" hint={`This login can be open on ${form.maxDevices} phone${form.maxDevices === 1 ? '' : 's'} or computer${form.maxDevices === 1 ? '' : 's'} at the same time. Signing in on one more signs the oldest out. Lower it to restrict a login to fewer devices.`}>
+              <Select value={String(form.maxDevices)} onChange={(e) => setForm({ ...form, maxDevices: Number(e.target.value) })} options={Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: i + 1 === 10 ? '10 (default)' : String(i + 1) }))} />
             </Field>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -468,7 +468,7 @@ export const UsersSection: React.FC<UsersSectionProps> = ({ users: initialUsers,
         </>}
       >
         <div className="space-y-3">
-          <InlineNotice>2 devices per person unless you allow more for that user (up to 10, for a shared login) — signing in on one more signs the oldest out. Lost a phone or someone left? Sign them out here; they can sign in again with their password (reset it too if needed).</InlineNotice>
+          <InlineNotice>Up to 10 devices per person by default — signing in on one more signs the oldest out. You can lower this for a user if you want to restrict them. Lost a phone or someone left? Sign them out here; they can sign in again with their password (reset it too if needed).</InlineNotice>
           <DeviceRows rows={devices} busyId={deviceBusy} onEnd={(s) => void endDevices(s.id)} />
         </div>
       </Modal>
