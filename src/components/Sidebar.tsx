@@ -1,10 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Users, MessageCircle, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
+  LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
   Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, type LucideIcon,
 } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppIcon';
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
@@ -48,7 +49,7 @@ interface SidebarProps {
   unreadSocial?: number;
 }
 
-interface Item { id: ViewId; label: string; icon: LucideIcon; count?: number; urgent?: boolean }
+interface Item { id: ViewId; label: string; icon: LucideIcon | React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; count?: number; urgent?: boolean }
 interface Group { id: string; label: string; items: Item[] }
 
 /** The screens, in sections; every screen has its own icon (the collapsed sidebar shows the icons alone). */
@@ -65,7 +66,7 @@ function buildGroups(counts: SidebarCounts, direct = false): Group[] {
       { id: 'followups', label: 'Follow-ups', icon: CalendarClock, count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments', icon: ChartPie },
     ] },
     { id: 'messages', label: 'Messages', items: [
-      { id: 'chat360', label: direct ? 'WhatsApp' : 'WhatsApp (Chat360)', icon: MessageCircle, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },
+      { id: 'chat360', label: direct ? 'WhatsApp' : 'WhatsApp (Chat360)', icon: WhatsAppIcon, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },
       { id: 'inbox', label: 'Social Inbox', icon: Inbox, count: counts.unreadSocial, urgent: true },
     ] },
     { id: 'marketing', label: 'Marketing', items: [
