@@ -16,7 +16,7 @@ import { fail } from '../core/errors';
 import { addEvent, logError } from '../core/events';
 import { currentTenant } from '../core/tenant';
 import { shortId, str, truncate } from '../core/utils';
-import { botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
+import { activeBotFilter, botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
 import { replyToChat, startChat, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepResult } from './whatsappBotEngine';
 
 const DAY_MS = 86400000;
@@ -113,8 +113,8 @@ export async function webchatTurn(i: { sessionId?: string; text?: string; replyI
       const r = await replyToChat({ steps: existing.steps }, existing.state, { text, replyId }, ctx);
       return persist(existing, r, text, now, company);
     }
-    // a new chat: run the one active bot
-    const bot = await (await botsCol()).findOne({ status: 'active' });
+    // a new chat: run the live bot for the website channel
+    const bot = await (await botsCol()).findOne(activeBotFilter('website'));
     if (!bot) throw fail('NOT_FOUND', 'No chatbot is live for this website yet.');
     const knowledge = bot.steps.some((s) => s.type === 'ai') ? await mergeKnowledge(bot.knowledge) : bot.knowledge;
     const vars: Record<string, string> = {};

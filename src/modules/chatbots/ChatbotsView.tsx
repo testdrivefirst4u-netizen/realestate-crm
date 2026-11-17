@@ -2,6 +2,7 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
 import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
+import { BOT_CHANNELS, BOT_CHANNEL_LABEL } from '../../core/botEngine';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, InlineNotice, LoadingState, Modal, inputCls } from '../../components/ui';
@@ -26,8 +27,8 @@ const starterSteps = (): BotStepView[] => [
 ];
 
 type Draft = BotDraft;
-const toDraft = (b: BotView): Draft => ({ id: b.id, name: b.name, trigger: b.trigger, keywords: b.keywords.join(', '), steps: b.steps, knowledge: b.knowledge });
-const newDraft = (): Draft => ({ name: 'Property enquiry', trigger: 'new', keywords: '', steps: starterSteps(), knowledge: '' });
+const toDraft = (b: BotView): Draft => ({ id: b.id, name: b.name, trigger: b.trigger, keywords: b.keywords.join(', '), channels: b.channels, steps: b.steps, knowledge: b.knowledge });
+const newDraft = (): Draft => ({ name: 'Property enquiry', trigger: 'new', keywords: '', channels: [...BOT_CHANNELS], steps: starterSteps(), knowledge: '' });
 
 type Line = { from: 'bot' | 'you' | 'note'; o?: BotOutgoing; text?: string };
 
@@ -148,8 +149,8 @@ export const ChatbotsView: React.FC = () => {
     <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#0B2A44] sm:text-2xl">WhatsApp Chatbots</h2>
-          <p className="mt-0.5 text-xs text-[#5E778C]">Answers customers who write in, collects their details and books visits. It steps aside as soon as a person replies.</p>
+          <h2 className="text-xl font-bold tracking-tight text-[#0B2A44] sm:text-2xl">Chatbots</h2>
+          <p className="mt-0.5 text-xs text-[#5E778C]">One bot that answers on WhatsApp, your website, Instagram and Facebook — pick its channels when you build it. It collects details, books visits, and steps aside the moment a person replies.</p>
         </div>
         <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New chatbot</Button>
       </div>
@@ -158,6 +159,10 @@ export const ChatbotsView: React.FC = () => {
         const s = STATUS[b.status];
         return (
           <Card key={b.id} title={<span className="inline-flex flex-wrap items-center gap-2">{b.name}<Badge tone={s.tone}>{s.label}</Badge></span>} subtitle={`${b.steps.length} step${b.steps.length === 1 ? '' : 's'} · ${TRIGGER[b.trigger]}${b.trigger === 'keyword' ? `: ${b.keywords.join(', ')}` : ''}`}>
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#5E778C]">Runs on</span>
+              {b.channels.map((ch) => <span key={ch} className="rounded-full bg-[#EAF4FB] px-2 py-0.5 text-[11px] font-medium text-[#0B5E9C]">{BOT_CHANNEL_LABEL[ch]}</span>)}
+            </div>
             <dl className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               <Stat label="Chats started" value={b.stats.started} /><Stat label="In progress" value={b.stats.inProgress} /><Stat label="Finished" value={b.stats.finished} /><Stat label="Handed to team" value={b.stats.handedOff} /><Stat label="Answered a question" value={b.stats.withAnswers} /><Stat label="Visits booked" value={b.stats.visits} />
             </dl>
@@ -169,7 +174,7 @@ export const ChatbotsView: React.FC = () => {
               <Button variant="secondary" size="xs" icon={<Send size={12} />} disabled={b.problems.length > 0} onClick={() => setTesting(b)}>Test chat</Button>
               {b.status === 'active'
                 ? <Button variant="secondary" size="xs" icon={<Pause size={12} />} loading={busy === b.id} onClick={() => void status(b, 'paused')}>Pause</Button>
-                : <Button variant="primary" size="xs" icon={<Play size={12} />} loading={busy === b.id} disabled={!b.tested || b.problems.length > 0 || !data.connected} onClick={() => void status(b, 'active')}>Start</Button>}
+                : <Button variant="primary" size="xs" icon={<Play size={12} />} loading={busy === b.id} disabled={!b.tested || b.problems.length > 0 || (b.channels.includes('whatsapp') && !data.connected)} onClick={() => void status(b, 'active')}>Start</Button>}
               {b.status !== 'active' && <Button variant="secondary" size="xs" icon={<Trash2 size={12} />} aria-label={`Delete ${b.name}`} onClick={() => setRemoving(b)} />}
             </div>
           </Card>

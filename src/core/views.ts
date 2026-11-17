@@ -20,7 +20,7 @@ export const DEFAULT_VIEW: ViewId = 'today';
 export const VIEW_TITLES: Record<ViewId, string> = {
   today: 'Today', dashboard: 'Dashboard', mis: 'Sales MIS', performance: 'YTD / MTD', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
   inventory: 'Inventory', chat360: 'WhatsApp', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
-  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcampaigns: 'WhatsApp Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'WhatsApp Chatbots', webchat: 'Bot Chats', competitors: 'Competitor Ads',
+  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcampaigns: 'WhatsApp Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'Chatbots', webchat: 'Bot Chats', competitors: 'Competitor Ads',
 };
 
 export const viewHref = (view: ViewId) => `/${view}`;

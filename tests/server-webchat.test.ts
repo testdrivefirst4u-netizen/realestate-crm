@@ -135,6 +135,13 @@ describe('website chatbot', () => {
     expect(lead.email).toBe('meera@example.com');
   });
 
+  it('only answers on the website when the bot is turned on for that channel', async () => {
+    const { id } = await inCo(() => saveBot({ name: 'IG only', steps: FLOW, channels: ['instagram'] }, ctx));
+    await finishTest(id);
+    await inCo(() => setBotStatus({ id, status: 'active' }, ctx));
+    await expect(inCo(() => webchatTurn({ visitorId: 'vx' }))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
   it('is blocked without the plan feature', async () => {
     await t.company('nofeature', { whatsappBots: false });
     invalidateTenant();

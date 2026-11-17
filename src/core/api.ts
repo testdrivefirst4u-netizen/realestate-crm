@@ -322,7 +322,8 @@ export interface WaCampaignView {
 export interface WaCampaignsOverview { connected: boolean; creditsOn: boolean; prices: Record<string, number>; campaigns: WaCampaignView[] }
 export interface WaCampaignDetail { visits: number; bookings: number; failures: Array<{ name: string; phone: string; error: string }> }
 export interface BotStepView { pos?: { x: number; y: number }; id: string; type: 'message' | 'question' | 'choice' | 'visit' | 'ai' | 'handoff' | 'end'; text: string; next: string; saveTo: '' | 'name' | 'email' | 'phone' | 'unit' | 'city' | 'budget' | 'purpose' | 'notes'; validate: 'text' | 'email' | 'number'; options: Array<{ id: string; label: string; next: string }>; days: number; times: string[] }
-export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
+export type BotChannel = 'whatsapp' | 'website' | 'instagram' | 'facebook';
+export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; channels: BotChannel[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
 export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
 export interface BotChatRow { id: string; channel: 'website' | 'instagram' | 'facebook'; botName: string; who: string; status: 'active' | 'done' | 'handoff' | 'stopped'; leadId: string; messages: number; answers: number; visits: number; startedAt: string; lastAt: string; origin: string; transcript: Array<{ role: 'bot' | 'user'; text: string; at: string }>; captured: Record<string, string> }
 export type BotOutgoing = { kind: 'text'; text: string } | { kind: 'buttons'; text: string; options: Array<{ id: string; label: string }> } | { kind: 'list'; text: string; button: string; options: Array<{ id: string; label: string }> };
@@ -633,7 +634,7 @@ export const api = {
 
   bots: {
     list: () => request<BotsOverview>('waBotsList', {}),
-    save: (d: { id?: string; name: string; trigger: string; keywords: string; steps: BotStepView[]; knowledge: string }) => request<{ id: string; problems: string[] }>('waBotSave', d),
+    save: (d: { id?: string; name: string; trigger: string; keywords: string; channels: BotChannel[]; steps: BotStepView[]; knowledge: string }) => request<{ id: string; problems: string[] }>('waBotSave', d),
     setStatus: (id: string, status: 'active' | 'paused') => request<{ ok: true }>('waBotStatus', { id, status }),
     remove: (id: string) => request<{ ok: true }>('waBotDelete', { id }),
     simulate: (d: { id: string; rev: number; state?: unknown; text?: string; replyId?: string }) => request<BotSimResult>('waBotSimulate', d, { timeoutMs: 45000 }),

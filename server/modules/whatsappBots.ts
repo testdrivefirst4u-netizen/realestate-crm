@@ -16,10 +16,10 @@ import { settingsAll } from '../core/settings';
 import { currentTenant } from '../core/tenant';
 import { dateKey, last10, makeZoned, shortId, str, truncate } from '../core/utils';
 import { generateText } from './ai';
-import { mergeKnowledge } from './botRuntime';
+import { activeBotFilter, mergeKnowledge } from './botRuntime';
 import { appendRemark, getLead, updateLead, type UiLead } from './leads';
 import { idsByName, sendPush } from './push';
-import { MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult, sameFlow } from './whatsappBotEngine';
+import { BOT_CHANNELS, MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotChannel, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult, sameFlow } from './whatsappBotEngine';
 import { isConnected, sendDirect } from './whatsappDirect';
 
 const L = CFG.LEAD;
@@ -29,7 +29,9 @@ const KNOWLEDGE_CHARS = 20000;
 const BOT_CTX: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Chatbot' }, action: 'whatsappBot' };
 
 export type BotTrigger = 'new' | 'keyword' | 'any';
-export interface BotDoc { _id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: BotTrigger; keywords: string[]; steps: BotStep[]; knowledge: string; tested: boolean; rev: number; createdBy: string; createdAt: Date; updatedAt: Date }
+export interface BotDoc { _id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: BotTrigger; keywords: string[]; channels: BotChannel[]; steps: BotStep[]; knowledge: string; tested: boolean; rev: number; createdBy: string; createdAt: Date; updatedAt: Date }
+/** A bot with no channels saved (made before channels existed) runs on all of them. */
+const channelsOf = (b: { channels?: BotChannel[] }): BotChannel[] => (b.channels?.length ? b.channels : [...BOT_CHANNELS]);
 interface SessionDoc {
   _id: string; botId: string; botName: string; phone: string; phoneLast10: string; leadId: string; steps: BotStep[]; knowledge: string; state: ChatState;
   status: ChatStatus; endReason: string; visits: number; answers: number; startedAt: Date; lastAt: Date; endedAt?: Date;
@@ -68,7 +70,10 @@ export async function saveBot(d: any, ctx: Ctx): Promise<{ id: string; problems:
   if (trigger === 'keyword' && !keywords.length) throw bad('Add at least one keyword that starts the bot.');
   const knowledge = String(d?.knowledge ?? '').slice(0, KNOWLEDGE_CHARS);
   if (steps.some((s: BotStep) => s.type === 'ai') && !knowledge.trim()) throw bad('An AI answers step needs information to answer from. Write it under "What the AI may use".');
-  const fields = { name, trigger, keywords, steps, knowledge, tested: false, updatedAt: new Date() };
+  const rawChannels: unknown[] = Array.isArray(d?.channels) ? d.channels : [];
+  const picked = rawChannels.filter((c): c is BotChannel => BOT_CHANNELS.includes(c as BotChannel));
+  const channels: BotChannel[] = picked.length ? Array.from(new Set(picked)) : [...BOT_CHANNELS];
+  const fields = { name, trigger, keywords, channels, steps, knowledge, tested: false, updatedAt: new Date() };
   const c = await botsCol();
   const id = str(d?.id);
   if (id) {
@@ -76,7 +81,7 @@ export async function saveBot(d: any, ctx: Ctx): Promise<{ id: string; problems:
     if (!cur) throw fail('NOT_FOUND', 'This bot is no longer here.');
     if (cur.status === 'active') throw bad('Pause the bot before changing it.');
     // only boxes moved: the customer's chat is the same, so the finished test still counts
-    const same = cur.name === name && cur.trigger === trigger && cur.knowledge === knowledge && JSON.stringify(cur.keywords || []) === JSON.stringify(keywords) && sameFlow(cur.steps || [], steps);
+    const same = cur.name === name && cur.trigger === trigger && cur.knowledge === knowledge && JSON.stringify(cur.keywords || []) === JSON.stringify(keywords) && JSON.stringify([...channelsOf(cur)].sort()) === JSON.stringify([...channels].sort()) && sameFlow(cur.steps || [], steps);
     await c.updateOne({ _id: id }, same ? { $set: { steps, updatedAt: fields.updatedAt } } : { $set: fields, $inc: { rev: 1 } });
     await auditLog(ctx, 'WhatsApp Bot Saved', 'Chatbot', id, name);
     return { id, problems: botProblems({ steps }) };
@@ -94,11 +99,13 @@ export async function setBotStatus(d: any, ctx: Ctx): Promise<{ ok: true }> {
   if (!bot) throw fail('NOT_FOUND', 'This bot is no longer here.');
   const status = d?.status === 'active' ? 'active' : 'paused';
   if (status === 'active') {
-    if (!(await isConnected())) throw bad('Connect a WhatsApp number first, in Settings › WhatsApp direct.');
+    const channels = channelsOf(bot);
+    if (channels.includes('whatsapp') && !(await isConnected())) throw bad('Connect a WhatsApp number first, in Settings › WhatsApp direct.');
     const problems = botProblems(bot);
     if (problems.length) throw bad(problems[0]);
     if (!bot.tested) throw bad('Try the bot in the test chat, right to its end, before starting it.');
-    await c.updateMany({ status: 'active', _id: { $ne: bot._id } }, { $set: { status: 'paused' } });
+    // one live bot per channel: pause any active bot that shares a channel with this one (legacy bots = all channels)
+    await c.updateMany({ status: 'active', _id: { $ne: bot._id }, $or: [{ channels: { $in: channels } }, { channels: { $exists: false } }, { channels: { $size: 0 } }] }, { $set: { status: 'paused' } });
   }
   await c.updateOne({ _id: bot._id }, { $set: { status, updatedAt: new Date() } });
   await auditLog(ctx, status === 'active' ? 'WhatsApp Bot Started' : 'WhatsApp Bot Paused', 'Chatbot', bot._id, bot.name);
@@ -128,7 +135,7 @@ export async function listBots() {
       const waiting = new Map<string, number>();
       for (const s of mine) if (s.status === 'active') waiting.set(s.state.stepId, (waiting.get(s.state.stepId) || 0) + 1);
       return {
-        id: b._id, name: b.name, status: b.status, trigger: b.trigger, keywords: b.keywords, steps: b.steps, knowledge: b.knowledge, tested: b.tested, rev: b.rev, createdBy: b.createdBy, problems: botProblems(b),
+        id: b._id, name: b.name, status: b.status, trigger: b.trigger, keywords: b.keywords, channels: channelsOf(b), steps: b.steps, knowledge: b.knowledge, tested: b.tested, rev: b.rev, createdBy: b.createdBy, problems: botProblems(b),
         stats: {
           started: mine.length, inProgress: count('active'), finished: count('done'), handedOff: count('handoff'), stopped: count('stopped'),
           visits: mine.reduce((t, s) => t + (s.visits || 0), 0), withAnswers: mine.filter((s) => s.answers > 0).length,
@@ -291,7 +298,7 @@ export async function onCustomerMessage(i: { phone: string; messageId: string; t
         return;
       }
       if (current) await sessions.updateOne({ _id: current._id }, { $set: { status: 'done', endedAt: now, endReason: 'The customer stopped answering.' } });
-      const bot = await (await botsCol()).findOne({ status: 'active' });
+      const bot = await (await botsCol()).findOne(activeBotFilter('whatsapp'));
       // someone saying STOP is never greeted by a bot
       if (!bot || STOP_WORDS.test(i.text) || !(await shouldStart(bot, phoneKey, i.messageId, i.text, now))) return;
       const vars: Record<string, string> = {};

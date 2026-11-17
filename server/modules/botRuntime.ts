@@ -18,6 +18,11 @@ import { type StepContext } from './whatsappBotEngine';
 
 const L = CFG.LEAD;
 const AI_PER_DAY = 300; // platform-wide, shared across channels
+
+/** Find the live bot for one channel. Legacy bots saved before channels existed (no `channels` field) run everywhere. */
+export function activeBotFilter(channel: string): Record<string, unknown> {
+  return { status: 'active', $or: [{ channels: channel }, { channels: { $exists: false } }, { channels: { $size: 0 } }] };
+}
 export const KNOWLEDGE_CHARS = 20000;
 const BOT_CTX: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Chatbot' }, action: 'chatbot' };
 

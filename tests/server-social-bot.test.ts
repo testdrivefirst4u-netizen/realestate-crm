@@ -40,8 +40,8 @@ const FLOW: BotStep[] = [
   step('bye', 'end', { text: 'Thanks' }),
 ];
 
-async function activeBot(steps = FLOW, trigger: 'new' | 'keyword' | 'any' = 'any', keywords: string[] = []) {
-  await inCo(async () => (await col<any>('whatsappBots')).insertOne({ _id: 'BOT1', name: 'Enquiry', status: 'active', trigger, keywords, steps, knowledge: '', tested: true, rev: 1, createdBy: 'System', createdAt: new Date(), updatedAt: new Date() }));
+async function activeBot(steps = FLOW, trigger: 'new' | 'keyword' | 'any' = 'any', keywords: string[] = [], channels: string[] = ['whatsapp', 'website', 'instagram', 'facebook']) {
+  await inCo(async () => (await col<any>('whatsappBots')).insertOne({ _id: 'BOT1', name: 'Enquiry', status: 'active', trigger, keywords, channels, steps, knowledge: '', tested: true, rev: 1, createdBy: 'System', createdAt: new Date(), updatedAt: new Date() }));
 }
 let mid = 0;
 async function dm(text: string) {
@@ -86,6 +86,12 @@ describe('Instagram / Facebook chatbot', () => {
     // a human reply in the thread (by someone other than the bot) within the last day
     await inCo(async () => (await inboxCol()).insertOne({ _id: 'instagram:human1', platform: 'instagram', kind: 'message', thread: THREAD, account: 'acc', externalId: 'h1', authorId: '', authorName: 'Asha', text: 'hi there', direction: 'out', at: new Date(), read: true, by: 'Asha' } as any));
     await dm('hello?');
+    expect(sent).toEqual([]);
+  });
+
+  it('does not answer Instagram when the bot is turned on for the website only', async () => {
+    await activeBot(FLOW, 'any', [], ['website']);
+    await dm('hi');
     expect(sent).toEqual([]);
   });
 

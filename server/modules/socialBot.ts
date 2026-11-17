@@ -13,7 +13,7 @@ import { col } from '../core/db';
 import { addEvent, logError } from '../core/events';
 import { currentTenant } from '../core/tenant';
 import { dateKey, shortId, str, truncate } from '../core/utils';
-import { botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
+import { activeBotFilter, botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
 import { inboxCol, replyInbox, type InboxItem } from './socialInbox';
 import { replyToChat, startChat, STOP_WORDS, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepResult } from './whatsappBotEngine';
 
@@ -137,7 +137,7 @@ export async function onSocialMessage(item: InboxItem): Promise<void> {
     if (item.kind !== 'message' || item.direction !== 'in') return;
     if (item.platform !== 'facebook' && item.platform !== 'instagram') return;
     if (STOP_WORDS.test(item.text || '')) return;
-    const bot = await (await botsCol()).findOne({ status: 'active' });
+    const bot = await (await botsCol()).findOne(activeBotFilter(item.platform));
     if (!bot) return;
     const company = str(currentTenant()?.name);
     const now = new Date();

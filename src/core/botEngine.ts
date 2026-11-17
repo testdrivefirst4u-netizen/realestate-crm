@@ -8,6 +8,11 @@ export type StepType = 'message' | 'question' | 'choice' | 'visit' | 'ai' | 'han
 export type SaveTo = '' | 'name' | 'email' | 'phone' | 'unit' | 'city' | 'budget' | 'purpose' | 'notes';
 export const SAVE_TO: SaveTo[] = ['', 'name', 'email', 'phone', 'unit', 'city', 'budget', 'purpose', 'notes'];
 
+/** The surfaces a bot can run on. A bot carries the ones it is turned on for; one bot per channel may be live. */
+export type BotChannel = 'whatsapp' | 'website' | 'instagram' | 'facebook';
+export const BOT_CHANNELS: BotChannel[] = ['whatsapp', 'website', 'instagram', 'facebook'];
+export const BOT_CHANNEL_LABEL: Record<BotChannel, string> = { whatsapp: 'WhatsApp', website: 'Website', instagram: 'Instagram', facebook: 'Facebook' };
+
 export interface BotOption { id: string; label: string; next: string }
 export interface BotStep {
   id: string; type: StepType; text: string;

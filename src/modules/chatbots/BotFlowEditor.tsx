@@ -5,12 +5,12 @@ import { Background, BackgroundVariant, BaseEdge, EdgeLabelRenderer, Handle, Min
 import '@xyflow/react/dist/style.css';
 import { AlertTriangle, CalendarDays, CheckCircle2, CircleHelp, GitBranch, LayoutGrid, Maximize, MessageSquare, Minus, Plus, Redo2, Sparkles, Trash2, Undo2, UserRound, X } from 'lucide-react';
 import { api, type BotStepView } from '../../core/api';
-import { END_STEP, botProblems, type BotStep } from '../../core/botEngine';
+import { BOT_CHANNELS, BOT_CHANNEL_LABEL, END_STEP, botProblems, type BotChannel, type BotStep } from '../../core/botEngine';
 import { reportError, toAppError } from '../../core/errors';
 import { Button, ConfirmDialog, Field, InlineNotice, Select, cx, inputCls } from '../../components/ui';
 import { NODE_W, addStep, arrange, emptyHistory, exitsOf, explicitSteps, mapOrder, record, redo, removalCount, removeStep, setExit, setPosition, undo, unconnectedSteps, withPositions, type Exit, type History, type Pos } from './botTree';
 
-export type BotDraft = { id?: string; name: string; trigger: 'new' | 'keyword' | 'any'; keywords: string; steps: BotStepView[]; knowledge: string };
+export type BotDraft = { id?: string; name: string; trigger: 'new' | 'keyword' | 'any'; keywords: string; channels: BotChannel[]; steps: BotStepView[]; knowledge: string };
 
 const KINDS: Record<BotStepView['type'], { label: string; hint: string; icon: React.ElementType; tint: string; ink: string }> = {
   message: { label: 'Send a message', hint: 'Sends this, then carries on.', icon: MessageSquare, tint: '#EAF4FB', ink: '#0B5E9C' },
@@ -230,7 +230,7 @@ const Toolbar: React.FC<{ canUndo: boolean; canRedo: boolean; onUndo: () => void
 
 const Editor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => void; onSaved: (id: string, problems: string[]) => void }> = ({ draft, aiAvailable, onClose, onSaved }) => {
   const rf = useReactFlow();
-  const [d, setD] = useState<Omit<BotDraft, 'steps'>>(() => ({ id: draft.id, name: draft.name, trigger: draft.trigger, keywords: draft.keywords, knowledge: draft.knowledge }));
+  const [d, setD] = useState<Omit<BotDraft, 'steps'>>(() => ({ id: draft.id, name: draft.name, trigger: draft.trigger, keywords: draft.keywords, channels: draft.channels?.length ? draft.channels : [...BOT_CHANNELS], knowledge: draft.knowledge }));
   const [flow, setFlow] = useState<{ steps: BotStep[]; history: History }>(() => ({ steps: withPositions(mapOrder(explicitSteps(draft.steps as BotStep[]))), history: emptyHistory }));
   const steps = flow.steps;
   const [selected, setSelected] = useState('');
@@ -434,6 +434,15 @@ const Editor: React.FC<{ draft: BotDraft; aiAvailable: boolean; onClose: () => v
         <div className={cx(current && 'hidden sm:block', 'min-w-[160px] flex-1')}><Field label="Bot name"><input className={inputCls} maxLength={80} value={d.name} onChange={(e) => editHeader({ name: e.target.value })} /></Field></div>
         <div className={cx(current && 'hidden sm:block', 'w-full sm:w-[260px]')}><Field label="Starts when"><Select value={d.trigger} onChange={(e) => editHeader({ trigger: e.target.value as BotDraft['trigger'] })} options={TRIGGERS} /></Field></div>
         {d.trigger === 'keyword' && <div className={cx(current && 'hidden sm:block', 'w-full sm:w-[170px]')}><Field label="Keywords"><input className={inputCls} placeholder="price, brochure" value={d.keywords} onChange={(e) => editHeader({ keywords: e.target.value })} /></Field></div>}
+        <div className={cx(current && 'hidden sm:block', 'w-full sm:w-auto')}>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[#5E778C]">Runs on</p>
+          <div className="flex flex-wrap gap-1.5">
+            {BOT_CHANNELS.map((ch) => {
+              const on = d.channels.includes(ch);
+              return <button key={ch} type="button" aria-pressed={on} title={`${on ? 'Remove from' : 'Add to'} ${BOT_CHANNEL_LABEL[ch]}`} onClick={() => { const next = on ? d.channels.filter((x) => x !== ch) : [...d.channels, ch]; if (next.length) editHeader({ channels: next }); }} className={cx('rounded-full border px-2.5 py-1 text-xs font-medium', on ? 'border-[#0B6BB0] bg-[#EAF4FB] text-[#0B5E9C]' : 'border-[#D3E3F0] bg-white text-[#7E93A6]')}>{BOT_CHANNEL_LABEL[ch]}</button>;
+            })}
+          </div>
+        </div>
         <span className="ml-auto flex flex-none items-center gap-2 pb-0.5">
           {dirty && <span className="text-[11px] text-[#5E778C]">Not saved yet</span>}
           <Button variant="secondary" onClick={() => (dirty ? setLeaving(true) : onClose())}>Close</Button>
