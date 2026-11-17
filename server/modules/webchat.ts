@@ -177,16 +177,19 @@ async function persist(session: WebSessionDoc, r: StepResult, userText: string, 
   let status: ChatStatus = r.status;
   let endReason = r.reason;
 
-  // handoff → connect an available agent; the chat then continues live with them
+  // handoff → the chat stays open in agent mode so a person can reply (even if nobody is available right now)
   if (r.status === 'handoff' && mode !== 'agent') {
+    mode = 'agent'; status = 'active'; endReason = '';
     const agent = await assignAvailableAgent({ leadId: session.leadId, channel: 'website', title: `Website chat: ${who(session.captured)}`, url: '/webchat' }).catch(() => null);
+    let note: string;
     if (agent) {
-      mode = 'agent'; assignedAgent = agent.name; assignedAgentId = agent.id; status = 'active'; endReason = '';
-      const note = `You're now connected with ${(agent.name || 'our team').split(' ')[0]}. How can we help?`;
-      lines.push({ role: 'agent', text: note, at: now, seq: ++seq }); outMsgs.push({ kind: 'text', text: note, from: 'agent' });
+      assignedAgent = agent.name; assignedAgentId = agent.id;
+      note = `You're now connected with ${(agent.name || 'our team').split(' ')[0]}. How can we help?`;
     } else {
       await tellTeam({ ...session, state: r.state }, r.reason).catch((e) => logError('webchat.handoff', 'INTERNAL', e?.message));
+      note = 'Thanks! Please hold on a moment — connecting you with our team.';
     }
+    lines.push({ role: 'agent', text: note, at: now, seq: ++seq }); outMsgs.push({ kind: 'text', text: note, from: 'agent' });
   }
 
   const transcript = [...session.transcript, ...lines].slice(-MAX_TRANSCRIPT);

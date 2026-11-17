@@ -157,6 +157,15 @@ describe('website chatbot', () => {
     expect(v.messages).toHaveLength(0);
   });
 
+  it('keeps a handed-off website chat open so a person can still reply', async () => {
+    const flow = [step('hi', 'message', { text: 'Hello' }), step('h', 'handoff', { text: 'Let me get someone from the team.' })];
+    await liveBot(flow);
+    const r = await inCo(() => webchatTurn({ visitorId: 'vH' }));
+    expect(r.mode).toBe('agent');
+    expect(r.status).toBe('active');
+    expect(r.done).toBe(false);
+  });
+
   it('is blocked without the plan feature', async () => {
     await t.company('nofeature', { whatsappBots: false });
     invalidateTenant();
