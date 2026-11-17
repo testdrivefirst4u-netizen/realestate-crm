@@ -12,6 +12,7 @@ import React, { Suspense, createContext, lazy, useCallback, useContext, useEffec
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/src/components/Sidebar';
 import { MobileTabBar } from '@/src/components/MobileTabBar';
+import { api } from '@/src/core/api';
 import { NotificationPrompt } from '@/src/components/NotificationPrompt';
 import { isViewOnly } from '@/src/core/rbac';
 import { CallViaProvider } from '@/src/modules/calls/CallButton';
@@ -204,6 +205,17 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
       tasksPending: data.tasks.filter((t) => !t.completed).length,
     };
   }, [data.leads, data.tasks]);
+  // unread WhatsApp conversations → the badge on the WhatsApp nav entry (sidebar + phone tab bar)
+  const showChats = on('chat360') && engine.can('chat.view');
+  const [unreadChats, setUnreadChats] = useState(0);
+  useEffect(() => {
+    if (!showChats) { setUnreadChats(0); return; }
+    let live = true;
+    const fetchUnread = () => api.chat360.contacts().then((cs) => { if (live) setUnreadChats(cs.reduce((n, c) => n + ((c.unreadCount || 0) > 0 ? 1 : 0), 0)); }).catch(() => undefined);
+    void fetchUnread();
+    const t = setInterval(() => void fetchUnread(), 90000);
+    return () => { live = false; clearInterval(t); };
+  }, [showChats]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
   /** "Create lead" from the call window: the caller's number, filled in. */
@@ -346,7 +358,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
             can={engine.can}
             features={features}
             onLogout={handleLogout}
-            counts={sidebarCounts}
+            counts={{ ...sidebarCounts, unreadChats }}
           />
 
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -387,8 +399,9 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
             </main>
             <MobileTabBar
               currentView={currentView}
-              showChats={on('chat360') && engine.can('chat.view')}
+              showChats={showChats}
               followupsToday={sidebarCounts.followupsToday}
+              unreadChats={unreadChats}
               tasksPending={sidebarCounts.tasksPending}
               onMore={() => setIsMobileSidebarOpen(true)}
             />
