@@ -325,7 +325,9 @@ export interface BotStepView { pos?: { x: number; y: number }; id: string; type:
 export type BotChannel = 'whatsapp' | 'website' | 'instagram' | 'facebook';
 export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; channels: BotChannel[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
 export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
-export interface BotChatRow { id: string; channel: 'website' | 'instagram' | 'facebook'; botName: string; who: string; status: 'active' | 'done' | 'handoff' | 'stopped'; leadId: string; messages: number; answers: number; visits: number; startedAt: string; lastAt: string; origin: string; transcript: Array<{ role: 'bot' | 'user'; text: string; at: string }>; captured: Record<string, string> }
+export interface BotChatLine { role: 'bot' | 'user' | 'agent'; text: string; at: string; seq: number }
+export interface BotChatRow { id: string; channel: 'website' | 'instagram' | 'facebook'; botName: string; who: string; status: 'active' | 'done' | 'handoff' | 'stopped'; mode: 'bot' | 'agent'; assignedAgent: string; leadId: string; messages: number; answers: number; visits: number; startedAt: string; lastAt: string; origin: string; transcript: BotChatLine[]; captured: Record<string, string> }
+export interface ChatPresence { available: boolean; agents: Array<{ id: string; name: string }> }
 export type BotOutgoing = { kind: 'text'; text: string } | { kind: 'buttons'; text: string; options: Array<{ id: string; label: string }> } | { kind: 'list'; text: string; button: string; options: Array<{ id: string; label: string }> };
 export interface BotSimResult { out: BotOutgoing[]; state: unknown; status: 'active' | 'done' | 'handoff' | 'stopped'; reason: string; effects: Array<{ type: 'save'; field: string; value: string } | { type: 'visit'; day: string; time: string; label: string }> }
 export interface WaCreditsOverview {
@@ -642,7 +644,11 @@ export const api = {
 
   botChats: {
     list: (limit?: number) => request<BotChatRow[]>('botChatsList', limit ? { limit } : {}),
+    thread: (sessionId: string, since?: number) => request<{ status: string; mode: 'bot' | 'agent'; seq: number; messages: BotChatLine[] }>('botChatThread', { sessionId, since: since || 0 }),
+    reply: (sessionId: string, text: string) => request<{ ok: true; seq: number }>('botChatReply', { sessionId, text }),
     embed: () => request<{ base: string; slug: string }>('webchatEmbed', {}),
+    presence: () => request<ChatPresence>('chatPresence', {}),
+    setPresence: (available: boolean) => request<{ available: boolean }>('chatPresenceSet', { available }),
   },
 
   whatsappCredits: {

@@ -8,7 +8,7 @@ import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { connectDirect } from '../server/modules/whatsappDirect';
 import { type BotStep } from '../server/modules/whatsappBotEngine';
 import { saveBot, setBotStatus, simulateBot } from '../server/modules/whatsappBots';
-import { botChatsList, webchatTurn } from '../server/modules/webchat';
+import { botChatsList, webchatAgentReply, webchatTurn } from '../server/modules/webchat';
 
 const SECRET = 'app-secret';
 const NUMBER_ID = '10001';
@@ -140,6 +140,21 @@ describe('website chatbot', () => {
     await finishTest(id);
     await inCo(() => setBotStatus({ id, status: 'active' }, ctx));
     await expect(inCo(() => webchatTurn({ visitorId: 'vx' }))).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('lets an agent take over: the agent replies, the visitor polls and sees it, and the bot stops', async () => {
+    const flow = [step('hi', 'message', { text: 'Hello' }), step('q', 'question', { text: 'Your name?', saveTo: 'name' })];
+    await liveBot(flow);
+    const start = await inCo(() => webchatTurn({ visitorId: 'vA' }));
+    expect(start.status).toBe('active');
+    const r = await inCo(() => webchatAgentReply({ sessionId: start.sessionId, text: 'Hi, Asha from the team here.' }, ctx));
+    expect(r.ok).toBe(true);
+    const poll = await inCo(() => webchatTurn({ sessionId: start.sessionId, poll: true, since: start.seq }));
+    expect(poll.mode).toBe('agent');
+    expect(poll.messages.some((m) => m.text.includes('Asha'))).toBe(true);
+    const v = await inCo(() => webchatTurn({ sessionId: start.sessionId, text: 'okay thanks', since: 0 }));
+    expect(v.mode).toBe('agent');
+    expect(v.messages).toHaveLength(0);
   });
 
   it('is blocked without the plan feature', async () => {

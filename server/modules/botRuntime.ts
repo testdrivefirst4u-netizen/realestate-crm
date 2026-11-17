@@ -6,7 +6,7 @@
  *   - turning a chat's captured answers into a CRM lead, with no phone required (upsertBotLead).
  * The WhatsApp bot keeps its own session/loop; this only centralises the knowledge, the AI call, and lead capture.
  */
-import { SYSTEM_CTX, type Ctx } from '../core/auth';
+import { listUsers, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { currentTenant, tenantKey } from '../core/tenant';
@@ -14,6 +14,7 @@ import { dateKey, str } from '../core/utils';
 import { generateText } from './ai';
 import { getAllUnits } from './inventory';
 import { addLead, appendRemark, updateLead } from './leads';
+import { sendPush } from './push';
 import { type StepContext } from './whatsappBotEngine';
 
 const L = CFG.LEAD;
@@ -28,6 +29,43 @@ export function activeBotFilter(channel: string): Record<string, unknown> {
 export async function bumpDailyCount(key: string, now = new Date()): Promise<number> {
   const r = await (await col<{ _id: string; n: number }>(CFG.COLL.META)).findOneAndUpdate({ _id: `${key}:${dateKey(now)}` }, { $inc: { n: 1 } }, { upsert: true, returnDocument: 'after' });
   return r?.n || 0;
+}
+
+/* ---------------------------- agent availability --------------------------- */
+
+const presenceCol = () => col<{ _id: string; name: string; available: boolean; at: Date }>('chatPresence');
+const NON_AGENT = new Set(['Viewer', 'Developer']); // everyone else can take a live chat
+
+/** Active users who can take a chat (everyone except view-only and platform support). */
+async function chatUsers(): Promise<Map<string, string>> {
+  const users = await listUsers();
+  return new Map(users.filter((u) => u.status !== 'Disabled' && !NON_AGENT.has(u.role)).map((u) => [u.id, u.name]));
+}
+
+/** Agents who have turned their availability on and can take a chat right now. */
+export async function availableAgents(): Promise<Array<{ id: string; name: string }>> {
+  const ok = await chatUsers();
+  const pres = await (await presenceCol()).find({ available: true }).toArray();
+  return pres.filter((p) => ok.has(p._id)).map((p) => ({ id: p._id, name: ok.get(p._id) as string }));
+}
+
+export async function myChatAvailability(userId: string): Promise<boolean> {
+  const p = await (await presenceCol()).findOne({ _id: userId });
+  return !!p?.available;
+}
+export async function setChatAvailability(userId: string, name: string, available: boolean): Promise<void> {
+  await (await presenceCol()).updateOne({ _id: userId }, { $set: { name, available, at: new Date() } }, { upsert: true });
+}
+
+/** Pick an available agent (round-robin), assign the lead to them, and alert them. Returns the agent, or null when none are available. */
+export async function assignAvailableAgent(opts: { leadId?: string; channel: string; title?: string; url?: string }): Promise<{ id: string; name: string } | null> {
+  const agents = await availableAgents();
+  if (!agents.length) return null;
+  const n = await bumpDailyCount('chatAssign');
+  const agent = agents[(n - 1) % agents.length];
+  if (opts.leadId) await updateLead(opts.leadId, { [L.RM]: agent.name } as any, BOT_CTX).catch(() => undefined);
+  await sendPush([agent.id], { title: opts.title || `New ${opts.channel} chat`, body: 'A visitor needs a live agent — tap to reply.', url: opts.url || '/webchat', tag: `livechat-${opts.leadId || opts.channel}` }).catch(() => undefined);
+  return agent;
 }
 export const KNOWLEDGE_CHARS = 20000;
 const BOT_CTX: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Chatbot' }, action: 'chatbot' };

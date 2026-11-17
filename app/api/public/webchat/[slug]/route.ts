@@ -54,6 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       const r = await webchatTurn({
         sessionId: String(body.sessionId ?? ''), text: String(body.text ?? ''), replyId: String(body.replyId ?? ''),
         visitorId: String(body.visitorId ?? ''), origin: origin || '', ip,
+        poll: body.poll === true, since: Number(body.since) || 0,
       });
       return json({ status: 'success', data: r }, 200, origin);
     } catch (e: any) {

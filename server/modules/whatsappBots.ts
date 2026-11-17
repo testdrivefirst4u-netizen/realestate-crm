@@ -16,7 +16,7 @@ import { settingsAll } from '../core/settings';
 import { currentTenant } from '../core/tenant';
 import { dateKey, last10, makeZoned, shortId, str, truncate } from '../core/utils';
 import { generateText } from './ai';
-import { activeBotFilter, mergeKnowledge } from './botRuntime';
+import { activeBotFilter, assignAvailableAgent, mergeKnowledge } from './botRuntime';
 import { appendRemark, getLead, updateLead, type UiLead } from './leads';
 import { idsByName, sendPush } from './push';
 import { BOT_CHANNELS, MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotChannel, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult, sameFlow } from './whatsappBotEngine';
@@ -235,8 +235,10 @@ async function tellTeam(session: SessionDoc, reason: string) {
   const who = (lead && lead[L.NAME]) || `+${session.phone}`;
   const rm = lead ? String(lead[L.RM] || '') : '';
   if (session.leadId) await addTimeline(session.leadId, 'automation', 'WhatsApp bot handed over to the team', reason, 'Chatbot');
-  await addEvent('bot_handoff', 'Chat', session.phone, `WhatsApp bot needs a person: ${who}`, truncate(reason, 140), 'Chatbot', { leadId: session.leadId });
-  if (rm) {
+  // connect an available agent (round-robin); if none are available, fall back to pinging the lead's RM
+  const agent = await assignAvailableAgent({ leadId: session.leadId, channel: 'WhatsApp', title: `WhatsApp chat: ${who}`, url: '/chat360' }).catch(() => null);
+  await addEvent('bot_handoff', 'Chat', session.phone, agent ? `WhatsApp chat assigned to ${agent.name}: ${who}` : `WhatsApp bot needs a person: ${who}`, truncate(reason, 140), 'Chatbot', { leadId: session.leadId });
+  if (!agent && rm) {
     const ids = idsByName([rm], await listUsers());
     if (ids.length) await sendPush(ids, { title: `Reply on WhatsApp: ${who}`, body: reason, url: '/chat360', tag: `bot-${session.phoneLast10}` }).catch(() => undefined);
   }

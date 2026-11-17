@@ -13,7 +13,7 @@ import { col } from '../core/db';
 import { addEvent, logError } from '../core/events';
 import { currentTenant, tenantKey } from '../core/tenant';
 import { dateKey, shortId, str, truncate } from '../core/utils';
-import { activeBotFilter, botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
+import { activeBotFilter, assignAvailableAgent, botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
 import { inboxCol, replyInbox, type InboxItem } from './socialInbox';
 import { replyToChat, startChat, STOP_WORDS, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepResult } from './whatsappBotEngine';
 
@@ -131,8 +131,10 @@ async function advance(session: SocialSessionDoc, r: StepResult, item: InboxItem
     $inc: { visits: done.visits, answers: done.answers },
   });
   if (status === 'handoff') {
+    const where = session.platform === 'instagram' ? 'Instagram' : 'Facebook';
+    const agent = await assignAvailableAgent({ leadId: session.leadId, channel: where, title: `${where} chat: ${session.authorName || 'a visitor'}`, url: '/inbox' }).catch(() => null);
     const summary = [reason, Object.entries(session.captured).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ')].filter(Boolean).join(' — ');
-    await addEvent('socialbot_handoff', 'Chat', session.leadId || session.thread, `${session.platform === 'instagram' ? 'Instagram' : 'Facebook'} chat needs a person: ${session.authorName || 'a visitor'}`, truncate(summary, 180), `${session.platform === 'instagram' ? 'Instagram' : 'Facebook'} bot`, { leadId: session.leadId || undefined }).catch(() => undefined);
+    await addEvent('socialbot_handoff', 'Chat', session.leadId || session.thread, agent ? `${where} chat assigned to ${agent.name}: ${session.authorName || 'a visitor'}` : `${where} chat needs a person: ${session.authorName || 'a visitor'}`, truncate(summary, 180), `${where} bot`, { leadId: session.leadId || undefined }).catch(() => undefined);
   }
 }
 
