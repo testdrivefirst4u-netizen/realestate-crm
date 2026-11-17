@@ -11,13 +11,14 @@ import { api, type InsightValue, type PostTargetOption, type SocialPost } from '
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
 import { InstagramView } from './InstagramView';
+import { FacebookView } from './FacebookView';
 import { PostCard } from './PostCard';
 import { PostComposer, Preview } from './PostComposer';
 import { deletableTargets, PostDeleteDialog } from './PostDeleteDialog';
 import { PostInsights, insightText } from './PostInsights';
 import { KIND, STATUS, errText, postDate } from './postShared';
 
-type Tab = 'calendar' | 'list' | 'instagram' | 'insights';
+type Tab = 'calendar' | 'list' | 'instagram' | 'facebook' | 'insights';
 type CalendarView = 'week' | 'month';
 type CalendarStatus = '' | 'scheduled' | 'published' | 'failed';
 type Filter = 'scheduled' | 'published' | 'draft' | 'failed' | 'deleted';
@@ -261,7 +262,7 @@ export const PostsView: React.FC = () => {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="View" className="inline-flex rounded-lg bg-[#E4E6EB] p-0.5">
-          {([['calendar', 'Planner'], ['list', 'Content'], ['instagram', 'Instagram'], ['insights', 'Insights']] as Array<[Tab, string]>).map(([id, label]) => (
+          {([['calendar', 'Planner'], ['list', 'Content'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['insights', 'Insights']] as Array<[Tab, string]>).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={cx('rounded-md px-3.5 py-1.5 text-[13px] font-semibold', tab === id ? 'bg-white text-[#0866FF] shadow-sm' : 'text-[#44505C]')}>{label}</button>
           ))}
         </div>
@@ -270,7 +271,7 @@ export const PostsView: React.FC = () => {
         <button type="button" disabled={!targets.length} title={targets.length ? undefined : 'Connect an account first'} onClick={() => setComposing({})} className="inline-flex items-center gap-1.5 rounded-lg bg-[#0866FF] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={15} /> Create post</button>
       </div>
 
-      {tab !== 'instagram' && <div className="flex flex-wrap items-center gap-2">
+      {tab !== 'instagram' && tab !== 'facebook' && <div className="flex flex-wrap items-center gap-2">
         {tab !== 'insights' && <label className="relative min-w-[180px] flex-1">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#65676B]" />
           <input className={cx(inputCls, 'pl-8')} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search posts" aria-label="Search posts" />
@@ -291,7 +292,7 @@ export const PostsView: React.FC = () => {
 
       {posts && !targets.length && <InlineNotice tone="warning">No account connected yet. An Admin connects Facebook, Instagram, Google Business Profile, LinkedIn and Pinterest in Settings.</InlineNotice>}
 
-      {tab === 'instagram' ? <InstagramView targets={targets} rev={rev} onCreate={() => setComposing({})} onEdit={(p) => setComposing({ post: p })} onAgain={(p) => setComposing({ seed: p })} onDelete={(p) => setDeleting(p)} onDetails={(p) => open(p)} /> : tab === 'insights' ? <PostInsights account={account} onOpenPost={(id) => void openById(id)} /> : tab === 'calendar' ? (
+      {tab === 'instagram' ? <InstagramView targets={targets} rev={rev} onCreate={() => setComposing({})} onEdit={(p) => setComposing({ post: p })} onAgain={(p) => setComposing({ seed: p })} onDelete={(p) => setDeleting(p)} onDetails={(p) => open(p)} /> : tab === 'facebook' ? <FacebookView targets={targets} rev={rev} onCreate={() => setComposing({})} onEdit={(p) => setComposing({ post: p })} onAgain={(p) => setComposing({ seed: p })} onDelete={(p) => setDeleting(p)} onDetails={(p) => open(p)} /> : tab === 'insights' ? <PostInsights account={account} onOpenPost={(id) => void openById(id)} /> : tab === 'calendar' ? (
         <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
           <div className="rounded-xl border border-[#DADDE1] bg-white">
             <div className="flex flex-wrap items-center gap-2 border-b border-[#DADDE1] p-3">

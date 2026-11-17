@@ -311,6 +311,7 @@ export interface BusinessReviews { error: string; location: string; reviews: Bus
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
 /** Post scheduler › Instagram view (server: modules/instagramProfile.ts). */
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
+export interface FacebookProfile { account: string; name: string; about: string; category: string; website: string; link: string; picture: string; followers: number | null; likes: number | null; error: string }
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
 export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string; attachments: string[] }
 export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
@@ -781,6 +782,7 @@ export const api = {
     reschedule: (id: string, scheduledAt: string) => request<SocialPost>('reschedulePost', { id, scheduledAt }),
     list: (range: { from?: string; to?: string; statuses?: string[]; skip?: number; limit?: number; q?: string; account?: string } = {}) => request<{ posts: SocialPost[]; targets: PostTargetOption[]; hasMore: boolean }>('listPosts', range),
     instagramProfile: (account: string, refresh = false) => request<InstagramProfile>('getInstagramProfile', { account, refresh }, { timeoutMs: 60000 }),
+    facebookProfile: (account: string, refresh = false) => request<FacebookProfile>('getFacebookProfile', { account, refresh }, { timeoutMs: 60000 }),
     editPublished: (id: string, text: string, target?: string) => request<SocialPost>('editPublishedPost', { id, text, target }, { timeoutMs: 60000 }),
     deletePublished: (id: string, targets: string[]) => request<{ post: SocialPost; deleted: string[]; failed: Array<{ key: string; name: string; error: string; url: string }>; alreadyGone: string[] }>('deletePublishedPost', { id, targets, confirm: true }, { timeoutMs: 120000 }),
     create: (d: { text: string; link?: string; imageFileIds?: string[]; targets: string[]; scheduledAt?: string; draft?: boolean; texts?: Record<string, string>; firstComment?: string; postType?: PostType; videoFileId?: string }) => request<SocialPost>('createPost', d, { timeoutMs: 120000 }),

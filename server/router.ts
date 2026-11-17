@@ -45,6 +45,7 @@ import { actions as linkedinActions } from './modules/linkedin';
 import { actions as pinterestActions } from './modules/pinterest';
 import { actions as socialPostActions } from './modules/socialPosts';
 import { actions as instagramProfileActions } from './modules/instagramProfile';
+import { actions as facebookProfileActions } from './modules/facebookProfile';
 import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
@@ -110,6 +111,7 @@ export const registry: ActionMap = {
   ...pinterestActions,
   ...socialPostActions,
   ...instagramProfileActions,
+  ...facebookProfileActions,
   ...adsControlActions,
   ...websiteAnalyticsActions,
   ...competitorActions,
