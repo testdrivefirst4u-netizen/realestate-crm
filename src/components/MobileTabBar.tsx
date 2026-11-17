@@ -4,8 +4,9 @@
  */
 import React from 'react';
 import Link from 'next/link';
-import { CalendarClock, CheckSquare, Home, Menu, MessageCircle, Users } from 'lucide-react';
+import { CalendarClock, CheckSquare, Home, Menu, Users } from 'lucide-react';
 import { viewHref, type ViewId } from '../core/views';
+import { WhatsAppIcon } from './WhatsAppIcon';
 import { cx } from './ui';
 
 export interface MobileTabBarProps {
@@ -32,7 +33,7 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({ currentView, showCha
     { id: 'leads', label: 'Leads', icon: <Users size={20} /> },
     { id: 'followups', label: 'Follow-ups', icon: <CalendarClock size={20} />, count: followupsToday },
     showChats
-      ? { id: 'chat360', label: 'WhatsApp', icon: <MessageCircle size={20} />, count: unreadChats }
+      ? { id: 'chat360', label: 'WhatsApp', icon: <WhatsAppIcon size={20} />, count: unreadChats }
       : { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={20} />, count: tasksPending },
   ];
   return (
