@@ -1,106 +1,128 @@
-/** Live Chat (server: modules/webchat.ts): a two-pane inbox to chat live with website visitors, plus social/WhatsApp bot conversations, set availability, and install the widget. */
+/** Live Chat (server: modules/webchat.ts + chat360): one inbox for website, Instagram/Facebook and WhatsApp conversations — read, reply live, set availability, install the widget. */
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, Copy, Eye, EyeOff, Facebook, Globe, Instagram, MessagesSquare, Send } from 'lucide-react';
+import { Check, ChevronLeft, Copy, Eye, EyeOff, Facebook, Globe, Instagram, MessageCircle, MessagesSquare, Send } from 'lucide-react';
 import { api, type BotChatLine, type BotChatRow, type ChatPresence } from '../../core/api';
+import type { Chat360Contact, Chat360Message } from '../../types/crm';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { Badge, Button, Card, EmptyState, InlineNotice, LoadingState, Modal, cx, inputCls } from '../../components/ui';
+import { Badge, Button, EmptyState, InlineNotice, LoadingState, Modal, cx, inputCls } from '../../components/ui';
 
-const CHANNEL: Record<BotChatRow['channel'], { label: string; icon: React.ElementType; tint: string }> = {
+type Channel = 'website' | 'instagram' | 'facebook' | 'whatsapp';
+const CHANNEL: Record<Channel, { label: string; icon: React.ElementType; tint: string }> = {
   website: { label: 'Website', icon: Globe, tint: '#E86B2A' },
   instagram: { label: 'Instagram', icon: Instagram, tint: '#C1398B' },
   facebook: { label: 'Facebook', icon: Facebook, tint: '#2E6FBA' },
+  whatsapp: { label: 'WhatsApp', icon: MessageCircle, tint: '#25D366' },
 };
 const when = (iso: string) => (iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 const maxSeq = (ls: BotChatLine[]) => ls.reduce((m, l) => Math.max(m, l.seq || 0), 0);
 const errText = (s: string, e: unknown) => toAppError(reportError(s, e)).userMessage;
-const lastLine = (c: BotChatRow) => c.transcript.length ? c.transcript[c.transcript.length - 1].text : 'New conversation';
-/** A chat that needs a person: handed off, or being handled live. */
-const needsPerson = (c: BotChatRow) => c.mode === 'agent' || c.status === 'handoff';
+
+type Msg = { side: 'in' | 'out'; text: string; at: string; label?: string };
+type Conv = { id: string; channel: Channel; who: string; last: string; lastAt: string; status: BotChatRow['status']; mode?: 'bot' | 'agent'; phone?: string; leadId?: string; captured?: Record<string, string>; row?: BotChatRow };
+
+const lastLine = (r: BotChatRow) => (r.transcript.length ? r.transcript[r.transcript.length - 1].text : 'New conversation');
+const needsPerson = (c: Conv) => !!c.row && (c.row.mode === 'agent' || c.row.status === 'handoff');
+const normBot = (t: BotChatLine): Msg => ({ side: t.role === 'user' ? 'in' : 'out', text: t.text, at: t.at, label: t.role === 'agent' ? 'You' : t.role === 'bot' ? 'Bot' : undefined });
+const normWa = (m: Chat360Message): Msg => ({ side: m.direction === 'Inbound' ? 'in' : 'out', text: m.text || (m.mediaUrl ? '[media]' : ''), at: m.timestamp, label: m.direction === 'Outbound' ? m.agent || undefined : undefined });
 
 /* ------------------------------- the chat panel ------------------------------ */
-const ChatPanel: React.FC<{ row: BotChatRow; onBack: () => void }> = ({ row, onBack }) => {
-  const [lines, setLines] = useState<BotChatLine[]>(row.transcript);
-  const [mode, setMode] = useState(row.mode);
-  const [status, setStatus] = useState(row.status);
+const ChatPanel: React.FC<{ conv: Conv; onBack: () => void }> = ({ conv, onBack }) => {
+  const isWeb = conv.channel === 'website';
+  const isWa = conv.channel === 'whatsapp';
+  const isSocial = conv.channel === 'instagram' || conv.channel === 'facebook';
+  const Ch = CHANNEL[conv.channel];
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [status, setStatus] = useState(conv.status);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const seqRef = useRef(maxSeq(row.transcript));
+  const seqRef = useRef(0);
+  const waInRef = useRef(-1);
   const boxRef = useRef<HTMLDivElement>(null);
   const dingRef = useRef<HTMLAudioElement | null>(null);
-  const Ch = CHANNEL[row.channel];
-  const isWeb = row.channel === 'website';
-  const canReply = isWeb && status !== 'done' && status !== 'stopped';
+  const canReply = isWa || (isWeb && status !== 'done' && status !== 'stopped');
   const ding = () => { try { if (!dingRef.current) { dingRef.current = new Audio('/mixkit-doorbell-single-press-333.wav'); dingRef.current.volume = 0.5; } dingRef.current.currentTime = 0; void dingRef.current.play().catch(() => undefined); } catch { /* ignore */ } };
 
-  // reset when switching conversations
-  useEffect(() => { setLines(row.transcript); setMode(row.mode); setStatus(row.status); seqRef.current = maxSeq(row.transcript); }, [row.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const pull = async () => {
+  const pullWeb = async () => {
     try {
-      const r = await api.botChats.thread(row.id, seqRef.current);
-      if (r.messages.length) { setLines((prev) => [...prev, ...r.messages]); seqRef.current = Math.max(seqRef.current, maxSeq(r.messages)); if (r.messages.some((m) => m.role === 'user')) ding(); }
+      const r = await api.botChats.thread(conv.id, seqRef.current);
+      if (r.messages.length) { setMsgs((p) => [...p, ...r.messages.map(normBot)]); seqRef.current = Math.max(seqRef.current, maxSeq(r.messages)); if (r.messages.some((m) => m.role === 'user')) ding(); }
       if (r.seq > seqRef.current) seqRef.current = r.seq;
-      setMode(r.mode); setStatus(r.status as BotChatRow['status']);
+      setStatus(r.status as BotChatRow['status']);
     } catch { /* keep polling */ }
   };
+  const loadWa = async () => {
+    try {
+      const m = await api.chat360.messages(conv.phone || '');
+      setMsgs(m.map(normWa));
+      const inbound = m.filter((x) => x.direction === 'Inbound').length;
+      if (waInRef.current >= 0 && inbound > waInRef.current) ding();
+      waInRef.current = inbound;
+    } catch { /* keep polling */ }
+  };
+
   useEffect(() => {
-    if (!isWeb) return;
+    seqRef.current = 0; waInRef.current = -1; setStatus(conv.status);
+    if (isWa) { setMsgs([]); void loadWa(); }
+    else { setMsgs((conv.row?.transcript || []).map(normBot)); seqRef.current = maxSeq(conv.row?.transcript || []); }
+    if (isSocial) return;
     let on = true; let t: ReturnType<typeof setTimeout>;
-    const loop = async () => { if (!on) return; await pull(); if (on) t = setTimeout(loop, 4000); };
+    const loop = async () => { if (!on) return; if (isWa) await loadWa(); else await pullWeb(); if (on) t = setTimeout(loop, isWa ? 6000 : 4000); };
     t = setTimeout(loop, 3000);
     return () => { on = false; clearTimeout(t); };
-  }, [row.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { boxRef.current?.scrollTo(0, boxRef.current.scrollHeight); }, [lines]);
+  }, [conv.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { boxRef.current?.scrollTo(0, boxRef.current.scrollHeight); }, [msgs]);
 
   const reply = async () => {
     const v = text.trim();
     if (!v || sending) return;
     setSending(true);
-    try { await api.botChats.reply(row.id, v); setText(''); setMode('agent'); setStatus('active'); await pull(); }
-    catch (e) { toast('Not sent', errText('chat.reply', e), 'alert'); }
+    try {
+      if (isWa) { await api.chat360.send({ phone: conv.phone || '', leadId: conv.leadId, text: v }); setText(''); await loadWa(); }
+      else { await api.botChats.reply(conv.id, v); setText(''); setStatus('active'); await pullWeb(); }
+    } catch (e) { toast('Not sent', errText('chat.reply', e), 'alert'); }
     finally { setSending(false); }
   };
 
-  const captured = Object.entries(row.captured || {}).filter(([, v]) => v);
+  const captured = Object.entries(conv.captured || {}).filter(([, v]) => v);
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F7FAFD]">
       <div className="flex items-center gap-2 border-b border-[#E3EDF5] bg-white px-3 py-2.5">
         <button type="button" className="rounded p-1 text-[#5E778C] hover:bg-[#F2F7FB] lg:hidden" onClick={onBack} aria-label="Back"><ChevronLeft size={18} /></button>
         <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-white" style={{ background: Ch.tint }}><Ch.icon size={16} aria-hidden="true" /></span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[#0B2A44]">{row.who}</p>
-          <p className="truncate text-[11px] text-[#5E778C]">{Ch.label}{row.assignedAgent ? ` · ${row.assignedAgent}` : ''}{mode === 'agent' ? ' · live' : ''}</p>
+          <p className="truncate text-sm font-semibold text-[#0B2A44]">{conv.who}</p>
+          <p className="truncate text-[11px] text-[#5E778C]">{Ch.label}{conv.phone ? ` · +${conv.phone}` : ''}{isWeb && conv.mode === 'agent' ? ' · live' : ''}</p>
         </div>
-        {needsPerson(row) && <Badge tone="amber">Needs a person</Badge>}
+        {needsPerson(conv) && <Badge tone="amber">Needs a person</Badge>}
       </div>
 
       {captured.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-b border-[#E3EDF5] bg-white px-3 py-2">
           {captured.map(([k, v]) => <span key={k} className="rounded-full bg-[#F2F7FB] px-2 py-0.5 text-[11px] text-[#3E5A70]"><span className="font-semibold capitalize">{k}:</span> {v}</span>)}
-          {row.leadId && <span className="rounded-full bg-[#E7F6EE] px-2 py-0.5 text-[11px] font-semibold text-[#067647]">Lead</span>}
+          {conv.leadId && <span className="rounded-full bg-[#E7F6EE] px-2 py-0.5 text-[11px] font-semibold text-[#067647]">Lead</span>}
         </div>
       )}
 
       <div ref={boxRef} className="flex-1 space-y-2 overflow-y-auto p-4">
-        {lines.map((t, i) => (
-          <div key={i} className={cx('max-w-[78%] break-words rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed', t.role === 'user' ? 'rounded-bl-sm bg-white text-[#0B2A44] ring-1 ring-[#E3EDF5]' : 'ml-auto rounded-br-sm bg-[#0B6BB0] text-white')}>
-            {t.role === 'agent' && <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-white/80">You</span>}
-            {t.text}
-            <span className={cx('mt-0.5 block text-[10px]', t.role === 'user' ? 'text-[#9CB0C0]' : 'text-white/70')}>{when(t.at)}</span>
+        {msgs.map((m, i) => (
+          <div key={i} className={cx('max-w-[78%] break-words rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed', m.side === 'in' ? 'rounded-bl-sm bg-white text-[#0B2A44] ring-1 ring-[#E3EDF5]' : 'ml-auto rounded-br-sm bg-[#0B6BB0] text-white')}>
+            {m.side === 'out' && m.label && <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-white/80">{m.label}</span>}
+            {m.text}
+            <span className={cx('mt-0.5 block text-[10px]', m.side === 'in' ? 'text-[#9CB0C0]' : 'text-white/70')}>{when(m.at)}</span>
           </div>
         ))}
-        {!lines.length && <p className="text-center text-xs text-[#7E93A6]">No messages yet.</p>}
+        {!msgs.length && <p className="text-center text-xs text-[#7E93A6]">No messages yet.</p>}
       </div>
 
       {canReply ? (
         <div className="flex gap-2 border-t border-[#E3EDF5] bg-white p-3">
-          <input className={inputCls} placeholder="Type a reply to the visitor…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void reply(); } }} />
+          <input className={inputCls} placeholder={isWa ? 'Reply on WhatsApp…' : 'Type a reply to the visitor…'} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void reply(); } }} />
           <Button variant="primary" size="sm" icon={<Send size={14} />} loading={sending} onClick={() => void reply()}>Send</Button>
         </div>
       ) : (
         <div className="border-t border-[#E3EDF5] bg-white p-3 text-[11px] text-[#7E93A6]">
-          {isWeb ? 'This chat has ended — the visitor would need to start a new one.' : `Reply to this ${Ch.label} chat from the Social Inbox / WhatsApp screen.`}
+          {isWeb ? 'This chat has ended — the visitor would need to start a new one.' : `Reply to this ${Ch.label} chat from the Social Inbox screen.`}
         </div>
       )}
     </div>
@@ -145,15 +167,16 @@ const InstallModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, 
 };
 
 /* ---------------------------------- the screen -------------------------------- */
-const TABS: Array<{ key: string; label: string; test: (c: BotChatRow) => boolean }> = [
+const TABS: Array<{ key: string; label: string; test: (c: Conv) => boolean }> = [
   { key: 'all', label: 'All', test: () => true },
   { key: 'live', label: 'Needs a person', test: needsPerson },
+  { key: 'whatsapp', label: 'WhatsApp', test: (c) => c.channel === 'whatsapp' },
   { key: 'website', label: 'Website', test: (c) => c.channel === 'website' },
-  { key: 'social', label: 'Social', test: (c) => c.channel !== 'website' },
+  { key: 'social', label: 'Social', test: (c) => c.channel === 'instagram' || c.channel === 'facebook' },
 ];
 
 export const BotChatsView: React.FC = () => {
-  const [rows, setRows] = useState<BotChatRow[] | null>(null);
+  const [convs, setConvs] = useState<Conv[] | null>(null);
   const [err, setErr] = useState('');
   const [sel, setSel] = useState('');
   const [tab, setTab] = useState('all');
@@ -161,12 +184,23 @@ export const BotChatsView: React.FC = () => {
   const [presBusy, setPresBusy] = useState(false);
   const [install, setInstall] = useState(false);
 
-  const load = () => api.botChats.list().then(setRows).catch((e) => setErr(errText('botChats.list', e)));
-  useEffect(() => { let on = true; const loop = () => { if (!on) return; void load(); }; loop(); const t = setInterval(loop, 12000); api.botChats.presence().then((r) => on && setPres(r)).catch(() => undefined); return () => { on = false; clearInterval(t); }; }, []);
+  const load = async () => {
+    try {
+      const [bots, contacts] = await Promise.all([api.botChats.list(), api.chat360.contacts().catch(() => [] as Chat360Contact[])]);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const wa: Conv[] = contacts
+        .filter((c) => c.lastMessageAt && new Date(c.lastMessageAt) >= today)
+        .map((c) => ({ id: 'wa:' + c.phone, channel: 'whatsapp' as Channel, who: c.contactName || '+' + c.phone, last: c.lastMessage || '', lastAt: c.lastMessageAt || '', status: 'active' as BotChatRow['status'], phone: c.phone, leadId: c.leadId }));
+      const bot: Conv[] = bots.map((r) => ({ id: r.id, channel: r.channel as Channel, who: r.who, last: lastLine(r), lastAt: r.lastAt, status: r.status, mode: r.mode, leadId: r.leadId, captured: r.captured, row: r }));
+      setConvs([...wa, ...bot].sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || '')));
+      setErr('');
+    } catch (e) { setErr(errText('livechat.list', e)); }
+  };
+  useEffect(() => { let on = true; const loop = () => { if (on) void load(); }; loop(); const t = setInterval(loop, 12000); api.botChats.presence().then((r) => on && setPres(r)).catch(() => undefined); return () => { on = false; clearInterval(t); }; }, []);
   const toggleAvail = async () => { if (!pres || presBusy) return; setPresBusy(true); try { await api.botChats.setPresence(!pres.available); setPres(await api.botChats.presence()); } catch (e) { toast('Not changed', errText('presence', e), 'alert'); } finally { setPresBusy(false); } };
 
-  const filtered = (rows || []).filter(TABS.find((t) => t.key === tab)!.test);
-  const current = (rows || []).find((c) => c.id === sel) || null;
+  const filtered = (convs || []).filter(TABS.find((t) => t.key === tab)!.test);
+  const current = (convs || []).find((c) => c.id === sel) || null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -184,8 +218,8 @@ export const BotChatsView: React.FC = () => {
             {TABS.map((t) => <button key={t.key} type="button" onClick={() => setTab(t.key)} className={cx('whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', tab === t.key ? 'bg-[#0B6BB0] text-white' : 'bg-[#F2F7FB] text-[#5E778C]')}>{t.label}</button>)}
           </div>
           {err ? <InlineNotice tone="warning" className="m-3">{err}</InlineNotice>
-            : !rows ? <div className="p-6"><LoadingState /></div>
-            : !filtered.length ? <EmptyState icon={<MessagesSquare size={24} />} title="No conversations" description="Chats from your website, Instagram and Facebook bots appear here." className="m-3" />
+            : !convs ? <div className="p-6"><LoadingState /></div>
+            : !filtered.length ? <EmptyState icon={<MessagesSquare size={24} />} title="No conversations" description="Chats from your website, Instagram, Facebook and WhatsApp appear here." className="m-3" />
             : (
               <ul className="min-h-0 flex-1 overflow-y-auto">
                 {filtered.map((c) => {
@@ -196,7 +230,7 @@ export const BotChatsView: React.FC = () => {
                         <span className="relative flex h-9 w-9 flex-none items-center justify-center rounded-full text-white" style={{ background: Ch.tint }}><Ch.icon size={17} aria-hidden="true" />{needsPerson(c) && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-[#F0A202] ring-2 ring-white" />}</span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold text-[#0B2A44]">{c.who}</span><span className="flex-none text-[10px] text-[#9CB0C0]">{when(c.lastAt)}</span></span>
-                          <span className="mt-0.5 block truncate text-xs text-[#5E778C]">{lastLine(c)}</span>
+                          <span className="mt-0.5 block truncate text-xs text-[#5E778C]">{c.last || CHANNEL[c.channel].label}</span>
                         </span>
                       </button>
                     </li>
@@ -207,7 +241,7 @@ export const BotChatsView: React.FC = () => {
         </aside>
 
         <main className={cx('min-w-0 flex-1', current ? 'flex' : 'hidden lg:flex')}>
-          {current ? <ChatPanel key={current.id} row={current} onBack={() => setSel('')} />
+          {current ? <ChatPanel key={current.id} conv={current} onBack={() => setSel('')} />
             : <div className="flex flex-1 flex-col items-center justify-center bg-[#F7FAFD] p-6 text-center"><MessagesSquare size={34} className="text-[#C9D9E6]" /><p className="mt-2 text-sm font-semibold text-[#5E778C]">Select a conversation</p><p className="text-xs text-[#7E93A6]">Pick a chat on the left to read it and reply.</p></div>}
         </main>
       </div>
