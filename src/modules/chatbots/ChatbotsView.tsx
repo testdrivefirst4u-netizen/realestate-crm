@@ -1,8 +1,8 @@
 /** WhatsApp chatbots (plan feature whatsappBots; server: modules/whatsappBots.ts): build from blocks, try it in a test chat, start it, see how it does. */
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, Pause, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react';
+import { Bot, Copy, Pause, Pencil, Play, Plus, Send, Trash2, Upload } from 'lucide-react';
 import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
-import { BOT_CHANNELS, BOT_CHANNEL_LABEL } from '../../core/botEngine';
+import { BOT_CHANNELS, BOT_CHANNEL_LABEL, type BotChannel } from '../../core/botEngine';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, InlineNotice, LoadingState, Modal, inputCls } from '../../components/ui';
@@ -29,6 +29,29 @@ const starterSteps = (): BotStepView[] => [
 type Draft = BotDraft;
 const toDraft = (b: BotView): Draft => ({ id: b.id, name: b.name, trigger: b.trigger, keywords: b.keywords.join(', '), channels: b.channels, steps: b.steps, knowledge: b.knowledge });
 const newDraft = (): Draft => ({ name: 'Property enquiry', trigger: 'new', keywords: '', channels: [...BOT_CHANNELS], steps: starterSteps(), knowledge: '' });
+
+/* ----------------------------- import / export ---------------------------- */
+const TYPES = ['message', 'question', 'choice', 'visit', 'ai', 'handoff', 'end'];
+const SAVES = ['', 'name', 'email', 'phone', 'unit', 'city', 'budget', 'purpose', 'notes'];
+const coerceStep = (raw: any): BotStepView => ({
+  id: typeof raw?.id === 'string' && raw.id ? raw.id : newId('s'),
+  type: (TYPES.includes(raw?.type) ? raw.type : 'message') as BotStepView['type'],
+  text: String(raw?.text ?? ''), next: String(raw?.next ?? ''),
+  saveTo: (SAVES.includes(raw?.saveTo) ? raw.saveTo : '') as BotStepView['saveTo'],
+  validate: raw?.validate === 'email' || raw?.validate === 'number' ? raw.validate : 'text',
+  options: Array.isArray(raw?.options) ? raw.options.map((o: any, j: number) => ({ id: typeof o?.id === 'string' && o.id ? o.id : newId('o'), label: String(o?.label ?? `Option ${j + 1}`), next: String(o?.next ?? '') })) : [],
+  days: Number(raw?.days) || 7,
+  times: Array.isArray(raw?.times) ? raw.times.map(String).filter(Boolean) : ['11:00', '15:00', '17:00'],
+});
+const normalizeImport = (raw: any): Draft => ({
+  name: String(raw?.name ?? 'Imported bot').slice(0, 80),
+  trigger: raw?.trigger === 'keyword' || raw?.trigger === 'any' ? raw.trigger : 'new',
+  keywords: Array.isArray(raw?.keywords) ? raw.keywords.join(', ') : String(raw?.keywords ?? ''),
+  channels: (Array.isArray(raw?.channels) ? (raw.channels as any[]).filter((c) => BOT_CHANNELS.includes(c)) : []) as BotChannel[],
+  steps: Array.isArray(raw?.steps) ? raw.steps.map(coerceStep) : [],
+  knowledge: String(raw?.knowledge ?? ''),
+});
+const exportText = (b: BotView) => JSON.stringify({ name: b.name, trigger: b.trigger, keywords: b.keywords, channels: b.channels, knowledge: b.knowledge, steps: b.steps }, null, 2);
 
 type Line = { from: 'bot' | 'you' | 'note'; o?: BotOutgoing; text?: string };
 
@@ -109,7 +132,16 @@ export const ChatbotsView: React.FC = () => {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [testing, setTesting] = useState<BotView | null>(null);
   const [removing, setRemoving] = useState<BotView | null>(null);
+  const [json, setJson] = useState<{ mode: 'import' | 'export'; text: string } | null>(null);
   const [busy, setBusy] = useState('');
+  const doImport = () => {
+    try {
+      setEditing(normalizeImport(JSON.parse(json?.text || '')));
+      setJson(null);
+    } catch {
+      toast('Could not read that', 'Please paste a valid bot flow JSON.', 'alert');
+    }
+  };
   const load = useCallback(async () => {
     try {
       setData(await api.bots.list());
@@ -152,7 +184,10 @@ export const ChatbotsView: React.FC = () => {
           <h2 className="text-xl font-bold tracking-tight text-[#0B2A44] sm:text-2xl">Chatbots</h2>
           <p className="mt-0.5 text-xs text-[#5E778C]">One bot that answers on WhatsApp, your website, Instagram and Facebook — pick its channels when you build it. It collects details, books visits, and steps aside the moment a person replies.</p>
         </div>
-        <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New chatbot</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setJson({ mode: 'import', text: '' })}>Import JSON</Button>
+          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New chatbot</Button>
+        </div>
       </div>
       {!data.connected && <InlineNotice tone="warning">Connect a WhatsApp number in Settings › WhatsApp direct to start a bot. You can still build and test one now.</InlineNotice>}
       {!data.bots.length ? <EmptyState icon={<Bot size={22} />} title="No chatbots yet" description="Start from a ready property enquiry bot, and change it to suit you." action={<Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New chatbot</Button>} /> : data.bots.map((b) => {
@@ -172,6 +207,7 @@ export const ChatbotsView: React.FC = () => {
             <div className="mt-3 flex flex-wrap gap-2">
               {b.status !== 'active' && <Button variant="secondary" size="xs" icon={<Pencil size={12} />} onClick={() => setEditing(toDraft(b))}>Edit</Button>}
               <Button variant="secondary" size="xs" icon={<Send size={12} />} disabled={b.problems.length > 0} onClick={() => setTesting(b)}>Test chat</Button>
+              <Button variant="secondary" size="xs" icon={<Copy size={12} />} onClick={() => setJson({ mode: 'export', text: exportText(b) })}>Export JSON</Button>
               {b.status === 'active'
                 ? <Button variant="secondary" size="xs" icon={<Pause size={12} />} loading={busy === b.id} onClick={() => void status(b, 'paused')}>Pause</Button>
                 : <Button variant="primary" size="xs" icon={<Play size={12} />} loading={busy === b.id} disabled={!b.tested || b.problems.length > 0 || (b.channels.includes('whatsapp') && !data.connected)} onClick={() => void status(b, 'active')}>Start</Button>}
@@ -182,6 +218,14 @@ export const ChatbotsView: React.FC = () => {
       })}
       {editing && <Suspense fallback={<LoadingState label="Opening the map" />}><BotFlowEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} /></Suspense>}
       {testing && <TestChat bot={testing} onClose={() => { setTesting(null); void load(); }} onDone={() => undefined} />}
+      <Modal open={!!json} onClose={() => setJson(null)} width="md"
+        title={json?.mode === 'export' ? 'Bot flow JSON' : 'Import a bot flow'}
+        subtitle={json?.mode === 'export' ? 'Copy this and paste it into another company’s Chatbots screen, or keep it as a backup.' : 'Paste a bot flow JSON. It opens in the editor so you can review, pick channels and save.'}
+        footer={json?.mode === 'import'
+          ? <><Button variant="secondary" onClick={() => setJson(null)}>Cancel</Button><Button variant="primary" onClick={doImport}>Open in editor</Button></>
+          : <><Button variant="secondary" icon={<Copy size={13} />} onClick={() => { navigator.clipboard?.writeText(json?.text || '').then(() => toast('Copied', 'JSON copied to clipboard', 'success')).catch(() => undefined); }}>Copy</Button><Button variant="primary" onClick={() => setJson(null)}>Done</Button></>}>
+        <textarea className={`${inputCls} font-mono text-[12px]`} rows={14} readOnly={json?.mode === 'export'} value={json?.text || ''} onChange={(e) => setJson((j) => (j ? { ...j, text: e.target.value } : j))} onFocus={(e) => { if (json?.mode === 'export') e.currentTarget.select(); }} placeholder={'{\n  "name": "My bot",\n  "trigger": "new",\n  "channels": ["website"],\n  "knowledge": "",\n  "steps": [ ... ]\n}'} />
+      </Modal>
       <ConfirmDialog open={!!removing} danger title="Delete this chatbot?" message={`“${removing?.name}” will be deleted. Chats it already had stay in WhatsApp.`} confirmLabel="Delete" loading={busy === 'remove'} onConfirm={() => void remove()} onCancel={() => setRemoving(null)} />
     </div>
   );
