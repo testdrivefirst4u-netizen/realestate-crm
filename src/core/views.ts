@@ -14,7 +14,7 @@ export type ViewId =
 
 export const VIEW_IDS: ViewId[] = ['today', 'dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcampaigns', 'whatsappcredits', 'chatbots', 'webchat', 'competitors'];
 
-export const DEFAULT_VIEW: ViewId = 'today';
+export const DEFAULT_VIEW: ViewId = 'dashboard';
 
 /** Page headings (top bar) and browser-tab titles. */
 export const VIEW_TITLES: Record<ViewId, string> = {
@@ -25,9 +25,9 @@ export const VIEW_TITLES: Record<ViewId, string> = {
 
 export const viewHref = (view: ViewId) => `/${view}`;
 
-/** Where each person starts: everyone who works enquiries on Today; view-only users on its Business tab too. */
+/** Where each person starts after signing in. The Dashboard is openable by every role. */
 export function homeViewFor(_role: string | undefined | null): ViewId {
-  return 'today';
+  return 'dashboard';
 }
 
 /** `/leads` → 'leads'; anything else (including nested paths) → null. */
