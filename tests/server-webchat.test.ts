@@ -78,7 +78,7 @@ describe('website chatbot', () => {
   it('starts a fresh chat on the live bot and greets with the first question', async () => {
     await liveBot();
     const r = await inCo(() => webchatTurn({ visitorId: 'v1' }));
-    expect(r.sessionId).toBeTruthy();
+    expect(r.sessionId).toMatch(/^wc_[0-9a-f]{32}$/); // an unguessable public session token
     expect(r.status).toBe('active');
     expect(r.done).toBe(false);
     expect(r.messages.map((m) => m.text)).toEqual(['Hello from Test Co', 'Your name?']);

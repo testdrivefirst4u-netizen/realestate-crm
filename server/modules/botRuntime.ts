@@ -23,6 +23,12 @@ const AI_PER_DAY = 300; // platform-wide, shared across channels
 export function activeBotFilter(channel: string): Record<string, unknown> {
   return { status: 'active', $or: [{ channels: channel }, { channels: { $exists: false } }, { channels: { $size: 0 } }] };
 }
+
+/** A per-company, per-day counter (in the `meta` collection). Returns the new total. Used to cap public-channel abuse. */
+export async function bumpDailyCount(key: string, now = new Date()): Promise<number> {
+  const r = await (await col<{ _id: string; n: number }>(CFG.COLL.META)).findOneAndUpdate({ _id: `${key}:${dateKey(now)}` }, { $inc: { n: 1 } }, { upsert: true, returnDocument: 'after' });
+  return r?.n || 0;
+}
 export const KNOWLEDGE_CHARS = 20000;
 const BOT_CTX: Ctx = { ...SYSTEM_CTX, user: { ...SYSTEM_CTX.user!, name: 'Chatbot' }, action: 'chatbot' };
 
@@ -136,7 +142,8 @@ export async function upsertBotLead(opts: { captured: Record<string, string>; so
   }
   const name = str(c.name) || (str(c.email) ? str(c.email).split('@')[0] : '') || `${opts.source} lead`;
   const obj: Record<string, unknown> = { ...leadPatch(c), [L.NAME]: name, [L.STAGE]: CFG.STAGES.NEW, [L.SOURCE]: opts.source, [L.BROCHURE]: 'No' };
-  const r = await addLead(obj as any, BOT_CTX, { returnExisting: true, actor: opts.actor, eventSource: opts.eventSource });
+  // deferAutomations: a public-channel lead must never auto-fire a WhatsApp welcome, a drip campaign or RM push spam
+  const r = await addLead(obj as any, BOT_CTX, { returnExisting: true, actor: opts.actor, eventSource: opts.eventSource, deferAutomations: true });
   if (str(c.notes)) await appendRemark(r.id, `From the ${opts.actor}: ${str(c.notes)}`, BOT_CTX).catch(() => undefined);
   return r.id;
 }

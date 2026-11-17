@@ -642,6 +642,7 @@ export const api = {
 
   botChats: {
     list: (limit?: number) => request<BotChatRow[]>('botChatsList', limit ? { limit } : {}),
+    embed: () => request<{ base: string; slug: string }>('webchatEmbed', {}),
   },
 
   whatsappCredits: {

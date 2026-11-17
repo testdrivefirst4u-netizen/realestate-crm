@@ -11,7 +11,7 @@
 import { SYSTEM_CTX, type Ctx } from '../core/auth';
 import { col } from '../core/db';
 import { addEvent, logError } from '../core/events';
-import { currentTenant } from '../core/tenant';
+import { currentTenant, tenantKey } from '../core/tenant';
 import { dateKey, shortId, str, truncate } from '../core/utils';
 import { activeBotFilter, botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
 import { inboxCol, replyInbox, type InboxItem } from './socialInbox';
@@ -33,6 +33,14 @@ interface SocialSessionDoc {
 const botsCol = () => col<BotDoc>('whatsappBots');
 const sessionsCol = () => col<SocialSessionDoc>('socialBotSessions');
 const locksCol = () => col<{ _id: string; until: Date }>('socialBotLocks');
+
+/** A TTL index so finished social chats are cleaned up automatically (45 days), per company. */
+const socialIndex = new Map<string, Promise<unknown>>();
+async function ensureSocialIndex(): Promise<void> {
+  const k = tenantKey();
+  if (!socialIndex.has(k)) socialIndex.set(k, sessionsCol().then((c) => c.createIndex({ lastAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 45 })).catch((e) => { socialIndex.delete(k); console.error('[socialBot] index', e?.message); }));
+  await socialIndex.get(k);
+}
 
 async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T | null> {
   const locks = await locksCol();
@@ -139,6 +147,7 @@ export async function onSocialMessage(item: InboxItem): Promise<void> {
     if (STOP_WORDS.test(item.text || '')) return;
     const bot = await (await botsCol()).findOne(activeBotFilter(item.platform));
     if (!bot) return;
+    void ensureSocialIndex();
     const company = str(currentTenant()?.name);
     const now = new Date();
     await withLock(`soc:${item.thread}`, async () => {

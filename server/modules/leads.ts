@@ -230,6 +230,8 @@ export interface AddLeadOptions {
   actor?: string;
   /** Recorded in the lead_created event payload ({source}). Default 'crm'. */
   eventSource?: string;
+  /** Skip outbound automations on creation (WhatsApp welcome, drip enrollment, RM alert) — for low-trust public sources like the website chatbot, so junk leads cannot trigger outbound messages or notification spam. */
+  deferAutomations?: boolean;
 }
 
 /** Build a new lead document from a UI-shaped object (port of the Leads_add row builder). */
@@ -316,9 +318,11 @@ export async function addLead(data: UiLead, ctx: Ctx | null, options: AddLeadOpt
   if (autoFollowup) created.timeline[0].details += ' · first follow-up ' + fmtHuman(autoFollowup);
   await runEffects(created);
   await auditLog(ctx, 'Lead Created', 'Lead', id, name);
-  scheduleLeadAlerts(lead, 'created'); // e-mail / phone alert to the RM, after the response
-  void import('./salesOps').then((m) => m.scheduleWelcome(id)).catch(() => undefined); // WhatsApp welcome template, when switched on
-  await (await import('./dripCampaigns')).enrollNewLead(lead); // a drip campaign that fits; never fails the save
+  if (!options.deferAutomations) {
+    scheduleLeadAlerts(lead, 'created'); // e-mail / phone alert to the RM, after the response
+    void import('./salesOps').then((m) => m.scheduleWelcome(id)).catch(() => undefined); // WhatsApp welcome template, when switched on
+    await (await import('./dripCampaigns')).enrollNewLead(lead); // a drip campaign that fits; never fails the save
+  }
   if (await getSecret('JUSTCONNECT_API_KEY')) void import('./jcSync').then((m) => m.scheduleContactPush(id), () => undefined); // caller name in JustConnect
   // calls from this number before it was a lead (a new caller): onto the lead, with their recording and AI notes
   try {

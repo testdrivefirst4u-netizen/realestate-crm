@@ -14,13 +14,23 @@ import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { addEvent, logError } from '../core/events';
-import { currentTenant } from '../core/tenant';
-import { shortId, str, truncate } from '../core/utils';
-import { activeBotFilter, botContext, mergeKnowledge, upsertBotLead } from './botRuntime';
+import { currentTenant, tenantKey } from '../core/tenant';
+import { randomToken, shortId, str, truncate } from '../core/utils';
+import { activeBotFilter, botContext, bumpDailyCount, mergeKnowledge, upsertBotLead } from './botRuntime';
 import { replyToChat, startChat, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepResult } from './whatsappBotEngine';
 
 const DAY_MS = 86400000;
 const MAX_TRANSCRIPT = 80;
+const SESSIONS_PER_DAY = 5000; // per-company cap on new website chats a day (abuse / DB-bloat guard)
+const LEADS_PER_DAY = 500; // per-company cap on website-chat leads a day (junk-lead guard)
+
+/** A TTL index so finished website chats are cleaned up automatically (45 days), per company. */
+const webchatIndex = new Map<string, Promise<unknown>>();
+async function ensureWebchatIndex(): Promise<void> {
+  const k = tenantKey();
+  if (!webchatIndex.has(k)) webchatIndex.set(k, sessionsCol().then((c) => c.createIndex({ lastAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 45 })).catch((e) => { webchatIndex.delete(k); console.error('[webchat] index', e?.message); }));
+  await webchatIndex.get(k);
+}
 
 interface BotDoc { _id: string; name: string; status: 'draft' | 'active' | 'paused'; steps: BotStep[]; knowledge: string }
 interface TranscriptLine { role: 'bot' | 'user'; text: string; at: Date }
@@ -80,6 +90,7 @@ async function syncLead(session: WebSessionDoc): Promise<void> {
   const c = session.captured;
   try {
     if (!session.leadId && (c.phone || c.email)) {
+      if (await bumpDailyCount('webchatLeads') > LEADS_PER_DAY) return; // stop making new leads once the daily cap is hit
       session.leadId = await upsertBotLead({ captured: c, source: 'Website', actor: 'Website bot', eventSource: 'webchat' });
     } else if (session.leadId) {
       await upsertBotLead({ captured: c, source: 'Website', actor: 'Website bot', eventSource: 'webchat', existingLeadId: session.leadId });
@@ -94,6 +105,7 @@ export interface WebchatTurn { sessionId: string; messages: Outgoing[]; status: 
 /** One turn of a website chat. No sessionId (or an ended/unknown one) starts a fresh chat on the active bot. Never throws past the feature gate: a bot problem must not break the page. */
 export async function webchatTurn(i: { sessionId?: string; text?: string; replyId?: string; visitorId?: string; origin?: string; ip?: string }, now = new Date()): Promise<WebchatTurn> {
   if (!featureOn()) throw fail('FORBIDDEN', 'Website chatbot is not included in this plan.');
+  void ensureWebchatIndex();
   const company = str(currentTenant()?.name);
   const text = str(i.text).slice(0, 500);
   const replyId = str(i.replyId).slice(0, 60);
@@ -116,10 +128,12 @@ export async function webchatTurn(i: { sessionId?: string; text?: string; replyI
     // a new chat: run the live bot for the website channel
     const bot = await (await botsCol()).findOne(activeBotFilter('website'));
     if (!bot) throw fail('NOT_FOUND', 'No chatbot is live for this website yet.');
+    if (await bumpDailyCount('webchatSessions') > SESSIONS_PER_DAY) throw fail('RATE_LIMIT', 'Chat is busy right now — please try again shortly.');
     const knowledge = bot.steps.some((s) => s.type === 'ai') ? await mergeKnowledge(bot.knowledge) : bot.knowledge;
     const vars: Record<string, string> = {};
     const session: WebSessionDoc = {
-      _id: shortId('WC'), botId: bot._id, botName: bot.name, visitorId: str(i.visitorId).slice(0, 60) || shortId('WV'), leadId: '',
+      // an unguessable session id: this is the only token that lets a request continue a chat
+      _id: `wc_${randomToken(16)}`, botId: bot._id, botName: bot.name, visitorId: str(i.visitorId).slice(0, 60) || shortId('WV'), leadId: '',
       steps: bot.steps, knowledge, state: { stepId: '', phase: '', day: '', retries: 0, aiReplies: 0, sent: 0, vars },
       status: 'active', endReason: '', captured: {}, transcript: [], origin: str(i.origin).slice(0, 200), ip: str(i.ip).slice(0, 60),
       visits: 0, answers: 0, startedAt: now, lastAt: now,
@@ -169,6 +183,13 @@ export async function botChatsList(d: { limit?: number } = {}): Promise<BotChatR
   return rows;
 }
 
+/** What the CRM needs to show the website-widget install snippet: the app's public URL and this company's slug. */
+export function webchatEmbed(): { base: string; slug: string } {
+  const base = (process.env.APP_URL || '').trim().replace(/\/+$/, '');
+  return { base, slug: str(currentTenant()?.slug) };
+}
+
 export const actions: ActionMap = {
   botChatsList: { fn: async (d, ctx: Ctx) => { await auditLog(ctx, 'Bot Chats Viewed', 'Chatbot', '', ''); return botChatsList(d); }, perm: 'marketing.bots' },
+  webchatEmbed: { fn: async () => webchatEmbed(), perm: 'marketing.bots' },
 };
