@@ -65,7 +65,7 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ task, onSnooze, onComple
     return [
       { label: '15 min', minutes: 15 },
       { label: '1 hour', minutes: 60 },
-      { label: formatRelative(t10.at), minutes: t10.minutes, hint: 'Tomorrow 10:00' },
+      { label: 'Tomorrow 10 AM', minutes: t10.minutes, hint: formatRelative(t10.at) },
       { label: '1 week', minutes: 7 * 24 * 60 },
     ];
   }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -158,10 +158,10 @@ export const AlarmModal: React.FC<AlarmModalProps> = ({ task, onSnooze, onComple
         <div className="p-5 border-t border-[#D3E3F0] bg-[#F2F7FB] space-y-3">
           <div>
             <div className="text-[10px] uppercase tracking-wider font-bold text-[#5E778C] mb-2 inline-flex items-center gap-1"><Moon size={11} />Snooze for</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {snoozeOptions.map((o) => (
-                <Button key={o.label} variant="secondary" size="sm" disabled={busy !== null} onClick={() => snooze(o.minutes)} title={o.hint} className="w-full">
-                  {o.label}
+                <Button key={o.label} variant="secondary" size="sm" disabled={busy !== null} onClick={() => snooze(o.minutes)} title={o.hint} className="w-full min-w-0">
+                  <span className="truncate">{o.label}</span>
                 </Button>
               ))}
             </div>
