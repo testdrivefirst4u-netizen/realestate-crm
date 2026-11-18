@@ -49,6 +49,7 @@ import { actions as facebookProfileActions } from './modules/facebookProfile';
 import { actions as adsControlActions } from './modules/adsControl';
 import { actions as websiteAnalyticsActions } from './modules/websiteAnalytics';
 import { actions as competitorActions } from './modules/competitors';
+import { actions as partnerActions } from './modules/partners';
 import { actions as searchConsoleActions } from './modules/searchConsole';
 import { actions as businessProfileActions } from './modules/businessProfile';
 import { actions as dripActions } from './modules/dripCampaigns';
@@ -115,6 +116,7 @@ export const registry: ActionMap = {
   ...adsControlActions,
   ...websiteAnalyticsActions,
   ...competitorActions,
+  ...partnerActions,
   ...searchConsoleActions,
   ...businessProfileActions,
   ...dripActions,
@@ -203,6 +205,7 @@ const VIEWER_ACTIONS = new Set([
   'getBootstrap', 'getEvents', 'getAllLeads', 'getSlowLeads', 'logLeadExport', 'getLeadTimeline', 'getEnquiryHistory', 'leaderboard', 'getCampaignSpend', 'getAuditLog',
   'getCalls', 'jcCallReport', 'getInventory', 'listVisitBookings', 'getSalesReport', 'getLeadPeople', 'listQuotes', 'getBookingGate', 'listApprovals', 'getToday', 'getTeamExceptions', 'getPayments', 'listPaymentPlans', 'getReraSettings', 'getPaymentStatement', 'getDemandLetter', 'getEngagement', 'getCustomerQueue', 'getOrg', 'getScorecard', 'getLeadInsight', 'getNextSteps', 'listLeadFiles', 'listRecords', 'getDriveStructure', 'chat360GetContacts', 'chat360GetMessages', 'libraryGet',
   'listInbox', 'getInboxThread', 'refreshInboxPeople', 'listAdCampaigns', 'getWebsiteAnalytics', 'getAnalyticsReport', 'getSearchPerformance', 'getSearchIndexing', 'getSearchSitemaps', 'getBusinessProfile', 'getBusinessPerformance', 'getBusinessPhotos', 'getBusinessReviews', 'listCompetitors', 'listMetaAds',
+  'listPartners', 'getPartner', 'partnerLeads', 'partnerCommissions', 'commissionSummary', 'checkCpRegistration',
   'changePassword', 'updateProfile', 'totpSetup', 'totpEnable', 'totpDisable', 'touchSession', 'mySessions', 'endMySession', 'endMyOtherSessions', 'pushStatus', 'pushSubscribe', 'pushUnsubscribe', 'pushTest',
 ]);
 /** The person's own account: their own number is theirs to see, whatever they may see of customers'. */

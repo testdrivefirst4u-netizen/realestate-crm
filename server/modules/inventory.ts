@@ -447,6 +447,10 @@ export async function updateUnit(id: string, patch: any, ctx: Ctx, expectedLastM
     // journey milestones on the lead (first time each step happens)
     const step = kind === 'reserve' ? 'reserved' : kind === 'book' ? 'booked' : kind === 'cancel' ? 'cancelled' : '';
     if (step && leadId) await (await import('../core/milestones')).markMilestones(leadId, [step as any], actor, now);
+    // channel-partner commission: accrue on booking, void on cancel (never throws — a CP problem must not break a booking)
+    if ((kind === 'book' || kind === 'cancel') && leadId) {
+      await (await import('./partners')).onUnitBookingChanged({ inventoryId: unit.inventoryId, unitId: unit.unitId, quotedAmount: unit.quotedAmount, price: unit.price }, leadId, kind, actor);
+    }
     if (unit.status !== before.status) {
       // the event feed reaches everyone: no buyer name in it; the lead id lets the feed filter by lead access
       await addEvent('inventory_status', 'Inventory', unit.inventoryId, 'Unit ' + unit.unitId + ' is now ' + unit.status, 'Updated by ' + actor, actor, { leadId: unit.leadId || before.leadId || '' });

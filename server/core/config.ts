@@ -24,6 +24,9 @@ export const CFG = {
   /** Kept for the UI contract; MongoDB has no follow-up column limit, this is only a soft cap. */
   MAX_FOLLOWUPS: 500,
 
+  /** Channel-partner lead registration: the first CP to register a phone owns it for this many days (modules/partners.ts). */
+  CP_REGISTRATION_DAYS: 90,
+
   /** MongoDB collection names (one per former sheet tab, plus new ones). */
   COLL: {
     LEADS: 'leads',
@@ -62,6 +65,9 @@ export const CFG = {
     /** the company's competitors and the ads saved of them (modules/competitors.ts) */
     COMPETITORS: 'competitors',
     COMPETITOR_ADS: 'competitorAds',
+    /** channel partners (brokers) and the commission accrued per booked unit (modules/partners.ts) */
+    CHANNEL_PARTNERS: 'channelPartners',
+    CP_COMMISSIONS: 'cpCommissions',
     FILES_BUCKET: 'files', // GridFS bucket (lead documents, call recordings)
   },
 
@@ -139,7 +145,7 @@ export const CFG = {
       'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Project Type', 'Disqualified - Timeline',
       'Disqualified - Not Interested', 'Lost', 'Trash'],
     'Enquiry Source': ['Website', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads',
-      'Google Ads', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL'],
+      'Google Ads', 'Channel Partner', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL'],
     'Unit Type Interested In': ['1 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK'],
     'Purchase or Rent': ['Purchase', 'Rent', 'Investment'],
     'Site Visit Status': ['Prospect for Site Visit', 'Site Visit - Scheduled', 'Site Visit - Walk-In', 'Site Visit - Completed'],
@@ -163,14 +169,15 @@ export const CFG = {
   PERMISSIONS: {
     Developer: ['*'],
     Admin: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*',
-      'users.*', 'audit.*', 'records.*', 'storage.*', 'marketing.*', 'integrations.*'],
+      'users.*', 'audit.*', 'records.*', 'storage.*', 'marketing.*', 'integrations.*', 'partners.*'],
     Manager: ['leads.*', 'tasks.*', 'inventory.*', 'reports.*', 'chat.*', 'calls.*', 'ai.*', 'audit.view',
-      'users.manageAgents', 'records.*', 'storage.*', 'marketing.*'],
+      'users.manageAgents', 'records.*', 'storage.*', 'marketing.*', 'partners.*'],
     RM: ['leads.view', 'leads.create', 'leads.edit', 'leads.export', 'leads.phones', 'tasks.*', 'inventory.view', 'reports.view',
-      'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*'],
+      'chat.*', 'calls.*', 'ai.*', 'records.*', 'storage.*', 'partners.view'],
     // inventory.customers: buyers, phones and money on every unit (Agents see them only on their own leads' units).
     // inventory.approve: cancel a booking or sale (Admins and Managers through inventory.*).
-    Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'inventory.customers', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
+    // partners.commission: see the brokerage/commission figures (not RM).
+    Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'inventory.customers', 'reports.view', 'chat.view', 'calls.view', 'audit.view', 'partners.view', 'partners.commission'],
   } as Record<string, string[]>,
 
   /** Secret keys (stored encrypted in the `secrets` collection; an env var of the same name wins). */

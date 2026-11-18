@@ -268,7 +268,7 @@ describe('leads', () => {
     const c = await getLeadsConfig();
     expect(c.fields).toEqual(CFG.DROPDOWNS);
     // the agreed sources first, in order; a source the company added comes after them
-    expect(c.options['Enquiry Source']).toEqual(['Website', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads', 'Google Ads', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL', 'Hoarding']);
+    expect(c.options['Enquiry Source']).toEqual(['Website', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads', 'Google Ads', 'Channel Partner', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL', 'Hoarding']);
     expect(c.options['Lead Stage']).toEqual(['New', 'Open', 'Qualified', 'Warm', 'Hot', 'Booked', 'Not Responding',
       'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Project Type', 'Disqualified - Timeline', 'Disqualified - Not Interested', 'Lost', 'Trash']);
     expect(c.options['Unit Type Interested In'].filter((u) => u === '2 BHK')).toHaveLength(1);

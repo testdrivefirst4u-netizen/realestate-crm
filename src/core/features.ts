@@ -38,6 +38,7 @@ export type FeatureName =
   | 'projectLibrary'
   | 'reports'
   | 'segments'
+  | 'channelPartners'
   | 'developerMode'
   // UI-only switches that are not part of a plan (always on unless settings turn them off)
   | 'documents'
@@ -81,6 +82,7 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   projectLibrary: 'Project library',
   reports: 'Reports',
   segments: 'Client segments',
+  channelPartners: 'Channel Partners',
   websiteApi: 'Website forms & lead API',
   metaLeads: 'Meta Lead Ads',
   googleSheets: 'Google Sheets sync',

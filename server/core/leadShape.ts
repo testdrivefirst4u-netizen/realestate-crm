@@ -51,6 +51,10 @@ export interface LeadDoc {
   /** Times the lead was moved on automatically because nobody acted on it, and from whom. */
   reassignCount?: number;
   reassignedFrom?: string[];
+  /** Channel partner (broker) this lead is attributed to, and when (first-CP-keeps-it registration). modules/partners.ts.
+   *  Not a base header — stored on the doc only, never emitted into the header-keyed UI lead. */
+  channelPartnerId?: string;
+  cpRegisteredAt?: Date | null;
 }
 
 export interface ArchivedLeadDoc extends LeadDoc {

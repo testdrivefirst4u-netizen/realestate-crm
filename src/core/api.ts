@@ -312,6 +312,16 @@ export interface BusinessPhotos { error: string; location: string; photos: Busin
 /** Post scheduler › Instagram view (server: modules/instagramProfile.ts). */
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
 export interface FacebookProfile { account: string; name: string; about: string; category: string; website: string; link: string; picture: string; followers: number | null; likes: number | null; error: string }
+
+export interface CommissionSlab { minValue: number; rate: number }
+export interface ChannelPartner {
+  id: string; name: string; firm: string; phone: string; email: string; pan: string; gst: string; reraId: string;
+  defaultRate: number; slabs: CommissionSlab[]; status: 'Active' | 'Suspended'; notes: string; createdAt: string;
+  leads: number; bookings: number; commissionAccrued: number | null;
+}
+export interface PartnerLeadRow { id: string; name: string; phone: string; stage: string; registeredAt: string; booked: boolean }
+export interface CommissionRow { _id: string; cpId: string; leadId: string; unitId: string; unitLabel: string; dealValue: number; rate: number; amount: number; status: 'accrued' | 'void'; computedAt: string; computedBy: string; voidedAt: string; voidReason?: string }
+export interface CpRegistration { registered: boolean; partnerId: string; partnerName: string; until: string; leadId: string }
 /** Drip campaigns (server: modules/dripCampaigns.ts). */
 export interface DripStepInput { id: string; channel: 'whatsapp' | 'email' | 'task'; waitMinutes: number; template: string; params: string[]; subject: string; body: string; taskName: string; attachments: string[] }
 export interface DripCampaignView { id: string; name: string; status: 'draft' | 'active' | 'paused' | 'archived'; sources: string[]; stages: string[]; steps: DripStepInput[]; hoursFrom: number; hoursTo: number; dailyLimit: number; stopOnVisit: boolean; tested: boolean; createdBy: string; stats: { running: number; finished: number; stopped: number; sent: number; skipped: number; failed: number; entered: number; replied: number; visits: number; bookings: number } }
@@ -810,6 +820,21 @@ export const api = {
     saveAd: (d: { competitorId: string; platform: string; link: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; placements: string[]; image?: { name: string; mime: string; base64: string } }) => request<{ id: string }>('saveCompetitorAd', d, { timeoutMs: 60000 }),
     removeAd: (id: string) => request<{ ok: true }>('deleteCompetitorAd', { id }),
     setAdActive: (id: string, active: boolean) => request<{ ok: true }>('setCompetitorAdActive', { id, active }),
+  },
+  partners: {
+    list: () => request<{ partners: ChannelPartner[] }>('listPartners'),
+    get: (id: string) => request<ChannelPartner>('getPartner', { id }),
+    save: (d: { id?: string; name: string; firm?: string; phone?: string; email?: string; pan?: string; gst?: string; reraId?: string; defaultRate?: number; slabs?: CommissionSlab[]; status?: 'Active' | 'Suspended'; notes?: string }) => request<ChannelPartner>('savePartner', d),
+    setStatus: (id: string, status: 'Active' | 'Suspended') => request<ChannelPartner>('setPartnerStatus', { id, status }),
+    remove: (id: string) => request<{ ok: true }>('deletePartner', { id }),
+    leads: (cpId: string) => request<{ leads: PartnerLeadRow[] }>('partnerLeads', { cpId }),
+    commissions: (cpId: string) => request<{ commissions: CommissionRow[]; totalAccrued: number }>('partnerCommissions', { cpId }),
+    summary: () => request<{ rows: Array<{ cpId: string; name: string; bookings: number; accrued: number }>; totalAccrued: number }>('commissionSummary'),
+    checkRegistration: (phone: string) => request<CpRegistration>('checkCpRegistration', { phone }),
+    findLeads: (query: string) => request<{ leads: Array<{ id: string; name: string; phone: string; stage: string; partnerId: string }> }>('findLeadsForPartner', { query }),
+    attributeLead: (leadId: string, cpId: string) => request<{ ok: true; leadId: string; partnerId: string }>('attributeLeadToPartner', { leadId, cpId }),
+    unattributeLead: (leadId: string) => request<{ ok: true }>('unattributeLead', { leadId }),
+    recompute: (cpId: string) => request<{ updated: number }>('recomputePartnerCommissions', { cpId }),
   },
   roles: {
     get: () => request<{ config: RoleAccessConfig }>('getRoleAccess'),

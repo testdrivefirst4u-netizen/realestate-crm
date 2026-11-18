@@ -59,6 +59,12 @@ export type Permission =
   | 'marketing.manage'
   /** Connect / disconnect the company's own Google, Meta, LinkedIn, Pinterest accounts (Admins). */
   | 'integrations.connect'
+  /** Channel partners (brokers): see the list and a partner's leads. */
+  | 'partners.view'
+  /** Add / edit / attribute channel partners (Admins, Managers). */
+  | 'partners.manage'
+  /** See brokerage / commission figures (not Agents). */
+  | 'partners.commission'
   /** A screen the company can hide from a role (Settings › Roles & access). */
   | `view.${string}`;
 
@@ -68,6 +74,7 @@ const ALL: Permission[] = [
   'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
   'settings.view', 'settings.edit', 'users.manage', 'users.manageAgents', 'secrets.manage',
   'developer.view', 'developer.edit', 'developer.deploy', 'audit.view', 'marketing.posts', 'marketing.ads', 'marketing.drip', 'marketing.bots', 'marketing.campaigns', 'marketing.manage', 'integrations.connect',
+  'partners.view', 'partners.manage', 'partners.commission',
 ];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -79,10 +86,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   RM: [
     'leads.view', 'leads.create', 'leads.edit', 'leads.export', 'leads.phones',
     'tasks.manage', 'inventory.view', 'reports.view',
-    'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions',
+    'chat.view', 'chat.send', 'calls.view', 'calls.log', 'ai.use', 'ai.actions', 'partners.view',
   ],
   // View only (e.g. founders): every lead, report, chat and call — no changes.
-  Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'inventory.customers', 'reports.view', 'chat.view', 'calls.view', 'audit.view'],
+  Viewer: ['leads.view', 'leads.viewAll', 'leads.phones', 'inventory.view', 'inventory.customers', 'reports.view', 'chat.view', 'calls.view', 'audit.view', 'partners.view', 'partners.commission'],
 };
 
 /** Map legacy role names stored in older builds. */

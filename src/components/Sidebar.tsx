@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, type LucideIcon,
+  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, type LucideIcon,
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { SyncState, UserAccount } from '../types/crm';
@@ -63,7 +63,7 @@ function buildGroups(counts: SidebarCounts, direct = false): Group[] {
     ] },
     { id: 'leads', label: 'Leads', items: [
       { id: 'leads', label: 'All Leads', icon: Users, count: counts.leads }, { id: 'kanban', label: 'Enquiry Status', icon: SquareKanban },
-      { id: 'followups', label: 'Follow-ups', icon: CalendarClock, count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments', icon: ChartPie },
+      { id: 'followups', label: 'Follow-ups', icon: CalendarClock, count: counts.followupsToday, urgent: true }, { id: 'segments', label: 'Client Segments', icon: ChartPie }, { id: 'partners', label: 'Channel Partners', icon: Handshake },
     ] },
     { id: 'messages', label: 'Messages', items: [
       { id: 'chat360', label: direct ? 'WhatsApp' : 'WhatsApp (Chat360)', icon: WhatsAppIcon, count: counts.unreadChats, urgent: true }, { id: 'calls', label: 'Call History', icon: PhoneCall },

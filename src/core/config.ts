@@ -273,6 +273,7 @@ export const FEATURES = {
   /** In-app backend code editing (Developer Mode) is retired. */
   developerMode: false,
   segments: true,
+  channelPartners: true,
   websiteApi: true,
   metaLeads: false,
   googleSheets: false,
