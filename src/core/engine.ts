@@ -532,10 +532,16 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     if (authStatus !== 'ready') return;
     const check = () => {
       const now = Date.now();
+      const me = sessionRef.current?.user?.name || '';
+      // A reminder is for the person it is set for. Admins and Managers can SEE everyone's tasks and leads, but a
+      // task assigned to someone else (or a lead owned by another RM) must not pop its alarm on their screen.
+      const nameEq = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
+      const mineTask = (t: TaskItem) => !me || !t.assignedTo || nameEq(t.assignedTo, me);
       const tasks = dataRef.current.tasks;
       let candidate: TaskItem | null = null;
       for (const t of tasks) {
         if (t.completed || t.status === 'Completed') continue;
+        if (!mineTask(t)) continue; // someone else's task — their reminder, not mine
         const due = parseDate(t.datetime);
         if (!due || due.getTime() > now) continue;
         if (t.snoozedUntil && (parseDate(t.snoozedUntil)?.getTime() || 0) > now) continue;
@@ -551,9 +557,10 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
         notify({ key, title: '⏰ Task due now', message: `${candidate.name}${candidate.lead ? ` · ${candidate.lead}` : ''}`, type: 'alert', recordType: 'Task', recordId: candidate.id, playAudio: false });
         setActiveAlarmTask((cur) => cur || candidate);
       }
-      // follow-up reminders at the due time (one per lead per due time)
+      // follow-up reminders at the due time (one per lead per due time) — only for the RM the lead belongs to
       for (const l of dataRef.current.leads) {
         if (!isActive(l)) continue;
+        if (me && l[F.RM] && !nameEq(l[F.RM], me)) continue; // another RM's lead — their reminder, not mine
         const d = nextFollowupDate(l);
         if (!d) continue;
         const diff = now - d.getTime();
