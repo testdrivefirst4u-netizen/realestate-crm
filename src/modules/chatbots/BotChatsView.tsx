@@ -1,6 +1,6 @@
 /** Live Chat (server: modules/webchat.ts + chat360): one inbox for website, Instagram/Facebook and WhatsApp conversations — read, reply live, set availability, install the widget. */
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, Copy, Eye, EyeOff, Facebook, Globe, Instagram, MessagesSquare, Send } from 'lucide-react';
+import { Bell, Check, ChevronLeft, Copy, Eye, EyeOff, Facebook, Globe, Inbox, Instagram, MessagesSquare, Search, Send } from 'lucide-react';
 import { api, type BotChatLine, type BotChatRow, type ChatPresence } from '../../core/api';
 import type { Chat360Contact, Chat360Message } from '../../types/crm';
 import { reportError, toAppError } from '../../core/errors';
@@ -18,6 +18,8 @@ const CHANNEL: Record<Channel, { label: string; icon: React.ElementType; tint: s
 const when = (iso: string) => (iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
 const maxSeq = (ls: BotChatLine[]) => ls.reduce((m, l) => Math.max(m, l.seq || 0), 0);
 const errText = (s: string, e: unknown) => toAppError(reportError(s, e)).userMessage;
+/** One-tap replies an agent can drop into the box, then edit before sending. */
+const QUICK_REPLIES = ['Thanks for reaching out! 🙏', 'May I share our brochure?', 'Would you like to book a site visit?', 'Our team will call you shortly.'];
 
 type Msg = { side: 'in' | 'out'; text: string; at: string; label?: string };
 type Conv = { id: string; channel: Channel; who: string; last: string; lastAt: string; status: BotChatRow['status']; mode?: 'bot' | 'agent'; phone?: string; leadId?: string; captured?: Record<string, string>; row?: BotChatRow };
@@ -118,9 +120,16 @@ const ChatPanel: React.FC<{ conv: Conv; onBack: () => void }> = ({ conv, onBack 
       </div>
 
       {canReply ? (
-        <div className="flex gap-2 border-t border-[#E3EDF5] bg-white p-3">
-          <input className={inputCls} placeholder={isWa ? 'Reply on WhatsApp…' : isSocial ? `Reply on ${Ch.label}…` : 'Type a reply to the visitor…'} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void reply(); } }} />
-          <Button variant="primary" size="sm" icon={<Send size={14} />} loading={sending} onClick={() => void reply()}>Send</Button>
+        <div className="border-t border-[#E3EDF5] bg-white p-3">
+          <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
+            {QUICK_REPLIES.map((q) => (
+              <button key={q} type="button" onClick={() => setText((t) => (t.trim() ? `${t.trimEnd()} ${q}` : q))} className="flex-none rounded-full border border-[#D3E3F0] px-3 py-1 text-[11.5px] font-semibold text-[#5E778C] hover:bg-[#F2F7FB]">{q}</button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input className={inputCls} placeholder={isWa ? 'Reply on WhatsApp…' : isSocial ? `Reply on ${Ch.label}…` : 'Type a reply to the visitor…'} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void reply(); } }} />
+            <Button variant="primary" size="sm" icon={<Send size={14} />} loading={sending} onClick={() => void reply()}>Send</Button>
+          </div>
         </div>
       ) : (
         <div className="border-t border-[#E3EDF5] bg-white p-3 text-[11px] text-[#7E93A6]">
@@ -169,12 +178,14 @@ const InstallModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, 
 };
 
 /* ---------------------------------- the screen -------------------------------- */
-const TABS: Array<{ key: string; label: string; test: (c: Conv) => boolean }> = [
-  { key: 'all', label: 'All', test: () => true },
-  { key: 'live', label: 'Needs a person', test: needsPerson },
-  { key: 'whatsapp', label: 'WhatsApp', test: (c) => c.channel === 'whatsapp' },
-  { key: 'website', label: 'Website', test: (c) => c.channel === 'website' },
-  { key: 'social', label: 'Social', test: (c) => c.channel === 'instagram' || c.channel === 'facebook' },
+/** The channel rail down the left of the Unified Inbox — each a one-tap folder. */
+const RAIL: Array<{ key: string; label: string; icon: React.ElementType; tint?: string; test: (c: Conv) => boolean }> = [
+  { key: 'all', label: 'All', icon: Inbox, test: () => true },
+  { key: 'live', label: 'Needs a person', icon: Bell, test: needsPerson },
+  { key: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, tint: '#25D366', test: (c) => c.channel === 'whatsapp' },
+  { key: 'website', label: 'Website', icon: Globe, tint: '#E86B2A', test: (c) => c.channel === 'website' },
+  { key: 'instagram', label: 'Instagram', icon: Instagram, tint: '#C1398B', test: (c) => c.channel === 'instagram' },
+  { key: 'facebook', label: 'Facebook', icon: Facebook, tint: '#2E6FBA', test: (c) => c.channel === 'facebook' },
 ];
 
 export const BotChatsView: React.FC = () => {
@@ -185,6 +196,7 @@ export const BotChatsView: React.FC = () => {
   const [pres, setPres] = useState<ChatPresence | null>(null);
   const [presBusy, setPresBusy] = useState(false);
   const [install, setInstall] = useState(false);
+  const [query, setQuery] = useState('');
 
   const load = async () => {
     try {
@@ -201,7 +213,10 @@ export const BotChatsView: React.FC = () => {
   useEffect(() => { let on = true; const loop = () => { if (on) void load(); }; loop(); const t = setInterval(loop, 12000); api.botChats.presence().then((r) => on && setPres(r)).catch(() => undefined); return () => { on = false; clearInterval(t); }; }, []);
   const toggleAvail = async () => { if (!pres || presBusy) return; setPresBusy(true); try { await api.botChats.setPresence(!pres.available); setPres(await api.botChats.presence()); } catch (e) { toast('Not changed', errText('presence', e), 'alert'); } finally { setPresBusy(false); } };
 
-  const filtered = (convs || []).filter(TABS.find((t) => t.key === tab)!.test);
+  const railItem = RAIL.find((t) => t.key === tab) || RAIL[0];
+  const q = query.trim().toLowerCase();
+  const filtered = (convs || []).filter(railItem.test).filter((c) => !q || c.who.toLowerCase().includes(q) || (c.last || '').toLowerCase().includes(q));
+  const needsCount = (convs || []).filter(needsPerson).length;
   const current = (convs || []).find((c) => c.id === sel) || null;
 
   return (
@@ -215,13 +230,39 @@ export const BotChatsView: React.FC = () => {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className={cx('flex w-full min-h-0 flex-col border-r border-[#E3EDF5] bg-white lg:w-[340px]', current ? 'hidden lg:flex' : 'flex')}>
-          <div className="flex gap-1 overflow-x-auto border-b border-[#E3EDF5] p-2">
-            {TABS.map((t) => <button key={t.key} type="button" onClick={() => setTab(t.key)} className={cx('whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', tab === t.key ? 'bg-[#0B6BB0] text-white' : 'bg-[#F2F7FB] text-[#5E778C]')}>{t.label}</button>)}
+        {/* channel rail — one-tap folders (hidden on phones, where the chips below stand in) */}
+        <nav className={cx('w-[76px] flex-none flex-col items-center gap-1 border-r border-[#E3EDF5] bg-[#F7FAFC] py-3', current ? 'hidden lg:flex' : 'hidden sm:flex')} aria-label="Channels">
+          {RAIL.map((r) => {
+            const on = tab === r.key;
+            return (
+              <button key={r.key} type="button" onClick={() => setTab(r.key)} title={r.label} aria-label={r.label} aria-pressed={on}
+                className={cx('relative flex w-[60px] flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-semibold', on ? 'bg-[#0B6BB0] text-white' : 'text-[#5E778C] hover:bg-[#EEF4F9]')}>
+                <r.icon size={19} aria-hidden="true" />
+                <span className="leading-none">{r.label === 'Needs a person' ? 'Needs' : r.label}</span>
+                {r.key === 'live' && needsCount > 0 && <span className="absolute right-1.5 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#F0A202] px-1 text-[9px] font-bold text-white">{needsCount}</span>}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* conversation list */}
+        <aside className={cx('w-full min-h-0 flex-col border-r border-[#E3EDF5] bg-white lg:w-[330px]', current ? 'hidden lg:flex' : 'flex')}>
+          <div className="flex items-center gap-2 border-b border-[#E3EDF5] px-3 py-2.5">
+            <h3 className="text-sm font-bold text-[#0B2A44]">{railItem.label}</h3>
+            <span className="text-xs font-semibold text-[#9CB0C0]">{filtered.length}</span>
+          </div>
+          <div className="flex gap-1 overflow-x-auto border-b border-[#E3EDF5] p-2 sm:hidden">
+            {RAIL.map((r) => <button key={r.key} type="button" onClick={() => setTab(r.key)} className={cx('whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', tab === r.key ? 'bg-[#0B6BB0] text-white' : 'bg-[#F2F7FB] text-[#5E778C]')}>{r.label}{r.key === 'live' && needsCount > 0 ? ` ${needsCount}` : ''}</button>)}
+          </div>
+          <div className="border-b border-[#E3EDF5] p-2">
+            <label className="relative block">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9CB0C0]" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search chats" aria-label="Search chats" className="w-full rounded-lg border border-[#E3EDF5] bg-[#F7FAFC] py-1.5 pl-8 pr-3 text-sm text-[#0B2A44] placeholder:text-[#9CB0C0] focus:border-[#0B6BB0] focus:outline-none" />
+            </label>
           </div>
           {err ? <InlineNotice tone="warning" className="m-3">{err}</InlineNotice>
             : !convs ? <div className="p-6"><LoadingState /></div>
-            : !filtered.length ? <EmptyState icon={<MessagesSquare size={24} />} title="No conversations" description="Chats from your website, Instagram, Facebook and WhatsApp appear here." className="m-3" />
+            : !filtered.length ? <EmptyState icon={<MessagesSquare size={24} />} title={q ? 'No matches' : 'No conversations'} description={q ? 'Try a different name or word.' : 'Chats from your website, Instagram, Facebook and WhatsApp appear here.'} className="m-3" />
             : (
               <ul className="min-h-0 flex-1 overflow-y-auto">
                 {filtered.map((c) => {
@@ -232,7 +273,8 @@ export const BotChatsView: React.FC = () => {
                         <span className="relative flex h-9 w-9 flex-none items-center justify-center rounded-full text-white" style={{ background: Ch.tint }}><Ch.icon size={17} aria-hidden="true" />{needsPerson(c) && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-[#F0A202] ring-2 ring-white" />}</span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold text-[#0B2A44]">{c.who}</span><span className="flex-none text-[10px] text-[#9CB0C0]">{when(c.lastAt)}</span></span>
-                          <span className="mt-0.5 block truncate text-xs text-[#5E778C]">{c.last || CHANNEL[c.channel].label}</span>
+                          <span className="mt-0.5 block truncate text-xs text-[#5E778C]">{c.last || Ch.label}</span>
+                          {needsPerson(c) && <span className="mt-1 inline-flex items-center rounded-full bg-[#FEF3E2] px-2 py-0.5 text-[10px] font-bold text-[#B7791F]">Needs a person</span>}
                         </span>
                       </button>
                     </li>
