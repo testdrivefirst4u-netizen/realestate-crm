@@ -41,7 +41,7 @@ const ChatPanel: React.FC<{ conv: Conv; onBack: () => void }> = ({ conv, onBack 
   const waInRef = useRef(-1);
   const boxRef = useRef<HTMLDivElement>(null);
   const dingRef = useRef<HTMLAudioElement | null>(null);
-  const canReply = isWa || (isWeb && status !== 'done' && status !== 'stopped');
+  const canReply = isWa || isSocial || (isWeb && status !== 'done' && status !== 'stopped');
   const ding = () => { try { if (!dingRef.current) { dingRef.current = new Audio('/mixkit-doorbell-single-press-333.wav'); dingRef.current.volume = 0.5; } dingRef.current.currentTime = 0; void dingRef.current.play().catch(() => undefined); } catch { /* ignore */ } };
 
   const pullWeb = async () => {
@@ -80,6 +80,7 @@ const ChatPanel: React.FC<{ conv: Conv; onBack: () => void }> = ({ conv, onBack 
     setSending(true);
     try {
       if (isWa) { await api.chat360.send({ phone: conv.phone || '', leadId: conv.leadId, text: v }); setText(''); await loadWa(); }
+      else if (isSocial) { await api.botChats.replySocial(conv.id, v); setText(''); setMsgs((p) => [...p, { side: 'out', text: v, at: new Date().toISOString(), label: 'You' }]); setStatus('handoff'); }
       else { await api.botChats.reply(conv.id, v); setText(''); setStatus('active'); await pullWeb(); }
     } catch (e) { toast('Not sent', errText('chat.reply', e), 'alert'); }
     finally { setSending(false); }
@@ -118,7 +119,7 @@ const ChatPanel: React.FC<{ conv: Conv; onBack: () => void }> = ({ conv, onBack 
 
       {canReply ? (
         <div className="flex gap-2 border-t border-[#E3EDF5] bg-white p-3">
-          <input className={inputCls} placeholder={isWa ? 'Reply on WhatsApp…' : 'Type a reply to the visitor…'} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void reply(); } }} />
+          <input className={inputCls} placeholder={isWa ? 'Reply on WhatsApp…' : isSocial ? `Reply on ${Ch.label}…` : 'Type a reply to the visitor…'} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void reply(); } }} />
           <Button variant="primary" size="sm" icon={<Send size={14} />} loading={sending} onClick={() => void reply()}>Send</Button>
         </div>
       ) : (

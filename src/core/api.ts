@@ -657,6 +657,7 @@ export const api = {
     list: (limit?: number) => request<BotChatRow[]>('botChatsList', limit ? { limit } : {}),
     thread: (sessionId: string, since?: number) => request<{ status: string; mode: 'bot' | 'agent'; seq: number; messages: BotChatLine[] }>('botChatThread', { sessionId, since: since || 0 }),
     reply: (sessionId: string, text: string) => request<{ ok: true; seq: number }>('botChatReply', { sessionId, text }),
+    replySocial: (sessionId: string, text: string) => request<{ ok: true }>('socialChatReply', { sessionId, text }, { timeoutMs: 30000 }),
     embed: () => request<{ base: string; slug: string }>('webchatEmbed', {}),
     presence: () => request<ChatPresence>('chatPresence', {}),
     setPresence: (available: boolean) => request<{ available: boolean }>('chatPresenceSet', { available }),

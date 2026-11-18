@@ -220,6 +220,27 @@ export async function webchatAgentReply(d: { sessionId: string; text: string }, 
   return { ok: true, seq };
 }
 
+/** Reply to an Instagram/Facebook DM chat from Live Chat: sends via the social inbox (Meta Graph), records the agent's
+ *  message on the session so it shows here, and hands the chat to the person (the bot stops replying over the agent). */
+export async function socialAgentReply(d: { sessionId: string; text: string }, ctx: Ctx): Promise<{ ok: true }> {
+  const text = str(d?.text).slice(0, 2000);
+  if (!text) throw fail('VALIDATION', 'Write a reply first.');
+  const sessions = await col<any>('socialBotSessions');
+  const s = await sessions.findOne({ _id: str(d?.sessionId) });
+  if (!s) throw fail('NOT_FOUND', 'This chat is no longer here.');
+  if (!s.thread) throw fail('VALIDATION', 'This chat cannot be replied to here.');
+  const { replyInbox } = await import('./socialInbox');
+  await replyInbox({ thread: String(s.thread), text }, ctx); // sends to Instagram/Facebook and logs the agent's outbound
+  const now = new Date();
+  const seq = (s.seq || 0) + 1;
+  await sessions.updateOne({ _id: s._id }, {
+    $push: { transcript: { $each: [{ role: 'agent', text, at: now, seq }], $slice: -MAX_TRANSCRIPT } },
+    $set: { seq, status: 'handoff', lastAt: now },
+  } as any);
+  await auditLog(ctx, 'Social Chat Reply', 'Chatbot', s._id, String(s.platform || ''));
+  return { ok: true };
+}
+
 /** New messages in one website chat since `since` — for the agent's reply view to poll. */
 export async function botChatThread(d: { sessionId: string; since?: number }): Promise<{ status: ChatStatus; mode: ChatMode; seq: number; messages: Array<{ role: string; text: string; at: string; seq: number }> }> {
   const s = await (await sessionsCol()).findOne({ _id: str(d?.sessionId) });
@@ -253,6 +274,7 @@ export const actions: ActionMap = {
   botChatsList: { fn: async (d, ctx: Ctx) => { await auditLog(ctx, 'Bot Chats Viewed', 'Chatbot', '', ''); return botChatsList(d); }, perm: 'marketing.bots' },
   botChatThread: { fn: async (d) => botChatThread(d), perm: 'marketing.bots' },
   botChatReply: { fn: async (d, ctx: Ctx) => webchatAgentReply(d, ctx), perm: 'chat.send' },
+  socialChatReply: { fn: async (d, ctx: Ctx) => socialAgentReply(d, ctx), perm: 'chat.send' },
   webchatEmbed: { fn: async () => webchatEmbed(), perm: 'marketing.bots' },
   chatPresence: { fn: async (_d, ctx: Ctx) => ({ available: await myChatAvailability(ctx.user!.id), agents: await availableAgents() }), perm: 'chat.view' },
   chatPresenceSet: { fn: async (d, ctx: Ctx) => { await setChatAvailability(ctx.user!.id, ctx.user!.name, !!d?.available); return { available: !!d?.available }; }, perm: 'chat.view' },
