@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { startTestDb } from './helpers/mongo';
 import { dispatch } from '../server/router';
 import { createUser, login } from '../server/core/auth';
-import { onUnitBookingChanged } from '../server/modules/partners';
+import { attributeFromSource, onUnitBookingChanged } from '../server/modules/partners';
 import { col } from '../server/core/db';
 import { CFG } from '../server/core/config';
 
@@ -74,6 +74,43 @@ describe('registration window (first CP keeps it)', () => {
     const r = await as(admin, 'checkCpRegistration', { phone: '9000000003' });
     expect(r.data).toMatchObject({ registered: true, partnerId: cp1, partnerName: 'Owner CP' });
     expect((await as(admin, 'checkCpRegistration', { phone: '9999999999' })).data.registered).toBe(false);
+  });
+});
+
+describe('webhook bridge (attributeFromSource)', () => {
+  it('auto-attributes an ingested lead to the source partner, but never steals one already registered', async () => {
+    const admin = await signIn('asha@cp.test');
+    const cp1 = (await as(admin, 'savePartner', { name: 'Webhook CP' })).data.id;
+    const cp2 = (await as(admin, 'savePartner', { name: 'Rival CP' })).data.id;
+    const partnerOf = async (id: string) => (await (await col<{ _id: string; channelPartnerId?: string }>(CFG.COLL.LEADS)).findOne({ _id: id }, { projection: { channelPartnerId: 1 } }))?.channelPartnerId || '';
+
+    await addLead('ENQ-W1', '9000000010');
+    expect(await attributeFromSource('ENQ-W1', cp1, 'Webhook')).toMatchObject({ attributed: true });
+    expect(await partnerOf('ENQ-W1')).toBe(cp1);
+
+    // a second enquiry on the same phone through a rival partner's webhook must NOT steal it
+    await addLead('ENQ-W2', '9000000010');
+    const blocked = await attributeFromSource('ENQ-W2', cp2, 'Webhook');
+    expect(blocked.attributed).toBe(false);
+    expect(blocked.reason).toContain('Webhook CP');
+    expect(await partnerOf('ENQ-W2')).toBe('');
+    // the same partner is fine
+    expect(await attributeFromSource('ENQ-W2', cp1, 'Webhook')).toMatchObject({ attributed: true });
+
+    // a suspended partner is not attributed
+    await as(admin, 'setPartnerStatus', { id: cp2, status: 'Suspended' });
+    await addLead('ENQ-W3', '9000000011');
+    expect((await attributeFromSource('ENQ-W3', cp2, 'Webhook')).attributed).toBe(false);
+  });
+
+  it('a webhook-attributed lead accrues commission when its unit books', async () => {
+    const admin = await signIn('asha@cp.test');
+    const cpId = (await as(admin, 'savePartner', { name: 'Feed CP', defaultRate: 2 })).data.id;
+    await addLead('ENQ-W4', '9000000012');
+    await attributeFromSource('ENQ-W4', cpId, 'Webhook');
+    await onUnitBookingChanged({ inventoryId: 'U-9', unitId: 'C-303', quotedAmount: 8_000_000, price: 8_000_000 }, 'ENQ-W4', 'book', 'Tester');
+    const comm = await as(admin, 'partnerCommissions', { cpId });
+    expect(comm.data.commissions[0]).toMatchObject({ status: 'accrued', amount: 160_000 });
   });
 });
 

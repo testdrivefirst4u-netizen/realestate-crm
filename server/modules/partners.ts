@@ -266,6 +266,39 @@ export async function attributeLead(d: any, ctx: Ctx): Promise<{ ok: true; leadI
   return { ok: true, leadId, partnerId: cpId };
 }
 
+/**
+ * Attribute a just-ingested lead to the partner that owns its lead source. Conflict-aware and NEVER throws — a webhook
+ * must never fail to create a lead. Returns whether it attributed, and why not. Honours first-CP-keeps-it: if the phone
+ * is already registered to a different partner within the window, the lead is left as-is (not stolen).
+ */
+export async function attributeFromSource(leadId: string, cpId: string, actor: string): Promise<{ attributed: boolean; reason: string }> {
+  try {
+    if (!leadId || !cpId) return { attributed: false, reason: 'missing lead or partner' };
+    const cp = await (await partners()).findOne({ _id: cpId });
+    if (!cp || cp.status === 'Suspended') return { attributed: false, reason: 'partner missing or suspended' };
+    const lead = await (await leads()).findOne({ _id: leadId }, { projection: { phone: 1, phoneLast10: 1 } });
+    if (!lead) return { attributed: false, reason: 'lead not found' };
+    const phone10 = lead.phoneLast10 || last10(lead.phone);
+    if (phone10) {
+      const conflict = await (await leads()).findOne(
+        { _id: { $ne: leadId }, phoneLast10: phone10, channelPartnerId: { $nin: ['', null] }, cpRegisteredAt: { $gte: windowStart() } } as any,
+        { projection: { channelPartnerId: 1 } },
+      );
+      if (conflict?.channelPartnerId && conflict.channelPartnerId !== cpId) {
+        const other = await (await partners()).findOne({ _id: conflict.channelPartnerId }, { projection: { name: 1 } });
+        await addTimeline(leadId, 'partner', 'Not attributed to the source partner', `This phone is already registered to ${other?.name || 'another partner'} (first-partner-keeps-it).`, actor, 'ChannelPartner', cpId);
+        return { attributed: false, reason: `already registered to ${other?.name || 'another partner'}` };
+      }
+    }
+    await (await leads()).updateOne({ _id: leadId }, { $set: { channelPartnerId: cpId, cpRegisteredAt: new Date(), subSource: cp.name } });
+    await addTimeline(leadId, 'partner', `Attributed to channel partner ${cp.name}`, cp.firm || '', actor, 'ChannelPartner', cpId);
+    return { attributed: true, reason: '' };
+  } catch (e) {
+    console.error('[partners] attributeFromSource failed', e);
+    return { attributed: false, reason: 'error' };
+  }
+}
+
 export async function unattributeLead(d: any, ctx: Ctx): Promise<{ ok: true }> {
   const leadId = str(d?.leadId);
   const lead = await (await leads()).findOne({ _id: leadId }, { projection: { channelPartnerId: 1 } });

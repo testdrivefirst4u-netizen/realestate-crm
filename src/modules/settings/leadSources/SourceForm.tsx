@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { AssignmentMode, DuplicateMode, LeadSource, LeadSourceConfig, LeadSourceType } from '../../../../server/core/leadSourceTypes';
 import type { GoogleConnection, GoogleStatus } from '../../../../server/core/sheetTypes';
+import { api } from '../../../core/api';
 import { Button, Select, cx, inputCls, labelCls } from '../../../components/ui';
 import { SheetImportFields } from '../sheets/SheetImportFields';
 import { useFeature } from '../../../core/tenant';
@@ -15,6 +16,8 @@ export interface SourceFormState {
   name: string;
   type: LeadSourceType;
   sourceLabel: string;
+  /** '' = not a channel-partner source; otherwise its leads auto-attribute to that partner. */
+  channelPartnerId: string;
   defaultStage: string;
   assignmentMode: AssignmentMode;
   rm: string;
@@ -29,7 +32,7 @@ export interface SourceFormState {
 export function emptyFormState(type: LeadSourceType = 'website'): SourceFormState {
   const c = defaultConfig(type);
   return {
-    name: '', type, sourceLabel: c.sourceLabel, defaultStage: c.defaultStage, assignmentMode: 'unassigned', rm: '', rms: [], duplicates: c.duplicates, origins: [], mapRows: [], sheet: emptySheetImportForm(),
+    name: '', type, sourceLabel: c.sourceLabel, channelPartnerId: '', defaultStage: c.defaultStage, assignmentMode: 'unassigned', rm: '', rms: [], duplicates: c.duplicates, origins: [], mapRows: [], sheet: emptySheetImportForm(),
   };
 }
 
@@ -37,7 +40,7 @@ export function formStateFromSource(s: LeadSource): SourceFormState {
   const c = { ...defaultConfig(s.type), ...(s.config || {}) } as LeadSourceConfig;
   const a = c.assignment || { mode: 'unassigned', rm: '', rms: [] };
   return {
-    name: s.name, type: s.type, sourceLabel: c.sourceLabel, defaultStage: c.defaultStage, assignmentMode: a.mode || 'unassigned', rm: a.rm || '', rms: a.rms || [],
+    name: s.name, type: s.type, sourceLabel: c.sourceLabel, channelPartnerId: c.channelPartnerId || '', defaultStage: c.defaultStage, assignmentMode: a.mode || 'unassigned', rm: a.rm || '', rms: a.rms || [],
     duplicates: c.duplicates || 'remark', origins: [...(c.allowedOrigins || [])], mapRows: fieldMapToRows(c.fieldMap),
     sheet: sheetImportFormFrom(c.sheet),
   };
@@ -63,6 +66,7 @@ export function formToRequest(f: SourceFormState): { name: string; type: LeadSou
     type: f.type,
     config: {
       sourceLabel: f.sourceLabel.trim() || defaultSourceLabel(f.type),
+      channelPartnerId: f.channelPartnerId || '',
       defaultStage: f.defaultStage || 'New',
       assignment: { mode: f.assignmentMode, rm: f.assignmentMode === 'fixed' ? f.rm : '', rms: f.assignmentMode === 'round_robin' ? f.rms : [] },
       duplicates: f.duplicates,
@@ -93,6 +97,12 @@ export const SourceForm: React.FC<{
   connections?: GoogleConnection[] | null;
 }> = ({ value: f, onChange, stageOptions, rmOptions, typeLocked, disabled, idPrefix, allowSheet, allowApi = true, google = null, connections = null }) => {
   const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
+  const [partners, setPartners] = useState<Array<{ id: string; name: string; status: string }>>([]);
+  useEffect(() => {
+    let live = true;
+    api.partners.list().then((r) => { if (live) setPartners(r.partners.map((p) => ({ id: p.id, name: p.name, status: p.status }))); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
   const isSheet = f.type === 'google_sheet';
   const googleAdsEnabled = useFeature('googleAdsLeads');
   const allowed = allowedTypeOptions({ apiEnabled: allowApi, sheetsEnabled: !!allowSheet, googleAdsEnabled });
@@ -119,6 +129,23 @@ export const SourceForm: React.FC<{
           <div className="text-[10px] text-[#7E93A6] mt-1">Written to “Enquiry Source” on each new lead.</div>
         </div>
       </div>
+
+      {(partners.length > 0 || f.channelPartnerId) && (
+        <div>
+          <label htmlFor={id('cp')} className={labelCls}>Channel partner (optional)</label>
+          <Select
+            id={id('cp')}
+            value={f.channelPartnerId}
+            onChange={(e) => set({ channelPartnerId: e.target.value })}
+            options={[
+              { value: '', label: '— Not a channel partner —' },
+              ...partners.map((p) => ({ value: p.id, label: p.status === 'Suspended' ? `${p.name} (suspended)` : p.name })),
+              ...(f.channelPartnerId && !partners.some((p) => p.id === f.channelPartnerId) ? [{ value: f.channelPartnerId, label: f.channelPartnerId }] : []),
+            ]}
+          />
+          <div className="text-[10px] text-[#7E93A6] mt-1">Leads from this source are attributed to this partner (first partner to register a phone keeps it) and accrue commission when they book.</div>
+        </div>
+      )}
 
       {typeOptions.length > 0 && (
       <div role="radiogroup" aria-label="Source type">

@@ -24,6 +24,9 @@ export type InboundStatus = 'created' | 'duplicate' | 'rejected' | 'failed';
 export interface LeadSourceConfig {
   /** Value written to "Enquiry Source" (default: 'Website' / 'Webhook'). */
   sourceLabel: string;
+  /** Channel partner (broker) this source belongs to: its leads are auto-attributed to that partner, honouring the
+   *  first-CP-keeps-it registration window, and accrue commission on booking. '' = not a partner source. */
+  channelPartnerId?: string;
   /** Lead Stage for new leads (default 'New'). */
   defaultStage: string;
   assignment: { mode: AssignmentMode; rm: string; rms: string[] };

@@ -19,7 +19,7 @@
 import type { ActionMap } from '../core/actions';
 import { auditLog, listUsers, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
-import { nextSeq } from '../core/db';
+import { col, nextSeq } from '../core/db';
 import { fail } from '../core/errors';
 import { currentTenant, requireTenant } from '../core/tenant';
 import { randomToken, sha256Hex, truncate } from '../core/utils';
@@ -55,6 +55,7 @@ const actorName = (ctx: Ctx | null) => (ctx?.user ? ctx.user.name + (ctx.user.em
 export function defaultConfig(type: LeadSourceType): LeadSourceConfig {
   return {
     sourceLabel: TYPE_LABEL[type] || 'Website',
+    channelPartnerId: '',
     defaultStage: CFG.STAGES.NEW,
     assignment: { mode: 'unassigned', rm: '', rms: [] },
     duplicates: 'remark',
@@ -131,6 +132,14 @@ export async function mergeConfig(base: LeadSourceConfig, patch: unknown): Promi
     const v = String(p.sourceLabel ?? '').trim();
     if (v.length > 60) throw fail('VALIDATION', 'Enquiry Source label is too long (max 60)');
     out.sourceLabel = v;
+  }
+  if (p.channelPartnerId !== undefined) {
+    const v = String(p.channelPartnerId ?? '').trim();
+    if (v) {
+      const cp = await (await col<{ _id: string }>(CFG.COLL.CHANNEL_PARTNERS)).findOne({ _id: v }, { projection: { _id: 1 } });
+      if (!cp) throw fail('VALIDATION', 'That channel partner no longer exists');
+    }
+    out.channelPartnerId = v;
   }
   if (p.defaultStage !== undefined) {
     const v = String(p.defaultStage ?? '').trim();

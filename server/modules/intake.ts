@@ -386,6 +386,7 @@ async function reEnquiry(source: SourceDoc, m: MappedLead, prev: UiLead): Promis
   if (rm) lead[L.RM] = rm;
   const first = String(prev[L.ENQUIRY_DATE] || prev[L.CREATED_AT] || '').slice(0, 10);
   const res = await addLead(lead, null, { actor: source.name, eventSource: 'website', allowDuplicate: true });
+  await attributeToSourcePartner(source, res.id);
   await addTimeline(res.id, 'lead_created', 'Re-enquiry', `Enquired before as ${prevId}${first ? ` on ${first}` : ''} (stage ${prev[L.STAGE] || 'New'}). That enquiry is kept in the history.`, source.name, 'Lead', res.id);
   await addTimeline(prevId, 'lead_reenquiry', 'Enquired again', `New enquiry ${res.id} via ${source.name}. This enquiry is kept as it was.`, source.name, 'Lead', prevId);
   await addEvent('lead_reenquiry', 'Lead', res.id, `Re-enquiry: ${m.lead[L.NAME] || res.id}`, truncate(`via ${source.name} · earlier enquiry ${prevId}`, 300), source.name, { source: 'website', sourceId: source._id });
@@ -395,6 +396,14 @@ async function reEnquiry(source: SourceDoc, m: MappedLead, prev: UiLead): Promis
   await alertReturning(res.id, lead, prev, rm, first, source.name, users);
   const notes = [`Re-enquiry of ${prevId}`, ...m.warnings, warning].filter(Boolean).join('; ');
   return { status: 'created', leadId: res.id, duplicate: true, message: truncate(notes, 500) };
+}
+
+/** If the source belongs to a channel partner, attribute the new lead to it (never throws). Returns a short note or ''. */
+async function attributeToSourcePartner(source: SourceDoc, leadId: string): Promise<string> {
+  const cpId = String(source.config?.channelPartnerId || '').trim();
+  if (!cpId || !leadId) return '';
+  const r = await (await import('./partners')).attributeFromSource(leadId, cpId, source.name);
+  return r.attributed ? '' : `channel partner not attributed (${r.reason})`;
 }
 
 /** Turn fields into a lead (or a duplicate remark). Never throws: failures come back as status 'failed'. */
@@ -430,7 +439,8 @@ async function processFields(source: SourceDoc, raw: Record<string, unknown>): P
     const at = source.type === 'meta' ? new Date(String(raw._created_time || '')) : null;
     if (at && !isNaN(at.getTime()) && at.getTime() <= Date.now() + 60_000) lead[L.ENQUIRY_DATE] = at.toISOString();
     const res = await addLead(lead, null, { actor: source.name, eventSource: 'website', allowDuplicate: true });
-    const notes = [...m.warnings, warning].filter(Boolean).join('; ');
+    const cpNote = await attributeToSourcePartner(source, res.id);
+    const notes = [...m.warnings, warning, cpNote].filter(Boolean).join('; ');
     return { status: 'created', leadId: res.id, duplicate: false, message: truncate(notes, 500) };
   } catch (e: any) {
     if (e instanceof ApiError && e.code === 'VALIDATION') return { status: 'rejected', leadId: '', duplicate: false, message: truncate(e.message, 300) };

@@ -86,6 +86,7 @@ export function defaultSourceLabel(type: LeadSourceType): string {
 export function defaultConfig(type: LeadSourceType): LeadSourceConfig {
   return {
     sourceLabel: defaultSourceLabel(type),
+    channelPartnerId: '',
     defaultStage: 'New',
     assignment: { mode: 'unassigned', rm: '', rms: [] },
     duplicates: 'remark',
