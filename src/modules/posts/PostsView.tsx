@@ -6,7 +6,7 @@
  * be changed for a post on one Facebook Page. A new picture means a new post ("Post again").
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, Facebook, FileText, Images, Linkedin, Pencil, Plus, RefreshCw, RotateCcw, Search, Send, Store, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, ExternalLink, Facebook, FileText, Images, Instagram, Linkedin, Pencil, Plus, RefreshCw, RotateCcw, Search, Send, Store, Trash2 } from 'lucide-react';
 import { api, type InsightValue, type PostTargetOption, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
@@ -71,22 +71,57 @@ const Accounts: React.FC<{ post: SocialPost }> = ({ post }) => (
   </div>
 );
 
-/** A post on the calendar; a scheduled one can be dragged to another day. */
-const PlannerCard: React.FC<{ post: SocialPost; large: boolean; onOpen: () => void }> = ({ post: p, large, onOpen }) => (
-  <button type="button" draggable={p.status === 'scheduled'} onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }} onClick={onOpen}
-    title={`${STATUS[p.status].label}: ${p.text}`} className={cx('block w-full rounded border p-1 text-left hover:brightness-95', CHIP[p.status], p.status === 'scheduled' && 'cursor-grab active:cursor-grabbing')}>
-    {large && p.imageUrl && <img src={p.imageUrl} alt="" loading="lazy" draggable={false} className="mb-1 aspect-square w-full rounded object-cover" />}
-    <span className="flex items-center gap-1.5">
-      {!large && p.imageUrl && <img src={p.imageUrl} alt="" loading="lazy" draggable={false} className="h-6 w-6 flex-none rounded object-cover" />}
-      <span className="min-w-0 flex-1">
-        <span className="block text-[10px] font-semibold text-[#44505C]">{timeOf(postDate(p))}{p.postType !== 'post' ? ` · ${p.postType[0].toUpperCase()}${p.postType.slice(1)}` : ''}{large ? ` · ${STATUS[p.status].label}` : ''}</span>
-        <span className={cx('block text-[11px] text-[#1C2B33]', large ? 'line-clamp-3 whitespace-pre-wrap break-words' : 'truncate')}>{p.text || 'No text'}</span>
+/** Status word colour, matching the card's tinted background. */
+const TONE_TEXT: Record<SocialPost['status'], string> = {
+  draft: 'text-[#65676B]', scheduled: 'text-[#0B3D91]', publishing: 'text-[#9A3412]', published: 'text-[#067647]', partial: 'text-[#9A3412]', failed: 'text-[#B42318]', deleted: 'text-[#8A98A5]',
+};
+/** A round platform badge, as Meta Business Suite shows on each planner thumbnail. */
+const PlatBadge: React.FC<{ kind: SocialPost['targets'][number]['kind']; size?: number; className?: string }> = ({ kind, size = 11, className }) => {
+  const Icon = kind === 'facebook' ? Facebook : kind === 'instagram' ? Instagram : kind === 'linkedin' ? Linkedin : kind === 'google' ? Store : null;
+  return <span className={cx('flex items-center justify-center rounded-full text-white', KIND[kind].cls, className)}>{Icon ? <Icon size={size} /> : <span className="text-[9px] font-bold">{KIND[kind].label[0]}</span>}</span>;
+};
+
+/** A post on the calendar; a scheduled one can be dragged to another day. The week view uses a Business-Suite-style card. */
+const PlannerCard: React.FC<{ post: SocialPost; large: boolean; onOpen: () => void }> = ({ post: p, large, onOpen }) => {
+  const drag = {
+    draggable: p.status === 'scheduled',
+    onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; },
+  };
+  const typeLabel = p.postType !== 'post' ? ` · ${p.postType[0].toUpperCase()}${p.postType.slice(1)}` : '';
+  if (!large) {
+    return (
+      <button type="button" {...drag} onClick={onOpen} title={`${STATUS[p.status].label}: ${p.text}`}
+        className={cx('block w-full rounded border p-1 text-left hover:brightness-95', CHIP[p.status], p.status === 'scheduled' && 'cursor-grab active:cursor-grabbing')}>
+        <span className="flex items-center gap-1.5">
+          {p.imageUrl && <img src={p.imageUrl} alt="" loading="lazy" draggable={false} className="h-6 w-6 flex-none rounded object-cover" />}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-semibold text-[#44505C]">{timeOf(postDate(p))}{typeLabel}</span>
+            <span className="block truncate text-[11px] text-[#1C2B33]">{p.text || 'No text'}</span>
+          </span>
+          <span className="flex flex-none -space-x-1">{p.targets.slice(0, 3).map((t) => <span key={t.key} title={t.name} className={cx('h-2.5 w-2.5 rounded-full ring-1 ring-white', KIND[t.kind].cls)} />)}</span>
+        </span>
+      </button>
+    );
+  }
+  return (
+    <button type="button" {...drag} onClick={onOpen} title={`${STATUS[p.status].label}: ${p.text}`}
+      className={cx('block w-full overflow-hidden rounded-lg border p-2 text-left hover:brightness-[0.98]', CHIP[p.status], p.status === 'scheduled' && 'cursor-grab active:cursor-grabbing')}>
+      <span className="flex items-center gap-1 text-[11px] font-semibold text-[#44505C]"><Clock size={11} className="flex-none" />{timeOf(postDate(p))}{typeLabel}</span>
+      {p.imageUrl ? (
+        <span className="relative mt-1.5 block">
+          <img src={p.imageUrl} alt="" loading="lazy" draggable={false} className="aspect-video w-full rounded object-cover" />
+          {p.targets[0] && <PlatBadge kind={p.targets[0].kind} className="absolute bottom-1 right-1 h-5 w-5 ring-2 ring-white" />}
+        </span>
+      ) : (
+        <span className="mt-1.5 line-clamp-4 block whitespace-pre-wrap break-words rounded bg-white/50 p-1.5 text-[11px] text-[#1C2B33]">{p.text || 'No text'}</span>
+      )}
+      <span className="mt-1.5 flex items-center gap-1.5">
+        <span className="flex flex-none -space-x-1">{p.targets.slice(0, 3).map((t) => <span key={t.key} title={t.name} className={cx('h-3 w-3 rounded-full ring-1 ring-white', KIND[t.kind].cls)} />)}</span>
+        <span className={cx('truncate text-[11px] font-semibold', TONE_TEXT[p.status])}>{STATUS[p.status].label}</span>
       </span>
-      {!large && <span className="flex flex-none -space-x-1">{p.targets.slice(0, 3).map((t) => <span key={t.key} title={t.name} className={cx('h-2.5 w-2.5 rounded-full ring-1 ring-white', KIND[t.kind].cls)} />)}</span>}
-    </span>
-    {large && <span className="mt-1 flex flex-wrap gap-1">{p.targets.slice(0, 4).map((t) => <span key={t.key} className="inline-flex items-center gap-1 text-[10px] text-[#44505C]"><span className={cx('h-2 w-2 rounded-full', KIND[t.kind].cls)} />{KIND[t.kind].label}</span>)}</span>}
-  </button>
-);
+    </button>
+  );
+};
 
 export const PostsView: React.FC = () => {
   const [tab, setTab] = useState<Tab>('calendar');
@@ -345,8 +380,13 @@ export const PostsView: React.FC = () => {
             </div>
             <div className="overflow-x-auto">
               <div className="min-w-[760px]">
-                <div className="grid grid-cols-7 border-b border-[#DADDE1] bg-[#F5F6F7]">
-                  {WEEKDAYS.map((d) => <div key={d} className="px-2 py-1.5 text-[11px] font-semibold text-[#44505C]">{d}</div>)}
+                <div className="grid grid-cols-7 overflow-hidden border-b border-[#DADDE1] bg-[#F5F6F7]">
+                  {calendarView === 'week'
+                    ? grid.map((d) => {
+                        const isToday = sameDay(d, today);
+                        return <div key={d.toISOString()} className={cx('px-2 py-2 text-center text-[13px] font-semibold', isToday ? 'bg-[#0866FF] text-white' : 'text-[#44505C]')}>{WEEKDAYS[d.getDay()]} {d.getDate()}</div>;
+                      })
+                    : WEEKDAYS.map((d) => <div key={d} className="px-2 py-1.5 text-[11px] font-semibold text-[#44505C]">{d}</div>)}
                 </div>
                 <div className="grid grid-cols-7">
                   {grid.map((d) => {
@@ -361,7 +401,9 @@ export const PostsView: React.FC = () => {
                         onDragLeave={() => setDropDay((v) => (v === key ? '' : v))}
                         onDrop={(e) => { e.preventDefault(); setDropDay(''); void moveTo(e.dataTransfer.getData('text/plain'), d); }}>
                         <div className="mb-1 flex items-center justify-between">
-                          <span className={cx('flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-[#0866FF] font-bold text-white' : inRange ? 'text-[#1C2B33]' : 'text-[#A7B4C0]')}>{d.getDate()}</span>
+                          {calendarView === 'month'
+                            ? <span className={cx('flex h-6 w-6 items-center justify-center rounded-full text-xs', isToday ? 'bg-[#0866FF] font-bold text-white' : inRange ? 'text-[#1C2B33]' : 'text-[#A7B4C0]')}>{d.getDate()}</span>
+                            : <span />}
                           {!past && targets.length > 0 && <button type="button" aria-label={`Create a post on ${d.toDateString()}`} onClick={() => newOn(d)} className="flex h-6 w-6 items-center justify-center rounded text-[#65676B] opacity-0 hover:bg-[#F0F2F5] focus:opacity-100 group-hover:opacity-100"><Plus size={14} /></button>}
                         </div>
                         <div className="space-y-1">

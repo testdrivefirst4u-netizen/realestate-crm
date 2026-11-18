@@ -4,7 +4,7 @@
  * schedules, or saves a draft; also edits a draft or a scheduled post.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, Film, Globe2, Hash, Heart, ImagePlus, MessageCircle, Send, Share2, Smile, ThumbsUp, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronDown, ChevronLeft, ChevronRight, Facebook, Film, Globe2, Hash, Heart, ImagePlus, Instagram, Linkedin, MessageCircle, Send, Share2, Smile, Store, ThumbsUp, Trash2, X } from 'lucide-react';
 import { api, type PostTargetKind, type PostTargetOption, type PostType, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Button, cx, inputCls } from '../../components/ui';
@@ -33,8 +33,44 @@ const readBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   r.onerror = () => reject(new Error('Could not read the image'));
   r.readAsDataURL(file);
 });
+
+/**
+ * Instagram's publishing API only accepts JPEG, so a PNG post fails on Instagram (Facebook accepts both). Convert any PNG
+ * to JPEG in the browser before upload — transparency is flattened onto white — so every post image works everywhere.
+ */
+const toUpload = (file: File): Promise<{ name: string; mime: string; base64: string }> => new Promise((resolve, reject) => {
+  if (file.type !== 'image/png') { readBase64(file).then((base64) => resolve({ name: file.name, mime: file.type, base64 })).catch(reject); return; }
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      const g = canvas.getContext('2d');
+      if (!g) throw new Error('no canvas');
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, canvas.width, canvas.height);
+      g.drawImage(img, 0, 0);
+      const base64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1] || '';
+      URL.revokeObjectURL(url);
+      resolve({ name: file.name.replace(/\.png$/i, '.jpg'), mime: 'image/jpeg', base64 });
+    } catch (e) { URL.revokeObjectURL(url); reject(e instanceof Error ? e : new Error('Could not convert the image')); }
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read the image')); };
+  img.src = url;
+});
 const section = 'rounded-lg border border-[#DADDE1] bg-white p-4';
 const heading = 'text-[15px] font-bold text-[#1C2B33]';
+/** How the "Post to" dropdown groups connected accounts, Meta Business Suite style. */
+const POST_TO_GROUPS: Array<{ kinds: PostTargetKind[]; label: string }> = [
+  { kinds: ['facebook', 'instagram'], label: 'Facebook & Instagram' },
+  { kinds: ['google'], label: 'Google Business Profile' },
+  { kinds: ['linkedin'], label: 'LinkedIn' },
+  { kinds: ['pinterest'], label: 'Pinterest' },
+];
+const PostToIcon: React.FC<{ kind: PostTargetKind }> = ({ kind }) => {
+  const Icon = kind === 'facebook' ? Facebook : kind === 'instagram' ? Instagram : kind === 'linkedin' ? Linkedin : kind === 'google' ? Store : null;
+  return <span className={cx('flex h-6 w-6 flex-none items-center justify-center rounded-full text-white', KIND[kind].cls)}>{Icon ? <Icon size={13} /> : <span className="text-[10px] font-bold">{KIND[kind].label[0]}</span>}</span>;
+};
 const STEPS = [{ n: 1, label: 'Accounts', hint: 'Where & what' }, { n: 2, label: 'Content', hint: 'Media & caption' }, { n: 3, label: 'Schedule', hint: 'When it goes out' }, { n: 4, label: 'Review', hint: 'Check & publish' }] as const;
 const hostOf = (link: string) => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } };
 
@@ -152,14 +188,24 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
   const [previewKey, setPreviewKey] = useState('');
   const [busy, setBusy] = useState('');
   const [step, setStep] = useState(1);
+  const [postToOpen, setPostToOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const postToRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // the "Post to" dropdown closes when you click away from it
+  useEffect(() => {
+    if (!postToOpen) return;
+    const onDown = (e: MouseEvent) => { if (postToRef.current && !postToRef.current.contains(e.target as Node)) setPostToOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [postToOpen]);
 
   const typeDef = TYPES.find((t) => t.id === postType)!;
   const allowed = (k: PostTargetKind) => !typeDef.kinds || typeDef.kinds.includes(k);
@@ -237,8 +283,10 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
     try {
       for (const f of files.slice(0, Math.max(room, 0))) {
         if (!/^image\/(jpeg|png)$/.test(f.type)) { toast('Use JPG or PNG images', f.name, 'alert'); continue; }
-        if (f.size > 3 * 1024 * 1024) { toast('A photo is larger than 3 MB', f.name, 'alert'); continue; }
-        const up = await api.posts.uploadImage({ name: f.name, mime: f.type, base64: await readBase64(f) });
+        let payload: { name: string; mime: string; base64: string };
+        try { payload = await toUpload(f); } catch { toast('Could not read the image', f.name, 'alert'); continue; }
+        if (Math.ceil((payload.base64.length * 3) / 4) > 3 * 1024 * 1024) { toast('A photo is larger than 3 MB', `${f.name} — use a smaller image`, 'alert'); continue; }
+        const up = await api.posts.uploadImage(payload);
         setImages((v) => [...v, up]);
       }
     } catch (e) {
@@ -319,17 +367,44 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
 
           <section className={section}>
             <h3 className={heading}>Post to</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {targets.filter((t) => allowed(t.kind)).map((t) => {
-                const on = chosen.includes(t.key);
-                return (
-                  <button key={t.key} type="button" aria-pressed={on} onClick={() => setChosen((c) => (on ? c.filter((k) => k !== t.key) : [...c, t.key]))}
-                    className={cx('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold', on ? 'border-[#0866FF] bg-[#E7F0FF] text-[#0B3D91]' : 'border-[#CED0D4] bg-white text-[#44505C] hover:bg-[#F5F6F7]')}>
-                    <span className={cx('h-2.5 w-2.5 rounded-full', KIND[t.kind].cls)} />{KIND[t.kind].label} · {t.name}
-                  </button>
-                );
-              })}
+            <div ref={postToRef} className="relative mt-3">
+              <button type="button" aria-haspopup="listbox" aria-expanded={postToOpen} onClick={() => setPostToOpen((v) => !v)}
+                className={cx('flex w-full items-center gap-2 rounded-lg border bg-white px-3 py-2.5 text-left', postToOpen ? 'border-[#0866FF] ring-2 ring-[#0866FF]/20' : 'border-[#CED0D4] hover:border-[#0866FF]')}>
+                {picked.length === 0
+                  ? <span className="flex-1 text-sm text-[#8798AB]">Choose where to post</span>
+                  : <span className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="flex flex-none -space-x-1.5">{picked.slice(0, 3).map((t) => <span key={t.key} className="rounded-full ring-2 ring-white"><PostToIcon kind={t.kind} /></span>)}</span>
+                      <span className="truncate text-sm font-medium text-[#1C2B33]">{picked.map((t) => t.name).join(', ')}</span>
+                    </span>}
+                <ChevronDown size={18} className={cx('flex-none text-[#65676B] transition-transform', postToOpen && 'rotate-180')} />
+              </button>
+              {postToOpen && (
+                <div role="listbox" aria-label="Accounts to post to" className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-[320px] overflow-y-auto rounded-xl border border-[#DADDE1] bg-white p-1.5 shadow-[0_8px_28px_rgba(16,40,64,0.16)]">
+                  {!targets.some((t) => allowed(t.kind)) && <p className="px-2 py-3 text-xs text-[#65676B]">No connected account can receive a {typeDef.label.toLowerCase()}. Connect one, or choose a different type.</p>}
+                  {POST_TO_GROUPS.map((g) => {
+                    const rows = targets.filter((t) => allowed(t.kind) && g.kinds.includes(t.kind));
+                    if (!rows.length) return null;
+                    return (
+                      <div key={g.label} className="mb-1 last:mb-0">
+                        <p className="px-2 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-[#8798AB]">{g.label}</p>
+                        {rows.map((t) => {
+                          const on = chosen.includes(t.key);
+                          return (
+                            <button key={t.key} type="button" role="option" aria-selected={on} onClick={() => setChosen((c) => (on ? c.filter((k) => k !== t.key) : [...c, t.key]))}
+                              className={cx('flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left', on ? 'bg-[#E7F0FF]' : 'hover:bg-[#F5F6F7]')}>
+                              <span className={cx('flex h-5 w-5 flex-none items-center justify-center rounded-[5px] border', on ? 'border-[#0866FF] bg-[#0866FF] text-white' : 'border-[#BCC0C4] bg-white')}>{on && <Check size={13} />}</span>
+                              <PostToIcon kind={t.kind} />
+                              <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium text-[#1C2B33]">{t.name}</span><span className="block text-[11px] text-[#65676B]">{KIND[t.kind].label}</span></span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+            {picked.length > 0 && <p className="mt-2 text-[11px] text-[#65676B]">Posting to {picked.length} {picked.length === 1 ? 'account' : 'accounts'}. Tick as many as you like.</p>}
           </section>
           </>)}
 
