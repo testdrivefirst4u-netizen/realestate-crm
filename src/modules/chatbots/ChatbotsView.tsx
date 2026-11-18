@@ -1,6 +1,6 @@
 /** WhatsApp chatbots (plan feature whatsappBots; server: modules/whatsappBots.ts): build from blocks, try it in a test chat, start it, see how it does. */
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarCheck, CheckCircle2, Clock, Copy, Facebook, Globe, HelpCircle, Instagram, MessageSquare, Pause, Pencil, Play, Plus, Search, Send, Trash2, Upload, UserRound } from 'lucide-react';
+import { Bot, CalendarCheck, CheckCircle2, Clock, Copy, Facebook, Globe, HelpCircle, Instagram, MessageSquare, Pause, Pencil, Play, Plus, Search, Send, Star, Trash2, Upload, UserRound } from 'lucide-react';
 import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
 import { BOT_CHANNELS, BOT_CHANNEL_LABEL, type BotChannel } from '../../core/botEngine';
 import { WhatsAppIcon } from '../../components/WhatsAppIcon';
@@ -34,9 +34,32 @@ const starterSteps = (): BotStepView[] => [
   { ...blank('handoff'), text: 'Your visit is noted for {visit}. Our team will call you to confirm. Thank you!' },
 ];
 
+/** A Google review funnel: rate first; happy customers get the review link, unhappy ones go to the team (not to Google). */
+const reviewSteps = (): BotStepView[] => {
+  const intro = newId('s'), ask = newId('s'), happy = newId('s'), done = newId('s'), sorry = newId('s');
+  return [
+    { ...blank('message'), id: intro, text: 'Hi {first_name}! Thanks for choosing {company}. 🙏 Could you spare 20 seconds to share your experience?', next: ask },
+    { ...blank('choice'), id: ask, text: 'How was your experience with us?', options: [
+      { id: newId('o'), label: '⭐ Great', next: happy },
+      { id: newId('o'), label: '😕 Could be better', next: sorry },
+    ] },
+    { ...blank('message'), id: happy, text: 'Wonderful! 🌟 A quick Google review helps other families find us:\n\n👉 PASTE YOUR GOOGLE REVIEW LINK HERE\n\nThank you so much!', next: done },
+    { ...blank('end'), id: done, text: '' },
+    { ...blank('handoff'), id: sorry, text: 'We’re sorry it wasn’t great. Our team will reach out personally to make it right — thank you for telling us.' },
+  ];
+};
+
+interface Template { id: string; name: string; desc: string; keywords: string; trigger: BotDraft['trigger']; steps: () => BotStepView[] }
+const TEMPLATES: Template[] = [
+  { id: 'enquiry', name: 'Property enquiry', desc: 'Greets the customer, captures their name and interest, offers a site visit, then hands off to your team.', keywords: '', trigger: 'new', steps: starterSteps },
+  { id: 'reviews', name: 'Collect Google reviews', desc: 'Asks for a rating; sends happy customers your Google review link and routes unhappy ones to your team instead of to Google.', keywords: 'review, feedback', trigger: 'keyword', steps: reviewSteps },
+  { id: 'blank', name: 'Start from scratch', desc: 'An empty bot with one welcome message — build the flow your own way.', keywords: '', trigger: 'new', steps: () => [{ ...blank('message'), text: 'Hello! Thanks for contacting {company}.' }] },
+];
+
 type Draft = BotDraft;
 const toDraft = (b: BotView): Draft => ({ id: b.id, name: b.name, trigger: b.trigger, keywords: b.keywords.join(', '), channels: b.channels, steps: b.steps, knowledge: b.knowledge });
-const newDraft = (): Draft => ({ name: 'Property enquiry', trigger: 'new', keywords: '', channels: [...BOT_CHANNELS], steps: starterSteps(), knowledge: '' });
+const draftFromTemplate = (t: Template): Draft => ({ name: t.name, trigger: t.trigger, keywords: t.keywords, channels: [...BOT_CHANNELS], steps: t.steps(), knowledge: '' });
+const newDraft = (): Draft => draftFromTemplate(TEMPLATES[0]);
 
 /* ----------------------------- import / export ---------------------------- */
 const TYPES = ['message', 'question', 'choice', 'visit', 'ai', 'handoff', 'end'];
@@ -170,6 +193,7 @@ export const ChatbotsView: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [page, setPage] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState(false);
   const copyId = (id: string) => { navigator.clipboard?.writeText(id).then(() => toast('Copied', 'Bot ID copied', 'success')).catch(() => undefined); };
   const doImport = () => {
     try {
@@ -243,14 +267,14 @@ export const ChatbotsView: React.FC = () => {
           <Select value={filter} onChange={(e) => { setFilter(e.target.value as typeof filter); setPage(0); }} aria-label="Filter by status" className="w-[120px]"
             options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
           <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setJson({ mode: 'import', text: '' })}>Import JSON</Button>
-          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New bot</Button>
+          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setChoosing(true)}>New bot</Button>
         </div>
       </div>
       {!data.connected && <InlineNotice tone="warning">Connect a WhatsApp number in Settings › WhatsApp direct to start a bot. You can still build and test one now.</InlineNotice>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {curPage === 0 && !q && filter === 'all' && (
-          <button type="button" onClick={() => setEditing(newDraft())} className="group flex min-h-[214px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#BBD3E6] bg-[#F3F8FC] text-[#0B6BB0] transition hover:border-[#0B6BB0] hover:bg-[#EAF3FB]">
+          <button type="button" onClick={() => setChoosing(true)} className="group flex min-h-[214px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#BBD3E6] bg-[#F3F8FC] text-[#0B6BB0] transition hover:border-[#0B6BB0] hover:bg-[#EAF3FB]">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0B6BB0] text-white shadow-sm transition group-hover:scale-105"><Plus size={26} /></span>
             <span className="text-base font-semibold">Create a New Bot</span>
           </button>
@@ -336,6 +360,18 @@ export const ChatbotsView: React.FC = () => {
           </Modal>
         );
       })()}
+
+      <Modal open={choosing} onClose={() => setChoosing(false)} width="md" title="Start a new chatbot" subtitle="Pick a template to begin — you can change everything after.">
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {TEMPLATES.map((t) => (
+            <button key={t.id} type="button" onClick={() => { setChoosing(false); setEditing(draftFromTemplate(t)); }} className="flex flex-col items-start gap-1.5 rounded-xl border border-[#E2ECF3] bg-white p-4 text-left transition hover:border-[#0B6BB0] hover:bg-[#F5FAFE]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#EAF2FC] text-[#0B6BB0]">{t.id === 'reviews' ? <Star size={18} /> : t.id === 'blank' ? <Plus size={18} /> : <Bot size={18} />}</span>
+              <b className="text-[14px] font-bold text-[#0B2A44]">{t.name}</b>
+              <span className="text-xs text-[#5E778C]">{t.desc}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
 
       {editing && <Suspense fallback={<LoadingState label="Opening the map" />}><BotFlowEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} /></Suspense>}
       {testing && <TestChat bot={testing} onClose={() => { setTesting(null); void load(); }} onDone={() => undefined} />}
