@@ -76,21 +76,26 @@ const loadDoc = async () => (await docCol()).findOne({ _id: 'google' });
 const by = (ctx: Ctx | null) => ctx?.user?.name || 'System';
 
 export const googleMktRedirect = (params: Record<string, string>) => `${appUrl()}/settings?${new URLSearchParams({ section: 'google', ...params }).toString()}`;
+/** Where the browser returns after a connect started from a feature page; only short server-known keys are trusted. */
+export const googleMktReturn = (returnKey: string | undefined, params: Record<string, string>) =>
+  returnKey === 'businessprofile' ? `${appUrl()}/businessprofile?${new URLSearchParams(params).toString()}` : googleMktRedirect(params);
 
 /** Which plan features use this connection. */
 export const usesGoogleMarketing = (f: Record<string, boolean>) => !!(f.googleConversions || f.googleAdsSpend || f.socialInbox || f.socialPosts || f.adsControl || f.websiteAnalytics || f.businessProfile);
 
 /* -------------------------------- connect -------------------------------- */
 
-export async function startGoogleMktConnect(input: { sessionCookie: string; nowMs?: number }): Promise<{ redirect: string; nonce?: string }> {
+export async function startGoogleMktConnect(input: { sessionCookie: string; nowMs?: number; returnKey?: string }): Promise<{ redirect: string; nonce?: string }> {
+  const r = input.returnKey === 'businessprofile' ? 'businessprofile' : undefined;
+  const back = (params: Record<string, string>) => googleMktReturn(r, params);
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'integrations.connect')) return { redirect: googleMktRedirect({ gmktError: 'Only an administrator can connect Google.' }) };
-  if (!usesGoogleMarketing(sess.tenant.features as any)) return { redirect: googleMktRedirect({ gmktError: "Google marketing features are not included in your company's plan." }) };
+  if (!can(sess.user, 'integrations.connect')) return { redirect: back({ gmktError: 'Only an administrator can connect Google.' }) };
+  if (!usesGoogleMarketing(sess.tenant.features as any)) return { redirect: back({ gmktError: "Google marketing features are not included in your company's plan." }) };
   const client = await loadOAuthClient();
-  if (!client) return { redirect: googleMktRedirect({ gmktError: '"Connect with Google" is not set up on this platform yet (Super admin › Settings › Google).' }) };
+  if (!client) return { redirect: back({ gmktError: '"Connect with Google" is not set up on this platform yet (Super admin › Settings › Google).' }) };
   const nonce = randomToken(16);
-  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S }, GMKT_PURPOSE);
+  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S, ...(r ? { r } : {}) }, GMKT_PURPOSE);
   const q = new URLSearchParams({
     client_id: client.clientId, redirect_uri: googleRedirectUri(), response_type: 'code',
     scope: `openid email ${ADWORDS_SCOPE} ${BUSINESS_SCOPE} ${ANALYTICS_SCOPE}`, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state,
@@ -118,9 +123,11 @@ export async function finishGoogleMktConnect(input: { params: URLSearchParams; s
   if (error) return err(error === 'access_denied' ? 'Google sign-in was cancelled.' : `Google sign-in failed: ${p.get('error_description') || error}`);
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, GMKT_PURPOSE);
   if (!v.ok) return err('The Google sign-in could not be verified (it expired or was started in another session). Please try again.');
-  if (!can(sess.user, 'integrations.connect') || !usesGoogleMarketing(sess.tenant.features as any)) return err('You cannot connect Google here.');
+  const r = (v.state as { r?: string }).r === 'businessprofile' ? 'businessprofile' : undefined;
+  const back = (m: string) => ({ redirect: googleMktReturn(r, { gmktError: truncate(m, 300) }) });
+  if (!can(sess.user, 'integrations.connect') || !usesGoogleMarketing(sess.tenant.features as any)) return back('You cannot connect Google here.');
   const code = p.get('code') || '';
-  if (!code) return err('Google did not return an authorisation code. Please try again.');
+  if (!code) return back('Google did not return an authorisation code. Please try again.');
   const ctx: Ctx = { user: sess.user, session: null, token: '', userAgent: '', ip: '', action: 'googleMktConnect' };
   try {
     await runWithTenant(sess.tenant, async () => {
@@ -144,10 +151,10 @@ export async function finishGoogleMktConnect(input: { params: URLSearchParams; s
       await auditLog(ctx, 'Google Marketing Connected', 'Settings', 'google', email);
       await refreshGoogleAssets(); // best effort: ad accounts and Business Profile locations
     });
-    return { redirect: googleMktRedirect({ gmktConnected: '1' }) };
+    return { redirect: googleMktReturn(r, { gmktConnected: '1' }) };
   } catch (e: any) {
     if (!(e instanceof ApiError)) console.error('[google-mkt:callback]', e?.message);
-    return err(e instanceof ApiError ? e.message : 'Something went wrong while connecting Google. Please try again.');
+    return back(e instanceof ApiError ? e.message : 'Something went wrong while connecting Google. Please try again.');
   }
 }
 

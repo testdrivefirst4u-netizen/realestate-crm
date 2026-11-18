@@ -75,6 +75,32 @@ const SessionsChart: React.FC<{ daily: BotAnalyticsData['daily'] }> = ({ daily }
   );
 };
 
+/* ------------------------------------ conversation funnel ----------------------------------- */
+const Funnel: React.FC<{ f: BotAnalyticsData['funnel'] }> = ({ f }) => {
+  const rows = [
+    { label: 'Started', value: f.started, color: '#0B6BB0' },
+    { label: 'Got an answer', value: f.answered, color: '#0E8A86' },
+    { label: 'Finished the flow', value: f.finished, color: '#16A34A' },
+    { label: 'Handed to an agent', value: f.handedOff, color: '#B7791F' },
+    { label: 'Stopped early', value: f.stopped, color: '#B06A55' },
+  ];
+  const base = Math.max(1, f.started);
+  if (!f.started) return <div className="flex h-40 items-center justify-center text-sm text-[#7E93A6]">No sessions in this period.</div>;
+  return (
+    <ul className="space-y-3">
+      {rows.map((r) => (
+        <li key={r.label}>
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-[#44505C]">{r.label}</span>
+            <span className="text-[#7E93A6]">{nf(r.value)} · {Math.round((r.value / base) * 100)}%</span>
+          </div>
+          <div className="mt-1 h-2.5 rounded-full bg-[#EEF3F7]"><div className="h-2.5 rounded-full" style={{ width: `${Math.max(2, (r.value / base) * 100)}%`, background: r.color }} /></div>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 /* ---------------------------------- channel mix donut --------------------------------- */
 const ChannelDonut: React.FC<{ channels: BotAnalyticsData['channels']; total: number }> = ({ channels, total }) => {
   const parts = ORDER.map((ch) => ({ ch, value: channels.find((c) => c.channel === ch)?.sessions || 0 })).filter((p) => p.value > 0);
@@ -151,6 +177,7 @@ export const BotAnalyticsView: React.FC = () => {
       { label: 'Active now', value: nf(k.activeNow), tone: 'sage' as const },
       { label: 'Unique users', value: nf(k.uniqueUsers), trend: { value: pct(k.uniqueUsers, p.uniqueUsers) } },
       { label: 'Repeat users', value: nf(k.repeatUsers) },
+      { label: 'Leads created', value: nf(k.leads), tone: 'sage' as const, hint: `${k.leadRate}% of sessions`, trend: { value: pct(k.leads, p.leads) } },
       { label: 'Handoffs', value: nf(k.handoffs), trend: { value: pct(k.handoffs, p.handoffs) } },
       { label: 'Handoff rate', value: `${k.handoffRate}%` },
       { label: 'Avg session', value: fmtDur(k.avgSessionSec), trend: { value: pct(k.avgSessionSec, p.avgSessionSec) } },
@@ -204,7 +231,7 @@ export const BotAnalyticsView: React.FC = () => {
       {!data ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-            {kpis.map((c) => <KpiTile key={c.label} label={c.label} value={c.value} tone={(c as { tone?: 'gold' | 'sage' }).tone} trend={(c as { trend?: { value: number | null } }).trend} compact />)}
+            {kpis.map((c) => <KpiTile key={c.label} label={c.label} value={c.value} tone={(c as { tone?: 'gold' | 'sage' }).tone} hint={(c as { hint?: React.ReactNode }).hint} trend={(c as { trend?: { value: number | null } }).trend} compact />)}
             {!botId && <KpiTile label="WhatsApp live msgs" value={nf(data.waLive.inbound + data.waLive.outbound)} hint={`${nf(data.waLive.inbound)} in · ${nf(data.waLive.outbound)} out · live chat`} compact />}
           </div>
 
@@ -217,13 +244,17 @@ export const BotAnalyticsView: React.FC = () => {
             </Card>
           </div>
 
+          <Card title="Conversation funnel" subtitle={selBot ? `For ${selBot.name}` : 'How far conversations get'}>
+            <Funnel f={data.funnel} />
+          </Card>
+
           <Card title="Channel performance" padded={false}>
             {!shownChannels.length ? <EmptyState className="py-8" title="No bot sessions yet" description="Once your bots start chatting, each channel's figures appear here." />
               : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px] text-sm">
                     <thead><tr className="border-b border-[#EEF3F7] text-left text-[11px] font-bold uppercase tracking-wide text-[#8296A6]">
-                      <th className="px-5 py-2.5">Channel</th><th className="px-3 py-2.5 text-right">Sessions</th><th className="px-3 py-2.5 text-right">Unique</th><th className="px-3 py-2.5 text-right">Handoffs</th><th className="px-3 py-2.5 text-right">Handoff %</th><th className="px-3 py-2.5 text-right">Avg time</th><th className="px-5 py-2.5 text-right">Trend</th>
+                      <th className="px-5 py-2.5">Channel</th><th className="px-3 py-2.5 text-right">Sessions</th><th className="px-3 py-2.5 text-right">Unique</th><th className="px-3 py-2.5 text-right">Leads</th><th className="px-3 py-2.5 text-right">Handoffs</th><th className="px-3 py-2.5 text-right">Handoff %</th><th className="px-3 py-2.5 text-right">Avg time</th><th className="px-5 py-2.5 text-right">Trend</th>
                     </tr></thead>
                     <tbody>
                       {shownChannels.map((c) => {
@@ -234,6 +265,7 @@ export const BotAnalyticsView: React.FC = () => {
                             <td className="px-5 py-3"><span className="flex items-center gap-2 font-semibold text-[#0B2A44]"><span className="flex h-6 w-6 items-center justify-center rounded-full text-white" style={{ background: CH[c.channel].color }}><Icon size={13} /></span>{CH[c.channel].label}</span></td>
                             <td className="px-3 py-3 text-right font-semibold text-[#0B2A44]">{nf(c.sessions)}</td>
                             <td className="px-3 py-3 text-right text-[#44505C]">{nf(c.uniqueUsers)}</td>
+                            <td className="px-3 py-3 text-right font-semibold text-[#0E8A86]">{nf(c.leads)}</td>
                             <td className="px-3 py-3 text-right text-[#44505C]">{nf(c.handoffs)}</td>
                             <td className="px-3 py-3 text-right text-[#44505C]">{c.sessions ? Math.round((c.handoffs / c.sessions) * 100) : 0}%</td>
                             <td className="px-3 py-3 text-right text-[#44505C]">{fmtDur(c.avgSessionSec)}</td>

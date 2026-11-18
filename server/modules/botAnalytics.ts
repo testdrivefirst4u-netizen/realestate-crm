@@ -21,6 +21,7 @@ export interface BotAnalyticsChannel {
   uniqueUsers: number;
   repeatUsers: number;
   handoffs: number;
+  leads: number;
   avgSessionSec: number;
   botMessages: number;
   userMessages: number;
@@ -33,8 +34,11 @@ export interface BotAnalyticsData {
     totalSessions: number; activeNow: number; uniqueUsers: number; repeatUsers: number;
     handoffs: number; handoffRate: number; avgSessionSec: number;
     botMessages: number; userMessages: number; agentMessages: number;
+    leads: number; leadRate: number;
   };
-  prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number };
+  prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number; leads: number };
+  /** How far conversations get: started → got an answer → finished the flow, with handoffs and drop-offs. */
+  funnel: { started: number; answered: number; finished: number; handedOff: number; stopped: number };
   channels: BotAnalyticsChannel[];
   daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
   /** WhatsApp live-chat (Chat360) message volume in range — a separate system from the bots, shown for context. */
@@ -49,7 +53,7 @@ const SPECS: Spec[] = [
   { channel: 'facebook', coll: 'socialBotSessions', idField: 'authorId', match: { platform: 'facebook' }, hasTranscript: true, handoff: { status: 'handoff' } },
 ];
 
-interface Agg { sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; durSum: number; durCount: number; bot: number; user: number; agent: number; daily: Map<string, number> }
+interface Agg { sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; leads: number; answered: number; finished: number; stopped: number; durSum: number; durCount: number; bot: number; user: number; agent: number; daily: Map<string, number> }
 
 /** One channel's figures for one window, computed in the database (no documents pulled into Node). */
 async function aggregate(spec: Spec, from: Date, to: Date, botId?: string): Promise<Agg> {
@@ -61,6 +65,10 @@ async function aggregate(spec: Spec, from: Date, to: Date, botId?: string): Prom
     uniq: [{ $group: { _id: `$${spec.idField}` } }, { $count: 'n' }],
     repeat: [{ $group: { _id: `$${spec.idField}`, c: { $sum: 1 } } }, { $match: { c: { $gt: 1 } } }, { $count: 'n' }],
     handoff: [{ $match: spec.handoff }, { $count: 'n' }],
+    leads: [{ $match: { leadId: { $nin: ['', null] } } }, { $count: 'n' }],
+    answered: [{ $match: { answers: { $gt: 0 } } }, { $count: 'n' }],
+    finished: [{ $match: { status: 'done' } }, { $count: 'n' }],
+    stopped: [{ $match: { status: 'stopped' } }, { $count: 'n' }],
     dur: [{ $project: { s: { $divide: [{ $subtract: [{ $ifNull: ['$endedAt', '$lastAt'] }, '$startedAt'] }, 1000] } } }, { $match: { s: { $gt: 0 } } }, { $group: { _id: null, sum: { $sum: '$s' }, n: { $sum: 1 } } }],
     daily: [{ $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt', timezone: TZ } }, n: { $sum: 1 } } }],
   };
@@ -73,6 +81,7 @@ async function aggregate(spec: Spec, from: Date, to: Date, botId?: string): Prom
   const m = res.msgs?.[0];
   return {
     sessions: num(res.total), uniqueUsers: num(res.uniq), repeatUsers: num(res.repeat), handoffs: num(res.handoff),
+    leads: num(res.leads), answered: num(res.answered), finished: num(res.finished), stopped: num(res.stopped),
     durSum: num(res.dur, 'sum'), durCount: num(res.dur, 'n'),
     bot: m?.bot || 0, user: m?.user || 0, agent: m?.agent || 0, daily,
   };
@@ -137,7 +146,7 @@ export async function botAnalytics(d: { from?: string; to?: string; botId?: stri
   const channels: BotAnalyticsChannel[] = SPECS.map((s, i) => {
     const a = cur[i];
     return {
-      channel: s.channel, sessions: a.sessions, uniqueUsers: a.uniqueUsers, repeatUsers: a.repeatUsers, handoffs: a.handoffs,
+      channel: s.channel, sessions: a.sessions, uniqueUsers: a.uniqueUsers, repeatUsers: a.repeatUsers, handoffs: a.handoffs, leads: a.leads,
       avgSessionSec: a.durCount ? Math.round(a.durSum / a.durCount) : 0,
       botMessages: a.bot, userMessages: a.user, agentMessages: a.agent, prevSessions: prev[i].sessions,
     };
@@ -145,6 +154,7 @@ export async function botAnalytics(d: { from?: string; to?: string; botId?: stri
 
   const totalSessions = sum((a) => a.sessions, cur);
   const handoffs = sum((a) => a.handoffs, cur);
+  const leads = sum((a) => a.leads, cur);
   const durSum = sum((a) => a.durSum, cur), durCount = sum((a) => a.durCount, cur);
   const prevDurSum = sum((a) => a.durSum, prev), prevDurCount = sum((a) => a.durCount, prev);
 
@@ -160,10 +170,16 @@ export async function botAnalytics(d: { from?: string; to?: string; botId?: stri
       handoffs, handoffRate: totalSessions ? Math.round((handoffs / totalSessions) * 1000) / 10 : 0,
       avgSessionSec: durCount ? Math.round(durSum / durCount) : 0,
       botMessages: sum((a) => a.bot, cur), userMessages: sum((a) => a.user, cur), agentMessages: sum((a) => a.agent, cur),
+      leads, leadRate: totalSessions ? Math.round((leads / totalSessions) * 1000) / 10 : 0,
     },
     prev: {
       totalSessions: sum((a) => a.sessions, prev), uniqueUsers: sum((a) => a.uniqueUsers, prev),
       handoffs: sum((a) => a.handoffs, prev), avgSessionSec: prevDurCount ? Math.round(prevDurSum / prevDurCount) : 0,
+      leads: sum((a) => a.leads, prev),
+    },
+    funnel: {
+      started: totalSessions, answered: sum((a) => a.answered, cur), finished: sum((a) => a.finished, cur),
+      handedOff: handoffs, stopped: sum((a) => a.stopped, cur),
     },
     channels, daily, waLive,
   };

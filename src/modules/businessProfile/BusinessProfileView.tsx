@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, ExternalLink, Pencil, RefreshCw } from 'lucide-react';
 import { api, type AnalyticsMetric, type BusinessPerformance, type BusinessPhoto, type BusinessProfileData } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
+import { toast } from '../../core/notifications';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
 import { LineChart } from '../analytics/analyticsCharts';
 import { EditDialog, SECTION_OF, type EditSection } from './gbpEdit';
@@ -181,6 +182,19 @@ export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boole
     }
   }, [location]);
   useEffect(() => void load(), [load]);
+  // returning from the inline "Connect Google Business Profile" lands on /businessprofile?gmktConnected=… — toast and reload
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    const ok = q.get('gmktConnected'); const e = q.get('gmktError');
+    if (!ok && !e) return;
+    if (e) toast('Google Business Profile', e, 'alert'); else toast('Google Business Profile connected', undefined, 'success');
+    q.delete('gmktConnected'); q.delete('gmktError');
+    window.history.replaceState(null, '', `${window.location.pathname}${q.toString() ? `?${q}` : ''}`);
+    void loadRef.current();
+  }, []);
   // the picture for the preview; the screen works without it
   const location_ = data?.location || '';
   useEffect(() => {
@@ -218,7 +232,15 @@ export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boole
         </span>
       </header>
       {failed && <InlineNotice tone="warning">{failed}</InlineNotice>}
-      {data?.error && <InlineNotice tone="warning">{data.error} {canManage && <a href="/settings?section=google" className="font-medium underline">Open Settings</a>}</InlineNotice>}
+      {data?.error && (
+        <InlineNotice tone="warning">
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{data.error}</span>
+            {canManage && <button type="button" onClick={() => { window.location.href = '/api/integrations/google/marketing/connect?return=businessprofile'; }} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110">Connect Google Business Profile</button>}
+            {canManage && <a href="/settings?section=google" className="text-xs font-medium underline">or open Settings</a>}
+          </span>
+        </InlineNotice>
+      )}
       {!data && !failed && <p className="p-6 text-center text-[13px] text-[#5F6368]">Loading…</p>}
       {data && !data.error && data.profile && (
         <>

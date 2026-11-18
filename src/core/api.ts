@@ -337,11 +337,12 @@ export type BotChannel = 'whatsapp' | 'website' | 'instagram' | 'facebook';
 export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; channels: BotChannel[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; createdAt: string; updatedAt: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
 export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
 export type BotChannelKey = 'website' | 'whatsapp' | 'instagram' | 'facebook';
-export interface BotAnalyticsChannel { channel: BotChannelKey; sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number; prevSessions: number }
+export interface BotAnalyticsChannel { channel: BotChannelKey; sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; leads: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number; prevSessions: number }
 export interface BotAnalyticsData {
   range: { from: string; to: string; days: number };
-  kpis: { totalSessions: number; activeNow: number; uniqueUsers: number; repeatUsers: number; handoffs: number; handoffRate: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number };
-  prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number };
+  kpis: { totalSessions: number; activeNow: number; uniqueUsers: number; repeatUsers: number; handoffs: number; handoffRate: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number; leads: number; leadRate: number };
+  prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number; leads: number };
+  funnel: { started: number; answered: number; finished: number; handedOff: number; stopped: number };
   channels: BotAnalyticsChannel[];
   daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
   waLive: { inbound: number; outbound: number };

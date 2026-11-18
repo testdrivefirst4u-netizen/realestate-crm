@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   let r;
   try {
-    r = await startGoogleMktConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE) });
+    r = await startGoogleMktConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE), returnKey: new URL(req.url).searchParams.get('return') || undefined });
   } catch (e: any) {
     console.error('[google-mkt:connect]', e?.message);
     return NextResponse.json({ status: 'error', code: 'INTERNAL', message: 'Could not start the Google sign-in' }, { status: 500 });
