@@ -15,7 +15,7 @@ import { runWithTenant, type Tenant } from './tenant';
 import { safeEqual } from './utils';
 import { getTenantById } from '../platform/registry';
 
-export interface OAuthState { c: string; u: string; n: string; exp: number }
+export interface OAuthState { c: string; u: string; n: string; exp: number; /** optional server-mapped return key (e.g. 'ads') so the callback can send the browser somewhere other than Settings */ r?: string }
 
 function stateKey(purpose: string): Buffer {
   const raw = process.env.SECRETS_ENCRYPTION_KEY?.trim();
@@ -28,7 +28,7 @@ const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
 /** Signed state for the OAuth redirect. `purpose` separates providers (default 'meta' for compatibility). */
 export function signState(p: OAuthState, purpose = 'meta'): string {
-  const body = b64url(JSON.stringify({ c: p.c, u: p.u, n: p.n, exp: p.exp }));
+  const body = b64url(JSON.stringify({ c: p.c, u: p.u, n: p.n, exp: p.exp, ...(p.r ? { r: String(p.r).slice(0, 16) } : {}) }));
   return `${body}.${b64url(crypto.createHmac('sha256', stateKey(purpose)).update(body).digest())}`;
 }
 

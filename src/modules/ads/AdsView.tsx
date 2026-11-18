@@ -1,6 +1,7 @@
 /**
- * Ads manager (/ads, plan feature adsControl; server: modules/adsControl.ts): the Meta table (MetaAdsTable.tsx), and an overview of Meta and Google Ads campaigns with
- * 7 days' spend and CRM leads, pause / resume, daily budget, and the "spending without leads" alert.
+ * Ads manager (/ads, plan feature adsControl; server: modules/adsControl.ts): the Meta Ads Manager table (MetaAdsManager.tsx),
+ * and a spend overview of Meta and Google Ads campaigns with 7 days' spend and CRM leads, pause / resume, daily budget,
+ * and the "spending without leads" alert.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { BellRing, Pause, Pencil, Play, RefreshCw } from 'lucide-react';
@@ -8,7 +9,7 @@ import { api, type AdCampaign } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Badge, Button, Card, EmptyState, InlineNotice, Tabs, cx, inputCls } from '../../components/ui';
-import { MetaAdsTable } from './MetaAdsTable';
+import { MetaAdsManager } from './MetaAdsManager';
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
@@ -86,8 +87,8 @@ export const AdsView: React.FC<{ canChange: boolean; canExport?: boolean }> = ({
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-5">
-      <Tabs tabs={[{ id: 'meta', label: 'Meta ads' }, { id: 'overview', label: 'Overview (Meta + Google)' }]} value={tab} onChange={(v) => setTab(v as 'meta' | 'overview')} />
-      {tab === 'meta' ? <MetaAdsTable canChange={canChange} canExport={canExport} /> : (<>
+      <Tabs tabs={[{ id: 'meta', label: 'Meta ads' }, { id: 'overview', label: 'Spend overview (Meta + Google)' }]} value={tab} onChange={(v) => setTab(v as 'meta' | 'overview')} />
+      {tab === 'meta' ? <MetaAdsManager canChange={canChange} canExport={canExport} /> : (<>
       <Card title="Campaigns · last 7 days" subtitle="Spend from Meta and Google Ads; leads are the CRM leads that came from each campaign."
         actions={<Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load()}>Refresh</Button>}>
         {data?.errors.meta && <InlineNotice tone="warning" className="mb-2">Meta: {data.errors.meta}</InlineNotice>}

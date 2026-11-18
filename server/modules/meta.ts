@@ -173,6 +173,11 @@ export function settingsRedirect(params: Record<string, string>): string {
   return `${appUrl()}/settings?${q.toString()}`;
 }
 
+/** Ads screen the browser returns to when the connect was started from Create Ad (so the admin never visits Settings). */
+export function adsRedirect(params: Record<string, string>): string {
+  return `${appUrl()}/ads?${new URLSearchParams(params).toString()}`;
+}
+
 export interface ConnectStart {
   /** Where to send the browser. */
   redirect: string;
@@ -181,15 +186,18 @@ export interface ConnectStart {
 }
 
 /** GET /api/integrations/meta/connect — core logic (the route only reads cookies and writes the redirect). */
-export async function startMetaConnect(input: { sessionCookie: string; nowMs?: number }): Promise<ConnectStart> {
+export async function startMetaConnect(input: { sessionCookie: string; nowMs?: number; returnKey?: string }): Promise<ConnectStart> {
+  // only a short, server-known key is ever trusted here — never an arbitrary URL from the query string
+  const r = input.returnKey === 'ads' ? 'ads' : undefined;
+  const back = (params: Record<string, string>) => (r === 'ads' ? adsRedirect(params) : settingsRedirect(params));
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { redirect: settingsRedirect({ metaError: 'Only an administrator can connect Facebook Pages.' }) };
-  if (!sess.tenant.features.metaLeads) return { redirect: settingsRedirect({ metaError: "Meta (Facebook / Instagram) Lead Ads are not included in your company's plan." }) };
+  if (!can(sess.user, 'settings.edit')) return { redirect: back({ metaError: 'Only an administrator can connect Facebook Pages.' }) };
+  if (!sess.tenant.features.metaLeads) return { redirect: back({ metaError: "Meta (Facebook / Instagram) Lead Ads are not included in your company's plan." }) };
   const cfg = await loadMetaConfig();
-  if (!cfg.appId || !cfg.appSecret) return { redirect: settingsRedirect({ metaError: 'Meta Lead Ads is not set up on this platform yet. Ask your platform administrator.' }) };
+  if (!cfg.appId || !cfg.appSecret) return { redirect: back({ metaError: 'Meta Lead Ads is not set up on this platform yet. Ask your platform administrator.' }) };
   const nonce = randomToken(16);
-  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S });
+  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S, ...(r ? { r } : {}) });
   const q = new URLSearchParams({ client_id: cfg.appId, redirect_uri: oauthRedirectUri(), state, response_type: 'code' });
   if (cfg.loginConfigId) q.set('config_id', cfg.loginConfigId);
   else q.set('scope', 'pages_show_list,pages_read_engagement,pages_manage_metadata,leads_retrieval,pages_manage_ads,business_management');
@@ -212,9 +220,11 @@ export async function finishMetaConnect(input: { params: URLSearchParams; sessio
   if (!sess) return { redirect: `${appUrl()}/` };
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs);
   if (!v.ok) return { redirect: settingsRedirect({ metaError: 'The Facebook login could not be verified (it expired or was started in another session). Please try again.' }) };
-  if (!can(sess.user, 'settings.edit') || !sess.tenant.features.metaLeads) return { redirect: settingsRedirect({ metaError: 'You cannot connect Facebook Pages.' }) };
+  // where the connect was started from: Create Ad (/ads) or Settings
+  const back = (params: Record<string, string>) => (v.state.r === 'ads' ? adsRedirect(params) : settingsRedirect(params));
+  if (!can(sess.user, 'settings.edit') || !sess.tenant.features.metaLeads) return { redirect: back({ metaError: 'You cannot connect Facebook Pages.' }) };
   const code = p.get('code') || '';
-  if (!code) return { redirect: settingsRedirect({ metaError: 'Facebook did not return an authorisation code. Please try again.' }) };
+  if (!code) return { redirect: back({ metaError: 'Facebook did not return an authorisation code. Please try again.' }) };
   try {
     const id = await runWithTenant(sess.tenant, async () => {
       const cfg = await requireMetaConfig();
@@ -236,10 +246,10 @@ export async function finishMetaConnect(input: { params: URLSearchParams; sessio
       await (await connectionsCol()).insertOne(doc);
       return doc._id;
     });
-    return { redirect: settingsRedirect({ metaConnect: id }) };
+    return { redirect: back({ metaConnect: id }) };
   } catch (e: any) {
     if (!(e instanceof ApiError)) console.error('[meta:callback]', e?.message);
-    return { redirect: settingsRedirect({ metaError: truncate(errMsg(e), 300) }) };
+    return { redirect: back({ metaError: truncate(errMsg(e), 300) }) };
   }
 }
 
