@@ -13,6 +13,7 @@ import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { addEvent, logError } from '../core/events';
+import { publishRealtime } from '../core/realtime';
 import { currentTenant, tenantKey } from '../core/tenant';
 import { randomToken, shortId, str, truncate } from '../core/utils';
 import { activeBotFilter, assignAvailableAgent, availableAgents, botContext, bumpDailyCount, mergeKnowledge, myChatAvailability, setChatAvailability, upsertBotLead } from './botRuntime';
@@ -134,7 +135,11 @@ export async function webchatTurn(i: { sessionId?: string; text?: string; replyI
       // a live agent is handling this chat: record the visitor's message, don't run the bot
       if (existing.mode === 'agent') {
         const seq = (existing.seq || 0) + 1;
-        if (text) await sessions.updateOne({ _id: existing._id }, { $push: { transcript: { $each: [{ role: 'user', text, at: now, seq }], $slice: -MAX_TRANSCRIPT } }, $set: { seq, lastAt: now } } as any);
+        if (text) {
+          await sessions.updateOne({ _id: existing._id }, { $push: { transcript: { $each: [{ role: 'user', text, at: now, seq }], $slice: -MAX_TRANSCRIPT } }, $set: { seq, lastAt: now } } as any);
+          // nudge the agent's open Live Chat to re-poll at once (no-op unless realtime is on)
+          void publishRealtime('chat_msg', 'Chat', existing._id).catch(() => undefined);
+        }
         return { sessionId: existing._id, messages: [], status: 'active', mode: 'agent', done: false, company, seq };
       }
       const ctx = await botContext(existing.knowledge, company, now);

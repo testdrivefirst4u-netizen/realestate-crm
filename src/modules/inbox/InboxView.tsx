@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ExternalLink, Inbox, MessageCircle, MessageSquare, RefreshCw, Search, Send, Star, UserPlus } from 'lucide-react';
 import { api, type InboxMedia, type InboxMessage, type InboxPlatform, type InboxPost, type InboxThread } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
+import { onLive } from '../../core/live';
 import { toast } from '../../core/notifications';
 import { phoneProblem } from '../../core/phone';
 import { Button, EmptyState, Field, Modal, cx, inputCls } from '../../components/ui';
@@ -164,6 +165,8 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
     if (active) void loadThread(active);
     else { setItems([]); setPost(null); }
   }, [active, loadThread]);
+  // a realtime push (Ably) re-polls at once, instead of waiting for the 30s timer
+  useEffect(() => onLive(() => { void loadList(); if (active) void loadThread(active); }), [loadList, loadThread, active]);
   // in braces: browsers can return a promise from scrollIntoView, and React would call an effect's return value as its cleanup
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [items]);
 

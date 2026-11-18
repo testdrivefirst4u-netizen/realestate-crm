@@ -34,6 +34,7 @@ import { AppError, reportError, setErrorReporter, toAppError } from './errors';
 import { nextSequentialId, randomId } from './ids';
 import { eventKey, notifications, notify, toast } from './notifications';
 import { clearCachedData, emptyCRMData, loadCachedData, loadSession, saveCachedData, saveSession } from './persistence';
+import { emitLive, type LiveChange } from './live';
 import { can } from './rbac';
 import { isActive, nextFollowupDate } from './analytics';
 
@@ -463,9 +464,18 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     let channel: { unsubscribe: () => void } | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
-    const nudge = () => {
+    let last: LiveChange = {};
+    const nudge = (change?: LiveChange) => {
+      if (change) last = change;
       if (timer) return; // coalesce a burst of pushes into one poll
-      timer = setTimeout(() => { timer = null; if (document.visibilityState !== 'hidden') void refreshRef.current({ silent: true }); }, 250);
+      timer = setTimeout(() => {
+        timer = null;
+        if (document.visibilityState === 'hidden') return;
+        // let screens that poll their own data (Live Chat, Social Inbox, the open thread) re-poll at once…
+        emitLive(last);
+        // …and refresh the main CRM feed (leads, tasks, dashboard, counts).
+        void refreshRef.current({ silent: true });
+      }, 250);
     };
     (async () => {
       try {
@@ -475,7 +485,7 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
         client = c;
         const ch = c.channels.get(`company-${companyId}`);
         channel = ch;
-        ch.subscribe(() => nudge());
+        ch.subscribe((m) => nudge((m && typeof m.data === 'object' ? m.data : {}) as LiveChange));
       } catch {
         /* realtime unavailable — the poll keeps the CRM up to date */
       }

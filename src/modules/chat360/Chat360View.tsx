@@ -25,6 +25,7 @@ import { digitsOnly, fillTemplate, formatPhone, last10, samePhone, toE164Digits 
 import { useTenantSettings } from '../../core/tenant';
 import { SendTemplateButton } from './SendTemplateButton';
 import { reportError, toAppError } from '../../core/errors';
+import { onLive } from '../../core/live';
 import { toast } from '../../core/notifications';
 import { can } from '../../core/rbac';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, InlineNotice, Select, StageBadge, cx, inputCls, labelCls } from '../../components/ui';
@@ -438,8 +439,11 @@ export const Chat360View: React.FC<Chat360ViewProps> = ({ leads, currentUser, co
     };
     if (document.visibilityState === 'visible') start();
     document.addEventListener('visibilitychange', onVisibility);
+    // a realtime push (Ably) refreshes at once, instead of waiting for the 20s timer
+    const offLive = onLive(() => { if (document.visibilityState === 'visible') tick(); });
     return () => {
       stop();
+      offLive();
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [loadContacts, loadMessages]);

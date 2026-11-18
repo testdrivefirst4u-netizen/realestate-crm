@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Bell, Check, ChevronLeft, Copy, Eye, EyeOff, Facebook, Globe, Inbox, Instagram, MessagesSquare, Search, Send } from 'lucide-react';
 import { api, type BotChatLine, type BotChatRow, type ChatPresence } from '../../core/api';
+import { onLive } from '../../core/live';
 import type { Chat360Contact, Chat360Message } from '../../types/crm';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -75,6 +76,10 @@ const ChatPanel: React.FC<{ conv: Conv; onBack: () => void }> = ({ conv, onBack 
     return () => { on = false; clearTimeout(t); };
   }, [conv.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { boxRef.current?.scrollTo(0, boxRef.current.scrollHeight); }, [msgs]);
+  // a realtime push (Ably) re-reads this conversation at once, instead of waiting for the poll
+  const pollRef = useRef<() => void>(() => undefined);
+  pollRef.current = () => { if (isWa) void loadWa(); else if (isWeb) void pullWeb(); };
+  useEffect(() => onLive(() => pollRef.current()), []);
 
   const reply = async () => {
     const v = text.trim();
@@ -211,6 +216,10 @@ export const BotChatsView: React.FC = () => {
     } catch (e) { setErr(errText('livechat.list', e)); }
   };
   useEffect(() => { let on = true; const loop = () => { if (on) void load(); }; loop(); const t = setInterval(loop, 12000); api.botChats.presence().then((r) => on && setPres(r)).catch(() => undefined); return () => { on = false; clearInterval(t); }; }, []);
+  // a realtime push (Ably) refreshes the conversation list at once, instead of waiting for the 12s timer
+  const listLoadRef = useRef(load);
+  listLoadRef.current = load;
+  useEffect(() => onLive(() => void listLoadRef.current()), []);
   const toggleAvail = async () => { if (!pres || presBusy) return; setPresBusy(true); try { await api.botChats.setPresence(!pres.available); setPres(await api.botChats.presence()); } catch (e) { toast('Not changed', errText('presence', e), 'alert'); } finally { setPresBusy(false); } };
 
   const railItem = RAIL.find((t) => t.key === tab) || RAIL[0];
