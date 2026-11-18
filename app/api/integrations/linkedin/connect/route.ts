@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   let r;
   try {
-    r = await startLinkedInConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE), leads: new URL(req.url).searchParams.get('leads') === '1' });
+    r = await startLinkedInConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE), leads: new URL(req.url).searchParams.get('leads') === '1', returnKey: new URL(req.url).searchParams.get('return') || '' });
   } catch (e: any) {
     console.error('[linkedin:connect]', e?.message);
     return NextResponse.json({ status: 'error', code: 'INTERNAL', message: 'Could not start the LinkedIn sign-in' }, { status: 500 });

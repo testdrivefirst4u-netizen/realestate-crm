@@ -16,7 +16,7 @@ import { appUrl, decryptSecret, encryptSecret } from '../core/settings';
 import { runWithTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
 import { loadMarketingApps, PINTEREST_CALLBACK_PATH } from '../platform/marketingApps';
-import { beginSocialOAuth, endSocialOAuth, socialSettingsRedirect } from './socialOAuth';
+import { beginSocialOAuth, endSocialOAuth, socialBack } from './socialOAuth';
 
 const API = 'https://api.pinterest.com/v5';
 const PURPOSE = 'pinterest';
@@ -74,11 +74,11 @@ async function pin<T = any>(path: string, init: { method?: string; body?: unknow
 
 /* -------------------------------- connect -------------------------------- */
 
-export async function startPinterestConnect(input: { sessionCookie: string; nowMs?: number }): Promise<{ redirect: string; nonce?: string }> {
+export async function startPinterestConnect(input: { sessionCookie: string; nowMs?: number; returnKey?: string }): Promise<{ redirect: string; nonce?: string }> {
   const b = await beginSocialOAuth(input, PURPOSE, 'pinterest', 'Pinterest', 'pinterestError');
   if ('redirect' in b) return { redirect: b.redirect };
   const apps = await loadMarketingApps();
-  if (!apps.pinterestAppId || !apps.pinterestAppSecret) return { redirect: socialSettingsRedirect({ pinterestError: 'Pinterest is not set up on this platform yet. Ask your platform administrator.' }) };
+  if (!apps.pinterestAppId || !apps.pinterestAppSecret) return { redirect: socialBack(b.returnKey, { pinterestError: 'Pinterest is not set up on this platform yet. Ask your platform administrator.' }) };
   const q = new URLSearchParams({ client_id: apps.pinterestAppId, redirect_uri: redirectUri(), response_type: 'code', scope: SCOPES, state: b.state });
   return { redirect: `https://www.pinterest.com/oauth/?${q.toString()}`, nonce: b.nonce };
 }
@@ -101,10 +101,10 @@ export async function finishPinterestConnect(input: { params: URLSearchParams; s
       await auditLog({ user: e.user } as Ctx, 'Pinterest Connected', 'Settings', 'pinterest', String(me.username || ''));
       return String(me.username || 'Pinterest');
     });
-    return { redirect: socialSettingsRedirect({ pinterestConnected: name }) };
+    return { redirect: socialBack(e.returnKey, { pinterestConnected: name }) };
   } catch (err: any) {
     if (!(err instanceof ApiError)) console.error('[pinterest:callback]', err?.message);
-    return { redirect: socialSettingsRedirect({ pinterestError: truncate(err?.message || 'Could not connect Pinterest.', 300) }) };
+    return { redirect: socialBack(e.returnKey, { pinterestError: truncate(err?.message || 'Could not connect Pinterest.', 300) }) };
   }
 }
 

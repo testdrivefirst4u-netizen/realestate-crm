@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   let r;
   try {
-    r = await startPinterestConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE) });
+    r = await startPinterestConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE), returnKey: new URL(req.url).searchParams.get('return') || '' });
   } catch (e: any) {
     console.error('[pinterest:connect]', e?.message);
     return NextResponse.json({ status: 'error', code: 'INTERNAL', message: 'Could not start the Pinterest sign-in' }, { status: 500 });

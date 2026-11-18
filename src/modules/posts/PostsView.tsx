@@ -5,8 +5,8 @@
  * to be changed; a posted or failed one shows as it looks on the platform, with retry for what failed, and the text can
  * be changed for a post on one Facebook Page. A new picture means a new post ("Post again").
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ExternalLink, FileText, Pencil, Plus, RefreshCw, RotateCcw, Search, Send, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, ExternalLink, Facebook, FileText, Images, Linkedin, Pencil, Plus, RefreshCw, RotateCcw, Search, Send, Store, Trash2 } from 'lucide-react';
 import { api, type InsightValue, type PostTargetOption, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Badge, Button, EmptyState, InlineNotice, Modal, cx, inputCls } from '../../components/ui';
@@ -131,6 +131,30 @@ export const PostsView: React.FC = () => {
     }
   }, [tab, grid, filter, searchNow, account]);
   useEffect(() => void load(), [load]);
+
+  // returning from the inline "Continue with Facebook" (social OAuth) lands on /posts?socialConnected=… — toast and reload
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    const providers: Array<[string, string, string]> = [
+      ['socialConnected', 'socialError', 'Facebook / Instagram'], ['linkedinConnected', 'linkedinError', 'LinkedIn'], ['pinterestConnected', 'pinterestError', 'Pinterest'],
+    ];
+    let hit = false;
+    for (const [okKey, errKey, label] of providers) {
+      const ok = q.get(okKey); const err = q.get(errKey);
+      if (!ok && !err) continue;
+      hit = true;
+      if (err) toast(`${label} connection`, err, 'alert');
+      else toast(`${label} connected`, ok ? `Connected: ${ok}` : undefined, 'success');
+      q.delete(okKey); q.delete(errKey);
+    }
+    q.delete('socialNote');
+    if (!hit) return;
+    window.history.replaceState(null, '', `${window.location.pathname}${q.toString() ? `?${q}` : ''}`);
+    void loadRef.current();
+  }, []);
 
   // the figures of the opened post, for what is already out
   const figuresFor = details && (details.status === 'published' || details.status === 'partial') ? details.id : '';
@@ -290,7 +314,22 @@ export const PostsView: React.FC = () => {
         )}
       </div>}
 
-      {posts && !targets.length && <InlineNotice tone="warning">No account connected yet. An Admin connects Facebook, Instagram, Google Business Profile, LinkedIn and Pinterest in Settings.</InlineNotice>}
+      {posts && !targets.length && (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-[#DADDE1] bg-white py-14 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#E7F0FF] text-[#0866FF]"><Send size={24} /></span>
+          <div>
+            <p className="text-lg font-bold text-[#0B2A44]">No account connected yet</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-[#65676B]">Connect an account right here to start scheduling posts — no need to open Settings. You need an admin login for the platform.</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button type="button" onClick={() => { window.location.href = '/api/integrations/meta/social/connect?return=posts'; }} className="inline-flex items-center gap-2 rounded-lg bg-[#0866FF] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"><Facebook size={16} /> Facebook &amp; Instagram</button>
+            <button type="button" onClick={() => { window.location.href = '/api/integrations/linkedin/connect?return=posts'; }} className="inline-flex items-center gap-2 rounded-lg bg-[#0A66C2] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"><Linkedin size={16} /> LinkedIn</button>
+            <button type="button" onClick={() => { window.location.href = '/api/integrations/pinterest/connect?return=posts'; }} className="inline-flex items-center gap-2 rounded-lg bg-[#E60023] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"><Images size={16} /> Pinterest</button>
+            <a href="/settings?section=googleSheets" className="inline-flex items-center gap-2 rounded-lg border border-[#D3E3F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#0B2A44] hover:bg-[#F2F7FB]"><Store size={16} /> Google Business Profile</a>
+          </div>
+          <p className="max-w-md text-[11px] text-[#8296A6]">Facebook, Instagram, LinkedIn and Pinterest connect here and bring you back. Google Business Profile opens Settings for its one-time account selection.</p>
+        </div>
+      )}
 
       {tab === 'instagram' ? <InstagramView targets={targets} rev={rev} onCreate={() => setComposing({})} onEdit={(p) => setComposing({ post: p })} onAgain={(p) => setComposing({ seed: p })} onDelete={(p) => setDeleting(p)} onDetails={(p) => open(p)} /> : tab === 'facebook' ? <FacebookView targets={targets} rev={rev} onCreate={() => setComposing({})} onEdit={(p) => setComposing({ post: p })} onAgain={(p) => setComposing({ seed: p })} onDelete={(p) => setDeleting(p)} onDetails={(p) => open(p)} /> : tab === 'insights' ? <PostInsights account={account} onOpenPost={(id) => void openById(id)} /> : tab === 'calendar' ? (
         <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">

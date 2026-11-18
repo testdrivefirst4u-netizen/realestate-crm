@@ -23,7 +23,7 @@ import { listActiveTenants } from '../platform/registry';
 import { LINKEDIN_CALLBACK_PATH, loadMarketingApps } from '../platform/marketingApps';
 import { ingestLead, sourcesCol, type SourceDoc } from './intake';
 import { defaultConfig, toSource } from './leadSources';
-import { beginSocialOAuth, endSocialOAuth, socialSettingsRedirect } from './socialOAuth';
+import { beginSocialOAuth, endSocialOAuth, socialBack } from './socialOAuth';
 
 const API = 'https://api.linkedin.com/rest';
 const PURPOSE = 'linkedin';
@@ -92,11 +92,11 @@ export async function li<T = any>(path: string, init: { method?: string; body?: 
 
 /* -------------------------------- connect -------------------------------- */
 
-export async function startLinkedInConnect(input: { sessionCookie: string; nowMs?: number; leads?: boolean }): Promise<{ redirect: string; nonce?: string }> {
+export async function startLinkedInConnect(input: { sessionCookie: string; nowMs?: number; leads?: boolean; returnKey?: string }): Promise<{ redirect: string; nonce?: string }> {
   const b = await beginSocialOAuth(input, PURPOSE, 'linkedin', 'LinkedIn', 'linkedinError');
   if ('redirect' in b) return { redirect: b.redirect };
   const apps = await loadMarketingApps();
-  if (!apps.linkedinClientId || !apps.linkedinClientSecret) return { redirect: socialSettingsRedirect({ linkedinError: 'LinkedIn is not set up on this platform yet. Ask your platform administrator.' }) };
+  if (!apps.linkedinClientId || !apps.linkedinClientSecret) return { redirect: socialBack(b.returnKey, { linkedinError: 'LinkedIn is not set up on this platform yet. Ask your platform administrator.' }) };
   const scope = [...BASE_SCOPES, ...(input.leads ? LEAD_SCOPES : [])].join(' ');
   const q = new URLSearchParams({ response_type: 'code', client_id: apps.linkedinClientId, redirect_uri: redirectUri(), state: b.state, scope });
   return { redirect: `https://www.linkedin.com/oauth/v2/authorization?${q.toString()}`, nonce: b.nonce };
@@ -135,10 +135,10 @@ export async function finishLinkedInConnect(input: { params: URLSearchParams; se
       await auditLog({ user: e.user } as Ctx, 'LinkedIn Connected', 'Settings', 'linkedin', orgs.map((o) => o.name).join(', '));
       return orgs.map((o) => o.name).join(', ');
     });
-    return { redirect: socialSettingsRedirect({ linkedinConnected: truncate(names, 200) }) };
+    return { redirect: socialBack(e.returnKey, { linkedinConnected: truncate(names, 200) }) };
   } catch (err: any) {
     if (!(err instanceof ApiError)) console.error('[linkedin:callback]', err?.message);
-    return { redirect: socialSettingsRedirect({ linkedinError: truncate(err?.message || 'Could not connect LinkedIn.', 300) }) };
+    return { redirect: socialBack(e.returnKey, { linkedinError: truncate(err?.message || 'Could not connect LinkedIn.', 300) }) };
   }
 }
 

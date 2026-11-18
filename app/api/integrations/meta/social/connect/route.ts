@@ -12,9 +12,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  const returnKey = new URL(req.url).searchParams.get('return') || '';
   let r;
   try {
-    r = await startSocialConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE) });
+    r = await startSocialConnect({ sessionCookie: readCookie(req.headers.get('cookie'), CFG.SESSION_COOKIE), returnKey });
   } catch (e: any) {
     console.error('[meta:social-connect]', e?.message);
     return NextResponse.json({ status: 'error', code: 'INTERNAL', message: 'Could not start the Facebook login' }, { status: 500 });

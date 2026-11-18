@@ -42,6 +42,9 @@ const docCol = () => col<SocialDoc>(CFG.COLL.INTEGRATIONS);
 export const socialClaimsCol = () => pc<ClaimDoc>('socialAccounts');
 
 export const socialRedirect = (params: Record<string, string>) => `${appUrl()}/settings?${new URLSearchParams({ section: 'social', ...params }).toString()}`;
+/** Post Scheduler returns here when the connect was started from /posts (so an admin never visits Settings). */
+export const postsRedirect = (params: Record<string, string>) => `${appUrl()}/posts?${new URLSearchParams(params).toString()}`;
+const backRedirect = (returnKey: string | undefined, params: Record<string, string>) => (returnKey === 'posts' ? postsRedirect(params) : socialRedirect(params));
 const usesSocial = (f: Record<string, boolean>) => !!(f.socialInbox || f.socialPosts);
 
 /** The company's connected Pages with their tokens decrypted (company context). */
@@ -70,16 +73,18 @@ export async function ensureSocialSubscription(pageId: string, token: string, cf
 
 /* -------------------------------- connect -------------------------------- */
 
-export async function startSocialConnect(input: { sessionCookie: string; nowMs?: number }): Promise<{ redirect: string; nonce?: string }> {
+export async function startSocialConnect(input: { sessionCookie: string; nowMs?: number; returnKey?: string }): Promise<{ redirect: string; nonce?: string }> {
+  const r = input.returnKey === 'posts' ? 'posts' : undefined;
+  const back = (params: Record<string, string>) => backRedirect(r, params);
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'integrations.connect')) return { redirect: socialRedirect({ socialError: 'Only an administrator can connect Facebook.' }) };
-  if (!usesSocial(sess.tenant.features as any)) return { redirect: socialRedirect({ socialError: "The social inbox and post scheduler are not included in your company's plan." }) };
+  if (!can(sess.user, 'integrations.connect')) return { redirect: back({ socialError: 'Only an administrator can connect Facebook.' }) };
+  if (!usesSocial(sess.tenant.features as any)) return { redirect: back({ socialError: "The social inbox and post scheduler are not included in your company's plan." }) };
   const cfg = await loadMetaConfig();
-  if (!cfg.appId || !cfg.appSecret) return { redirect: socialRedirect({ socialError: 'Facebook is not set up on this platform yet. Ask your platform administrator.' }) };
+  if (!cfg.appId || !cfg.appSecret) return { redirect: back({ socialError: 'Facebook is not set up on this platform yet. Ask your platform administrator.' }) };
   const apps = await loadMarketingApps();
   const nonce = randomToken(16);
-  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S }, SOCIAL_PURPOSE);
+  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S, ...(r ? { r } : {}) }, SOCIAL_PURPOSE);
   const q = new URLSearchParams({ client_id: cfg.appId, redirect_uri: oauthRedirectUri(), state, response_type: 'code' });
   if (apps.metaSocialConfigId) q.set('config_id', apps.metaSocialConfigId);
   else q.set('scope', SOCIAL_SCOPES);
@@ -96,9 +101,11 @@ export async function finishSocialConnect(input: { params: URLSearchParams; sess
   if (!sess) return { redirect: `${appUrl()}/` };
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, SOCIAL_PURPOSE);
   if (!v.ok) return err('The Facebook login could not be verified (it expired or was started in another session). Please try again.');
-  if (!can(sess.user, 'integrations.connect') || !usesSocial(sess.tenant.features as any)) return err('You cannot connect Facebook here.');
+  const r = v.state.r === 'posts' ? 'posts' : undefined;
+  const back = (m: string) => ({ redirect: backRedirect(r, { socialError: truncate(m, 300) }) });
+  if (!can(sess.user, 'integrations.connect') || !usesSocial(sess.tenant.features as any)) return back('You cannot connect Facebook here.');
   const code = p.get('code') || '';
-  if (!code) return err('Facebook did not return an authorisation code. Please try again.');
+  if (!code) return back('Facebook did not return an authorisation code. Please try again.');
   const ctx = { user: sess.user } as Ctx;
   try {
     const result = await runWithTenant(sess.tenant, async () => {
@@ -112,10 +119,10 @@ export async function finishSocialConnect(input: { params: URLSearchParams; sess
       if (!pages.length) throw fail('VALIDATION', 'Facebook returned no Pages. Choose the Page (and its Instagram account) in the Facebook window; you must be an admin of it.');
       return savePages(pages, ctx, cfg);
     });
-    return { redirect: socialRedirect(result) };
+    return { redirect: backRedirect(r, result) };
   } catch (e: any) {
     if (!(e instanceof ApiError)) console.error('[meta:social-callback]', e?.message);
-    return err(e?.message || 'Could not connect Facebook.');
+    return back(e?.message || 'Could not connect Facebook.');
   }
 }
 
