@@ -5,7 +5,8 @@
  * aggregates over the chosen range) and api.bots (per-bot stats). Read-only.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Facebook, Globe, Instagram, RefreshCw, Search } from 'lucide-react';
+import Link from 'next/link';
+import { Download, Facebook, Globe, Instagram, MessagesSquare, RefreshCw, Search, X } from 'lucide-react';
 import { api, type BotAnalyticsData, type BotChannelKey, type BotView } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { Badge, Button, Card, EmptyState, InlineNotice, KpiTile, LoadingState, cx, inputCls } from '../../components/ui';
@@ -13,7 +14,9 @@ import { WhatsAppIcon } from '../../components/WhatsAppIcon';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const DAY = 86400000;
-const RANGES = [{ id: 7, label: '7 days' }, { id: 30, label: '30 days' }, { id: 90, label: '90 days' }];
+type Preset = '7' | '30' | '90' | 'custom';
+const RANGES: Array<{ id: Preset; label: string }> = [{ id: '7', label: '7 days' }, { id: '30', label: '30 days' }, { id: '90', label: '90 days' }, { id: 'custom', label: 'Custom' }];
+const toInput = (d: Date) => d.toISOString().slice(0, 10);
 const CH: Record<BotChannelKey, { label: string; color: string; icon: React.ElementType }> = {
   website: { label: 'Website', color: '#E86B2A', icon: Globe },
   whatsapp: { label: 'WhatsApp', color: '#25D366', icon: WhatsAppIcon },
@@ -102,14 +105,28 @@ const ChannelDonut: React.FC<{ channels: BotAnalyticsData['channels']; total: nu
 
 /* ------------------------------------- the screen ------------------------------------- */
 export const BotAnalyticsView: React.FC = () => {
-  const [days, setDays] = useState(30);
+  const [preset, setPreset] = useState<Preset>('30');
+  const [cFrom, setCFrom] = useState(() => toInput(new Date(Date.now() - 30 * DAY)));
+  const [cTo, setCTo] = useState(() => toInput(new Date()));
+  const [botId, setBotId] = useState('');
   const [data, setData] = useState<BotAnalyticsData | null>(null);
   const [bots, setBots] = useState<BotView[] | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [botSearch, setBotSearch] = useState('');
 
-  const range = useMemo(() => { const to = new Date(); return { from: new Date(to.getTime() - days * DAY).toISOString(), to: to.toISOString() }; }, [days]);
+  const range = useMemo(() => {
+    const now = new Date();
+    let from: Date, to: Date;
+    if (preset === 'custom' && cFrom && cTo) {
+      from = new Date(`${cFrom}T00:00:00`); to = new Date(`${cTo}T23:59:59`);
+      if (isNaN(from.getTime()) || isNaN(to.getTime()) || from.getTime() >= to.getTime()) { to = now; from = new Date(now.getTime() - 30 * DAY); }
+    } else {
+      to = now; from = new Date(now.getTime() - (preset === 'custom' ? 30 : Number(preset)) * DAY);
+    }
+    return { from: from.toISOString(), to: to.toISOString(), botId: botId || undefined };
+  }, [preset, cFrom, cTo, botId]);
+  const selBot = useMemo(() => bots?.find((b) => b.id === botId) || null, [bots, botId]);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -163,17 +180,32 @@ export const BotAnalyticsView: React.FC = () => {
           <h2 className="text-lg font-bold text-[#0B2A44]">Bot Analytics</h2>
           <p className="text-xs text-[#5E778C]">Website, Instagram, Facebook and WhatsApp bot conversations.</p>
         </div>
+        <Link href="/webchat" className="inline-flex items-center gap-1.5 rounded-lg border border-[#D3E3F0] bg-white px-3 py-2 text-xs font-semibold text-[#0B2A44] hover:bg-[#F2F7FB]"><MessagesSquare size={13} /> View live conversations</Link>
         <div role="tablist" aria-label="Date range" className="inline-flex rounded-lg bg-[#E6EFF6] p-0.5">
-          {RANGES.map((r) => <button key={r.id} type="button" role="tab" aria-selected={days === r.id} onClick={() => setDays(r.id)} className={cx('rounded-md px-3 py-1.5 text-xs font-semibold', days === r.id ? 'bg-white text-[#0B6BB0] shadow-sm' : 'text-[#5E778C]')}>{r.label}</button>)}
+          {RANGES.map((r) => <button key={r.id} type="button" role="tab" aria-selected={preset === r.id} onClick={() => setPreset(r.id)} className={cx('rounded-md px-3 py-1.5 text-xs font-semibold', preset === r.id ? 'bg-white text-[#0B6BB0] shadow-sm' : 'text-[#5E778C]')}>{r.label}</button>)}
         </div>
         <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={busy ? 'animate-spin' : ''} />} disabled={busy} onClick={() => void load()}>Refresh</Button>
       </div>
+
+      {preset === 'custom' && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[#5E778C]">
+          <label className="flex items-center gap-1.5">From <input type="date" className={cx(inputCls, 'w-auto py-1.5')} value={cFrom} max={cTo || undefined} onChange={(e) => setCFrom(e.target.value)} /></label>
+          <label className="flex items-center gap-1.5">To <input type="date" className={cx(inputCls, 'w-auto py-1.5')} value={cTo} min={cFrom || undefined} max={toInput(new Date())} onChange={(e) => setCTo(e.target.value)} /></label>
+        </div>
+      )}
+      {botId && (
+        <div className="flex items-center gap-2 rounded-lg bg-[#EAF4FB] px-3 py-2 text-sm text-[#0B2A44]">
+          <span>Showing <b>{selBot?.name || 'selected bot'}</b> only.</span>
+          <button type="button" onClick={() => setBotId('')} className="ml-auto inline-flex items-center gap-1 font-semibold text-[#0B6BB0] hover:underline"><X size={13} /> Clear filter</button>
+        </div>
+      )}
 
       {err && <InlineNotice tone="warning">{err}</InlineNotice>}
       {!data ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
             {kpis.map((c) => <KpiTile key={c.label} label={c.label} value={c.value} tone={(c as { tone?: 'gold' | 'sage' }).tone} trend={(c as { trend?: { value: number | null } }).trend} compact />)}
+            {!botId && <KpiTile label="WhatsApp live msgs" value={nf(data.waLive.inbound + data.waLive.outbound)} hint={`${nf(data.waLive.inbound)} in · ${nf(data.waLive.outbound)} out · live chat`} compact />}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -215,7 +247,7 @@ export const BotAnalyticsView: React.FC = () => {
               )}
           </Card>
 
-          <Card title="Bot performance" padded={false}
+          <Card title="Bot performance" subtitle="Tap a bot to filter the whole dashboard to it" padded={false}
             actions={<Button variant="secondary" size="sm" icon={<Download size={13} />} disabled={!bots?.length} onClick={downloadCsv}>Download</Button>}>
             <div className="px-5 pb-3 pt-1">
               <label className="relative block max-w-xs">
@@ -233,7 +265,7 @@ export const BotAnalyticsView: React.FC = () => {
                       </tr></thead>
                       <tbody>
                         {shownBots.map((b) => (
-                          <tr key={b.id} className="border-b border-[#F3F7FA] last:border-0">
+                          <tr key={b.id} onClick={() => setBotId((id) => (id === b.id ? '' : b.id))} title="Filter the dashboard to this bot" className={cx('cursor-pointer border-b border-[#F3F7FA] last:border-0 hover:bg-[#F7FAFB]', botId === b.id && 'bg-[#EAF4FB] hover:bg-[#EAF4FB]')}>
                             <td className="px-5 py-3 font-semibold text-[#0B2A44]">{b.name || 'Untitled bot'}</td>
                             <td className="px-3 py-3"><span className="flex flex-wrap gap-1">{b.channels.map((ch) => { const meta = CH[ch as BotChannelKey]; return <span key={ch} title={meta?.label || ch} className="inline-flex h-5 w-5 items-center justify-center rounded-full text-white" style={{ background: meta?.color || '#8296A6' }}>{meta ? <meta.icon size={11} /> : null}</span>; })}</span></td>
                             <td className="px-3 py-3"><Badge tone={b.status === 'active' ? 'sage' : b.status === 'paused' ? 'amber' : 'muted'}>{b.status === 'active' ? 'Active' : b.status === 'paused' ? 'Paused' : 'Draft'}</Badge></td>

@@ -344,6 +344,7 @@ export interface BotAnalyticsData {
   prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number };
   channels: BotAnalyticsChannel[];
   daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
+  waLive: { inbound: number; outbound: number };
 }
 export interface BotChatLine { role: 'bot' | 'user' | 'agent'; text: string; at: string; seq: number }
 export interface BotChatRow { id: string; channel: 'website' | 'instagram' | 'facebook'; botName: string; who: string; status: 'active' | 'done' | 'handoff' | 'stopped'; mode: 'bot' | 'agent'; assignedAgent: string; leadId: string; messages: number; answers: number; visits: number; startedAt: string; lastAt: string; origin: string; transcript: BotChatLine[]; captured: Record<string, string> }
@@ -673,7 +674,7 @@ export const api = {
   },
 
   botAnalytics: {
-    get: (range: { from: string; to: string }) => request<BotAnalyticsData>('botAnalytics', range),
+    get: (range: { from: string; to: string; botId?: string }) => request<BotAnalyticsData>('botAnalytics', range),
   },
 
   whatsappCredits: {

@@ -6,6 +6,7 @@
  * are a separate system). Each collection is already per-company, so no tenant filter is needed in queries.
  */
 import type { ActionMap } from '../core/actions';
+import { CFG } from '../core/config';
 import { col } from '../core/db';
 
 const DAY = 86400000;
@@ -36,6 +37,8 @@ export interface BotAnalyticsData {
   prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number };
   channels: BotAnalyticsChannel[];
   daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
+  /** WhatsApp live-chat (Chat360) message volume in range — a separate system from the bots, shown for context. */
+  waLive: { inbound: number; outbound: number };
 }
 
 interface Spec { channel: ChannelKey; coll: string; idField: string; match: Record<string, unknown>; hasTranscript: boolean; handoff: Record<string, unknown> }
@@ -49,9 +52,9 @@ const SPECS: Spec[] = [
 interface Agg { sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; durSum: number; durCount: number; bot: number; user: number; agent: number; daily: Map<string, number> }
 
 /** One channel's figures for one window, computed in the database (no documents pulled into Node). */
-async function aggregate(spec: Spec, from: Date, to: Date): Promise<Agg> {
+async function aggregate(spec: Spec, from: Date, to: Date, botId?: string): Promise<Agg> {
   const c = await col<Record<string, unknown>>(spec.coll);
-  const match = { ...spec.match, startedAt: { $gte: from, $lt: to } };
+  const match: Record<string, unknown> = { ...spec.match, startedAt: { $gte: from, $lt: to }, ...(botId ? { botId } : {}) };
   const roleSum = (role: string) => ({ $sum: { $size: { $ifNull: [{ $filter: { input: '$transcript', as: 't', cond: { $eq: ['$$t.role', role] } } }, []] } } });
   const facet: Record<string, unknown[]> = {
     total: [{ $count: 'n' }],
@@ -76,14 +79,25 @@ async function aggregate(spec: Spec, from: Date, to: Date): Promise<Agg> {
 }
 
 /** Chats open right now: status "active" and seen within the last 15 minutes, across all three stores. */
-async function countActiveNow(): Promise<number> {
+async function countActiveNow(botId?: string): Promise<number> {
   const since = new Date(Date.now() - 15 * 60000);
   let n = 0;
   for (const coll of ['webchatSessions', 'whatsappBotSessions', 'socialBotSessions']) {
     const c = await col<Record<string, unknown>>(coll);
-    n += await c.countDocuments({ status: 'active', lastAt: { $gte: since } });
+    n += await c.countDocuments({ status: 'active', lastAt: { $gte: since }, ...(botId ? { botId } : {}) });
   }
   return n;
+}
+
+/** WhatsApp live-chat message volume in the window, by direction (Chat360 — not a bot system). */
+async function waLiveCounts(from: Date, to: Date): Promise<{ inbound: number; outbound: number }> {
+  try {
+    const c = await col<Record<string, unknown>>(CFG.COLL.CHAT_MESSAGES);
+    const rows = await c.aggregate([{ $match: { timestamp: { $gte: from, $lt: to } } }, { $group: { _id: '$direction', n: { $sum: 1 } } }]).toArray() as Array<{ _id: string; n: number }>;
+    let inbound = 0, outbound = 0;
+    for (const r of rows) { if (r._id === 'Inbound') inbound = r.n; else if (r._id === 'Outbound') outbound = r.n; }
+    return { inbound, outbound };
+  } catch { return { inbound: 0, outbound: 0 }; }
 }
 
 const dayKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -100,7 +114,8 @@ function dayRange(from: Date, to: Date): string[] {
   return out;
 }
 
-export async function botAnalytics(d: { from?: string; to?: string } | undefined): Promise<BotAnalyticsData> {
+export async function botAnalytics(d: { from?: string; to?: string; botId?: string } | undefined): Promise<BotAnalyticsData> {
+  const botId = d?.botId ? String(d.botId) : '';
   let to = d?.to ? new Date(d.to) : new Date();
   let from = d?.from ? new Date(d.from) : new Date(to.getTime() - 30 * DAY);
   if (isNaN(to.getTime())) to = new Date();
@@ -111,10 +126,11 @@ export async function botAnalytics(d: { from?: string; to?: string } | undefined
   const prevTo = from;
   const prevFrom = new Date(from.getTime() - span);
 
-  const [cur, prev, activeNow] = await Promise.all([
-    Promise.all(SPECS.map((s) => aggregate(s, from, to))),
-    Promise.all(SPECS.map((s) => aggregate(s, prevFrom, prevTo))),
-    countActiveNow(),
+  const [cur, prev, activeNow, waLive] = await Promise.all([
+    Promise.all(SPECS.map((s) => aggregate(s, from, to, botId))),
+    Promise.all(SPECS.map((s) => aggregate(s, prevFrom, prevTo, botId))),
+    countActiveNow(botId),
+    botId ? Promise.resolve({ inbound: 0, outbound: 0 }) : waLiveCounts(from, to),
   ]);
 
   const sum = (f: (a: Agg) => number, arr: Agg[]) => arr.reduce((t, a) => t + f(a), 0);
@@ -149,7 +165,7 @@ export async function botAnalytics(d: { from?: string; to?: string } | undefined
       totalSessions: sum((a) => a.sessions, prev), uniqueUsers: sum((a) => a.uniqueUsers, prev),
       handoffs: sum((a) => a.handoffs, prev), avgSessionSec: prevDurCount ? Math.round(prevDurSum / prevDurCount) : 0,
     },
-    channels, daily,
+    channels, daily, waLive,
   };
 }
 
