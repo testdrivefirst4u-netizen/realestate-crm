@@ -23,7 +23,7 @@
     "jssip": "^3.10.1",
     "lucide-react": "^0.546.0",
     "mongodb": "^7.0.0",
-    "next": "^16.4.2",
+    "next": "^16.4.6",
     "nodemailer": "^10.1.7",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
