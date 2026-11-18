@@ -235,8 +235,8 @@ export async function startGoogleConnect(input: { sessionCookie: string; nowMs?:
   const back = (params: { googleConnected: string } | { googleError: string }) => googleReturnRedirect(r, params);
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { redirect: back({ googleError: 'Only an administrator can connect a Google account.' }) };
-  if (!sess.tenant.features.googleSheets) return { redirect: back({ googleError: "Google Sheets sync is not included in your company's plan." }) };
+  if (!can(sess.user, 'settings.edit') && !can(sess.user, 'integrations.connect')) return { redirect: back({ googleError: 'Only an administrator can connect a Google account.' }) };
+  if (!sess.tenant.features.googleSheets && !sess.tenant.features.websiteAnalytics) return { redirect: back({ googleError: "Google (Sheets / Analytics) is not included in your company's plan." }) };
   const client = await loadOAuthClient();
   if (!client) return { redirect: back({ googleError: '"Connect with Google" is not set up on this platform yet. Ask your platform administrator.' }) };
   const nonce = randomToken(16);
@@ -315,7 +315,7 @@ export async function finishGoogleConnect(input: { params: URLSearchParams; sess
   if (!v.ok) return err(NOT_VERIFIED_MSG);
   const r = v.state.r === 'analytics' ? 'analytics' : undefined;
   const back = (googleError: string) => ({ redirect: googleReturnRedirect(r, { googleError: truncate(googleError, 300) }) });
-  if (!can(sess.user, 'settings.edit') || !sess.tenant.features.googleSheets) return back('You cannot connect a Google account.');
+  if ((!can(sess.user, 'settings.edit') && !can(sess.user, 'integrations.connect')) || (!sess.tenant.features.googleSheets && !sess.tenant.features.websiteAnalytics)) return back('You cannot connect a Google account.');
   const code = p.get('code') || '';
   if (!code) return back('Google did not return an authorisation code. Please try again.');
   try {

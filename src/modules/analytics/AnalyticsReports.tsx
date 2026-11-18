@@ -5,7 +5,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, RefreshCw, Search } from 'lucide-react';
-import { api, type AnalyticsCard, type AnalyticsDay, type AnalyticsMetric, type AnalyticsReport } from '../../core/api';
+import { api, type AnalyticsCard, type AnalyticsDay, type AnalyticsMetric, type AnalyticsReport, type GoogleMarketingView } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
@@ -157,8 +157,11 @@ export const AnalyticsReports: React.FC<{ canManage?: boolean }> = ({ canManage 
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState('');
   const [metric, setMetric] = useState('');
+  const [gm, setGm] = useState<GoogleMarketingView | null>(null);
+  const [gmBusy, setGmBusy] = useState(false);
   const latest = useRef(0);
   const custom = preset === 'custom';
+  const loadGm = useCallback(async () => { if (!canManage) return; try { setGm(await api.googleMarketing.get()); } catch { /* ignore — keep the plain message */ } }, [canManage]);
 
   const load = useCallback(async (refresh = false) => {
     if (report === 'crm' || (custom && (!from || !to))) return;
@@ -183,22 +186,33 @@ export const AnalyticsReports: React.FC<{ canManage?: boolean }> = ({ canManage 
     return () => clearInterval(t);
   }, [report, load]);
 
-  // returning from the inline "Connect Google Analytics" (OAuth) lands on /analytics?googleConnected=… — toast and reload
+  // returning from the inline "Connect Google Analytics" (OAuth) lands on /analytics?googleConnected=… — finish setup here
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
     const ok = q.get('googleConnected'); const gErr = q.get('googleError');
     if (!ok && !gErr) return;
-    if (gErr) toast('Google connection', gErr, 'alert');
-    else toast('Google connected', 'Website visitors will load now. If you have more than one GA4 property, pick it in Settings › Google.', 'success');
     q.delete('googleConnected'); q.delete('googleError');
     window.history.replaceState(null, '', `${window.location.pathname}${q.toString() ? `?${q}` : ''}`);
-    void load(true);
-  }, [load]);
+    if (gErr) { toast('Google connection', gErr, 'alert'); return; }
+    toast('Google connected', 'Loading your website visitors…', 'success');
+    // list GA4 properties and auto-pick when there is only one, then reload the report
+    void (async () => { try { setGm(await api.googleMarketing.refresh()); } catch { await loadGm(); } await load(true); })();
+  }, [load, loadGm]);
 
   const open = (id: string) => { setReport(id); setDimension(''); setMetric(''); setData(null); setFailed(''); };
   const current = data && data.report === report ? data : null;
+  const connectErr = !!current?.error && /\bConnect\b.*Google|Google.*\bconnect/i.test(current.error);
   const connectBtn = canManage ? <a href="/api/integrations/google/connect?return=analytics" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#1A73E8] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110">Connect Google Analytics</a> : null;
+  const saveProperty = async (id: string) => {
+    if (!id) return;
+    setGmBusy(true);
+    try { setGm(await api.googleMarketing.save({ ga4PropertyId: id })); toast('Analytics property set', '', 'success'); await load(true); }
+    catch (e) { toast('Could not set the property', errText('google.save', e), 'alert'); }
+    finally { setGmBusy(false); }
+  };
+  // when the report says "connect Google", look up the connection so the right panel (connect / pick property) shows
+  useEffect(() => { if (canManage && connectErr && !gm) void loadGm(); }, [canManage, connectErr, gm, loadGm]);
   const chosen = current?.metrics.find((m) => m.id === metric) || current?.metrics[0];
   const cards = (current?.cards || []);
 
@@ -244,11 +258,27 @@ export const AnalyticsReports: React.FC<{ canManage?: boolean }> = ({ canManage 
 
             {failed && <InlineNotice tone="warning">{failed}</InlineNotice>}
             {current?.error && (
-              <InlineNotice tone="warning">
-                {/\bConnect\b.*Google|Google.*\bconnect/i.test(current.error) && canManage
-                  ? <span className="flex flex-col items-start gap-1">Connect Google Analytics to see website visitors — no need to open Settings.{connectBtn}</span>
-                  : current.error}
-              </InlineNotice>
+              connectErr && canManage ? (
+                <div className="rounded-lg border border-[#F3D9A8] bg-[#FFFBEF] p-4">
+                  {!gm ? (
+                    <span className="flex flex-col items-start gap-1 text-sm text-[#8A5A00]">Connect Google Analytics to see website visitors — no need to open Settings.{connectBtn}</span>
+                  ) : !gm.connected ? (
+                    <span className="flex flex-col items-start gap-1 text-sm text-[#8A5A00]">Connect Google Analytics to see website visitors — no need to open Settings.{connectBtn}</span>
+                  ) : !gm.analyticsAccess ? (
+                    <span className="flex flex-col items-start gap-1 text-sm text-[#8A5A00]">Your Google account is connected, but it didn’t grant “See your Google Analytics data”. Reconnect and tick that permission.<a href="/api/integrations/google/connect?return=analytics" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#1A73E8] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110">Reconnect &amp; allow Analytics</a></span>
+                  ) : gm.ga4Properties.length === 0 ? (
+                    <span className="text-sm text-[#8A5A00]">Connected, but no Google Analytics property was found for this account. Create a GA4 property in Google Analytics, then press Refresh.</span>
+                  ) : (
+                    <div className="flex flex-col items-start gap-2">
+                      <span className="text-sm text-[#8A5A00]">Choose which Google Analytics property to show.</span>
+                      <select className={cx(inputCls, 'w-auto max-w-sm')} aria-label="Google Analytics property" defaultValue="" disabled={gmBusy} onChange={(e) => void saveProperty(e.target.value)}>
+                        <option value="" disabled>Choose a property…</option>
+                        {gm.ga4Properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ) : <InlineNotice tone="warning">{current.error}</InlineNotice>
             )}
             {current?.notes.map((n) => <InlineNotice key={n} tone="info">{n}</InlineNotice>)}
             {!current && !failed && <p className="text-xs text-[#5F6368]">Loading…</p>}
