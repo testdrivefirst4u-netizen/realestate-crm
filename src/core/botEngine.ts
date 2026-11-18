@@ -74,7 +74,18 @@ export interface StepContext { now: Date; company: string; ai?: (question: strin
 
 export const STOP_WORDS = /^\s*(stop|unsubscribe|opt\s*out|cancel|block)\s*[.!]*\s*$/i;
 const PERSON_WORDS = /\b(agent|human|real person|talk to (someone|a person)|executive|representative|call me|speak to|customer care)\b/i;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Accepts normal mailbox + domain e-mails (Gmail, Outlook/Hotmail, company domains); rejects a missing/!invalid domain or TLD.
+const EMAIL = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+/** An Indian mobile: exactly 10 digits, starting 6/7/8/9, not the same digit ten times. Accepts +91 / 0 / spaces. '' = valid. */
+const phoneError = (raw: string): string => {
+  const d = String(raw || '').replace(/\D/g, '');
+  const ten = d.length > 10 ? d.slice(-10) : d;
+  if (ten.length !== 10) return 'Please type a 10-digit mobile number.';
+  if (!/^[6-9]/.test(ten)) return 'A mobile number starts with 6, 7, 8 or 9 — please check it.';
+  if (/^(\d)\1{9}$/.test(ten)) return 'That does not look like a real number. Please type your mobile number again.';
+  return '';
+};
 const HANDOFF_TEXT = 'Thank you. Someone from our team will get back to you shortly.';
 
 const initialState = (stepId: string, vars: Record<string, string> = {}): ChatState => ({ stepId, phase: '', day: '', retries: 0, aiReplies: 0, sent: 0, vars });
@@ -195,7 +206,8 @@ export async function replyToChat(def: BotDefinition, state: ChatState, reply: {
     case 'question': {
       if (!text) return retry('Please type your answer.');
       if (step.validate === 'email' && !EMAIL.test(text)) return retry('That does not look like an e-mail address. Please type it again.');
-      if (step.validate === 'number' && !/\d/.test(text)) return retry('Please answer with a number.');
+      if (step.saveTo === 'phone') { const pe = phoneError(text); if (pe) return retry(pe); }
+      else if (step.validate === 'number' && !/\d/.test(text)) return retry('Please answer with a number.');
       const value = text.slice(0, 300);
       if (step.saveTo) {
         s.vars[step.saveTo] = value;
