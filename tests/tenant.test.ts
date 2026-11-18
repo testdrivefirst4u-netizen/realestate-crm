@@ -105,10 +105,10 @@ describe('Sidebar follows the plan', () => {
       }))
     );
   };
-  it('shows the company name and tagline instead of the old branding', () => {
+  it('shows the company logo only — name as its accessible label, no visible name/tagline text', () => {
     const html = render({ company: COMPANY });
-    expect(html).toContain('Acme Homes');
-    expect(html).toContain('Homes for every family');
+    expect(html).toContain('Acme Homes'); // kept as the logo's title / alt label for accessibility
+    expect(html).not.toContain('Homes for every family'); // tagline is no longer shown — the logo stands alone
     expect(html).not.toMatch(/Rahul|Amaya|Vera Vita/);
   });
   it('hides the views the plan does not include', () => {

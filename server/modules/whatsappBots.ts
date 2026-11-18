@@ -136,6 +136,7 @@ export async function listBots() {
       for (const s of mine) if (s.status === 'active') waiting.set(s.state.stepId, (waiting.get(s.state.stepId) || 0) + 1);
       return {
         id: b._id, name: b.name, status: b.status, trigger: b.trigger, keywords: b.keywords, channels: channelsOf(b), steps: b.steps, knowledge: b.knowledge, tested: b.tested, rev: b.rev, createdBy: b.createdBy, problems: botProblems(b),
+        createdAt: b.createdAt ? new Date(b.createdAt).toISOString() : '', updatedAt: b.updatedAt ? new Date(b.updatedAt).toISOString() : '',
         stats: {
           started: mine.length, inProgress: count('active'), finished: count('done'), handedOff: count('handoff'), stopped: count('stopped'),
           visits: mine.reduce((t, s) => t + (s.visits || 0), 0), withAnswers: mine.filter((s) => s.answers > 0).length,

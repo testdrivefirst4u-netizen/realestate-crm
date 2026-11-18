@@ -1,12 +1,12 @@
 /** WhatsApp chatbots (plan feature whatsappBots; server: modules/whatsappBots.ts): build from blocks, try it in a test chat, start it, see how it does. */
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, CalendarCheck, CheckCircle2, Clock, Copy, Facebook, Globe, HelpCircle, Instagram, MessageSquare, Pause, Pencil, Play, Plus, Send, Trash2, Upload, UserRound } from 'lucide-react';
+import { CalendarCheck, CheckCircle2, Clock, Copy, Facebook, Globe, HelpCircle, Instagram, MessageSquare, Pause, Pencil, Play, Plus, Search, Send, Trash2, Upload, UserRound } from 'lucide-react';
 import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
 import { BOT_CHANNELS, BOT_CHANNEL_LABEL, type BotChannel } from '../../core/botEngine';
 import { WhatsAppIcon } from '../../components/WhatsAppIcon';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { Button, Card, ConfirmDialog, EmptyState, InlineNotice, LoadingState, Modal, inputCls } from '../../components/ui';
+import { Button, ConfirmDialog, InlineNotice, LoadingState, Modal, Select, cx, inputCls } from '../../components/ui';
 import type { BotDraft } from './BotFlowEditor';
 
 const BotFlowEditor = React.lazy(() => import('./BotFlowEditor').then((m) => ({ default: m.BotFlowEditor })));
@@ -139,6 +139,25 @@ const Stat: React.FC<{ label: string; value: number; icon: React.ElementType; ti
   </div>
 );
 
+const two = (n: number) => String(n).padStart(2, '0');
+/** DD-MM-YYYY HH:mm, matching the bot-card dates. */
+const fmtDT = (iso: string) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return `${two(d.getDate())}-${two(d.getMonth() + 1)}-${d.getFullYear()} ${two(d.getHours())}:${two(d.getMinutes())}`;
+};
+/** One icon per card: WhatsApp when it is one of the channels, else the first channel. */
+const cardChannel = (b: BotView): BotChannel => (b.channels.includes('whatsapp') ? 'whatsapp' : b.channels[0] || 'whatsapp');
+const PAGE_SIZE = 8;
+
+const Info: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="min-w-0">
+    <dt className="text-[11px] font-medium text-[#8296A6]">{label}</dt>
+    <dd className="mt-0.5 truncate text-[13px] font-medium text-[#0B2A44]" title={value}>{value}</dd>
+  </div>
+);
+
 export const ChatbotsView: React.FC = () => {
   const [data, setData] = useState<BotsOverview | null>(null);
   const [failed, setFailed] = useState('');
@@ -147,6 +166,11 @@ export const ChatbotsView: React.FC = () => {
   const [removing, setRemoving] = useState<BotView | null>(null);
   const [json, setJson] = useState<{ mode: 'import' | 'export'; text: string } | null>(null);
   const [busy, setBusy] = useState('');
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [page, setPage] = useState(0);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const copyId = (id: string) => { navigator.clipboard?.writeText(id).then(() => toast('Copied', 'Bot ID copied', 'success')).catch(() => undefined); };
   const doImport = () => {
     try {
       setEditing(normalizeImport(JSON.parse(json?.text || '')));
@@ -190,62 +214,129 @@ export const ChatbotsView: React.FC = () => {
     }
   };
   if (!data) return failed ? <InlineNotice tone="warning">{failed}</InlineNotice> : <LoadingState label="Loading chatbots…" />;
+
+  const q = query.trim().toLowerCase();
+  const filtered = data.bots.filter((b) => {
+    const okq = !q || b.name.toLowerCase().includes(q) || b.id.toLowerCase().includes(q);
+    const okf = filter === 'all' || (filter === 'active' ? b.status === 'active' : b.status !== 'active');
+    return okq && okf;
+  });
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const curPage = Math.min(page, pages - 1);
+  const slice = filtered.slice(curPage * PAGE_SIZE, curPage * PAGE_SIZE + PAGE_SIZE);
+  const from = filtered.length ? curPage * PAGE_SIZE + 1 : 0;
+  const to = curPage * PAGE_SIZE + slice.length;
+  const detail = detailId ? data.bots.find((b) => b.id === detailId) || null : null;
+
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
+    <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-[#0B2A44] sm:text-2xl">Chatbots</h2>
+          <h2 className="text-xl font-bold tracking-tight text-[#0B2A44] sm:text-2xl">Create and manage bots</h2>
           <p className="mt-0.5 text-xs text-[#5E778C]">One bot that answers on WhatsApp, your website, Instagram and Facebook — pick its channels when you build it. It collects details, books visits, and steps aside the moment a person replies.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8296A6]" />
+            <input className={cx(inputCls, 'w-[210px] pl-8')} value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder="Search bots" aria-label="Search bots" />
+          </label>
+          <Select value={filter} onChange={(e) => { setFilter(e.target.value as typeof filter); setPage(0); }} aria-label="Filter by status" className="w-[120px]"
+            options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
           <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setJson({ mode: 'import', text: '' })}>Import JSON</Button>
-          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New chatbot</Button>
+          <Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New bot</Button>
         </div>
       </div>
       {!data.connected && <InlineNotice tone="warning">Connect a WhatsApp number in Settings › WhatsApp direct to start a bot. You can still build and test one now.</InlineNotice>}
-      {!data.bots.length ? <EmptyState icon={<Bot size={22} />} title="No chatbots yet" description="Start from a ready property enquiry bot, and change it to suit you." action={<Button variant="primary" icon={<Plus size={14} />} onClick={() => setEditing(newDraft())}>New chatbot</Button>} /> : data.bots.map((b) => {
-        const s = STATUS_PILL[b.status];
-        const canStart = b.tested && !b.problems.length && !(b.channels.includes('whatsapp') && !data.connected);
-        return (
-          <Card key={b.id}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-bold text-[#0B2A44]">{b.name}</h3>
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: s.bg, color: s.fg }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: s.dot }} />{s.label}</span>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {curPage === 0 && !q && filter === 'all' && (
+          <button type="button" onClick={() => setEditing(newDraft())} className="group flex min-h-[214px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#BBD3E6] bg-[#F3F8FC] text-[#0B6BB0] transition hover:border-[#0B6BB0] hover:bg-[#EAF3FB]">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#0B6BB0] text-white shadow-sm transition group-hover:scale-105"><Plus size={26} /></span>
+            <span className="text-base font-semibold">Create a New Bot</span>
+          </button>
+        )}
+        {slice.map((b) => {
+          const C = CHANNEL_ICON[cardChannel(b)];
+          const active = b.status === 'active';
+          return (
+            <div key={b.id} className="flex flex-col overflow-hidden rounded-2xl border border-[#E2ECF3] bg-white shadow-[0_1px_3px_rgba(16,40,64,0.06)]">
+              <div className="flex-1 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-white shadow-sm" style={{ background: C.tint }} title={BOT_CHANNEL_LABEL[cardChannel(b)]}><C.icon size={18} /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="truncate text-[15px] font-bold text-[#0B2A44]" title={b.name}>{b.name}</h3>
+                      <button type="button" aria-label={`Edit ${b.name}`} title="Edit" onClick={() => setEditing(toDraft(b))} className="flex-none rounded-lg p-1 text-[#5E778C] hover:bg-[#EEF3F7] hover:text-[#0B6BB0]"><Pencil size={15} /></button>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-[#8296A6]">
+                      <span className="truncate" title={b.id}>ID: {b.id}</span>
+                      <button type="button" aria-label="Copy bot ID" title="Copy ID" onClick={() => copyId(b.id)} className="flex-none rounded p-0.5 hover:bg-[#EEF3F7] hover:text-[#0B6BB0]"><Copy size={12} /></button>
+                    </div>
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-[#5E778C]">{b.steps.length} step{b.steps.length === 1 ? '' : 's'} · {TRIGGER[b.trigger]}{b.trigger === 'keyword' ? `: ${b.keywords.join(', ')}` : ''}</p>
+                <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3">
+                  <Info label="Created On" value={fmtDT(b.createdAt)} />
+                  <Info label="Chat Count" value={`${b.stats.started.toLocaleString('en-IN')} Visitor${b.stats.started === 1 ? '' : 's'}`} />
+                  <Info label="Updated On" value={fmtDT(b.updatedAt)} />
+                  <div>
+                    <dt className="text-[11px] font-medium text-[#8296A6]">Status</dt>
+                    <dd className="mt-0.5"><span className={cx('inline-flex items-center gap-1.5 text-[13px] font-semibold', active ? 'text-[#067647]' : 'text-[#C0392B]')}><span className="h-1.5 w-1.5 rounded-full" style={{ background: active ? '#16A34A' : '#D64545' }} />{active ? 'Active' : 'Inactive'}</span></dd>
+                  </div>
+                </dl>
               </div>
-              <div className="flex items-center gap-1.5">
-                {b.channels.map((ch) => { const C = CHANNEL_ICON[ch]; return <span key={ch} title={BOT_CHANNEL_LABEL[ch]} aria-label={BOT_CHANNEL_LABEL[ch]} className="flex h-7 w-7 items-center justify-center rounded-full text-white shadow-sm" style={{ background: C.tint }}><C.icon size={14} /></span>; })}
-              </div>
+              <button type="button" onClick={() => setDetailId(b.id)} className="border-t border-[#EEF3F7] py-2.5 text-center text-[13px] font-semibold text-[#0B6BB0] transition hover:bg-[#F5FAFE]">View Details</button>
             </div>
+          );
+        })}
+        {!filtered.length && (q || filter !== 'all') && (
+          <div className="col-span-full rounded-2xl border border-dashed border-[#D7E3EC] bg-white p-10 text-center text-sm text-[#5E778C]">No bots match your search or filter.</div>
+        )}
+      </div>
 
-            <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              <Stat label="Chats started" value={b.stats.started} icon={MessageSquare} tint="#0B6BB0" />
-              <Stat label="In progress" value={b.stats.inProgress} icon={Clock} tint="#9A5B00" />
-              <Stat label="Finished" value={b.stats.finished} icon={CheckCircle2} tint="#067647" />
-              <Stat label="Handed to team" value={b.stats.handedOff} icon={UserRound} tint="#8A3E28" />
-              <Stat label="Answered" value={b.stats.withAnswers} icon={HelpCircle} tint="#5B3FA8" />
-              <Stat label="Visits booked" value={b.stats.visits} icon={CalendarCheck} tint="#C1398B" />
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-sm text-[#5E778C]">
+          <span>Showing {from}-{to} of {filtered.length}</span>
+          <div className="flex items-center gap-1.5">
+            <button type="button" disabled={curPage === 0} onClick={() => setPage(curPage - 1)} className="rounded-lg border border-[#D3E3F0] px-3 py-1.5 font-semibold text-[#0B6BB0] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#F2F7FB]">Prev</button>
+            <span className="rounded-lg bg-[#0B6BB0] px-3 py-1.5 font-semibold text-white">{curPage + 1}</span>
+            <button type="button" disabled={curPage >= pages - 1} onClick={() => setPage(curPage + 1)} className="rounded-lg border border-[#D3E3F0] px-3 py-1.5 font-semibold text-[#0B6BB0] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[#F2F7FB]">Next</button>
+          </div>
+        </div>
+      )}
+
+      {detail && (() => {
+        const canStart = detail.tested && !detail.problems.length && !(detail.channels.includes('whatsapp') && !data.connected);
+        return (
+          <Modal open onClose={() => setDetailId(null)} width="lg" title={detail.name}
+            subtitle={`${detail.steps.length} step${detail.steps.length === 1 ? '' : 's'} · ${TRIGGER[detail.trigger]}${detail.trigger === 'keyword' ? `: ${detail.keywords.join(', ')}` : ''}`}>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {detail.channels.map((ch) => { const C = CHANNEL_ICON[ch]; return <span key={ch} title={BOT_CHANNEL_LABEL[ch]} className="inline-flex items-center gap-1.5 rounded-full bg-[#F2F7FB] px-2.5 py-1 text-[11px] font-semibold text-[#3E5A70]"><span className="flex h-4 w-4 items-center justify-center rounded-full text-white" style={{ background: C.tint }}><C.icon size={10} /></span>{BOT_CHANNEL_LABEL[ch]}</span>; })}
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: STATUS_PILL[detail.status].bg, color: STATUS_PILL[detail.status].fg }}><span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_PILL[detail.status].dot }} />{STATUS_PILL[detail.status].label}</span>
+            </div>
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <Stat label="Chats started" value={detail.stats.started} icon={MessageSquare} tint="#0B6BB0" />
+              <Stat label="In progress" value={detail.stats.inProgress} icon={Clock} tint="#9A5B00" />
+              <Stat label="Finished" value={detail.stats.finished} icon={CheckCircle2} tint="#067647" />
+              <Stat label="Handed to team" value={detail.stats.handedOff} icon={UserRound} tint="#8A3E28" />
+              <Stat label="Answered" value={detail.stats.withAnswers} icon={HelpCircle} tint="#5B3FA8" />
+              <Stat label="Visits booked" value={detail.stats.visits} icon={CalendarCheck} tint="#C1398B" />
             </dl>
-
-            {b.stats.waitingAt.length > 0 && <p className="mt-3 text-[11px] text-[#5E778C]">Waiting most at: step {b.stats.waitingAt[0].step} ({b.stats.waitingAt[0].n}){b.stats.waitingAt[0].text ? `, “${b.stats.waitingAt[0].text}”` : ''}</p>}
-            {b.problems.length > 0 && <InlineNotice tone="warning" className="mt-3">{b.problems[0]}{b.problems.length > 1 ? ` And ${b.problems.length - 1} more.` : ''}</InlineNotice>}
-            {b.status !== 'active' && !b.problems.length && !b.tested && <p className="mt-3 text-[11px] text-[#8A5A00]">Try it in the test chat, right to its end, before starting it.</p>}
-
+            {detail.stats.waitingAt.length > 0 && <p className="mt-3 text-[11px] text-[#5E778C]">Waiting most at: step {detail.stats.waitingAt[0].step} ({detail.stats.waitingAt[0].n}){detail.stats.waitingAt[0].text ? `, “${detail.stats.waitingAt[0].text}”` : ''}</p>}
+            {detail.problems.length > 0 && <InlineNotice tone="warning" className="mt-3">{detail.problems[0]}{detail.problems.length > 1 ? ` And ${detail.problems.length - 1} more.` : ''}</InlineNotice>}
+            {detail.status !== 'active' && !detail.problems.length && !detail.tested && <p className="mt-3 text-[11px] text-[#8A5A00]">Try it in the test chat, right to its end, before starting it.</p>}
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#EEF3F7] pt-3">
-              {b.status === 'active'
-                ? <Button variant="secondary" size="sm" icon={<Pause size={13} />} loading={busy === b.id} onClick={() => void status(b, 'paused')}>Pause</Button>
-                : <Button variant="primary" size="sm" icon={<Play size={13} />} loading={busy === b.id} disabled={!canStart} onClick={() => void status(b, 'active')}>Start</Button>}
-              <Button variant="secondary" size="sm" icon={<Send size={13} />} disabled={b.problems.length > 0} onClick={() => setTesting(b)}>Test chat</Button>
-              {b.status !== 'active' && <Button variant="secondary" size="sm" icon={<Pencil size={13} />} onClick={() => setEditing(toDraft(b))}>Edit</Button>}
-              <Button variant="secondary" size="sm" icon={<Copy size={13} />} onClick={() => setJson({ mode: 'export', text: exportText(b) })}>Export JSON</Button>
-              {b.status !== 'active' && <Button variant="secondary" size="sm" icon={<Trash2 size={13} />} aria-label={`Delete ${b.name}`} className="ml-auto" onClick={() => setRemoving(b)} />}
+              {detail.status === 'active'
+                ? <Button variant="secondary" size="sm" icon={<Pause size={13} />} loading={busy === detail.id} onClick={() => void status(detail, 'paused')}>Pause</Button>
+                : <Button variant="primary" size="sm" icon={<Play size={13} />} loading={busy === detail.id} disabled={!canStart} onClick={() => void status(detail, 'active')}>Start</Button>}
+              <Button variant="secondary" size="sm" icon={<Send size={13} />} disabled={detail.problems.length > 0} onClick={() => { const b = detail; setDetailId(null); setTesting(b); }}>Test chat</Button>
+              {detail.status !== 'active' && <Button variant="secondary" size="sm" icon={<Pencil size={13} />} onClick={() => { const b = detail; setDetailId(null); setEditing(toDraft(b)); }}>Edit</Button>}
+              <Button variant="secondary" size="sm" icon={<Copy size={13} />} onClick={() => setJson({ mode: 'export', text: exportText(detail) })}>Export JSON</Button>
+              {detail.status !== 'active' && <Button variant="secondary" size="sm" icon={<Trash2 size={13} />} aria-label={`Delete ${detail.name}`} className="ml-auto" onClick={() => { const b = detail; setDetailId(null); setRemoving(b); }} />}
             </div>
-          </Card>
+          </Modal>
         );
-      })}
+      })()}
+
       {editing && <Suspense fallback={<LoadingState label="Opening the map" />}><BotFlowEditor draft={editing} aiAvailable={data.aiAvailable} onClose={() => setEditing(null)} onSaved={(_, problems) => { setEditing(null); if (problems.length) toast('Saved, with something to fix', problems[0], 'alert'); void load(); }} /></Suspense>}
       {testing && <TestChat bot={testing} onClose={() => { setTesting(null); void load(); }} onDone={() => undefined} />}
       <Modal open={!!json} onClose={() => setJson(null)} width="md"
