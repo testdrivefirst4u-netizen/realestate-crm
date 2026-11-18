@@ -148,12 +148,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         <Link href={viewHref('today')} prefetch={false} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
           <AppLogo size="sm" />
         </Link>
-        {!narrow && (
-          <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-bold leading-tight truncate" title={company?.name || 'CRM'}>{company?.name || 'CRM'}</div>
-            <div className="text-[11px] text-[#8FB2D1] truncate">{company?.tagline || 'Sales CRM'}</div>
-          </div>
-        )}
+        {/* brand name/tagline intentionally hidden — the logo alone identifies the company */}
+        {!narrow && <div className="min-w-0 flex-1" />}
         {mobile && (
           <button type="button" onClick={onCloseMobile} className="w-10 h-10 -mr-2 flex items-center justify-center rounded-lg text-[#BFD3E6] hover:text-white hover:bg-white/10" aria-label="Close menu"><X size={20} /></button>
         )}
