@@ -5,12 +5,12 @@
  * people with their picture and username, the latest message beside the time, grey and blue bubbles, times between them.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Inbox, MessageSquare, RefreshCw, Search, Send, Star, UserPlus } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Inbox, MessageCircle, MessageSquare, RefreshCw, Search, Send, Star, UserPlus } from 'lucide-react';
 import { api, type InboxMedia, type InboxMessage, type InboxPlatform, type InboxPost, type InboxThread } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { phoneProblem } from '../../core/phone';
-import { Button, EmptyState, Field, Modal, Tabs, cx, inputCls } from '../../components/ui';
+import { Button, EmptyState, Field, Modal, cx, inputCls } from '../../components/ui';
 
 type Filter = 'all' | 'message' | 'comment' | 'review';
 const PLATFORM: Record<InboxPlatform, { label: string; dot: string; short: string }> = {
@@ -19,6 +19,15 @@ const PLATFORM: Record<InboxPlatform, { label: string; dot: string; short: strin
   google: { label: 'Google', dot: 'bg-[#34A853]', short: 'G' },
 };
 const KIND: Record<string, string> = { message: 'Message', comment: 'Comment', review: 'Review' };
+/** The type folders down the left rail of the Unified Inbox. */
+const RAIL: Array<{ id: Filter; label: string; icon: React.ElementType }> = [
+  { id: 'all', label: 'All', icon: Inbox },
+  { id: 'message', label: 'Messages', icon: MessageSquare },
+  { id: 'comment', label: 'Comments', icon: MessageCircle },
+  { id: 'review', label: 'Reviews', icon: Star },
+];
+/** The platform chips above the list. */
+const PLATFORM_CHIPS: Array<[InboxPlatform | '', string]> = [['', 'Every platform'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['google', 'Google']];
 const ago = (iso: string) => {
   const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
   return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
@@ -227,24 +236,42 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
     }
   };
 
+  const rail = (
+    <nav aria-label="Type" className={cx('w-[76px] flex-none flex-col items-center gap-1 border-r border-[#E3EDF5] bg-[#F7FAFC] py-3', active ? 'hidden lg:flex' : 'hidden sm:flex')}>
+      {RAIL.map((r) => {
+        const on = filter === r.id;
+        return (
+          <button key={r.id} type="button" onClick={() => setFilter(r.id)} title={r.label} aria-label={r.label} aria-pressed={on}
+            className={cx('flex w-[60px] flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-semibold', on ? 'bg-[#0B6BB0] text-white' : 'text-[#5E778C] hover:bg-[#EEF4F9]')}>
+            <r.icon size={19} aria-hidden="true" />
+            <span className="leading-none">{r.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+
   const list = (
-    <div className={cx('flex flex-col min-h-0 border-r border-[#E3EDF5] bg-white', active ? 'hidden lg:flex' : 'flex', 'lg:w-[360px] w-full')}>
+    <div className={cx('flex flex-col min-h-0 border-r border-[#E3EDF5] bg-white', active ? 'hidden lg:flex' : 'flex', 'lg:w-[340px] w-full')}>
       <div className="p-3 space-y-2 border-b border-[#EEF4F9]">
         <div className="flex items-center gap-2">
-          <Tabs<Filter> value={filter} onChange={setFilter} tabs={[{ id: 'all', label: 'All' }, { id: 'message', label: 'Messages' }, { id: 'comment', label: 'Comments' }, { id: 'review', label: 'Reviews' }]} />
+          <h3 className="text-sm font-bold text-[#0B2A44]">{RAIL.find((r) => r.id === filter)!.label}</h3>
           {canSync && <Button variant="secondary" size="xs" className="ml-auto" icon={<RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />} disabled={syncing} onClick={() => void syncOld()}>{syncing ? 'Syncing…' : 'Sync old messages'}</Button>}
           <button type="button" onClick={() => void refresh()} aria-label="Refresh Google reviews" title="Check for new Google reviews" className={cx(!canSync && 'ml-auto', 'h-9 w-9 inline-flex items-center justify-center rounded-lg text-[#5E778C] hover:bg-[#F2F7FB]')}><RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} /></button>
+        </div>
+        {/* the rail is hidden on phones; these chips stand in for it there */}
+        <div className="flex gap-1 overflow-x-auto sm:hidden">
+          {RAIL.map((r) => <button key={r.id} type="button" onClick={() => setFilter(r.id)} className={cx('whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', filter === r.id ? 'bg-[#0B6BB0] text-white' : 'bg-[#F2F7FB] text-[#5E778C]')}>{r.label}</button>)}
         </div>
         <label className="relative block">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
           <input className="w-full rounded-lg bg-[#EFEFEF] py-2 pl-9 pr-3 text-[13px] text-[#262626] placeholder:text-[#737373] focus:outline-none" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" aria-label="Search conversations" />
         </label>
-        <select className={inputCls} value={platform} onChange={(e) => setPlatform(e.target.value as InboxPlatform | '')} aria-label="Platform">
-          <option value="">Every platform</option>
-          <option value="facebook">Facebook</option>
-          <option value="instagram">Instagram</option>
-          <option value="google">Google reviews</option>
-        </select>
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="group" aria-label="Platform">
+          {PLATFORM_CHIPS.map(([id, label]) => (
+            <button key={id || 'all'} type="button" onClick={() => setPlatform(id)} aria-pressed={platform === id} className={cx('whitespace-nowrap rounded-full border px-3 py-1 text-xs font-semibold', platform === id ? 'border-transparent bg-[#0B6BB0] text-white' : 'border-[#D3E0EC] bg-white text-[#5E778C] hover:bg-[#F2F7FB]')}>{label}</button>
+          ))}
+        </div>
         {onlyPost && (
           <div className="flex items-center gap-2 rounded-lg bg-[#EEF5FC] px-2.5 py-1.5 text-xs text-[#0B2A44]">
             <span className="min-w-0 flex-1 truncate">Comments on: <b>{onlyPost.text || 'this post'}</b></span>
@@ -372,6 +399,7 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
   return (
     <div className="p-0 sm:p-4 lg:p-6 max-w-7xl mx-auto">
       <div className="flex h-[calc(100dvh-7.5rem)] min-h-[420px] rounded-none sm:rounded-2xl border border-[#E3EDF5] overflow-hidden bg-white">
+        {rail}
         {list}
         {pane}
       </div>
