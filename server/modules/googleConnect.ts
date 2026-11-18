@@ -87,6 +87,12 @@ export function googleSettingsRedirect(params: { googleConnected: string } | { g
   return `${appUrl()}/settings?${q.toString()}`;
 }
 
+/** Where the browser returns after a Google connect started from a feature page; only short server-known keys are trusted. */
+export function googleReturnRedirect(returnKey: string | undefined, params: { googleConnected: string } | { googleError: string }): string {
+  if (returnKey === 'analytics') return `${appUrl()}/analytics?${new URLSearchParams(params).toString()}`;
+  return googleSettingsRedirect(params);
+}
+
 /* ---------------------------- auth of a link ----------------------------- */
 
 /**
@@ -224,15 +230,17 @@ export interface GoogleConnectStart {
 }
 
 /** GET /api/integrations/google/connect — core logic (the route only reads cookies and writes the redirect). */
-export async function startGoogleConnect(input: { sessionCookie: string; nowMs?: number }): Promise<GoogleConnectStart> {
+export async function startGoogleConnect(input: { sessionCookie: string; nowMs?: number; returnKey?: string }): Promise<GoogleConnectStart> {
+  const r = input.returnKey === 'analytics' ? 'analytics' : undefined;
+  const back = (params: { googleConnected: string } | { googleError: string }) => googleReturnRedirect(r, params);
   const sess = await resolveCrmSession(input.sessionCookie);
   if (!sess) return { redirect: `${appUrl()}/` };
-  if (!can(sess.user, 'settings.edit')) return { redirect: googleSettingsRedirect({ googleError: 'Only an administrator can connect a Google account.' }) };
-  if (!sess.tenant.features.googleSheets) return { redirect: googleSettingsRedirect({ googleError: "Google Sheets sync is not included in your company's plan." }) };
+  if (!can(sess.user, 'settings.edit')) return { redirect: back({ googleError: 'Only an administrator can connect a Google account.' }) };
+  if (!sess.tenant.features.googleSheets) return { redirect: back({ googleError: "Google Sheets sync is not included in your company's plan." }) };
   const client = await loadOAuthClient();
-  if (!client) return { redirect: googleSettingsRedirect({ googleError: '"Connect with Google" is not set up on this platform yet. Ask your platform administrator.' }) };
+  if (!client) return { redirect: back({ googleError: '"Connect with Google" is not set up on this platform yet. Ask your platform administrator.' }) };
   const nonce = randomToken(16);
-  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S }, STATE_PURPOSE);
+  const state = signState({ c: sess.tenant.id, u: sess.user.id, n: nonce, exp: Math.floor((input.nowMs ?? Date.now()) / 1000) + STATE_TTL_S, ...(r ? { r } : {}) }, STATE_PURPOSE);
   const q = new URLSearchParams({
     client_id: client.clientId,
     redirect_uri: googleRedirectUri(),
@@ -305,9 +313,11 @@ export async function finishGoogleConnect(input: { params: URLSearchParams; sess
   if (error) return err(error === 'access_denied' ? CANCELLED_MSG : `Google sign-in failed: ${p.get('error_description') || error}`);
   const v = verifyState(p.get('state') || '', { nonce: input.nonceCookie, companyId: sess.tenant.id, userId: sess.user.id }, input.nowMs, STATE_PURPOSE);
   if (!v.ok) return err(NOT_VERIFIED_MSG);
-  if (!can(sess.user, 'settings.edit') || !sess.tenant.features.googleSheets) return err('You cannot connect a Google account.');
+  const r = v.state.r === 'analytics' ? 'analytics' : undefined;
+  const back = (googleError: string) => ({ redirect: googleReturnRedirect(r, { googleError: truncate(googleError, 300) }) });
+  if (!can(sess.user, 'settings.edit') || !sess.tenant.features.googleSheets) return back('You cannot connect a Google account.');
   const code = p.get('code') || '';
-  if (!code) return err('Google did not return an authorisation code. Please try again.');
+  if (!code) return back('Google did not return an authorisation code. Please try again.');
   try {
     const id = await runWithTenant(sess.tenant, async () => {
       const client = await loadOAuthClient();
@@ -328,9 +338,9 @@ export async function finishGoogleConnect(input: { params: URLSearchParams; sess
       const ctx: Ctx = { user: sess.user, session: null, token: '', userAgent: '', ip: '', action: 'googleConnect' };
       return (await upsertGoogleConnection({ email, refreshToken: refresh, scopes, ctx, now: new Date(input.nowMs ?? Date.now()) })).id;
     });
-    return { redirect: googleSettingsRedirect({ googleConnected: id }) };
+    return { redirect: googleReturnRedirect(r, { googleConnected: id }) };
   } catch (e: any) {
     if (!(e instanceof ApiError)) console.error('[google:callback]', e?.message);
-    return err(e instanceof ApiError ? e.message : 'Something went wrong while connecting Google. Please try again.');
+    return back(e instanceof ApiError ? e.message : 'Something went wrong while connecting Google. Please try again.');
   }
 }

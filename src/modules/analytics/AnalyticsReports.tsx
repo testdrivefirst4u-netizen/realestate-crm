@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, RefreshCw, Search } from 'lucide-react';
 import { api, type AnalyticsCard, type AnalyticsDay, type AnalyticsMetric, type AnalyticsReport } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
+import { toast } from '../../core/notifications';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
 import { AnalyticsView } from './AnalyticsView';
 import { LineChart, shortDay, show } from './analyticsCharts';
@@ -145,7 +146,7 @@ const ReportTable: React.FC<{ data: AnalyticsReport; onDimension: (id: string) =
   );
 };
 
-export const AnalyticsReports: React.FC = () => {
+export const AnalyticsReports: React.FC<{ canManage?: boolean }> = ({ canManage }) => {
   const [report, setReport] = useState('snapshot');
   const [dimension, setDimension] = useState('');
   const [preset, setPreset] = useState('last28');
@@ -182,8 +183,22 @@ export const AnalyticsReports: React.FC = () => {
     return () => clearInterval(t);
   }, [report, load]);
 
+  // returning from the inline "Connect Google Analytics" (OAuth) lands on /analytics?googleConnected=… — toast and reload
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    const ok = q.get('googleConnected'); const gErr = q.get('googleError');
+    if (!ok && !gErr) return;
+    if (gErr) toast('Google connection', gErr, 'alert');
+    else toast('Google connected', 'Website visitors will load now. If you have more than one GA4 property, pick it in Settings › Google.', 'success');
+    q.delete('googleConnected'); q.delete('googleError');
+    window.history.replaceState(null, '', `${window.location.pathname}${q.toString() ? `?${q}` : ''}`);
+    void load(true);
+  }, [load]);
+
   const open = (id: string) => { setReport(id); setDimension(''); setMetric(''); setData(null); setFailed(''); };
   const current = data && data.report === report ? data : null;
+  const connectBtn = canManage ? <a href="/api/integrations/google/connect?return=analytics" className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[#1A73E8] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-110">Connect Google Analytics</a> : null;
   const chosen = current?.metrics.find((m) => m.id === metric) || current?.metrics[0];
   const cards = (current?.cards || []);
 
@@ -228,7 +243,13 @@ export const AnalyticsReports: React.FC = () => {
             </header>
 
             {failed && <InlineNotice tone="warning">{failed}</InlineNotice>}
-            {current?.error && <InlineNotice tone="warning">{current.error}</InlineNotice>}
+            {current?.error && (
+              <InlineNotice tone="warning">
+                {/\bConnect\b.*Google|Google.*\bconnect/i.test(current.error) && canManage
+                  ? <span className="flex flex-col items-start gap-1">Connect Google Analytics to see website visitors — no need to open Settings.{connectBtn}</span>
+                  : current.error}
+              </InlineNotice>
+            )}
             {current?.notes.map((n) => <InlineNotice key={n} tone="info">{n}</InlineNotice>)}
             {!current && !failed && <p className="text-xs text-[#5F6368]">Loading…</p>}
 

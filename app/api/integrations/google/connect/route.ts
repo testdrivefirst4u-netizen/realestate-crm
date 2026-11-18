@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const cookie = req.headers.get('cookie');
   let r;
   try {
-    r = await startGoogleConnect({ sessionCookie: readCookie(cookie, CFG.SESSION_COOKIE) });
+    r = await startGoogleConnect({ sessionCookie: readCookie(cookie, CFG.SESSION_COOKIE), returnKey: new URL(req.url).searchParams.get('return') || '' });
   } catch (e: any) {
     console.error('[google:connect]', e?.message);
     return NextResponse.json({ status: 'error', code: 'INTERNAL', message: 'Could not start the Google sign-in' }, { status: 500 });
