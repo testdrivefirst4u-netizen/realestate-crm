@@ -143,13 +143,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       {/* soft light in the corner */}
       <span aria-hidden="true" className="pointer-events-none absolute -top-24 -right-20 w-56 h-56 rounded-full bg-[#2E8BD8]/20 blur-3xl" />
 
-      {/* company */}
-      <div className={`relative flex items-center ${narrow ? 'justify-center pt-5 pb-4' : 'gap-3 px-5 pt-5 pb-4'}`}>
-        <Link href={viewHref('today')} prefetch={false} onClick={go} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]" title={company?.name || 'CRM'}>
-          <AppLogo size="sm" />
+      {/* company — the logo alone identifies the company (name/tagline hidden); large and centred when expanded */}
+      <div className={`relative flex items-center ${narrow ? 'justify-center pt-5 pb-4' : 'gap-2 px-4 pt-5 pb-4'}`}>
+        <Link
+          href={viewHref('today')}
+          prefetch={false}
+          onClick={go}
+          className={`rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2] ${narrow ? 'shrink-0' : 'flex-1 min-w-0 flex justify-center'}`}
+          title={company?.name || 'CRM'}
+        >
+          <AppLogo size={narrow ? 'sm' : 'lg'} className={narrow ? '' : 'w-full'} />
         </Link>
-        {/* brand name/tagline intentionally hidden — the logo alone identifies the company */}
-        {!narrow && <div className="min-w-0 flex-1" />}
         {mobile && (
           <button type="button" onClick={onCloseMobile} className="w-10 h-10 -mr-2 flex items-center justify-center rounded-lg text-[#BFD3E6] hover:text-white hover:bg-white/10" aria-label="Close menu"><X size={20} /></button>
         )}
