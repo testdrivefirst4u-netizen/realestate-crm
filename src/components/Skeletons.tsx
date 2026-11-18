@@ -190,7 +190,7 @@ export const VIEW_SKELETON: Record<ViewId, PageSkeletonVariant> = {
   today: 'list', dashboard: 'dashboard', mis: 'dashboard', performance: 'dashboard', reports: 'dashboard',
   leads: 'table', inventory: 'table', calls: 'table', audit: 'table', followups: 'table', segments: 'table',
   kanban: 'board', templates: 'cards', documents: 'cards', chat360: 'split', settings: 'settings', tasks: 'list',
-  inbox: 'split', posts: 'list', ads: 'table', analytics: 'dashboard', searchconsole: 'dashboard', businessprofile: 'dashboard', dripcampaigns: 'list', whatsappcampaigns: 'table', whatsappcredits: 'dashboard', chatbots: 'list', webchat: 'split', competitors: 'list', partners: 'table',
+  inbox: 'split', posts: 'list', ads: 'table', analytics: 'dashboard', searchconsole: 'dashboard', businessprofile: 'dashboard', dripcampaigns: 'list', whatsappcampaigns: 'table', whatsappcredits: 'dashboard', chatbots: 'list', botanalytics: 'dashboard', webchat: 'split', competitors: 'list', partners: 'table',
 };
 
 /** A whole screen while it loads. */

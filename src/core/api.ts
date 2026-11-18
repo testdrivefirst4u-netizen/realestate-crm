@@ -336,6 +336,15 @@ export interface BotStepView { pos?: { x: number; y: number }; id: string; type:
 export type BotChannel = 'whatsapp' | 'website' | 'instagram' | 'facebook';
 export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; channels: BotChannel[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; createdAt: string; updatedAt: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
 export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
+export type BotChannelKey = 'website' | 'whatsapp' | 'instagram' | 'facebook';
+export interface BotAnalyticsChannel { channel: BotChannelKey; sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number; prevSessions: number }
+export interface BotAnalyticsData {
+  range: { from: string; to: string; days: number };
+  kpis: { totalSessions: number; activeNow: number; uniqueUsers: number; repeatUsers: number; handoffs: number; handoffRate: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number };
+  prev: { totalSessions: number; uniqueUsers: number; handoffs: number; avgSessionSec: number };
+  channels: BotAnalyticsChannel[];
+  daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
+}
 export interface BotChatLine { role: 'bot' | 'user' | 'agent'; text: string; at: string; seq: number }
 export interface BotChatRow { id: string; channel: 'website' | 'instagram' | 'facebook'; botName: string; who: string; status: 'active' | 'done' | 'handoff' | 'stopped'; mode: 'bot' | 'agent'; assignedAgent: string; leadId: string; messages: number; answers: number; visits: number; startedAt: string; lastAt: string; origin: string; transcript: BotChatLine[]; captured: Record<string, string> }
 export interface ChatPresence { available: boolean; agents: Array<{ id: string; name: string }> }
@@ -661,6 +670,10 @@ export const api = {
     embed: () => request<{ base: string; slug: string }>('webchatEmbed', {}),
     presence: () => request<ChatPresence>('chatPresence', {}),
     setPresence: (available: boolean) => request<{ available: boolean }>('chatPresenceSet', { available }),
+  },
+
+  botAnalytics: {
+    get: (range: { from: string; to: string }) => request<BotAnalyticsData>('botAnalytics', range),
   },
 
   whatsappCredits: {
