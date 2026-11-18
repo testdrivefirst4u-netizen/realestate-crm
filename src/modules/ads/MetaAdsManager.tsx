@@ -6,13 +6,13 @@
  * New campaigns and ads are still made in Meta (Create Ad / a name opens Meta).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarRange, ChevronDown, Download, Layers, Pencil, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { CalendarRange, ChevronDown, Download, Facebook, Layers, Pencil, Plus, RefreshCw, Search, X } from 'lucide-react';
 import { api, type MetaAdsLevel, type MetaAdsResult, type MetaAdsRow } from '../../core/api';
 import { formatDate, todayKey } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { downloadXlsx } from '../../core/xlsx';
-import { Button, EmptyState, InlineNotice, cx, inputCls } from '../../components/ui';
+import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
 import { DELIVERY, cash, count, dec, pct, words } from './adsCells';
 import { AdsSideBySide } from './AdsSideBySide';
 import { MAX_SIDE_BY_SIDE } from './adsCompare';
@@ -186,8 +186,7 @@ export const MetaAdsManager: React.FC<{ canChange: boolean; canExport?: boolean 
     toast('Excel downloaded', `${rows.length} ${NAME_LABEL[level].toLowerCase()}s`, 'success');
   };
 
-  if (data && !data.connected) return <EmptyState icon={<Layers size={24} />} title="Meta ads are not connected" description="An Admin can connect them in Settings › Meta ads." />;
-
+  const notConnected = !!data && !data.connected;
   const colCount = 4 + shown.length; // checkbox, off/on, name, + column
   return (
     <div className="space-y-4">
@@ -205,6 +204,17 @@ export const MetaAdsManager: React.FC<{ canChange: boolean; canExport?: boolean 
         )}
         <button type="button" onClick={() => setWizard(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2E6AD1] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"><Plus size={15} /> Create Ad</button>
       </div>
+
+      {notConnected ? (
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-[#E2ECF3] bg-white py-16 text-center shadow-[0_1px_3px_rgba(16,40,64,0.06)]">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF2FC] text-[#2E6AD1]"><Layers size={26} /></span>
+          <div>
+            <p className="text-lg font-bold text-[#0B2A44]">Meta ads are not connected</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-[#5E778C]">Connect your Facebook Business Manager right here — no need to open Settings. You need an admin Facebook login.</p>
+          </div>
+          <button type="button" onClick={() => setWizard(true)} className="inline-flex items-center gap-2 rounded-lg bg-[#2E6AD1] px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110"><Facebook size={16} /> Connect Facebook</button>
+        </div>
+      ) : (<>
 
       {/* tabs + date range */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -356,6 +366,8 @@ export const MetaAdsManager: React.FC<{ canChange: boolean; canExport?: boolean 
           </div>
         </div>
       </div>
+
+      </>)}
 
       {comparing && pickedRows.length >= 2 && (
         <AdsSideBySide rows={pickedRows.slice(0, MAX_SIDE_BY_SIDE)} before={null} levelLabel={NAME_LABEL[level] + 's'} period={periodLabel} earlier="" onClose={() => setComparing(false)} />
