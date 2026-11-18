@@ -270,22 +270,24 @@ describe('leads', () => {
     // the agreed sources first, in order; a source the company added comes after them
     expect(c.options['Enquiry Source']).toEqual(['Website', 'Chat360', 'Facebook', 'Instagram', 'Meta Ads', 'Google Ads', 'Channel Partner', 'Reference', 'Walk-In', 'Inbound Call', 'Jeevin', 'BTL', 'Hoarding']);
     expect(c.options['Lead Stage']).toEqual(['New', 'Open', 'Qualified', 'Warm', 'Hot', 'Booked', 'Not Responding',
-      'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Project Type', 'Disqualified - Timeline', 'Disqualified - Not Interested', 'Lost', 'Trash']);
+      'Disqualified - Budget', 'Disqualified - Location', 'Disqualified - Project Type', 'Disqualified - Timeline', 'Disqualified - Not Interested', 'Disqualified - Rental', 'Trash']);
     expect(c.options['Unit Type Interested In'].filter((u) => u === '2 BHK')).toHaveLength(1);
     expect(c.options['Assigned RM']).toContain('Asha Admin');
   });
 
-  it('Junk, DND and Disqualified - Rental / NI become Disqualified - Not Interested (Lost stays a stage): once for old leads, and on every save', async () => {
+  it('Junk, DND and Disqualified - NI become Disqualified - Not Interested (Disqualified - Rental is a stage again): once for old leads, and on every save', async () => {
     const leads = await col(CFG.COLL.LEADS);
     const old = (id: string, stage: string) => ({ _id: id, name: id, phone: '', phoneLast10: '', stage, createdAt: new Date(), followups: [], extra: {} });
     await leads.insertMany([old('ENQ-0201', 'Junk'), old('ENQ-0202', 'Open'), old('ENQ-0203', 'Lost'), old('ENQ-0204', 'DND'), old('ENQ-0205', 'Disqualified - Rental'), old('ENQ-0206', 'Disqualified - NI'), old('ENQ-0207', 'Others')] as any[]);
     await (await col(CFG.COLL.CONFIG)).insertMany([{ field: 'Lead Stage', option: 'Junk' }, { field: 'Lead Stage', option: 'DND' }] as any[]);
     const c = await getLeadsConfig();
-    for (const gone of ['Junk', 'DND', 'Disqualified - Rental', 'Disqualified - NI']) expect(c.options['Lead Stage']).not.toContain(gone);
-    expect(c.options['Lead Stage']).toContain('Lost');
+    for (const gone of ['Junk', 'DND', 'Disqualified - NI']) expect(c.options['Lead Stage']).not.toContain(gone);
+    expect(c.options['Lead Stage']).toContain('Disqualified - Rental'); // a real disqualification reason again
+    expect(c.options['Lead Stage']).not.toContain('Lost'); // replaced by Disqualified - Rental in the dropdown
     const stageOf = async (id: string) => (await leads.findOne({ _id: id as any }))!.stage;
-    for (const id of ['ENQ-0201', 'ENQ-0204', 'ENQ-0205', 'ENQ-0206']) expect(await stageOf(id)).toBe('Disqualified - Not Interested');
-    expect(await stageOf('ENQ-0203')).toBe('Lost');
+    for (const id of ['ENQ-0201', 'ENQ-0204', 'ENQ-0206']) expect(await stageOf(id)).toBe('Disqualified - Not Interested');
+    expect(await stageOf('ENQ-0205')).toBe('Disqualified - Rental'); // no longer merged away
+    expect(await stageOf('ENQ-0203')).toBe('Lost'); // existing Lost leads keep their value
     expect(await stageOf('ENQ-0207')).toBe('Not Responding'); // "Others" from the old sheet
     expect(await stageOf('ENQ-0202')).toBe('Open');
     expect(await (await col(CFG.COLL.CONFIG)).countDocuments({ field: 'Lead Stage' })).toBe(0);
@@ -293,9 +295,9 @@ describe('leads', () => {
     await leads.updateOne({ _id: 'ENQ-0202' as any }, { $set: { stage: 'Junk' } });
     await getLeadsConfig();
     expect(await stageOf('ENQ-0202')).toBe('Junk');
-    // new writes of an old stage are saved as Disqualified - Not Interested
+    // new writes of an old stage are saved as Disqualified - Not Interested; Disqualified - Rental is kept as-is
     expect((await addLead(sample({ [L.STAGE]: 'junk' }), admin)).lead[L.STAGE]).toBe('Disqualified - Not Interested');
-    expect((await addLead(sample({ [L.PHONE]: '+91 98765 00003', [L.STAGE]: 'Lost' }), admin)).lead[L.STAGE]).toBe('Lost');
+    expect((await addLead(sample({ [L.PHONE]: '+91 98765 00003', [L.STAGE]: 'Disqualified - Rental' }), admin)).lead[L.STAGE]).toBe('Disqualified - Rental');
     const u = await addLead(sample({ [L.PHONE]: '+91 98765 00001' }), admin);
     expect((await updateLead(u.id, { [L.STAGE]: 'DND' }, admin)).lead[L.STAGE]).toBe('Disqualified - Not Interested');
   });

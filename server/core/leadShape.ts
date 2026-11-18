@@ -185,15 +185,15 @@ export function headersFor(docs: Array<Pick<LeadDoc, 'followups' | 'extra'>>): s
 /**
  * Dropdown values that were removed and merged into another (old sheets, imports and integrations may still send
  * them; existing leads are moved once — leads.ts → applyMergedValues):
- *  - stages Junk, DND, Disqualified - Rental and Disqualified - NI → Disqualified - Not Interested (Lost is a stage again)
+ *  - stages Junk, DND and Disqualified - NI → Disqualified - Not Interested (Disqualified - Rental is a stage again)
  *  - stage Others → Not Responding
  *  - sources Website/Whatsapp → Website, WhatsApp → Chat360
  */
 export const MERGED_VALUES: Array<{ id: string; header: string; field: 'stage' | 'source'; from: RegExp; to: string; label: string }> = [
   {
     id: 'stagesMergedIntoNotInterested', header: L.STAGE, field: 'stage', to: CFG.STAGES.DQ_NI,
-    from: /^\s*(junk|dnd|disqualified\s*[-–—]\s*(rental|ni)|disqualified\s*[–—]\s*not\s*interested)\s*$/i,
-    label: 'Junk, DND and Disqualified - Rental merged into Disqualified - Not Interested',
+    from: /^\s*(junk|dnd|disqualified\s*[-–—]\s*ni|disqualified\s*[–—]\s*not\s*interested)\s*$/i,
+    label: 'Junk, DND and Disqualified - NI merged into Disqualified - Not Interested',
   },
   { id: 'othersMergedIntoNotResponding', header: L.STAGE, field: 'stage', from: /^\s*others?\s*$/i, to: CFG.STAGES.NOT_RESPONDING, label: 'Stage "Others" moved to Not Responding' },
   { id: 'websiteWhatsappMergedIntoWebsite', header: L.SOURCE, field: 'source', from: /^\s*website\s*\/\s*whats\s*app\s*$/i, to: 'Website', label: 'Website/Whatsapp merged into Website' },
