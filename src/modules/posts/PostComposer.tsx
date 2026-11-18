@@ -4,7 +4,7 @@
  * schedules, or saves a draft; also edits a draft or a scheduled post.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bookmark, ChevronLeft, ChevronRight, Film, Globe2, Hash, Heart, ImagePlus, MessageCircle, Send, Share2, Smile, ThumbsUp, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronLeft, ChevronRight, Film, Globe2, Hash, Heart, ImagePlus, MessageCircle, Send, Share2, Smile, ThumbsUp, Trash2, X } from 'lucide-react';
 import { api, type PostTargetKind, type PostTargetOption, type PostType, type SocialPost } from '../../core/api';
 import { toast } from '../../core/notifications';
 import { Button, cx, inputCls } from '../../components/ui';
@@ -35,6 +35,7 @@ const readBase64 = (file: File) => new Promise<string>((resolve, reject) => {
 });
 const section = 'rounded-lg border border-[#DADDE1] bg-white p-4';
 const heading = 'text-[15px] font-bold text-[#1C2B33]';
+const STEPS = [{ n: 1, label: 'Accounts', hint: 'Where & what' }, { n: 2, label: 'Content', hint: 'Media & caption' }, { n: 3, label: 'Schedule', hint: 'When it goes out' }, { n: 4, label: 'Review', hint: 'Check & publish' }] as const;
 const hostOf = (link: string) => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } };
 
 /** Instagram shows a carousel one photo at a time. */
@@ -150,6 +151,7 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
   const [when, setWhen] = useState(post?.status === 'scheduled' ? localInput(new Date(post.scheduledAt)) : initialWhen ? localInput(initialWhen) : '');
   const [previewKey, setPreviewKey] = useState('');
   const [busy, setBusy] = useState('');
+  const [step, setStep] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -276,6 +278,11 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
     }
   };
 
+  const whenText = mode === 'now' ? 'Publishing now' : mode === 'schedule' ? (when ? `Scheduled for ${new Date(when).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Pick a date & time') : 'Saving as a draft';
+  const mediaText = video ? '1 video' : images.length ? `${images.length} photo${images.length === 1 ? '' : 's'}` : 'No media';
+  const captionSnippet = text.trim() ? (text.trim().length > 140 ? text.trim().slice(0, 140) + '…' : text.trim()) : '';
+  const publishLabel = mode === 'now' ? 'Publish' : mode === 'schedule' ? 'Schedule' : 'Save draft';
+
   return (
     <div role="dialog" aria-modal="true" aria-label={post ? 'Edit post' : 'Create post'} className="fixed inset-0 z-50 flex flex-col bg-[#F0F2F5]">
       <div className="flex items-center gap-3 border-b border-[#DADDE1] bg-white px-4 py-3">
@@ -283,8 +290,25 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
         <button type="button" aria-label="Close" onClick={close} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F0F2F5] text-[#44505C] hover:bg-[#E4E6EB]"><X size={18} /></button>
       </div>
 
+      {/* step indicator */}
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-[#DADDE1] bg-white px-4 py-3">
+        {STEPS.map((s, i) => (
+          <React.Fragment key={s.n}>
+            <button type="button" onClick={() => setStep(s.n)} aria-current={step === s.n ? 'step' : undefined} className="flex flex-none items-center gap-2 rounded-full px-1.5 py-1 text-left">
+              <span className={cx('flex h-7 w-7 flex-none items-center justify-center rounded-full text-[12px] font-bold transition-colors', step === s.n ? 'bg-[#0866FF] text-white' : step > s.n ? 'bg-[#16A34A] text-white' : 'border border-[#DADDE1] bg-[#F0F2F5] text-[#8798AB]')}>{step > s.n ? <Check size={14} /> : s.n}</span>
+              <span className="hidden sm:block leading-tight">
+                <span className={cx('block text-[12.5px] font-semibold', step >= s.n ? 'text-[#1C2B33]' : 'text-[#8798AB]')}>{s.label}</span>
+                <span className="block text-[10.5px] text-[#8798AB]">{s.hint}</span>
+              </span>
+            </button>
+            {i < STEPS.length - 1 && <span className={cx('h-0.5 flex-1 min-w-[12px] rounded-full', step > s.n ? 'bg-[#16A34A]' : 'bg-[#E4E6EB]')} />}
+          </React.Fragment>
+        ))}
+      </div>
+
       <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden">
         <div className="space-y-3 p-4 lg:overflow-y-auto">
+          {step === 1 && (<>
           <section className={section}>
             <h3 className={heading}>Type</h3>
             <div role="radiogroup" aria-label="Type" className="mt-3 inline-flex flex-wrap rounded-lg bg-[#F0F2F5] p-0.5">
@@ -307,7 +331,9 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
               })}
             </div>
           </section>
+          </>)}
 
+          {step === 2 && (<>
           <section className={section}>
             <h3 className={heading}>Media</h3>
             {isPost ? (
@@ -386,7 +412,9 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
               </>
             )}
           </section>}
+          </>)}
 
+          {step === 3 && (
           <section className={section}>
             <h3 className={heading}>Scheduling options</h3>
             <div className="mt-3 space-y-2 text-[13px] text-[#1C2B33]">
@@ -399,6 +427,37 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
               {mode === 'schedule' && <input type="datetime-local" className={cx(inputCls, 'ml-6 w-auto')} min={localInput(new Date())} value={when} onChange={(e) => setWhen(e.target.value)} aria-label="Date and time" />}
             </div>
           </section>
+          )}
+
+          {step === 4 && (
+          <section className={section}>
+            <h3 className={heading}>Review &amp; publish</h3>
+            <dl className="mt-3 space-y-0 divide-y divide-[#EEF1F4] text-sm">
+              <div className="flex gap-3 py-2.5">
+                <dt className="w-28 flex-none text-xs font-semibold uppercase tracking-wide text-[#8798AB]">Posting to</dt>
+                <dd className="min-w-0 flex-1">{picked.length ? <span className="flex flex-wrap gap-1.5">{picked.map((t) => <span key={t.key} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F2F5] px-2.5 py-1 text-xs font-semibold text-[#1C2B33]"><span className={cx('h-2 w-2 rounded-full', KIND[t.kind].cls)} />{KIND[t.kind].label} · {t.name}</span>)}</span> : <span className="text-[#B42318]">No account chosen — go back to step 1.</span>}</dd>
+              </div>
+              <div className="flex gap-3 py-2.5"><dt className="w-28 flex-none text-xs font-semibold uppercase tracking-wide text-[#8798AB]">Type</dt><dd className="flex-1 font-medium text-[#1C2B33]">{typeDef.label}</dd></div>
+              <div className="flex gap-3 py-2.5"><dt className="w-28 flex-none text-xs font-semibold uppercase tracking-wide text-[#8798AB]">Media</dt><dd className="flex-1 font-medium text-[#1C2B33]">{mediaText}</dd></div>
+              {!isStory && <div className="flex gap-3 py-2.5"><dt className="w-28 flex-none text-xs font-semibold uppercase tracking-wide text-[#8798AB]">Caption</dt><dd className="min-w-0 flex-1 whitespace-pre-wrap break-words text-[#1C2B33]">{captionSnippet || <span className="text-[#8798AB]">No caption</span>}{perPlatform && <span className="mt-0.5 block text-[11px] text-[#65676B]">Different text per platform</span>}</dd></div>}
+              <div className="flex gap-3 py-2.5"><dt className="w-28 flex-none text-xs font-semibold uppercase tracking-wide text-[#8798AB]">When</dt><dd className="flex-1 font-medium text-[#1C2B33]">{whenText}</dd></div>
+            </dl>
+            {!ready && mode !== 'draft' && (
+              <div className="mt-3 rounded-lg border border-[#F3D1A1] bg-[#FFF7EC] p-3 text-xs text-[#8A5A00]">
+                <b className="block font-semibold">Before you can publish:</b>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  {picked.length === 0 && <li>Choose at least one account (step 1).</li>}
+                  {isPost && !text.trim() && <li>Add some text (step 2).</li>}
+                  {!mediaReady && <li>Add the {isStory ? 'photo or video' : postType === 'post' ? 'required photo' : 'video'} (step 2).</li>}
+                  {tooLong.length > 0 && <li>Caption is too long for {tooLong.map((k) => KIND[k].label).join(' and ')}.</li>}
+                  {igHashtags > MAX_HASHTAGS && <li>Instagram allows up to {MAX_HASHTAGS} hashtags.</li>}
+                  {mode === 'schedule' && !when && <li>Pick a date and time (step 3).</li>}
+                </ul>
+              </div>
+            )}
+            {ready && <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-[#067647]"><Check size={14} /> Ready to {mode === 'now' ? 'publish' : mode === 'schedule' ? 'schedule' : 'save'}.</p>}
+          </section>
+          )}
         </div>
 
         <aside className="border-t border-[#DADDE1] bg-white p-4 lg:overflow-y-auto lg:border-l lg:border-t-0" aria-label="Post preview">
@@ -423,8 +482,11 @@ export const PostComposer: React.FC<{ targets: PostTargetOption[]; post?: Social
       <div className="flex items-center gap-2 border-t border-[#DADDE1] bg-white px-4 py-3">
         {post && onDelete && <Button variant="secondary" icon={<Trash2 size={14} />} onClick={() => onDelete(post)}>Delete</Button>}
         <span className="flex-1" />
-        <Button variant="secondary" onClick={close}>Cancel</Button>
-        <Button variant="primary" loading={busy === 'save'} disabled={!ready || busy === 'image'} onClick={() => void submit()}>{mode === 'now' ? 'Publish' : mode === 'schedule' ? 'Schedule' : 'Save draft'}</Button>
+        <span className="mr-1 hidden text-xs text-[#65676B] sm:inline">Step {step} of {STEPS.length}</span>
+        {step > 1 && <Button variant="secondary" icon={<ArrowLeft size={14} />} onClick={() => setStep((s) => Math.max(1, s - 1))}>Back</Button>}
+        {step < STEPS.length
+          ? <Button variant="primary" icon={<ArrowRight size={14} />} onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}>Continue</Button>
+          : <><Button variant="secondary" onClick={close}>Cancel</Button><Button variant="primary" loading={busy === 'save'} disabled={!ready || busy === 'image'} onClick={() => void submit()}>{publishLabel}</Button></>}
       </div>
     </div>
   );
