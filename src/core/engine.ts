@@ -449,6 +449,44 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     },
     [applyBootstrap, handleAuthExpired, processEvents]
   );
+  // latest refresh, so the realtime socket doesn't reconnect whenever refresh's identity changes
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
+  // Live updates (Ably WebSocket): a pushed change nudges an immediate poll, so the whole CRM reflects instantly.
+  // No-op unless the platform set ABLY_API_KEY (settings.realtime === 'ably'); the 30s poll stays as the fallback.
+  useEffect(() => {
+    if (authStatus !== 'ready' || data.serverSettings?.realtime !== 'ably') return;
+    const companyId = data.serverSettings?.company?.id;
+    if (!companyId) return;
+    let client: { close: () => void } | null = null;
+    let channel: { unsubscribe: () => void } | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+    const nudge = () => {
+      if (timer) return; // coalesce a burst of pushes into one poll
+      timer = setTimeout(() => { timer = null; if (document.visibilityState !== 'hidden') void refreshRef.current({ silent: true }); }, 250);
+    };
+    (async () => {
+      try {
+        const Ably = (await import('ably')).default;
+        if (closed) return;
+        const c = new Ably.Realtime({ authUrl: '/api/realtime/ably-token', closeOnUnload: true });
+        client = c;
+        const ch = c.channels.get(`company-${companyId}`);
+        channel = ch;
+        ch.subscribe(() => nudge());
+      } catch {
+        /* realtime unavailable — the poll keeps the CRM up to date */
+      }
+    })();
+    return () => {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      try { channel?.unsubscribe(); } catch { /* ignore */ }
+      try { client?.close(); } catch { /* ignore */ }
+    };
+  }, [authStatus, data.serverSettings?.realtime, data.serverSettings?.company?.id]);
 
   // Session validation on mount
   useEffect(() => {

@@ -187,6 +187,8 @@ export interface ServerSettings {
   company?: { id: string; slug: string; name: string; logo: string; tagline: string; plan: string; maxUsers: number } | null;
   /** The platform supplies a Gemini key (the company may still set its own). */
   aiPlatformKey?: boolean;
+  /** Live updates provider when configured on the platform ('ably'); '' or absent = 30s poll only. */
+  realtime?: string;
   maxFollowups?: number;
   /** What RMs see: own | own_unassigned | all (server/core/scope.ts). */
   rmLeadVisibility?: 'own' | 'own_unassigned' | 'all';

@@ -30,6 +30,8 @@ export async function addEvent(type: string, recordType: string, recordId: strin
       actor: actor || 'System',
       payload: payload === undefined ? null : payload,
     });
+    // live push (Ably): tell this company's open browsers to re-poll now; a no-op unless ABLY_API_KEY is set
+    await (await import('./realtime')).publishRealtime(type, recordType, recordId);
     return id;
   } catch (e: any) {
     await logError('events.add', 'INTERNAL', e?.message, e?.stack, '', { type, recordId });

@@ -146,6 +146,8 @@ export async function settingsPublic() {
       return t ? { id: t.id, slug: t.slug, name: t.name, logo: t.logo, tagline: t.tagline, plan: t.plan, maxUsers: t.maxUsers } : null;
     })(),
     aiPlatformKey: !!process.env.GEMINI_API_KEY?.trim(),
+    /** Live updates over Ably when set up on the platform ('ably'); '' = fall back to the 30s poll only. */
+    realtime: (await import('./realtime')).realtimeEnabled() ? 'ably' : '',
     maxFollowups: Number(s.maxFollowups || CFG.MAX_FOLLOWUPS), version: CFG.VERSION,
     rmLeadVisibility: ['own', 'own_unassigned', 'all'].includes(s.rmLeadVisibility) ? s.rmLeadVisibility : 'own',
     /** New leads that arrive without an RM are given to this user (name); '' = leave them unassigned. */
