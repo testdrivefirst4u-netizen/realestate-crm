@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, UserCircle2, X,
+  LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
   Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, type LucideIcon,
 } from 'lucide-react';
@@ -152,7 +152,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           className={`rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2] ${narrow ? 'shrink-0' : 'flex-1 min-w-0 flex justify-center'}`}
           title={company?.name || 'CRM'}
         >
-          <AppLogo size={narrow ? 'sm' : 'lg'} className={narrow ? '' : 'w-full'} />
+          {/* brightness-0 + invert renders the company logo as solid white so it stays visible on the dark sidebar */}
+          <AppLogo size={narrow ? 'sm' : 'lg'} className={`brightness-0 invert ${narrow ? '' : 'w-full'}`} />
         </Link>
         {mobile && (
           <button type="button" onClick={onCloseMobile} className="w-10 h-10 -mr-2 flex items-center justify-center rounded-lg text-[#BFD3E6] hover:text-white hover:bg-white/10" aria-label="Close menu"><X size={20} /></button>
@@ -184,12 +185,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         ) : (
           <>
             <div className="flex items-center gap-2.5 rounded-2xl bg-white/[0.06] p-2.5">
-              <Avatar user={currentUser} size="md" />
-              <div className="min-w-0 flex-1 leading-tight">
-                <div className="text-[13px] font-bold truncate">{currentUser?.name || 'Guest'}</div>
-                {currentUser && <div className="text-[11px] text-[#8FB2D1] truncate">{roleLabel(currentUser.role)}</div>}
-              </div>
-              <Link href={`${viewHref('settings')}?section=profile`} prefetch={false} onClick={go} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-white/10 hover:text-white`} aria-label="Profile" title="Profile"><UserCircle2 size={17} /></Link>
+              <Link href={`${viewHref('settings')}?section=profile`} prefetch={false} onClick={go} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl hover:bg-white/5" title="Your profile" aria-label="Your profile">
+                <Avatar user={currentUser} size="md" />
+                <div className="min-w-0 flex-1 leading-tight">
+                  <div className="text-[13px] font-bold truncate">{currentUser?.name || 'Guest'}</div>
+                  {currentUser && <div className="text-[11px] text-[#8FB2D1] truncate">{roleLabel(currentUser.role)}</div>}
+                </div>
+              </Link>
               <button type="button" onClick={() => { go(); onLogout(); }} className={`${mobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-lg text-[#BFD3E6] flex items-center justify-center hover:bg-[#FF8A65]/20 hover:text-[#FFB59E]`} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
             </div>
             <div className="flex items-center justify-between gap-2 px-1">
