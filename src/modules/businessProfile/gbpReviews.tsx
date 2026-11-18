@@ -92,7 +92,16 @@ export const ReviewsTab: React.FC<{ location: string; canReply: boolean }> = ({ 
   const [problem, setProblem] = useState('');
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'open' | number>('all');
+  const [auto, setAuto] = useState<{ enabled: boolean; minStars: number } | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
   const latest = useRef(0);
+  useEffect(() => { api.businessProfile.reviewAutoReply().then(setAuto).catch(() => undefined); }, []);
+  const saveAuto = async (next: { enabled: boolean; minStars: number }) => {
+    setAutoBusy(true);
+    try { setAuto(await api.businessProfile.setReviewAutoReply(next)); toast(next.enabled ? 'Auto-reply on' : 'Auto-reply off', next.enabled ? `New reviews ${next.minStars}★ and up get an AI reply each day.` : undefined, 'success'); }
+    catch (e) { toast('Not saved', errText('gbp.autoReply', e), 'alert'); }
+    finally { setAutoBusy(false); }
+  };
 
   const load = useCallback(async (page = '') => {
     const mine = ++latest.current;
@@ -129,6 +138,19 @@ export const ReviewsTab: React.FC<{ location: string; canReply: boolean }> = ({ 
               <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load()}>Refresh</Button>
             </span>
           </section>
+          {canReply && auto && (
+            <section className="rounded-lg border border-[#DADCE0] bg-white p-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-[#202124]"><input type="checkbox" className="h-4 w-4 accent-[#1A73E8]" disabled={autoBusy} checked={auto.enabled} onChange={(e) => void saveAuto({ enabled: e.target.checked, minStars: auto.minStars })} /> Auto-reply to new reviews with AI</label>
+                <label className="inline-flex items-center gap-1.5 text-xs text-[#5F6368]">from
+                  <select className={cx(inputCls, 'w-auto py-1')} disabled={autoBusy || !auto.enabled} value={auto.minStars} onChange={(e) => void saveAuto({ enabled: auto.enabled, minStars: Number(e.target.value) })} aria-label="Minimum stars to auto-reply">
+                    {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n}★{n < 5 ? ' & up' : ''}</option>)}
+                  </select>
+                </label>
+              </div>
+              <p className="mt-1.5 text-[11px] text-[#5F6368]">Each day, unanswered reviews at or above this rating get a short, friendly AI reply posted to Google in your name. Lower-rated reviews are left for your team to answer personally. Needs the AI assistant and a connected Google Business Profile.</p>
+            </section>
+          )}
           <section className="rounded-lg border border-[#DADCE0] bg-white">
             <div className="flex flex-wrap gap-1.5 border-b border-[#E8EAED] p-3">
               {chip('all', 'All')}

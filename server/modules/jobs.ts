@@ -150,5 +150,6 @@ export async function runDaily(): Promise<{ ok: true; digestSent: boolean; marke
   try { await trimEvents(); } catch (e: any) { await logError('trigger.daily.events', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { await trimErrors(); } catch (e: any) { await logError('trigger.daily.errors', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   try { digestSent = await sendDigest(); } catch (e: any) { await logError('trigger.daily.digest', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
+  try { await (await import('./businessReviews')).autoReplyReviews(); } catch (e: any) { await logError('trigger.daily.reviews', 'INTERNAL', e?.message, e?.stack, 'trigger', {}); }
   return { ok: true, digestSent, markedNotResponding, backup };
 }

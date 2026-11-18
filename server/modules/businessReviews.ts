@@ -4,10 +4,13 @@
  * The same reviews reach Social Inbox through its own check, so a changed or deleted reply is changed there too.
  */
 import type { ActionMap } from '../core/actions';
-import { auditLog, type Ctx } from '../core/auth';
+import { auditLog, SYSTEM_CTX, type Ctx } from '../core/auth';
 import { fail } from '../core/errors';
+import { logError } from '../core/events';
+import { settingSet, settingsAll } from '../core/settings';
 import { currentTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
+import { generateText } from './ai';
 import { place } from './businessPhotos';
 import { connection, pick, safeLink, short } from './businessProfile';
 import { gbpFetch } from './googleMarketing';
@@ -91,8 +94,64 @@ const feature = () => {
   if (!(currentTenant()?.features as any)?.businessProfile) throw fail('FORBIDDEN', "The Business Profile screen is not included in your company's plan.");
 };
 
+/* ----------------------- AI auto-reply to reviews ------------------------ */
+
+export interface ReviewAutoReply { enabled: boolean; minStars: number }
+const clampStars = (v: unknown) => Math.min(5, Math.max(1, Math.round(Number(v) || 4)));
+
+export async function getReviewAutoReply(): Promise<ReviewAutoReply> {
+  const s = await settingsAll();
+  return { enabled: s.reviewAutoReplyEnabled === 'true', minStars: clampStars(s.reviewAutoReplyMinStars) };
+}
+
+export async function setReviewAutoReply(d: any, ctx: Ctx): Promise<ReviewAutoReply> {
+  feature();
+  const enabled = d?.enabled === true || d?.enabled === 'true';
+  const minStars = clampStars(d?.minStars);
+  await settingSet('reviewAutoReplyEnabled', enabled ? 'true' : 'false', ctx.user?.name || 'System');
+  await settingSet('reviewAutoReplyMinStars', String(minStars), ctx.user?.name || 'System');
+  await auditLog(ctx, 'Review Auto-reply ' + (enabled ? 'On' : 'Off'), 'Settings', 'reviews', `from ${minStars}★ and up`);
+  return { enabled, minStars };
+}
+
+const PER_RUN = 10; // keep AI cost and Google writes bounded per daily run
+
+/** Daily: reply to new Google reviews (no reply yet) at/above the star floor with a short AI-written, owner-style reply. */
+export async function autoReplyReviews(): Promise<{ replied: number }> {
+  try {
+    const t = currentTenant();
+    if (!(t?.features as any)?.businessProfile || !(t?.features as any)?.aiCopilot) return { replied: 0 };
+    const cfg = await getReviewAutoReply();
+    if (!cfg.enabled) return { replied: 0 };
+    const data = await getBusinessReviews({});
+    if (data.error || !data.location || !data.reviews.length) return { replied: 0 };
+    const company = String(t?.name || 'our company');
+    const system = `You write the owner's public reply to a Google review for ${company}, a real-estate business in India. Reply in 1–2 short, warm, specific sentences: thank the reviewer, acknowledge what they said if there is a comment, and invite them back. Plain text only — no emojis, no hashtags, no links, no star mentions. Never promise anything specific. Do not exceed 60 words.`;
+    let replied = 0;
+    for (const r of data.reviews) {
+      if (replied >= PER_RUN) break;
+      if (r.reply || r.stars < cfg.minStars) continue; // already answered, or below the floor (left for the team)
+      try {
+        const prompt = `Review: ${r.stars} stars${r.comment ? ` — "${truncate(r.comment, 600)}"` : ' (no written comment)'} by ${r.author}. Write the public reply.`;
+        const text = (await generateText(prompt, SYSTEM_CTX, { fast: true, system, maxOutputTokens: 160, temperature: 0.5 })).trim();
+        if (!text || text === 'HANDOFF') continue;
+        await replyBusinessReview({ reviewId: r.id, location: data.location, comment: text.slice(0, 1500) }, SYSTEM_CTX);
+        replied++;
+      } catch (e: any) {
+        await logError('reviews.autoReply', 'INTERNAL', e?.message, e?.stack, 'System', { reviewId: r.id });
+      }
+    }
+    return { replied };
+  } catch (e: any) {
+    await logError('reviews.autoReply', 'INTERNAL', e?.message, e?.stack, 'System', {});
+    return { replied: 0 };
+  }
+}
+
 export const actions: ActionMap = {
   getBusinessReviews: { fn: (d) => { feature(); return getBusinessReviews(d); }, perm: 'reports.view' },
   replyBusinessReview: { fn: (d, ctx) => { feature(); return replyBusinessReview(d, ctx); }, perm: 'marketing.manage' },
   deleteBusinessReply: { fn: (d, ctx) => { feature(); return deleteBusinessReply(d, ctx); }, perm: 'marketing.manage' },
+  getReviewAutoReply: { fn: () => { feature(); return getReviewAutoReply(); }, perm: 'reports.view' },
+  setReviewAutoReply: { fn: (d, ctx) => setReviewAutoReply(d, ctx), perm: 'marketing.manage' },
 };

@@ -202,6 +202,9 @@ export const CFG = {
     telephonyFieldMap: '{"callId":"call_id","from":"from","to":"to","direction":"direction","startTime":"start_time","endTime":"end_time","duration":"duration","recordingUrl":"recording_url","status":"status"}',
     features: '{"aiCopilot":true,"chat360":true,"calls":true,"inventorySync":true,"developerMode":false}',
     dailyDigestEmail: '',
+    /** AI auto-reply to new Google reviews (Business Profile › Reviews). Off by default; only replies to reviews at or above the star floor. */
+    reviewAutoReplyEnabled: 'false',
+    reviewAutoReplyMinStars: '4',
     maxFollowups: '500',
     /** What Agents (RMs) see: 'own' | 'own_unassigned' | 'all' (server/core/scope.ts). */
     rmLeadVisibility: 'own',
