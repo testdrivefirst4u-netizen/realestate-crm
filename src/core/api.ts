@@ -268,6 +268,7 @@ export interface InsightsOverview { days: number; accounts: InsightsAccount[]; t
 export interface FollowerPoint { month: string; followers: number }
 export interface FollowerAccount { key: string; kind: 'facebook' | 'instagram'; name: string; points: FollowerPoint[] }
 export interface FollowerHistory { accounts: FollowerAccount[] }
+export interface ClientReportShareView { enabled: boolean; emailMonthly: boolean; recipients: string[]; url: string; slug: string }
 export interface PostTargetOption { key: string; kind: PostTargetKind; name: string; needsImage: boolean }
 export interface SocialPost {
   id: string; text: string; texts: Partial<Record<PostTargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed' | 'deleted'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null; postType: PostType; videoFileId: string; videoUrl: string; imported: boolean;
@@ -834,6 +835,11 @@ export const api = {
   },
   connectedAccounts: {
     list: () => request<ConnectedAccount[]>('getConnectedAccounts'),
+  },
+  clientReport: {
+    share: () => request<ClientReportShareView>('getClientReportShare', {}),
+    setShare: (d: { enabled: boolean; emailMonthly: boolean; recipients: string[] }) => request<ClientReportShareView>('setClientReportShare', d),
+    rotateToken: () => request<ClientReportShareView>('rotateClientReportShareToken', {}),
   },
   competitors: {
     list: () => request<{ competitors: CompetitorView[]; checkers: Array<{ id: string; name: string }>; checkEveryDays: number }>('listCompetitors'),

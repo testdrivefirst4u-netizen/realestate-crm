@@ -6,8 +6,8 @@
  * "Download PDF" prints just the report via a print stylesheet. Read-only.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Printer, RefreshCw, Star } from 'lucide-react';
-import { api, type AnalyticsReport, type BusinessPerformance, type BusinessProfileData, type BusinessReviews, type FollowerAccount, type InsightsOverview, type SocialPost, type SpendRow } from '../../core/api';
+import { Check, Copy, Download, Link2, RefreshCw, RotateCw, Star } from 'lucide-react';
+import { api, type AnalyticsReport, type BusinessPerformance, type BusinessProfileData, type BusinessReviews, type ClientReportShareView, type FollowerAccount, type InsightsOverview, type SocialPost, type SpendRow } from '../../core/api';
 import type { Lead } from '../../types/crm';
 import { F } from '../../core/config';
 import { enquiryDate, isBooked } from '../../core/analytics';
@@ -52,6 +52,11 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   const [followerHist, setFollowerHist] = useState<FollowerAccount[] | null>(null);
   const [snapping, setSnapping] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [share, setShare] = useState<ClientReportShareView | null>(null);
+  const [recipients, setRecipients] = useState('');
+  const [shareErr, setShareErr] = useState('');
+  const [savingShare, setSavingShare] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { from, to } = useMemo(() => rangeOf(month), [month]);
   const prevMonth = useMemo(() => prevOf(month), [month]);
@@ -85,6 +90,7 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   useEffect(() => { void loadAll(); }, [loadAll]);
   useEffect(() => { api.team.spend().then((r) => setSpend(r.rows)).catch(() => setSpend([])); }, []);
   useEffect(() => { api.posts.followerHistory().then((r) => setFollowerHist(r.accounts)).catch(() => setFollowerHist([])); }, []);
+  useEffect(() => { api.clientReport.share().then((s) => { setShare(s); setRecipients(s.recipients.join(', ')); }).catch((e) => setShareErr(errText('report.share', e))); }, []);
 
   // ---- derived figures ----
   const spendCur = useMemo(() => (spend || []).filter((r) => r.month === month), [spend, month]);
@@ -118,6 +124,19 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   const rating = gbp.data?.rating?.average || null;
   const newReviews = (reviews.data?.reviews || []).filter((r) => { const d = new Date(r.createdAt); return d >= from && d < to; }).length;
 
+  const emailsFrom = (s: string) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
+  const saveShare = async (patch: Partial<Pick<ClientReportShareView, 'enabled' | 'emailMonthly'>> & { recipients?: string }) => {
+    if (!share) return;
+    setSavingShare(true);
+    try {
+      const next = await api.clientReport.setShare({ enabled: patch.enabled ?? share.enabled, emailMonthly: patch.emailMonthly ?? share.emailMonthly, recipients: emailsFrom(patch.recipients ?? recipients) });
+      setShare(next); setRecipients(next.recipients.join(', ')); setShareErr('');
+    } catch (e) { setShareErr(errText('report.share.save', e)); } finally { setSavingShare(false); }
+  };
+  const rotateToken = async () => { setSavingShare(true); try { const n = await api.clientReport.rotateToken(); setShare(n); setShareErr(''); } catch (e) { setShareErr(errText('report.share.rotate', e)); } finally { setSavingShare(false); } };
+  const shareLink = share?.url ? `${share.url}?m=${month}` : '';
+  const copyLink = () => { if (shareLink && navigator.clipboard) navigator.clipboard.writeText(shareLink).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); };
+
   const printPdf = () => window.print();
   const snapshotNow = async () => {
     setSnapping(true);
@@ -140,6 +159,49 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
         <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={busy ? 'animate-spin' : ''} />} disabled={busy} onClick={() => void loadAll()}>Refresh</Button>
         <Button variant="gold" size="sm" icon={<Download size={14} />} onClick={printPdf}>Download PDF</Button>
       </div>
+
+      {/* Share with client — a revocable public link + optional monthly e-mail (not part of the printed report) */}
+      {share && (
+        <Card className="no-print" title="Share with client" subtitle="A no-login link clients can open, and an optional monthly e-mail. Turning sharing off or rotating the link blocks old links at once.">
+          <label className="flex items-center gap-2.5 text-sm text-[#0B2A44]">
+            <input type="checkbox" checked={share.enabled} disabled={savingShare} onChange={(e) => void saveShare({ enabled: e.target.checked })} className="h-4 w-4 rounded border-[#C4D6E6] text-[#0B6BB0] focus:ring-[#0B6BB0]" />
+            <span className="font-semibold">Public share link</span>
+            <span className="text-[#8296A6]">— anyone with the link can view this report</span>
+          </label>
+
+          {share.enabled && (
+            <>
+              {shareLink ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#D3E3F0] bg-[#F7FBFE] px-3 py-2">
+                    <Link2 size={14} className="flex-none text-[#0B6BB0]" />
+                    <span className="truncate font-mono text-[12px] text-[#44505C]">{shareLink}</span>
+                  </div>
+                  <Button variant="secondary" size="sm" icon={copied ? <Check size={13} /> : <Copy size={13} />} onClick={copyLink}>{copied ? 'Copied' : 'Copy'}</Button>
+                  <Button variant="secondary" size="sm" onClick={() => window.open(shareLink, '_blank', 'noopener')}>Open</Button>
+                  <Button variant="secondary" size="sm" icon={<RotateCw size={13} className={savingShare ? 'animate-spin' : ''} />} disabled={savingShare} onClick={() => void rotateToken()}>Rotate link</Button>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-[#8296A6]">A link will appear here once saved. (Set APP_URL for the full address.)</p>
+              )}
+
+              <label className="mt-4 flex items-center gap-2.5 text-sm text-[#0B2A44]">
+                <input type="checkbox" checked={share.emailMonthly} disabled={savingShare} onChange={(e) => void saveShare({ emailMonthly: e.target.checked })} className="h-4 w-4 rounded border-[#C4D6E6] text-[#0B6BB0] focus:ring-[#0B6BB0]" />
+                <span className="font-semibold">E-mail a monthly summary</span>
+                <span className="text-[#8296A6]">— sent on the 1st for the month just ended</span>
+              </label>
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <div className="min-w-0 flex-1">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#8296A6]">Client e-mail(s)</label>
+                  <input value={recipients} onChange={(e) => setRecipients(e.target.value)} placeholder="client@example.com, owner@example.com" className="w-full rounded-lg border border-[#D3E3F0] bg-white px-3 py-2 text-sm text-[#0B2A44] focus:border-[#0B6BB0] focus:outline-none" />
+                </div>
+                <Button variant="primary" size="sm" disabled={savingShare} onClick={() => void saveShare({})}>Save recipients</Button>
+              </div>
+            </>
+          )}
+          {shareErr && <p className="mt-2 text-xs text-[#B42318]">{shareErr}</p>}
+        </Card>
+      )}
 
       <div id="client-report" className="space-y-4">
         {/* branded header */}
