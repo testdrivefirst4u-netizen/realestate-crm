@@ -827,6 +827,7 @@ export const api = {
     discardVideo: (fileId: string) => request<{ ok: true }>('discardPostVideo', { fileId }),
     insights: (d: { days: number; account?: string; refresh?: boolean }) => request<InsightsOverview>('getSocialInsights', d, { timeoutMs: 60000 }),
     followerHistory: () => request<FollowerHistory>('followerHistory', {}),
+    snapshotFollowersNow: () => request<FollowerHistory & { written: number }>('snapshotFollowersNow', {}, { timeoutMs: 60000 }),
     postInsights: (id: string) => request<{ targets: Array<{ key: string; kind: string; name: string; metrics: InsightValue[]; refused: string[] }> }>('getPostInsights', { id }, { timeoutMs: 60000 }),
     get: (id: string) => request<{ post: SocialPost }>('getPost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),

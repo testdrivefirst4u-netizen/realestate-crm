@@ -14,8 +14,12 @@ const snaps = () => col<SnapDoc>('followerSnapshots');
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** Record each connected account's follower count for the current month, once (best-effort; never throws). Returns how many were written. */
-export async function snapshotFollowers(now = new Date()): Promise<number> {
+/**
+ * Record each connected account's follower count for the current month (best-effort; never throws). Returns how many
+ * were written. By default it skips an account already recorded this month (so the daily cron costs one Graph call per
+ * account per month); `force` re-fetches and overwrites, for the manual "snapshot now" button.
+ */
+export async function snapshotFollowers(now = new Date(), force = false): Promise<number> {
   try {
     const month = monthKey(now);
     const c = await snaps();
@@ -25,7 +29,7 @@ export async function snapshotFollowers(now = new Date()): Promise<number> {
       const targets: Array<{ key: string; kind: 'facebook' | 'instagram'; name: string; id: string }> = [{ key: `facebook:${p.id}`, kind: 'facebook', name: p.name, id: p.id }];
       if (p.igId) targets.push({ key: `instagram:${p.igId}`, kind: 'instagram', name: `@${p.igUsername || p.igId}`, id: p.igId });
       for (const t of targets) {
-        if (await c.findOne({ key: t.key, month }, { projection: { _id: 1 } })) continue; // already recorded this month
+        if (!force && (await c.findOne({ key: t.key, month }, { projection: { _id: 1 } }))) continue; // already recorded this month
         const followers = await graph<{ followers_count?: number }>(t.id, { token: p.token, params: { fields: 'followers_count' } }).then((j) => num(j.followers_count)).catch(() => null);
         if (followers == null) continue;
         await c.updateOne({ _id: `${t.key}:${month}` }, { $set: { key: t.key, kind: t.kind, name: t.name, month, followers, at: now } }, { upsert: true });
@@ -56,4 +60,5 @@ export async function followerHistory(): Promise<{ accounts: FollowerAccount[] }
 
 export const actions: ActionMap = {
   followerHistory: { fn: async () => followerHistory(), perm: 'reports.view' },
+  snapshotFollowersNow: { fn: async () => ({ written: await snapshotFollowers(new Date(), true), ...(await followerHistory()) }), perm: 'marketing.posts' },
 };

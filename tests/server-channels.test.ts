@@ -139,7 +139,9 @@ describe('Ads manager', () => {
       await c.insertOne({ _id: 'metaCapi', enabled: false, datasetId: '1', token: encryptSecret('MT'), testCode: '', rules: [], connectedVia: 'facebook', adAccounts: [{ id: 'act_1000', name: 'Amaya Ads', currency: 'INR' }] });
       await (await col<any>('googleConnections')).insertOne({ _id: 'GCN-0001', email: 'a@b.c', refreshToken: encryptSecret('RT'), scopes: [], status: 'Active', lastError: '', connectedBy: 'x', connectedAt: new Date() });
       await c.insertOne({ _id: 'google', connectionId: 'GCN-0001', email: 'a@b.c', scopes: [], adsCustomerId: '1234567890', adsCustomers: [{ id: '1234567890', name: 'Amaya Google', currency: 'INR', manager: false }] });
-      for (const name of ['Amaya Q4', 'Amaya Q4', 'Amaya Search']) await addLead({ 'Prospect Name': 'X', 'Phone Number': '9123406' + String(Math.floor(Math.random() * 900) + 100), Campaign: name } as any, null);
+      // distinct phones per lead so dedup never merges two of them (a random suffix could collide and drop a leads7 count)
+      const campaigns = ['Amaya Q4', 'Amaya Q4', 'Amaya Search'];
+      for (let i = 0; i < campaigns.length; i++) await addLead({ 'Prospect Name': 'X', 'Phone Number': '91234060' + String(10 + i), Campaign: campaigns[i] } as any, null);
     });
   }
 

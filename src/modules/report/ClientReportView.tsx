@@ -50,6 +50,7 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   const [perf, setPerf] = useState<Slow<BusinessPerformance>>(slow0);
   const [web, setWeb] = useState<Slow<AnalyticsReport>>(slow0);
   const [followerHist, setFollowerHist] = useState<FollowerAccount[] | null>(null);
+  const [snapping, setSnapping] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const { from, to } = useMemo(() => rangeOf(month), [month]);
@@ -118,6 +119,12 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   const newReviews = (reviews.data?.reviews || []).filter((r) => { const d = new Date(r.createdAt); return d >= from && d < to; }).length;
 
   const printPdf = () => window.print();
+  const snapshotNow = async () => {
+    setSnapping(true);
+    try { const r = await api.posts.snapshotFollowersNow(); setFollowerHist(r.accounts); }
+    catch (e) { reportError('report.snapshot', e); }
+    finally { setSnapping(false); }
+  };
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
@@ -172,7 +179,10 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
               );
             })}
           </div>
-          <p className="mt-2 text-[11px] text-[#8296A6]">{followerGrowth != null ? 'Change shown is month-on-month, from stored monthly snapshots.' : 'Follower growth month-on-month starts tracking once snapshots span two months.'}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="text-[11px] text-[#8296A6]">{followerGrowth != null ? 'Change shown is month-on-month, from stored monthly snapshots.' : 'Follower growth is month-on-month and appears once snapshots span two months — captured monthly, or on demand below.'}</p>
+            <Button className="no-print ml-auto" variant="secondary" size="sm" icon={<RefreshCw size={12} className={snapping ? 'animate-spin' : ''} />} disabled={snapping} onClick={() => void snapshotNow()}>{snapping ? 'Saving…' : "Snapshot today's followers"}</Button>
+          </div>
         </Section>
 
         {/* content & engagement */}
