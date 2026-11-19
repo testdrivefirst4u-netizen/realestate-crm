@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CompanyDetail, Plan, PlatformActions } from '@/server/platform/contract';
+import { SECTORS } from '@/src/core/features';
 import { call, errorMessage } from '../../../_lib/api';
 import { EMAIL_RE } from '../../../_lib/format';
 import { normaliseFeatures } from '../../../_components/FeatureToggles';
@@ -16,6 +17,7 @@ function fromCompany(c: CompanyDetail) {
     tagline: c.tagline || '',
     logo: c.logo || '',
     plan: c.plan,
+    sector: c.sector || 'realestate',
     maxUsers: String(c.maxUsers),
     contactName: c.contactName || '',
     contactEmail: c.contactEmail || '',
@@ -62,6 +64,7 @@ export function EditCompanyForm({ company, plans, onSaved }: { company: CompanyD
     if (f.tagline.trim() !== initial.tagline) patch.tagline = f.tagline.trim();
     if (f.logo !== initial.logo) patch.logo = f.logo;
     if (f.plan !== initial.plan) patch.plan = f.plan;
+    if (f.sector !== initial.sector) patch.sector = f.sector;
     if (maxUsersNum !== company.maxUsers) patch.maxUsers = maxUsersNum;
     if (f.contactName.trim() !== initial.contactName) patch.contactName = f.contactName.trim();
     if (f.contactEmail.trim() !== initial.contactEmail) patch.contactEmail = f.contactEmail.trim();
@@ -102,6 +105,12 @@ export function EditCompanyForm({ company, plans, onSaved }: { company: CompanyD
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
+            ))}
+          </SelectField>
+          <SelectField label="Sector" value={f.sector} onChange={(e) => set('sector', e.target.value)}>
+            {!SECTORS.some((s) => s.id === f.sector) && <option value={f.sector}>{f.sector} (unknown)</option>}
+            {SECTORS.map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </SelectField>
           <TextField

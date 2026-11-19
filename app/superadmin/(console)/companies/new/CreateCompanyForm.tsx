@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { CompanyDetail, Plan } from '@/server/platform/contract';
+import { SECTORS } from '@/src/core/features';
 import { call, errorMessage, useResource } from '../../../_lib/api';
 import { EMAIL_RE, fmtPrice, slugError, slugify } from '../../../_lib/format';
 import { FeatureToggles, allFeatures, normaliseFeatures, type Features } from '../../../_components/FeatureToggles';
@@ -13,6 +14,7 @@ interface FormState {
   name: string;
   slug: string;
   plan: string;
+  sector: string;
   maxUsers: string;
   features: Features;
   contactName: string;
@@ -28,6 +30,7 @@ const EMPTY: FormState = {
   name: '',
   slug: '',
   plan: '',
+  sector: 'realestate',
   maxUsers: '0',
   features: allFeatures(true),
   contactName: '',
@@ -89,6 +92,7 @@ export function CreateCompanyForm({ onCreated }: { onCreated: (c: CompanyDetail,
         name: f.name.trim(),
         slug: f.slug,
         plan: f.plan,
+        sector: f.sector,
         maxUsers: maxUsersNum,
         features: f.features,
         contactName: f.contactName.trim(),
@@ -179,6 +183,11 @@ export function CreateCompanyForm({ onCreated }: { onCreated: (c: CompanyDetail,
                 error={show('maxUsers')}
                 hint="0 = unlimited"
               />
+              <SelectField label="Sector" value={f.sector} onChange={(e) => set('sector', e.target.value)} hint="The vertical this client is in — guides the pipeline and which modules fit.">
+                {SECTORS.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </SelectField>
             </div>
             <FeatureToggles value={f.features} onChange={(v) => set('features', v)} />
           </div>

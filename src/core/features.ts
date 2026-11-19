@@ -129,6 +129,26 @@ export function featuresForPackages(ids: string[]): Partial<Record<FeatureName, 
   return out;
 }
 
+/**
+ * Sectors (verticals) a company can be in. Each carries the modules it usually needs and a suggested pipeline/sources,
+ * so the CRM can be sold and set up per sector. For now the sector is metadata + guidance; sector-native stage names and
+ * terminology are a later phase (the funnel/won-loss logic is tied to the real-estate stages today).
+ */
+export const SECTORS: Array<{ id: string; label: string; packages: string[]; pipeline: string[]; sources: string[] }> = [
+  { id: 'realestate', label: 'Real Estate', packages: ['crm', 'whatsapp', 'chatbot'], pipeline: ['New', 'Open', 'Warm', 'Hot', 'Qualified', 'Site visit', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  { id: 'automobile', label: 'Automobile', packages: ['crm', 'whatsapp', 'chatbot'], pipeline: ['New', 'Enquiry', 'Test drive', 'Negotiation', 'Booked', 'Delivered', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  { id: 'healthcare', label: 'Healthcare / Clinic', packages: ['crm', 'whatsapp'], pipeline: ['New', 'Enquiry', 'Appointment', 'Consulted', 'In treatment', 'Follow-up', 'Closed'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  { id: 'education', label: 'Education / Coaching', packages: ['crm', 'whatsapp', 'chatbot'], pipeline: ['New', 'Enquiry', 'Counselling', 'Demo', 'Enrolled', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  { id: 'hospitality', label: 'Hospitality / Hotel', packages: ['crm', 'whatsapp'], pipeline: ['New', 'Enquiry', 'Quote sent', 'Booked', 'Stayed', 'Closed', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Google', 'Facebook', 'Instagram'] },
+  { id: 'retail', label: 'Retail / Showroom', packages: ['crm', 'whatsapp'], pipeline: ['New', 'Enquiry', 'Quote sent', 'Purchased', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  { id: 'finance', label: 'Financial Services', packages: ['crm', 'whatsapp'], pipeline: ['New', 'Enquiry', 'Documents', 'Under review', 'Approved', 'Disbursed', 'Rejected'], sources: ['Website', 'Referral', 'Facebook', 'Google'] },
+  { id: 'other', label: 'Other', packages: ['crm'], pipeline: ['New', 'Enquiry', 'Qualified', 'Won', 'Lost'], sources: ['Website', 'Walk-in', 'Referral'] },
+];
+export const SECTOR_IDS = SECTORS.map((s) => s.id);
+export const sectorById = (id: string | null | undefined) => SECTORS.find((s) => s.id === id) || null;
+/** A known sector id, or 'realestate' as the default. */
+export const normalizeSector = (id: string | null | undefined) => (SECTOR_IDS.includes(String(id || '')) ? String(id) : 'realestate');
+
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */
 export function companyInitials(name: string | null | undefined): string {
   const words = String(name || '').trim().split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w));

@@ -81,6 +81,7 @@ export interface CompanySummary {
   name: string;
   status: 'Active' | 'Suspended';
   plan: string; // plan id
+  sector: string; // vertical, see src/core/features.ts SECTORS
   maxUsers: number;
   activeUsers: number;
   leads: number;
@@ -275,6 +276,7 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
       name: string;
       slug: string; // 2–40 chars: a-z 0-9 -
       plan: string;
+      sector?: string; // vertical; defaults to 'realestate'
       maxUsers?: number; // defaults to the plan's
       features?: Partial<TenantFeatures>; // defaults to the plan's
       contactName?: string;
@@ -286,7 +288,7 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
     res: { company: CompanyDetail; adminTemporaryPassword?: string };
   };
   updateCompany: {
-    req: { id: string; patch: Partial<Pick<CompanyDetail, 'name' | 'plan' | 'maxUsers' | 'features' | 'logo' | 'tagline' | 'contactName' | 'contactEmail' | 'contactPhone' | 'notes'>> };
+    req: { id: string; patch: Partial<Pick<CompanyDetail, 'name' | 'plan' | 'sector' | 'maxUsers' | 'features' | 'logo' | 'tagline' | 'contactName' | 'contactEmail' | 'contactPhone' | 'notes'>> };
     res: CompanyDetail;
   };
   setCompanyStatus: { req: { id: string; status: 'Active' | 'Suspended'; reason?: string }; res: CompanyDetail };

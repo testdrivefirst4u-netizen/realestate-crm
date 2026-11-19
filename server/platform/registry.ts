@@ -41,6 +41,8 @@ export interface CompanyDoc {
   dbName: string;
   status: 'Active' | 'Suspended';
   plan: string;
+  /** Vertical the company is in (see src/core/features.ts SECTORS); defaults to 'realestate'. */
+  sector?: string;
   maxUsers: number;
   features: TenantFeatures;
   logo: string;

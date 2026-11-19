@@ -19,6 +19,7 @@ import { escapeRegex, randomPassword, str, truncate } from '../core/utils';
 import { claimEmail, invalidateTenant, normalizeFeatures, PCOLL, toTenant, type CompanyDoc } from './registry';
 import { actorLabel, listPlatformAudit, mapLimit, nextPlatformId, pc, platformAudit, type SaCtx } from './base';
 import { getPlan, validMaxUsers } from './plans';
+import { normalizeSector } from '../../src/core/features';
 import type { CompanyDetail, CompanySummary, CompanyUser } from './contract';
 import { unsubscribeAllPages } from '../modules/meta';
 import { revokeAllGoogleConnections } from '../modules/googleConnect';
@@ -141,6 +142,7 @@ function summary(c: CompanyDoc, u: Usage): CompanySummary {
     name: c.name,
     status: c.status === 'Suspended' ? 'Suspended' : 'Active',
     plan: c.plan || '',
+    sector: normalizeSector(c.sector),
     maxUsers: Number(c.maxUsers) || 0,
     activeUsers: u.activeUsers,
     leads: u.leads,
@@ -251,6 +253,7 @@ export async function createCompany(d: any, ctx: SaCtx): Promise<{ company: Comp
     dbName,
     status: 'Active',
     plan: plan.id,
+    sector: normalizeSector(d?.sector),
     maxUsers,
     features,
     logo: '',
@@ -385,6 +388,7 @@ export async function updateCompany(d: any, ctx: SaCtx): Promise<CompanyDetail> 
     if (!plan) throw fail('VALIDATION', 'Choose an existing plan');
     set.plan = plan.id;
   }
+  if (p.sector !== undefined) set.sector = normalizeSector(p.sector);
   if (p.maxUsers !== undefined) set.maxUsers = validMaxUsers(p.maxUsers);
   if (p.features !== undefined) {
     if (!p.features || typeof p.features !== 'object') throw fail('VALIDATION', 'Features must be an object');
