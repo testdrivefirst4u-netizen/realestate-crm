@@ -8,6 +8,7 @@ import { runWithTenant } from '@/server/core/tenant';
 import { getTenantBySlug } from '@/server/platform/registry';
 import { clientReportByToken } from '@/server/modules/clientReport';
 import { ReportDocument } from '../../_components/ReportDocument';
+import { PrintBar } from '../../_components/PrintBar';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Marketing Report', robots: { index: false, follow: false } };
@@ -35,7 +36,14 @@ export default async function PublicReportPage({ params, searchParams }: { param
 
   try {
     const data = await runWithTenant(tenant, () => clientReportByToken(String(token || ''), month));
-    return <main className="min-h-screen bg-[#F2F7FB]"><ReportDocument r={data} /></main>;
+    return (
+      <main className="min-h-screen bg-[#F2F7FB]">
+        {/* clean print / save-as-PDF: no page chrome, no shadows, cards never split across pages */}
+        <style>{`@media print{.no-print{display:none!important}body{background:#fff!important}#report-doc [class*="shadow"]{box-shadow:none!important}#report-doc section,#report-doc .break-inside-avoid{break-inside:avoid}@page{margin:14mm}}`}</style>
+        <PrintBar title={`${data.company.name} — ${data.monthLabel}`} />
+        <div id="report-doc"><ReportDocument r={data} /></div>
+      </main>
+    );
   } catch {
     return <NotAvailable />;
   }
