@@ -83,8 +83,9 @@ function Brand() {
 /** The dark navigation panel: brand, grouped links, the signed-in admin and Sign out. */
 function SidebarPanel({ admin, onNavigate, onClose, signingOut, signOut }: { admin: SuperAdmin; onNavigate?: () => void; onClose?: () => void; signingOut: boolean; signOut: () => void }) {
   return (
-    <div className="flex h-full flex-col rounded-[24px] bg-[#0A1F33] px-3 py-5">
-      <div className="flex items-center justify-between gap-2 px-2">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-[24px] bg-gradient-to-b from-[#0E2A45] via-[#0A2038] to-[#07131F] px-3 py-5 shadow-[0_18px_50px_-20px_rgba(8,24,40,0.7)]">
+      <span aria-hidden className="pointer-events-none absolute -right-14 -top-16 h-52 w-52 rounded-full bg-[#1E6FB0]/25 blur-3xl" />
+      <div className="relative flex items-center justify-between gap-2 px-2">
         <Brand />
         {onClose && (
           <button type="button" onClick={onClose} aria-label="Close navigation" className="flex h-11 w-11 items-center justify-center rounded-lg text-[#C9D3DC] hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2]">
@@ -92,10 +93,10 @@ function SidebarPanel({ admin, onNavigate, onClose, signingOut, signOut }: { adm
           </button>
         )}
       </div>
-      <nav aria-label="Console" className="mt-7 min-h-0 flex-1 overflow-y-auto pl-3 pr-1">
+      <nav aria-label="Console" className="relative mt-7 min-h-0 flex-1 overflow-y-auto pl-3 pr-1">
         <NavLinks onNavigate={onNavigate} />
       </nav>
-      <div className="mt-4 flex items-center gap-2.5 border-t border-white/10 px-2 pt-4">
+      <div className="relative mt-4 flex items-center gap-2.5 border-t border-white/10 px-2 pt-4">
         <div aria-hidden className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#16466E] text-[13px] font-semibold text-white">{initials(admin.name)}</div>
         <div className="min-w-0 flex-1 text-[13px] leading-tight">
           <div className="truncate font-semibold text-white">{admin.name}</div>

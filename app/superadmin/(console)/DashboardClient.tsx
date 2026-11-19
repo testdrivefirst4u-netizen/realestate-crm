@@ -3,8 +3,11 @@ import Link from 'next/link';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Activity, AlertTriangle, ArrowRight, Building2, CheckCircle2, CircleDollarSign, Database, Plus, Receipt, Search, ServerCrash, Users, UserX, Zap } from 'lucide-react';
 import type { CompanySummary, Plan } from '@/server/platform/contract';
+import { sectorById } from '@/src/core/features';
 import { call, useResource } from '../_lib/api';
 import { fmtMB, fmtNum, fmtPrice, initials, planName } from '../_lib/format';
+
+const SECTOR_COLOR: Record<string, string> = { realestate: '#6366f1', automobile: '#0ea5a3', healthcare: '#e4634f', education: '#2563eb', hospitality: '#9333ea', retail: '#d97706', finance: '#0891b2', other: '#94a3b8' };
 import { AuditTable } from '../_components/AuditTable';
 import { useAdmin } from '../_components/ConsoleShell';
 import { Card, CardHeader, EmptyState, ErrorBox, LinkButton, Pill, Skeleton, StatCard, StatusBadge, cx, focusRing } from '../_components/ui';
@@ -55,8 +58,14 @@ function CompanyCard({ c, plans }: { c: CompanySummary; plans: Plan[] | null }) 
           <div className={cx('h-1.5 rounded-full', full ? 'bg-[#E08A2C]' : 'bg-[#36B3F2]')} style={{ width: `${Math.max(pct, 4)}%` }} />
         </div>
       )}
-      <div className="flex items-center justify-between text-[13px] text-[#4E6779]">
-        <Pill>{planName(plans, c.plan)}</Pill>
+      <div className="flex items-center justify-between gap-2 text-[13px] text-[#4E6779]">
+        <span className="flex min-w-0 items-center gap-2.5">
+          <Pill>{planName(plans, c.plan)}</Pill>
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-bold text-[#233B50]">
+            <span aria-hidden className="h-2 w-2 rounded-sm" style={{ background: SECTOR_COLOR[c.sector] || SECTOR_COLOR.realestate }} />
+            {sectorById(c.sector)?.label || 'Real Estate'}
+          </span>
+        </span>
         <span className="inline-flex items-center gap-1 font-medium text-[#0B6BB0] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden>
           Open <ArrowRight className="h-3.5 w-3.5" />
         </span>

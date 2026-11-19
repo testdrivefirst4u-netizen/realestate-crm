@@ -4,8 +4,11 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Settings2 } from 'lucide-react';
 import type { CompanyDetail, CompanyUser } from '@/server/platform/contract';
+import { sectorById } from '@/src/core/features';
 import { call, useResource } from '../../../_lib/api';
 import { fmtDate, fmtMB, fmtNum, initials, planName } from '../../../_lib/format';
+
+const SECTOR_COLOR: Record<string, string> = { realestate: '#6366f1', automobile: '#0ea5a3', healthcare: '#e4634f', education: '#2563eb', hospitality: '#9333ea', retail: '#d97706', finance: '#0891b2', other: '#94a3b8' };
 import { AuditTable } from '../../../_components/AuditTable';
 import { Button, Card, ErrorBox, Pill, Skeleton, StatusBadge, cx, focusRing } from '../../../_components/ui';
 import { DangerTab } from '../_components/DangerTab';
@@ -98,8 +101,9 @@ export function CompanyDetailClient() {
     <>
       <div className="mb-3">{back}</div>
       <header className="mb-6 overflow-hidden rounded-3xl border border-[#DCE8F2] bg-white shadow-[0_1px_3px_rgba(10,31,51,0.05),0_12px_30px_-18px_rgba(10,31,51,0.2)]">
-        <div className="flex flex-wrap items-center gap-4 bg-[#0A1F33] px-5 py-5 sm:px-6">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]">
+        <div className="relative flex flex-wrap items-center gap-4 overflow-hidden bg-gradient-to-br from-[#0E2A45] via-[#0A2038] to-[#07131F] px-5 py-5 sm:px-6">
+          <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-[#1E6FB0]/25 blur-3xl" />
+          <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]">
             {c.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={c.logo} alt="" className="max-h-full max-w-full object-contain p-1.5" />
@@ -109,13 +113,18 @@ export function CompanyDetailClient() {
               </span>
             )}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-[1.6rem] font-bold leading-tight tracking-tight !text-white">{c.name}</h1>
               <StatusBadge status={c.status} />
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px] text-[#B9D4EA]">
               <span className="font-mono">{c.slug}</span>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1.5 font-semibold text-white">
+                <span aria-hidden className="h-2 w-2 rounded-sm" style={{ background: SECTOR_COLOR[c.sector] || SECTOR_COLOR.realestate }} />
+                {sectorById(c.sector)?.label || 'Real Estate'}
+              </span>
               <span aria-hidden>·</span>
               <span>{planName(plans.data, c.plan)} plan</span>
               {c.tagline && (

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Building2, Plus, Search } from 'lucide-react';
+import { SECTORS } from '@/src/core/features';
 import { call, useResource } from '../../_lib/api';
 import { CompaniesTable } from '../../_components/CompaniesTable';
 import { Card, EmptyState, ErrorBox, LinkButton, PageHeader, TableSkeleton, cx, toolbarControl } from '../../_components/ui';
@@ -11,6 +12,7 @@ export function CompaniesClient() {
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
   const [status, setStatus] = useState<StatusFilter>('');
+  const [sector, setSector] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 300);
@@ -19,8 +21,8 @@ export function CompaniesClient() {
 
   const list = useResource(() => call('listCompanies', { q: debounced || undefined, status }), [debounced, status]);
   const plans = useResource(() => call('listPlans', {}), []);
-  const filtered = Boolean(debounced || status);
-  const rows = list.data;
+  const filtered = Boolean(debounced || status || sector);
+  const rows = list.data ? (sector ? list.data.filter((c) => (c.sector || 'realestate') === sector) : list.data) : list.data;
 
   return (
     <>
@@ -50,12 +52,15 @@ export function CompaniesClient() {
               className={cx(toolbarControl, 'pl-9')}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="co-status" className="text-[13px] font-medium text-[#233B50]">
-              Status
-            </label>
-            <select id="co-status" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className={cx(toolbarControl, 'w-40')}>
-              <option value="">All</option>
+          <div className="flex flex-wrap items-center gap-2">
+            <select aria-label="Sector" value={sector} onChange={(e) => setSector(e.target.value)} className={cx(toolbarControl, 'w-44')}>
+              <option value="">All sectors</option>
+              {SECTORS.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+            <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className={cx(toolbarControl, 'w-36')}>
+              <option value="">All statuses</option>
               <option value="Active">Active</option>
               <option value="Suspended">Suspended</option>
             </select>
