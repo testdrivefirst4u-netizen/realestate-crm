@@ -38,6 +38,7 @@ export const platformRegistry: Record<PlatformActionName, Handler> = {
   saTotpDisable: { fn: (d, ctx) => SA.saTotpDisable(d, ctx) },
   /* companies */
   dashboard: { fn: () => CO.dashboard() },
+  platformTrends: { fn: async (d) => (await import('./platformSnapshots')).platformTrends(d || {}) },
   listCompanies: { fn: (d) => CO.listCompanies(d) },
   getCompany: { fn: (d) => CO.getCompany(d) },
   openCompanySupport: { fn: (d, ctx) => CO.openCompanySupport(d, ctx) },

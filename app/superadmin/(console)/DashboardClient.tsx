@@ -9,6 +9,7 @@ import { fmtMB, fmtNum, fmtPrice, initials, planName } from '../_lib/format';
 
 const SECTOR_COLOR: Record<string, string> = { realestate: '#6366f1', automobile: '#0ea5a3', healthcare: '#e4634f', education: '#2563eb', hospitality: '#9333ea', retail: '#d97706', finance: '#0891b2', other: '#94a3b8' };
 import { AuditTable } from '../_components/AuditTable';
+import { TrendsCard } from '../_components/TrendsCard';
 import { useAdmin } from '../_components/ConsoleShell';
 import { Card, CardHeader, EmptyState, ErrorBox, LinkButton, Pill, Skeleton, StatCard, StatusBadge, cx, focusRing } from '../_components/ui';
 
@@ -244,6 +245,8 @@ export function DashboardClient() {
 
         </aside>
       </div>
+
+        <TrendsCard />
 
         <Card aria-labelledby="dash-recent-audit">
           <CardHeader

@@ -13,6 +13,8 @@ import type { MarketingAppsView } from './marketingApps';
 export type { MarketingAppsView } from './marketingApps';
 import type { Branding, BrandingInput } from './branding';
 export type { Branding, BrandingInput } from './branding';
+import type { PlatformTrends } from './platformSnapshots';
+export type { PlatformTrends, PlatformTrendPoint } from './platformSnapshots';
 export type { MetaSourceConfig, MetaStatus } from '../core/metaTypes';
 export type { GoogleConnection, GoogleSettingsView, GoogleStatus, SheetAuth, SheetExport, SheetExportColumns, SheetImportConfig, SyncInterval } from '../core/sheetTypes';
 export type { LeadSource, LeadSourceConfig, LeadSourceType, InboundLogEntry, InboundStatus, AssignmentMode, DuplicateMode } from '../core/leadSourceTypes';
@@ -267,6 +269,8 @@ export interface PlatformActions extends PlatformLeadSourceActions, PlatformShee
       recentAudit: PlatformAuditEntry[];
     };
   };
+  /** Daily platform-wide totals over the last `days` (default 90) for the dashboard growth charts. */
+  platformTrends: { req: { days?: number }; res: PlatformTrends };
   listCompanies: { req: { q?: string; status?: 'Active' | 'Suspended' | '' }; res: CompanySummary[] };
   getCompany: { req: { id: string }; res: CompanyDetail };
   /** Sets the CRM session cookie (route handler) for a 2-hour Platform support session in that company. */

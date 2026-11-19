@@ -39,6 +39,8 @@ export async function GET(req: Request) {
   }
   // database sizes for the console's Storage page (growth needs one snapshot a day)
   const storage = await snapshotStorage().catch((e) => { console.error('[cron] storage snapshot', e); return { error: 'failed' }; });
+  // platform-wide totals (companies, users, leads, storage, MRR) for the Super Admin growth charts
+  const platform = await (await import('@/server/platform/platformSnapshots')).snapshotPlatform().catch((e) => { console.error('[cron] platform snapshot', e); return { error: 'failed' }; });
   // Meta: yesterday's ad spend per campaign (Sales MIS cost per lead / visit / booking) and lead results not sent yet
   const adSpend = await runSpendCron().catch((e) => { console.error('[cron] ad spend', e); return { error: 'failed' }; });
   const googleSpend = await runGoogleSpendCron().catch((e) => { console.error('[cron] google spend', e); return { error: 'failed' }; });
@@ -48,7 +50,7 @@ export async function GET(req: Request) {
   const importedPosts = await runImportPostsCron().catch((e) => { console.error('[cron] imported posts', e); return { error: 'failed' }; });
   const inboxImport = await runInboxImportCron().catch((e) => { console.error('[cron] inbox import', e); return { error: 'failed' }; });
   const videoSweep = await runVideoSweepCron().catch((e) => { console.error('[cron] video sweep', e); return { error: 'failed' }; });
-  const data = { companies: Object.keys(results).length, failed, results, storage, adSpend, googleSpend, conversions, inbox, adAlerts, importedPosts, inboxImport, videoSweep };
+  const data = { companies: Object.keys(results).length, failed, results, storage, platform, adSpend, googleSpend, conversions, inbox, adAlerts, importedPosts, inboxImport, videoSweep };
   await recordJobRun('daily', started, !failed, summarize(data));
   return NextResponse.json({ status: failed ? 'error' : 'success', data }, { status: failed ? 500 : 200 });
 }
