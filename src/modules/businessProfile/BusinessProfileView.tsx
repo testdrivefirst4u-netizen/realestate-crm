@@ -4,8 +4,8 @@
  * links to the real listing.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ExternalLink, Pencil, RefreshCw } from 'lucide-react';
-import { api, type AnalyticsMetric, type BusinessPerformance, type BusinessPhoto, type BusinessProfileData } from '../../core/api';
+import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Pencil, RefreshCw } from 'lucide-react';
+import { api, type AnalyticsMetric, type BusinessLocationsView, type BusinessPerformance, type BusinessPhoto, type BusinessProfileData } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
 import { Button, InlineNotice, cx, inputCls } from '../../components/ui';
@@ -14,6 +14,7 @@ import { EditDialog, SECTION_OF, type EditSection } from './gbpEdit';
 import { coverOf, PhotosTab } from './gbpPhotos';
 import { Preview } from './gbpPreview';
 import { ReviewsTab } from './gbpReviews';
+import { LocationsOverview } from './gbpAllLocations';
 
 const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e)).userMessage;
 const n = (v: number) => Math.round(v).toLocaleString('en-IN');
@@ -166,6 +167,22 @@ export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boole
   const [data, setData] = useState<BusinessProfileData | null>(null);
   const [failed, setFailed] = useState('');
   const [loading, setLoading] = useState(false);
+  // "all locations" overview vs. a single-location detail. Multi-location accounts land on the overview first.
+  const [view, setView] = useState<'loading' | 'overview' | 'detail'>('loading');
+  const [locs, setLocs] = useState<BusinessLocationsView | null>(null);
+  const [locsLoading, setLocsLoading] = useState(false);
+  const multi = (locs?.total ?? 0) > 1;
+  const loadLocations = useCallback(async (refresh = false) => {
+    setLocsLoading(true);
+    try {
+      const r = await api.businessProfile.locations(refresh);
+      setLocs(r);
+      setView((v) => (v === 'loading' ? (r.total > 1 ? 'overview' : 'detail') : v));
+    } catch (e) {
+      setFailed(errText('gbp.locations', e));
+      setView((v) => (v === 'loading' ? 'detail' : v)); // fall back to the single-location flow
+    } finally { setLocsLoading(false); }
+  }, []);
   const latest = useRef(0);
   const load = useCallback(async (refresh = false) => {
     const mine = ++latest.current;
@@ -181,10 +198,11 @@ export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boole
       if (mine === latest.current) setLoading(false);
     }
   }, [location]);
-  useEffect(() => void load(), [load]);
+  useEffect(() => { void loadLocations(); }, [loadLocations]);
+  useEffect(() => { if (view === 'detail') void load(); }, [view, load]);
   // returning from the inline "Connect Google Business Profile" lands on /businessprofile?gmktConnected=… — toast and reload
-  const loadRef = useRef(load);
-  loadRef.current = load;
+  const loadRef = useRef(loadLocations);
+  loadRef.current = loadLocations;
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
@@ -219,40 +237,60 @@ export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boole
     }
   };
   const current = location || data?.location || '';
+  const connectNotice = (msg: string) => (
+    <InlineNotice tone="warning">
+      <span className="flex flex-wrap items-center gap-2">
+        <span>{msg}</span>
+        {canManage && <button type="button" onClick={() => { window.location.href = '/api/integrations/google/marketing/connect?return=businessprofile'; }} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110">Connect Google Business Profile</button>}
+        {canManage && <a href="/settings?section=google" className="text-xs font-medium underline">or open Settings</a>}
+      </span>
+    </InlineNotice>
+  );
   return (
     <div className="min-h-full space-y-3 bg-[#F8F9FA] p-3 sm:p-5">
-      <header className="flex flex-wrap items-center gap-2">
-        {data && data.locations.length > 1 ? (
-          <select className={cx(inputCls, 'w-auto max-w-full')} value={current} onChange={(e) => setLocation(e.target.value)} aria-label="Location">{data.locations.map((l) => <option key={l.name} value={l.name}>{l.title}</option>)}</select>
-        ) : <span className="min-w-0 truncate text-[13px] text-[#5F6368]">{data?.locations[0]?.title}</span>}
-        <span className="ml-auto flex flex-wrap items-center gap-2">
-          {data?.reviewUri && <a href={data.reviewUri} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#DADCE0] bg-white px-3 py-1.5 text-xs font-medium text-[#1967D2] hover:bg-[#F8F9FA]">Review link <ExternalLink size={12} /></a>}
-          {data?.mapsUri && <a href={data.mapsUri} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#DADCE0] bg-white px-3 py-1.5 text-xs font-medium text-[#1967D2] hover:bg-[#F8F9FA]">View on Google Maps <ExternalLink size={12} /></a>}
-          {tab === 'profile' && <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load(true)}>Refresh</Button>}
-        </span>
-      </header>
       {failed && <InlineNotice tone="warning">{failed}</InlineNotice>}
-      {data?.error && (
-        <InlineNotice tone="warning">
-          <span className="flex flex-wrap items-center gap-2">
-            <span>{data.error}</span>
-            {canManage && <button type="button" onClick={() => { window.location.href = '/api/integrations/google/marketing/connect?return=businessprofile'; }} className="inline-flex items-center gap-1.5 rounded-lg bg-[#1A73E8] px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110">Connect Google Business Profile</button>}
-            {canManage && <a href="/settings?section=google" className="text-xs font-medium underline">or open Settings</a>}
-          </span>
-        </InlineNotice>
-      )}
-      {!data && !failed && <p className="p-6 text-center text-[13px] text-[#5F6368]">Loading…</p>}
-      {data && !data.error && data.profile && (
+      {view === 'loading' && !failed && <p className="p-6 text-center text-[13px] text-[#5F6368]">Loading…</p>}
+
+      {/* All-locations overview (accounts with more than one Business Profile location) */}
+      {view === 'overview' && locs && (locs.error ? connectNotice(locs.error) : (
+        <LocationsOverview
+          data={locs}
+          loading={locsLoading}
+          canReply={canReply}
+          onRefresh={() => void loadLocations(true)}
+          onOpen={(name) => { setLocation(name); setData(null); setTab('profile'); setView('detail'); }}
+        />
+      ))}
+
+      {/* Single-location detail (also the drill-in from the overview) */}
+      {view === 'detail' && (
         <>
-          <div role="tablist" aria-label="Business Profile" className="flex border-b border-[#DADCE0]">
-            {(['profile', 'photos', 'reviews', 'performance'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium capitalize', tab === t ? 'border-[#1A73E8] text-[#1967D2]' : 'border-transparent text-[#5F6368] hover:bg-white')}>{t}</button>)}
-          </div>
-          {opening && <p className="text-xs text-[#5F6368]">Reading the latest details from Google…</p>}
-          {tab === 'profile' && <ProfileTab data={data} canEdit={canManage} photo={photo} onEdit={(s) => void openEditor(s)} />}
-          {tab === 'photos' && <PhotosTab location={data.location} canEdit={canManage} onChanged={photosChanged} />}
-          {tab === 'reviews' && <ReviewsTab location={data.location} canReply={canReply} />}
-          {tab === 'performance' && <PerformanceTab location={data.location} />}
-          {editing && data.edit && <EditDialog section={editing} data={data} photo={photo} onClose={() => setEditing(null)} onSaved={(fresh) => { setData(fresh); setEditing(null); }} />}
+          <header className="flex flex-wrap items-center gap-2">
+            {multi && <button type="button" onClick={() => setView('overview')} className="inline-flex items-center gap-1 rounded-lg border border-[#DADCE0] bg-white px-2.5 py-1.5 text-xs font-medium text-[#1967D2] hover:bg-[#F8F9FA]"><ArrowLeft size={13} /> All locations</button>}
+            {data && data.locations.length > 1 ? (
+              <select className={cx(inputCls, 'w-auto max-w-full')} value={current} onChange={(e) => setLocation(e.target.value)} aria-label="Location">{data.locations.map((l) => <option key={l.name} value={l.name}>{l.title}</option>)}</select>
+            ) : <span className="min-w-0 truncate text-[13px] text-[#5F6368]">{data?.locations[0]?.title}</span>}
+            <span className="ml-auto flex flex-wrap items-center gap-2">
+              {data?.reviewUri && <a href={data.reviewUri} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#DADCE0] bg-white px-3 py-1.5 text-xs font-medium text-[#1967D2] hover:bg-[#F8F9FA]">Review link <ExternalLink size={12} /></a>}
+              {data?.mapsUri && <a href={data.mapsUri} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#DADCE0] bg-white px-3 py-1.5 text-xs font-medium text-[#1967D2] hover:bg-[#F8F9FA]">View on Google Maps <ExternalLink size={12} /></a>}
+              {tab === 'profile' && <Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} onClick={() => void load(true)}>Refresh</Button>}
+            </span>
+          </header>
+          {data?.error && connectNotice(data.error)}
+          {!data && !failed && <p className="p-6 text-center text-[13px] text-[#5F6368]">Loading…</p>}
+          {data && !data.error && data.profile && (
+            <>
+              <div role="tablist" aria-label="Business Profile" className="flex border-b border-[#DADCE0]">
+                {(['profile', 'photos', 'reviews', 'performance'] as const).map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium capitalize', tab === t ? 'border-[#1A73E8] text-[#1967D2]' : 'border-transparent text-[#5F6368] hover:bg-white')}>{t}</button>)}
+              </div>
+              {opening && <p className="text-xs text-[#5F6368]">Reading the latest details from Google…</p>}
+              {tab === 'profile' && <ProfileTab data={data} canEdit={canManage} photo={photo} onEdit={(s) => void openEditor(s)} />}
+              {tab === 'photos' && <PhotosTab location={data.location} canEdit={canManage} onChanged={photosChanged} />}
+              {tab === 'reviews' && <ReviewsTab location={data.location} canReply={canReply} />}
+              {tab === 'performance' && <PerformanceTab location={data.location} />}
+              {editing && data.edit && <EditDialog section={editing} data={data} photo={photo} onClose={() => setEditing(null)} onSaved={(fresh) => { setData(fresh); setEditing(null); }} />}
+            </>
+          )}
         </>
       )}
     </div>

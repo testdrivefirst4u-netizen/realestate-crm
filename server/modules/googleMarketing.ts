@@ -46,7 +46,7 @@ const STATE_TTL_S = 600;
 const IST_MS = 330 * 60000;
 
 export interface GoogleAdsCustomer { id: string; name: string; currency: string; manager: boolean }
-export interface GbpLocation { name: string; title: string; account: string }
+export interface GbpLocation { name: string; title: string; account: string; storeCode?: string; address?: string; status?: 'verified' | 'duplicate' | 'unverified' }
 
 interface GoogleMktDoc {
   _id: 'google';
@@ -248,12 +248,30 @@ export async function googleApiFetch<T = any>(url: string, init: { method?: stri
   return j as T;
 }
 
+/** storefrontAddress → a short one-line address. */
+function gbpAddress(a: any): string {
+  if (!a) return '';
+  const parts = [...(Array.isArray(a.addressLines) ? a.addressLines : []), a.locality, a.administrativeArea, a.postalCode].map((p: unknown) => String(p || '').trim()).filter(Boolean);
+  return parts.join(', ');
+}
+/** Verified / duplicate / unverified from the location's metadata, matching the words Google's manager uses. */
+function gbpStatus(x: any): GbpLocation['status'] {
+  if (x?.metadata?.duplicateLocation) return 'duplicate';
+  return x?.metadata?.hasVoiceOfMerchant ? 'verified' : 'unverified';
+}
 async function listGbpLocations(): Promise<GbpLocation[]> {
   const acc = await gbpFetch<{ accounts?: Array<{ name: string }> }>('https://mybusinessaccountmanagement.googleapis.com/v1/accounts');
   const out: GbpLocation[] = [];
   for (const a of (acc.accounts || []).slice(0, 10)) {
-    const l = await gbpFetch<{ locations?: Array<{ name: string; title?: string }> }>(`https://mybusinessbusinessinformation.googleapis.com/v1/${a.name}/locations?readMask=name,title&pageSize=100`);
-    for (const x of l.locations || []) out.push({ name: x.name, title: String(x.title || x.name), account: a.name });
+    // paginate: one account can hold many locations (readMask carries store code, address and verification metadata)
+    let token = '';
+    do {
+      const q = new URLSearchParams({ readMask: 'name,title,storeCode,storefrontAddress,metadata', pageSize: '100' });
+      if (token) q.set('pageToken', token);
+      const l: any = await gbpFetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${a.name}/locations?${q.toString()}`);
+      for (const x of l.locations || []) out.push({ name: x.name, title: String(x.title || x.name), account: a.name, storeCode: String(x.storeCode || ''), address: gbpAddress(x.storefrontAddress), status: gbpStatus(x) });
+      token = String(l.nextPageToken || '');
+    } while (token && out.length < 1000);
   }
   return out;
 }

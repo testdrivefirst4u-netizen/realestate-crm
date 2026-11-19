@@ -312,6 +312,10 @@ export interface BusinessPerformance {
 export interface BusinessPhoto { name: string; format: string; category: string; url: string; thumbnail: string; createdAt: string; author: string; authorUrl: string; removalUrl: string }
 export interface BusinessReview { id: string; author: string; anonymous: boolean; photo: string; stars: number; comment: string; createdAt: string; updatedAt: string; reply: string; repliedAt: string }
 export interface BusinessReviews { error: string; location: string; reviews: BusinessReview[]; average: number; total: number; nextPage: string }
+export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown' }
+export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; default: string }
+export interface AllLocationReview extends BusinessReview { location: string; locationTitle: string; storeCode: string }
+export interface AllLocationReviews { error: string; reviews: AllLocationReview[]; scanned: number; locations: number; unansweredTotal: number }
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
 /** Post scheduler › Instagram view (server: modules/instagramProfile.ts). */
 export interface InstagramProfile { account: string; username: string; name: string; bio: string; website: string; picture: string; followers: number | null; following: number | null; posts: number | null; error: string }
@@ -886,6 +890,8 @@ export const api = {
     categories: (q: string, regionCode: string) => request<Array<{ name: string; displayName: string }>>('searchBusinessCategories', { q, regionCode }),
     photos: (location: string) => request<BusinessPhotos>('getBusinessPhotos', { location }, { timeoutMs: 60000 }),
     reviews: (d: { location: string; order?: string; page?: string }) => request<BusinessReviews>('getBusinessReviews', d, { timeoutMs: 60000 }),
+    locations: (refresh = false) => request<BusinessLocationsView>('getBusinessLocations', { refresh }, { timeoutMs: 120000 }),
+    allReviews: (d: { unansweredOnly?: boolean; limit?: number } = {}) => request<AllLocationReviews>('allLocationReviews', d, { timeoutMs: 180000 }),
     replyReview: (location: string, reviewId: string, comment: string) => request<{ ok: true }>('replyBusinessReview', { location, reviewId, comment }, { timeoutMs: 60000 }),
     reviewAutoReply: () => request<{ enabled: boolean; minStars: number }>('getReviewAutoReply', {}),
     setReviewAutoReply: (d: { enabled: boolean; minStars: number }) => request<{ enabled: boolean; minStars: number }>('setReviewAutoReply', d),

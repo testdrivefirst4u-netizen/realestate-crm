@@ -123,8 +123,9 @@ export async function autoReplyReviews(): Promise<{ replied: number }> {
     if (!(t?.features as any)?.businessProfile || !(t?.features as any)?.aiCopilot) return { replied: 0 };
     const cfg = await getReviewAutoReply();
     if (!cfg.enabled) return { replied: 0 };
-    const data = await getBusinessReviews({});
-    if (data.error || !data.location || !data.reviews.length) return { replied: 0 };
+    // every location, not just the default one — unanswered reviews from all branches
+    const data = await allLocationReviews({ unansweredOnly: true, limit: 300 });
+    if (data.error || !data.reviews.length) return { replied: 0 };
     const company = String(t?.name || 'our company');
     const system = `You write the owner's public reply to a Google review for ${company}, a real-estate business in India. Reply in 1–2 short, warm, specific sentences: thank the reviewer, acknowledge what they said if there is a comment, and invite them back. Plain text only — no emojis, no hashtags, no links, no star mentions. Never promise anything specific. Do not exceed 60 words.`;
     let replied = 0;
@@ -132,10 +133,10 @@ export async function autoReplyReviews(): Promise<{ replied: number }> {
       if (replied >= PER_RUN) break;
       if (r.reply || r.stars < cfg.minStars) continue; // already answered, or below the floor (left for the team)
       try {
-        const prompt = `Review: ${r.stars} stars${r.comment ? ` — "${truncate(r.comment, 600)}"` : ' (no written comment)'} by ${r.author}. Write the public reply.`;
+        const prompt = `Review: ${r.stars} stars${r.comment ? ` — "${truncate(r.comment, 600)}"` : ' (no written comment)'} by ${r.author} at ${r.locationTitle}. Write the public reply.`;
         const text = (await generateText(prompt, SYSTEM_CTX, { fast: true, system, maxOutputTokens: 160, temperature: 0.5 })).trim();
         if (!text || text === 'HANDOFF') continue;
-        await replyBusinessReview({ reviewId: r.id, location: data.location, comment: text.slice(0, 1500) }, SYSTEM_CTX);
+        await replyBusinessReview({ reviewId: r.id, location: r.location, comment: text.slice(0, 1500) }, SYSTEM_CTX);
         replied++;
       } catch (e: any) {
         await logError('reviews.autoReply', 'INTERNAL', e?.message, e?.stack, 'System', { reviewId: r.id });
@@ -148,8 +149,48 @@ export async function autoReplyReviews(): Promise<{ replied: number }> {
   }
 }
 
+/* ------------------- reviews across every location ---------------------- */
+
+export interface AllLocationReview extends BusinessReview { location: string; locationTitle: string; storeCode: string }
+export interface AllLocationReviews { error: string; reviews: AllLocationReview[]; scanned: number; locations: number; unansweredTotal: number }
+
+/**
+ * Newest reviews across every connected location, each tagged with its location + store code, so the whole account
+ * can be worked from one feed (like Google's manager). Fetches per location with a small concurrency pool; best-effort
+ * per location (a failing one is skipped). Caps the number of locations scanned to protect the daily API quota.
+ */
+export async function allLocationReviews(d: any = {}): Promise<AllLocationReviews> {
+  const unansweredOnly = !!d?.unansweredOnly;
+  const limit = Math.min(300, Math.max(20, Math.floor(Number(d?.limit) || 150)));
+  const { error, d: doc } = await connection();
+  const empty: AllLocationReviews = { error, reviews: [], scanned: 0, locations: 0, unansweredTotal: 0 };
+  if (error) return empty;
+  const locs = ((doc?.gbpLocations || []) as Array<{ name: string; title: string; account?: string; storeCode?: string }>).filter((l) => l.account && l.name);
+  const slice = locs.slice(0, 60); // quota guard for very large accounts
+  const all: AllLocationReview[] = [];
+  let scanned = 0, i = 0;
+  const worker = async () => {
+    while (i < slice.length) {
+      const loc = slice[i++];
+      try {
+        const j = await gbpFetch<any>(`${V4}/${loc.account}/${loc.name}/reviews?pageSize=20&orderBy=updateTime desc`);
+        scanned++;
+        for (const raw of j?.reviews || []) {
+          const r = readReview(raw);
+          if (r.id) all.push({ ...r, location: loc.name, locationTitle: loc.title, storeCode: loc.storeCode || '' });
+        }
+      } catch { /* skip this location */ }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, slice.length) }, worker));
+  const unansweredTotal = all.filter((r) => !r.reply).length;
+  const rows = (unansweredOnly ? all.filter((r) => !r.reply) : all).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  return { error: '', reviews: rows.slice(0, limit), scanned, locations: locs.length, unansweredTotal };
+}
+
 export const actions: ActionMap = {
   getBusinessReviews: { fn: (d) => { feature(); return getBusinessReviews(d); }, perm: 'reports.view' },
+  allLocationReviews: { fn: (d) => { feature(); return allLocationReviews(d); }, perm: 'reports.view' },
   replyBusinessReview: { fn: (d, ctx) => { feature(); return replyBusinessReview(d, ctx); }, perm: 'marketing.manage' },
   deleteBusinessReply: { fn: (d, ctx) => { feature(); return deleteBusinessReply(d, ctx); }, perm: 'marketing.manage' },
   getReviewAutoReply: { fn: () => { feature(); return getReviewAutoReply(); }, perm: 'reports.view' },

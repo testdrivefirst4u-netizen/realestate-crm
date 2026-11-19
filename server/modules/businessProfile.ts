@@ -20,7 +20,7 @@ import { col } from '../core/db';
 import { fail } from '../core/errors';
 import { currentTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
-import { BUSINESS_SCOPE, gbpFetch } from './googleMarketing';
+import { BUSINESS_SCOPE, gbpFetch, refreshGoogleAssets, type GbpLocation } from './googleMarketing';
 
 const INFO = 'https://mybusinessbusinessinformation.googleapis.com/v1';
 const PERF = 'https://businessprofileperformance.googleapis.com/v1';
@@ -440,8 +440,25 @@ const feature = () => {
   if (!(currentTenant()?.features as any)?.businessProfile) throw fail('FORBIDDEN', "The Business Profile screen is not included in your company's plan.");
 };
 
+/* --------------------------- all locations ------------------------------ */
+
+export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown' }
+export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; default: string }
+
+/** Every Business Profile location this account reaches, with store code, address and verification status — the
+ * "all locations" overview (reads what Refresh accounts stored; `refresh` re-reads from Google first). */
+export async function getBusinessLocations(d: any = {}): Promise<BusinessLocationsView> {
+  if (d?.refresh) { try { await refreshGoogleAssets(); } catch { /* best-effort; fall back to stored */ } }
+  const { error, d: doc } = await connection();
+  const list = (doc?.gbpLocations || []) as GbpLocation[];
+  const rows: BusinessLocationRow[] = list.map((l) => ({ name: l.name, title: l.title, storeCode: l.storeCode || '', address: l.address || '', status: l.status || 'unknown' }));
+  rows.sort((a, b) => a.title.localeCompare(b.title));
+  return { error, connected: !error, locations: rows, total: rows.length, verified: rows.filter((r) => r.status === 'verified').length, default: doc?.gbpLocation?.name || '' };
+}
+
 export const actions: ActionMap = {
   getBusinessProfile: { fn: (d) => { feature(); return getBusinessProfile(d); }, perm: 'reports.view' },
+  getBusinessLocations: { fn: (d) => { feature(); return getBusinessLocations(d); }, perm: 'reports.view' },
   getBusinessPerformance: { fn: (d) => { feature(); return getBusinessPerformance(d); }, perm: 'reports.view' },
   updateBusinessProfile: { fn: (d, ctx) => { feature(); return updateBusinessProfile(d, ctx); }, perm: 'integrations.connect' },
   searchBusinessCategories: { fn: (d) => { feature(); return searchBusinessCategories(d); }, perm: 'integrations.connect' },

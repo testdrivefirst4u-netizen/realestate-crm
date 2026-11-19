@@ -8,7 +8,8 @@ import { encryptSecret } from '../server/core/settings';
 import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { dispatch } from '../server/router';
-import { deleteBusinessReply, getBusinessReviews, replyBusinessReview } from '../server/modules/businessReviews';
+import { allLocationReviews, deleteBusinessReply, getBusinessReviews, replyBusinessReview } from '../server/modules/businessReviews';
+import { getBusinessLocations } from '../server/modules/businessProfile';
 import { resetGoogleOAuthTokenCache } from '../server/modules/googleConnect';
 import { BUSINESS_SCOPE } from '../server/modules/googleMarketing';
 
@@ -90,6 +91,34 @@ describe('read', () => {
 
   it('only a location this connection reaches', async () => {
     await expect(inCo(() => getBusinessReviews({ location: 'locations/999' }))).rejects.toThrow(/Choose one/);
+  });
+});
+
+describe('all locations', () => {
+  const LOC2 = { name: 'locations/2', title: 'Amaya South', account: 'accounts/9', storeCode: 'AMY-2', address: 'MG Road, Hyderabad', status: 'verified' as const };
+  const seedTwo = async () => inCo(async () => {
+    await (await col<any>(CFG.COLL.INTEGRATIONS)).updateOne({ _id: 'google' }, { $set: { gbpLocations: [{ ...LOC, storeCode: 'AMY-1', address: 'Munirabad', status: 'verified' }, LOC2] } });
+  });
+
+  it('getBusinessLocations lists every location with store code, address and status', async () => {
+    await seedTwo();
+    const r = await inCo(() => getBusinessLocations({}));
+    expect(r).toMatchObject({ connected: true, total: 2, verified: 2 });
+    expect(r.locations.map((l) => l.storeCode).sort()).toEqual(['AMY-1', 'AMY-2']);
+    expect(r.locations.find((l) => l.name === 'locations/2')).toMatchObject({ title: 'Amaya South', address: 'MG Road, Hyderabad', status: 'verified' });
+  });
+
+  it('allLocationReviews aggregates across locations, tags each, and filters unanswered', async () => {
+    await seedTwo();
+    const r = await inCo(() => allLocationReviews({}));
+    expect(r.locations).toBe(2);
+    expect(r.scanned).toBe(2);
+    expect(r.reviews).toHaveLength(4); // 2 reviews × 2 locations (fake returns the same set per location)
+    expect(new Set(r.reviews.map((x) => x.locationTitle))).toEqual(new Set(['Amaya', 'Amaya South']));
+    expect(r.unansweredTotal).toBe(2); // R2 has no reply, once per location
+    const only = await inCo(() => allLocationReviews({ unansweredOnly: true }));
+    expect(only.reviews.every((x) => !x.reply)).toBe(true);
+    expect(only.reviews).toHaveLength(2);
   });
 });
 
