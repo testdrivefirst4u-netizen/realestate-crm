@@ -22,8 +22,10 @@ import { listUsers, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
 import { col } from '../core/db';
 import { fail } from '../core/errors';
-import { runWithTenant } from '../core/tenant';
+import { publishRealtime } from '../core/realtime';
+import { currentTenant, runWithTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
+import { generateText } from './ai';
 import { graph } from '../integrations/meta';
 import { getTenantById, listActiveTenants } from '../platform/registry';
 import { gbpFetch, gbpLocationPath } from './googleMarketing';
@@ -76,7 +78,11 @@ async function store(item: Omit<InboxItem, 'read' | 'direction'> & { direction?:
   // the lead already linked to this conversation stays linked
   const linked = await (await inboxCol()).findOne({ thread: doc.thread, leadId: { $exists: true, $ne: '' } }, { projection: { leadId: 1 } });
   if (linked?.leadId) await (await inboxCol()).updateOne({ _id: doc._id }, { $set: { leadId: linked.leadId } });
-  if (doc.direction === 'in') await alert(doc).catch(() => undefined);
+  if (doc.direction === 'in') {
+    await alert(doc).catch(() => undefined);
+    // push the open Social Inbox to re-poll at once (no-op unless realtime is on)
+    void publishRealtime('inbox_new', 'Inbox', doc.thread).catch(() => undefined);
+  }
   // offer a new inbound DM to the active chatbot (Instagram / Facebook); dynamic import avoids a load-time cycle
   if (doc.direction === 'in' && doc.kind === 'message') {
     try { await (await import('./socialBot')).onSocialMessage(doc); } catch (e: any) { console.error('[socialBot]', e?.message); }
@@ -484,10 +490,37 @@ export async function refreshInbox(): Promise<{ reviews: number }> {
   return { reviews: await pollGoogleReviews() };
 }
 
+/** Draft a short public reply to the latest customer comment / review / DM in a thread, with AI. Returns the draft only. */
+export async function inboxAiReply(d: any, ctx: Ctx): Promise<{ draft: string }> {
+  const thread = String(d?.thread || '');
+  if (!thread) throw fail('VALIDATION', 'Choose a conversation first.');
+  const items = await (await inboxCol()).find({ thread }).sort({ at: 1 }).limit(40).toArray();
+  if (!items.length) throw fail('NOT_FOUND', 'This conversation is empty.');
+  const lastIn = [...items].reverse().find((i) => i.direction === 'in');
+  if (!lastIn) throw fail('VALIDATION', 'There is nothing from the customer to reply to yet.');
+  const company = String(currentTenant()?.name || '') || 'our company';
+  const who = lastIn.authorName || 'the customer';
+  const system = `You write public replies for ${company}, a real estate company in India, on its social media and Google reviews. Write ONE short, warm, professional reply (1-3 sentences) in the same language as the customer. Be genuinely helpful and specific to what they said. Never invent prices, dates, availability or promises. No placeholders, no surrounding quotation marks. Return only the reply text.`;
+  let prompt: string;
+  if (lastIn.kind === 'review') {
+    const stars = lastIn.rating ? `${lastIn.rating}-star ` : '';
+    prompt = `${who} left this ${stars}Google review:\n"${lastIn.text || '(no written review)'}"\n\nWrite a reply. ${lastIn.rating && lastIn.rating <= 3 ? 'Acknowledge their concern sincerely, apologise, and offer to make it right or invite them to reach out.' : 'Thank them warmly and briefly.'}`;
+  } else if (lastIn.kind === 'comment') {
+    prompt = `${who} commented on our post:\n"${lastIn.text || '(no text)'}"\n\nWrite a friendly, helpful public reply.`;
+  } else {
+    const convo = items.slice(-12).map((i) => `${i.direction === 'in' ? who : company}: ${i.text}`).join('\n');
+    prompt = `This is a direct-message conversation. Reply to the customer's latest message.\n\nConversation so far:\n${convo}\n\nWrite ${company}'s next reply.`;
+  }
+  const draft = (await generateText(prompt, ctx, { system, maxOutputTokens: 300, temperature: 0.5 })).trim().replace(/^["']+|["']+$/g, '').trim();
+  if (!draft) throw fail('SERVER', 'The AI did not return a reply. Please try again.');
+  return { draft: truncate(draft, 1500) };
+}
+
 export const actions: ActionMap = {
   listInbox: { fn: (d) => listInbox(d), perm: 'chat.view' },
   getInboxThread: { fn: (d) => getInboxThread(d), perm: 'chat.view' },
   replyInbox: { fn: (d, ctx) => replyInbox(d, ctx), perm: 'chat.send' },
+  inboxAiReply: { fn: (d, ctx) => inboxAiReply(d, ctx), perm: 'chat.send' },
   markInboxRead: { fn: (d) => markInboxRead(d), perm: 'chat.view' },
   refreshInboxPeople: { fn: (d) => refreshInboxPeople(d), perm: 'chat.view' },
   inboxCreateLead: { fn: (d, ctx) => inboxCreateLead(d, ctx), perm: 'leads.create' },

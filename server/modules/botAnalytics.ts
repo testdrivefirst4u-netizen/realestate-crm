@@ -41,13 +41,16 @@ export interface BotAnalyticsData {
   funnel: { started: number; answered: number; finished: number; handedOff: number; stopped: number };
   channels: BotAnalyticsChannel[];
   daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
+  /** Sessions started per weekday (0=Sun..6=Sat) × hour of day (0..23), in CRM time — the "busy times" heatmap. */
+  heatmap: number[][];
   /** WhatsApp live-chat (Chat360) message volume in range — a separate system from the bots, shown for context. */
   waLive: { inbound: number; outbound: number };
 }
 
 interface Spec { channel: ChannelKey; coll: string; idField: string; match: Record<string, unknown>; hasTranscript: boolean; handoff: Record<string, unknown> }
 const SPECS: Spec[] = [
-  { channel: 'website', coll: 'webchatSessions', idField: 'visitorId', match: {}, hasTranscript: true, handoff: { $or: [{ mode: 'agent' }, { status: 'handoff' }] } },
+  // website: count only real chats — a visitor who just opened the widget (bot greeting only, no reply) is excluded
+  { channel: 'website', coll: 'webchatSessions', idField: 'visitorId', match: { $or: [{ 'transcript.role': 'user' }, { mode: 'agent' }] }, hasTranscript: true, handoff: { $or: [{ mode: 'agent' }, { status: 'handoff' }] } },
   { channel: 'whatsapp', coll: 'whatsappBotSessions', idField: 'phoneLast10', match: {}, hasTranscript: false, handoff: { status: 'handoff' } },
   { channel: 'instagram', coll: 'socialBotSessions', idField: 'authorId', match: { platform: 'instagram' }, hasTranscript: true, handoff: { status: 'handoff' } },
   { channel: 'facebook', coll: 'socialBotSessions', idField: 'authorId', match: { platform: 'facebook' }, hasTranscript: true, handoff: { status: 'handoff' } },
@@ -98,6 +101,25 @@ async function countActiveNow(botId?: string): Promise<number> {
   return n;
 }
 
+/** Sessions by weekday (0=Sun..6=Sat) × hour (0..23) in CRM time, across all bot stores. */
+const HEAT_COLLS: Array<{ coll: string; match: Record<string, unknown> }> = [
+  { coll: 'webchatSessions', match: { $or: [{ 'transcript.role': 'user' }, { mode: 'agent' }] } },
+  { coll: 'whatsappBotSessions', match: {} },
+  { coll: 'socialBotSessions', match: {} },
+];
+async function busyGrid(from: Date, to: Date, botId?: string): Promise<number[][]> {
+  const grid = Array.from({ length: 7 }, () => new Array(24).fill(0) as number[]);
+  for (const c of HEAT_COLLS) {
+    const coll = await col<Record<string, unknown>>(c.coll);
+    const rows = await coll.aggregate([
+      { $match: { ...c.match, startedAt: { $gte: from, $lt: to }, ...(botId ? { botId } : {}) } },
+      { $group: { _id: { d: { $dayOfWeek: { date: '$startedAt', timezone: TZ } }, h: { $hour: { date: '$startedAt', timezone: TZ } } }, n: { $sum: 1 } } },
+    ]).toArray() as Array<{ _id: { d: number; h: number }; n: number }>;
+    for (const r of rows) { const d = (r._id.d || 1) - 1, h = r._id.h || 0; if (grid[d] && typeof grid[d][h] === 'number') grid[d][h] += r.n; }
+  }
+  return grid;
+}
+
 /** WhatsApp live-chat message volume in the window, by direction (Chat360 — not a bot system). */
 async function waLiveCounts(from: Date, to: Date): Promise<{ inbound: number; outbound: number }> {
   try {
@@ -135,11 +157,12 @@ export async function botAnalytics(d: { from?: string; to?: string; botId?: stri
   const prevTo = from;
   const prevFrom = new Date(from.getTime() - span);
 
-  const [cur, prev, activeNow, waLive] = await Promise.all([
+  const [cur, prev, activeNow, waLive, heatmap] = await Promise.all([
     Promise.all(SPECS.map((s) => aggregate(s, from, to, botId))),
     Promise.all(SPECS.map((s) => aggregate(s, prevFrom, prevTo, botId))),
     countActiveNow(botId),
     botId ? Promise.resolve({ inbound: 0, outbound: 0 }) : waLiveCounts(from, to),
+    busyGrid(from, to, botId),
   ]);
 
   const sum = (f: (a: Agg) => number, arr: Agg[]) => arr.reduce((t, a) => t + f(a), 0);
@@ -181,7 +204,7 @@ export async function botAnalytics(d: { from?: string; to?: string; botId?: stri
       started: totalSessions, answered: sum((a) => a.answered, cur), finished: sum((a) => a.finished, cur),
       handedOff: handoffs, stopped: sum((a) => a.stopped, cur),
     },
-    channels, daily, waLive,
+    channels, daily, heatmap, waLive,
   };
 }
 

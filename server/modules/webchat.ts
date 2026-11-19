@@ -267,7 +267,8 @@ export interface BotChatRow { id: string; channel: string; botName: string; who:
 /** Recent website + social chatbot sessions for the CRM, newest first. */
 export async function botChatsList(d: { limit?: number } = {}): Promise<BotChatRow[]> {
   const limit = Math.min(Math.max(Number(d?.limit) || 60, 1), 200);
-  const web = await (await sessionsCol()).find({}).sort({ startedAt: -1 }).limit(limit).toArray();
+  // only real conversations: a visitor who just opened the widget (bot greeting only, no reply) is not shown
+  const web = await (await sessionsCol()).find({ $or: [{ 'transcript.role': 'user' }, { mode: 'agent' }] }).sort({ startedAt: -1 }).limit(limit).toArray();
   const soc = await (await col<any>('socialBotSessions')).find({}).sort({ startedAt: -1 }).limit(limit).toArray();
   const line = (t: any) => ({ role: t.role, text: t.text, at: t.at?.toISOString?.() || '', seq: t.seq || 0 });
   const rows: BotChatRow[] = [

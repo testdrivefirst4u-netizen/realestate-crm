@@ -5,7 +5,7 @@
  * people with their picture and username, the latest message beside the time, grey and blue bubbles, times between them.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ExternalLink, Inbox, MessageCircle, MessageSquare, RefreshCw, Search, Send, Star, UserPlus } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Inbox, MessageCircle, MessageSquare, RefreshCw, Search, Send, Sparkles, Star, UserPlus } from 'lucide-react';
 import { api, type InboxMedia, type InboxMessage, type InboxPlatform, type InboxPost, type InboxThread } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { onLive } from '../../core/live';
@@ -123,6 +123,7 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
   const [leadFor, setLeadFor] = useState<{ name: string; phone: string; email: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
   const asked = useRef(new Set<string>());
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -180,6 +181,18 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
     return !q || !threads ? threads : threads.filter((t) => `${t.authorName} ${t.username} ${t.text}`.toLowerCase().includes(q));
   }, [threads, search]);
 
+  const aiDraft = async () => {
+    if (!active || aiBusy) return;
+    setAiBusy(true);
+    try {
+      const r = await api.inbox.aiReply(active);
+      setReply(r.draft);
+    } catch (e) {
+      toast('Could not draft a reply', errText('inbox.ai', e), 'alert');
+    } finally {
+      setAiBusy(false);
+    }
+  };
   const send = async () => {
     if (!active || !reply.trim()) return;
     setSending(true);
@@ -381,6 +394,7 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
       {canReply && (items.length === 0 || !!first) && (isDm ? (
         <div className="bg-white p-3">
           <div className="flex items-end gap-2 rounded-[22px] border border-[#DBDBDB] px-4 py-2">
+            {first && <button type="button" disabled={aiBusy} onClick={() => void aiDraft()} aria-label="Draft with AI" title="Draft a reply with AI" className="flex-none text-[#0095F6] hover:text-[#00376B] disabled:opacity-50"><Sparkles size={18} /></button>}
             <textarea className="max-h-32 min-h-[22px] flex-1 resize-none bg-transparent text-sm text-[#262626] placeholder:text-[#737373] focus:outline-none" rows={1} value={reply} maxLength={2000} onChange={(e) => setReply(e.target.value)} placeholder="Message…"
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} aria-label="Message" />
             {reply.trim() && <button type="button" disabled={sending} onClick={() => void send()} className="text-sm font-semibold text-[#0095F6] hover:text-[#00376B] disabled:opacity-50">Send</button>}
@@ -391,6 +405,7 @@ export const InboxView: React.FC<{ canReply: boolean; canCreateLead: boolean; ca
           <textarea className={cx(inputCls, 'min-h-[42px] max-h-40 text-sm')} rows={2} value={reply} maxLength={2000} onChange={(e) => setReply(e.target.value)}
             placeholder={current?.kind === 'review' ? 'Reply publicly to the review…' : 'Reply publicly to the comment…'}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void send(); }} aria-label="Reply" />
+          {first && <Button variant="secondary" icon={<Sparkles size={14} />} loading={aiBusy} onClick={() => void aiDraft()} title="Draft a reply with AI">AI draft</Button>}
           <Button variant="primary" icon={<Send size={14} />} loading={sending} disabled={!reply.trim()} onClick={() => void send()}>Send</Button>
         </div>
       ))}

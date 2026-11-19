@@ -345,6 +345,7 @@ export interface BotAnalyticsData {
   funnel: { started: number; answered: number; finished: number; handedOff: number; stopped: number };
   channels: BotAnalyticsChannel[];
   daily: Array<{ date: string; website: number; whatsapp: number; instagram: number; facebook: number }>;
+  heatmap: number[][];
   waLive: { inbound: number; outbound: number };
 }
 export interface BotChatLine { role: 'bot' | 'user' | 'agent'; text: string; at: string; seq: number }
@@ -795,6 +796,7 @@ export const api = {
     syncOld: () => request<{ added: number; conversations: number; posts: number; partial: boolean; postsImported: number; errors: Array<{ account: string; message: string }> }>('syncOldInbox', {}, { timeoutMs: 290000 }),
     thread: (thread: string) => request<{ thread: string; post: InboxPost | null; items: InboxMessage[] }>('getInboxThread', { thread }),
     reply: (thread: string, text: string) => request<{ ok: true }>('replyInbox', { thread, text }, { timeoutMs: 30000 }),
+    aiReply: (thread: string) => request<{ draft: string }>('inboxAiReply', { thread }, { timeoutMs: 45000 }),
     people: (threads: string[], force = false) => request<{ people: Array<{ thread: string; name: string; username: string; picture: string; reason: string }> }>('refreshInboxPeople', { threads, force }, { timeoutMs: 30000 }),
     markRead: (thread: string, read = true) => request<{ ok: true }>('markInboxRead', { thread, read }),
     createLead: (d: { thread: string; name: string; phone: string; email?: string }) => request<{ leadId: string }>('inboxCreateLead', d),

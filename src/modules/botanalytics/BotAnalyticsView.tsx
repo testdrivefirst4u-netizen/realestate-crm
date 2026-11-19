@@ -101,6 +101,30 @@ const Funnel: React.FC<{ f: BotAnalyticsData['funnel'] }> = ({ f }) => {
   );
 };
 
+/* --------------------------------- busy-times heatmap --------------------------------- */
+const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const Heatmap: React.FC<{ grid: number[][] }> = ({ grid }) => {
+  const flat = grid.flat();
+  const max = Math.max(1, ...flat);
+  if (!flat.reduce((a, b) => a + b, 0)) return <div className="flex h-40 items-center justify-center text-sm text-[#7E93A6]">No sessions in this period.</div>;
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[620px]">
+        <div className="flex pl-10">
+          {Array.from({ length: 24 }, (_, h) => <div key={h} className="flex-1 text-center text-[9px] text-[#9CB0C0]">{h % 6 === 0 ? `${h}:00` : ''}</div>)}
+        </div>
+        {grid.map((row, d) => (
+          <div key={d} className="flex items-center">
+            <div className="w-10 flex-none text-[10px] font-semibold text-[#44505C]">{WEEK[d]}</div>
+            {row.map((v, h) => <div key={h} title={`${WEEK[d]} ${h}:00 — ${nf(v)} session${v === 1 ? '' : 's'}`} className="m-[1px] aspect-square flex-1 rounded-[2px]" style={{ background: v ? `rgba(11,107,176,${(0.12 + 0.88 * (v / max)).toFixed(2)})` : '#EEF3F7' }} />)}
+          </div>
+        ))}
+        <div className="mt-2 flex items-center gap-1.5 pl-10 text-[10px] text-[#7E93A6]">Less{[0.12, 0.35, 0.6, 0.85, 1].map((o) => <span key={o} className="h-3 w-3 rounded-[2px]" style={{ background: `rgba(11,107,176,${o})` }} />)}More</div>
+      </div>
+    </div>
+  );
+};
+
 /* ---------------------------------- channel mix donut --------------------------------- */
 const ChannelDonut: React.FC<{ channels: BotAnalyticsData['channels']; total: number }> = ({ channels, total }) => {
   const parts = ORDER.map((ch) => ({ ch, value: channels.find((c) => c.channel === ch)?.sessions || 0 })).filter((p) => p.value > 0);
@@ -244,9 +268,14 @@ export const BotAnalyticsView: React.FC = () => {
             </Card>
           </div>
 
-          <Card title="Conversation funnel" subtitle={selBot ? `For ${selBot.name}` : 'How far conversations get'}>
-            <Funnel f={data.funnel} />
-          </Card>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+            <Card title="Conversation funnel" subtitle={selBot ? `For ${selBot.name}` : 'How far conversations get'}>
+              <Funnel f={data.funnel} />
+            </Card>
+            <Card title="Busy times" subtitle="When chats start, in your time">
+              <Heatmap grid={data.heatmap} />
+            </Card>
+          </div>
 
           <Card title="Channel performance" padded={false}>
             {!shownChannels.length ? <EmptyState className="py-8" title="No bot sessions yet" description="Once your bots start chatting, each channel's figures appear here." />
