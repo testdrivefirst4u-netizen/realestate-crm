@@ -5,6 +5,7 @@
 import { fail } from '../core/errors';
 import { str, truncate } from '../core/utils';
 import type { TenantFeatures } from '../core/tenant';
+import { featuresForPackages } from '../../src/core/features';
 import { normalizeFeatures, PCOLL } from './registry';
 import { pc, platformAudit, type SaCtx } from './base';
 import type { Plan } from './contract';
@@ -46,6 +47,19 @@ export const DEFAULT_PLANS: Plan[] = [
   },
 ];
 
+/** A full feature map with everything off except the Core CRM base plus the chosen module packages. */
+const ALL_OFF = Object.fromEntries(Object.keys(ALL_ON).map((k) => [k, false])) as unknown as TenantFeatures;
+const planFor = (ids: string[]): TenantFeatures => ({ ...ALL_OFF, ...featuresForPackages(['crm', ...ids]) }) as TenantFeatures;
+
+/** Ready-made module plans, so a client who wants only one thing (WhatsApp / Chatbot / Social / CRM) gets exactly that. */
+export const MODULE_PLANS: Plan[] = [
+  { id: 'crm-core', name: 'CRM Core', description: 'Lead management only: leads, follow-ups, tasks, inventory, reports and segments.', maxUsers: 10, features: planFor([]), priceMonthly: 2999, currency: 'INR' },
+  { id: 'whatsapp', name: 'WhatsApp', description: 'Core CRM plus WhatsApp messaging, credits and campaigns.', maxUsers: 10, features: planFor(['whatsapp']), priceMonthly: 4999, currency: 'INR' },
+  { id: 'chatbot', name: 'Chatbot', description: 'Core CRM plus website, WhatsApp and social chatbots, Live Chat and Bot Analytics.', maxUsers: 10, features: planFor(['chatbot']), priceMonthly: 4999, currency: 'INR' },
+  { id: 'social-media', name: 'Social Media', description: 'Core CRM plus Social Inbox, Post Scheduler, Business Profile, website analytics and ads.', maxUsers: 10, features: planFor(['social']), priceMonthly: 6999, currency: 'INR' },
+  { id: 'full-suite', name: 'Full Suite', description: 'Everything: CRM, WhatsApp, Chatbot, Social, Ads and AI.', maxUsers: 0, features: planFor(['whatsapp', 'chatbot', 'social', 'ads', 'ai']), priceMonthly: 14999, currency: 'INR' },
+];
+
 const PLAN_ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 
 const plans = async () => {
@@ -55,6 +69,14 @@ const plans = async () => {
   const r = await counters.updateOne({ _id: 'plansSeeded' }, { $setOnInsert: { at: new Date() } }, { upsert: true });
   if (r.upsertedCount === 1) {
     for (const p of DEFAULT_PLANS) {
+      const { id, ...rest } = p;
+      await c.updateOne({ _id: id }, { $setOnInsert: { ...rest, updatedAt: new Date() } }, { upsert: true });
+    }
+  }
+  // Module plans are seeded once too (own marker), so existing platforms get them without overwriting edited plans.
+  const rm = await counters.updateOne({ _id: 'modulePlansSeeded' }, { $setOnInsert: { at: new Date() } }, { upsert: true });
+  if (rm.upsertedCount === 1) {
+    for (const p of MODULE_PLANS) {
       const { id, ...rest } = p;
       await c.updateOne({ _id: id }, { $setOnInsert: { ...rest, updatedAt: new Date() } }, { upsert: true });
     }

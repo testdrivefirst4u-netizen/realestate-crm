@@ -218,7 +218,7 @@ describe('companies', () => {
   it('provisions a separate database with a working first admin', async () => {
     const sa = await setupSa();
     const plans = body(await pd('listPlans', {}, sa)).data;
-    expect(plans.map((p: any) => p.id)).toEqual(['starter', 'growth', 'enterprise']);
+    expect(plans.map((p: any) => p.id)).toEqual(['crm-core', 'starter', 'chatbot', 'whatsapp', 'social-media', 'growth', 'full-suite', 'enterprise']);
 
     for (const bad of ['a', '-x', 'API', 'admin', 'has space', 'x'.repeat(41)]) {
       const r = await pd('createCompany', { name: 'X', slug: bad, plan: 'growth', admin: { name: 'A', email: 'a@x.io' } }, sa);

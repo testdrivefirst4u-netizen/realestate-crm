@@ -107,6 +107,28 @@ export const FEATURE_LABELS: Partial<Record<FeatureName, string>> = {
   whatsappCampaigns: 'WhatsApp campaigns',
 };
 
+/**
+ * Sellable modules — each bundles the feature flags that make up one thing a client can buy.
+ * Used to seed ready-made plans (server/platform/plans.ts) and the one-click "package" buttons in Super Admin.
+ * Core CRM is the base everyone gets; the rest are add-ons that can be combined. AI is its own add-on so the
+ * chatbot/social modules work rule-based without it and gain AI replies with it.
+ */
+export const FEATURE_PACKAGES: Array<{ id: string; label: string; features: FeatureName[] }> = [
+  { id: 'crm', label: 'Core CRM', features: ['reports', 'segments', 'inventory', 'calls', 'channelPartners'] },
+  { id: 'whatsapp', label: 'WhatsApp', features: ['chat360', 'whatsappCredits', 'whatsappCampaigns'] },
+  { id: 'chatbot', label: 'Chatbot', features: ['whatsappBots'] },
+  { id: 'social', label: 'Social Media', features: ['socialInbox', 'socialPosts', 'businessProfile', 'websiteAnalytics', 'searchConsole', 'competitorAds', 'adsControl', 'linkedin', 'pinterest'] },
+  { id: 'ads', label: 'Ads & Lead-gen', features: ['metaLeads', 'googleAdsLeads', 'adConversions', 'adSpend', 'googleConversions', 'googleAdsSpend', 'websiteApi'] },
+  { id: 'ai', label: 'AI add-on', features: ['aiCopilot'] },
+];
+
+/** The flags of the named packages, each set to true (union). Spread over a base feature map to enable those modules. */
+export function featuresForPackages(ids: string[]): Partial<Record<FeatureName, boolean>> {
+  const out: Partial<Record<FeatureName, boolean>> = {};
+  for (const p of FEATURE_PACKAGES) if (ids.includes(p.id)) for (const f of p.features) out[f] = true;
+  return out;
+}
+
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */
 export function companyInitials(name: string | null | undefined): string {
   const words = String(name || '').trim().split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w));

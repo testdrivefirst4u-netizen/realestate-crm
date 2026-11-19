@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import type { CompanyDetail, Plan } from '@/server/platform/contract';
+import { FEATURE_PACKAGES, featuresForPackages } from '@/src/core/features';
 import { call, errorMessage } from '../../../_lib/api';
 import { FEATURE_KEYS } from '../../../_lib/format';
 import { FeatureToggles, normaliseFeatures, type Features } from '../../../_components/FeatureToggles';
@@ -47,6 +48,12 @@ export function FeaturesTab({ company, plans, onSaved }: { company: CompanyDetai
           ) : null
         }
       />
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#E3EDF5] px-5 py-3">
+        <span className="mr-1 text-[13px] text-[#5E778C]">Add a package:</span>
+        {FEATURE_PACKAGES.map((p) => (
+          <Button key={p.id} variant="secondary" size="sm" disabled={busy} onClick={() => setValue((v) => ({ ...v, ...featuresForPackages([p.id]) }) as Features)}>+ {p.label}</Button>
+        ))}
+      </div>
       <div className="px-5 py-3">
         <FeatureToggles value={value} onChange={setValue} disabled={busy} legend="Modules" columns={1} />
       </div>
