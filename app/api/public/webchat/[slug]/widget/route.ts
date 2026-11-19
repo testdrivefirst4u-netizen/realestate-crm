@@ -31,6 +31,10 @@ const WIDGET = `(function(){
   function playDing(){ try { if(!ding){ ding = new Audio(origin + '/mixkit-doorbell-single-press-333.wav'); ding.volume = 0.5; } ding.currentTime = 0; var p = ding.play(); if(p && p.catch){ p.catch(function(){}); } } catch(e){} }
   try { vid = localStorage.getItem('bcchat:' + slug); } catch(e){}
   if(!vid){ vid = 'v' + Math.random().toString(36).slice(2) + Date.now().toString(36); try { localStorage.setItem('bcchat:' + slug, vid); } catch(e){} }
+  // remember the open chat so a page refresh continues it instead of starting a new one
+  try { sid = localStorage.getItem('bcsid:' + slug) || null; seq = parseInt(localStorage.getItem('bcseq:' + slug) || '0', 10) || 0; ended = localStorage.getItem('bcend:' + slug) === '1'; } catch(e){}
+  function saveSid(){ try { if(sid){ localStorage.setItem('bcsid:' + slug, sid); localStorage.setItem('bcseq:' + slug, String(seq)); localStorage.setItem('bcend:' + slug, ended ? '1' : ''); } } catch(e){} }
+  function clearSid(){ try { localStorage.removeItem('bcsid:' + slug); localStorage.removeItem('bcseq:' + slug); localStorage.removeItem('bcend:' + slug); } catch(e){} }
 
   function shade(hex, pct){ try { var n = parseInt(hex.replace('#',''), 16); var r = (n>>16)&255, g = (n>>8)&255, b = n&255; r = Math.round(r*(1-pct)); g = Math.round(g*(1-pct)); b = Math.round(b*(1-pct)); return 'rgb(' + r + ',' + g + ',' + b + ')'; } catch(e){ return hex; } }
   var brandDark = shade(brand, 0.2);
@@ -155,7 +159,7 @@ const WIDGET = `(function(){
   function render(m){ if(!m){ return; } if(m.text){ botBubble(m.text); } if((m.kind === 'buttons' || m.kind === 'list') && m.options && m.options.length){ chips(m.options); } }
 
   function setBusy(v){ busy = v; send.disabled = v; input.disabled = v || ended; }
-  function endChat(status){ ended = true; stopPoll(); input.disabled = true; send.disabled = true; note(status === 'handoff' ? 'A team member will get back to you.' : 'Chat ended.'); }
+  function endChat(status){ ended = true; stopPoll(); input.disabled = true; send.disabled = true; note(status === 'handoff' ? 'A team member will get back to you.' : 'Chat ended.'); saveSid(); }
 
   function turn(payload){ if(busy){ return; } setBusy(true); showTyping();
     var data = { visitorId: vid }; if(sid){ data.sessionId = sid; } if(payload){ for(var k in payload){ data[k] = payload[k]; } }
@@ -166,6 +170,7 @@ const WIDGET = `(function(){
         var d = res.j.data; if(d.sessionId){ sid = d.sessionId; }
         var msgs = d.messages || []; msgs.forEach(render); if(msgs.length){ timeLine(); }
         if(typeof d.seq === 'number'){ seq = d.seq; }
+        saveSid();
         if(d.done){ endChat(d.status); } else { startPoll(); } })
       .catch(function(){ setBusy(false); hideTyping(); note('Network problem. Please try again.'); }); }
 
@@ -173,7 +178,7 @@ const WIDGET = `(function(){
     fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: sid, poll: true, since: seq }) })
       .then(function(r){ return r.json(); })
       .then(function(j){ if(!j || j.status !== 'success'){ return; } var d = j.data;
-        if(typeof d.seq === 'number' && d.seq > seq){ var m = d.messages || []; m.forEach(render); if(m.length){ timeLine(); playDing(); if(panel.className.indexOf('bcwc-open') < 0){ btn.classList.add('bcwc-unread'); } } seq = d.seq; }
+        if(typeof d.seq === 'number' && d.seq > seq){ var m = d.messages || []; m.forEach(render); if(m.length){ timeLine(); playDing(); if(panel.className.indexOf('bcwc-open') < 0){ btn.classList.add('bcwc-unread'); } } seq = d.seq; saveSid(); }
         if(d.done){ ended = true; stopPoll(); endChat(d.status); } })
       .catch(function(){}); }
   function startPoll(){ if(pollTimer || ended){ return; } pollTimer = setInterval(poll, 5000); }
@@ -184,9 +189,22 @@ const WIDGET = `(function(){
     note((res.j && res.j.error && res.j.error.message) || 'Chat is unavailable right now.'); }
 
   function begin(){ if(started){ return; } started = true; turn(null); }
-  function open(){ hideGreet(); panel.className = 'bcwc-panel bcwc-open'; btn.classList.add('bcwc-on'); btn.classList.remove('bcwc-unread'); btn.innerHTML = DOWN_ICON; if(!started){ begin(); } else { startPoll(); } input.focus(); }
+  // after a page refresh: rebuild the saved conversation and continue it (no new chat is created)
+  function resume(){ if(started){ return; } started = true; setBusy(true); showTyping();
+    fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: sid, visitorId: vid, history: true }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ setBusy(false); hideTyping();
+        if(!j || j.status !== 'success' || !j.data || !j.data.sessionId){ clearSid(); sid = null; seq = 0; ended = false; started = false; begin(); return; }
+        var d = j.data; var h = d.history || [];
+        h.forEach(function(x){ if(x.from === 'me'){ meBubble(x.text); } else { botBubble(x.text); } });
+        if(h.length){ timeLine(); }
+        if(typeof d.seq === 'number'){ seq = d.seq; }
+        if(d.done){ ended = true; input.disabled = true; send.disabled = true; } else { ended = false; startPoll(); }
+        saveSid(); })
+      .catch(function(){ setBusy(false); hideTyping(); started = false; note('Could not load your chat — please try again.'); }); }
+  function open(){ hideGreet(); panel.className = 'bcwc-panel bcwc-open'; btn.classList.add('bcwc-on'); btn.classList.remove('bcwc-unread'); btn.innerHTML = DOWN_ICON; if(!started){ if(sid){ resume(); } else { begin(); } } else { startPoll(); } input.focus(); }
   function close(){ panel.className = 'bcwc-panel'; btn.classList.remove('bcwc-on'); btn.innerHTML = CHAT_ICON; }
-  function restart(){ stopPoll(); body.innerHTML = ''; sid = null; seq = 0; ended = false; started = false; input.disabled = false; send.disabled = false; begin(); }
+  function restart(){ stopPoll(); clearSid(); body.innerHTML = ''; sid = null; seq = 0; ended = false; started = false; input.disabled = false; send.disabled = false; begin(); }
   function submit(){ var v = input.value.trim(); if(!v || busy || ended){ return; } input.value = ''; meBubble(v); turn({ text: v }); }
 
   btn.onclick = function(){ if(panel.className.indexOf('bcwc-open') >= 0){ close(); } else { open(); } };

@@ -103,7 +103,7 @@ async function syncLead(session: WebSessionDoc): Promise<void> {
   }
 }
 
-export interface WebchatTurn { sessionId: string; messages: WidgetMsg[]; status: ChatStatus; mode: ChatMode; done: boolean; company: string; seq: number }
+export interface WebchatTurn { sessionId: string; messages: WidgetMsg[]; status: ChatStatus; mode: ChatMode; done: boolean; company: string; seq: number; history?: Array<{ text: string; from: 'bot' | 'agent' | 'me' }> }
 
 /** New bot+agent messages the widget has not seen (seq > since). The visitor's own lines are left out — they already have them. */
 function pollResult(session: WebSessionDoc, since: number, company: string): WebchatTurn {
@@ -112,7 +112,7 @@ function pollResult(session: WebSessionDoc, since: number, company: string): Web
 }
 
 /** One turn of a website chat. No sessionId (or an ended/unknown one) starts a fresh chat. `poll` fetches new messages. Never throws past the feature gate. */
-export async function webchatTurn(i: { sessionId?: string; text?: string; replyId?: string; visitorId?: string; origin?: string; ip?: string; poll?: boolean; since?: number }, now = new Date()): Promise<WebchatTurn> {
+export async function webchatTurn(i: { sessionId?: string; text?: string; replyId?: string; visitorId?: string; origin?: string; ip?: string; poll?: boolean; history?: boolean; since?: number }, now = new Date()): Promise<WebchatTurn> {
   if (!featureOn()) throw fail('FORBIDDEN', 'Website chatbot is not included in this plan.');
   void ensureWebchatIndex();
   const company = str(currentTenant()?.name);
@@ -120,6 +120,14 @@ export async function webchatTurn(i: { sessionId?: string; text?: string; replyI
   const replyId = str(i.replyId).slice(0, 60);
   const sessions = await sessionsCol();
   const existing = str(i.sessionId) ? await sessions.findOne({ _id: str(i.sessionId) }) : null;
+
+  // restoring after a page refresh: return the whole transcript so the chat continues instead of starting over.
+  // An unknown/expired session returns an empty sessionId so the widget knows to begin a fresh chat (no duplicate).
+  if (i.history) {
+    if (!existing) return { sessionId: '', messages: [], history: [], status: 'active', mode: 'bot', done: false, company, seq: 0 };
+    const history = (existing.transcript || []).map((t) => ({ text: t.text, from: (t.role === 'user' ? 'me' : t.role === 'agent' ? 'agent' : 'bot') as 'bot' | 'agent' | 'me' }));
+    return { sessionId: existing._id, messages: [], history, status: existing.status, mode: existing.mode || 'bot', done: existing.status !== 'active', company, seq: existing.seq || 0 };
+  }
 
   // polling: just return what the visitor has not seen yet (no lock needed)
   if (existing && i.poll) return pollResult(existing, Number(i.since) || 0, company);
