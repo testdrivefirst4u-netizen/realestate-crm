@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, Gauge, type LucideIcon,
+  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, Gauge, ClipboardList, type LucideIcon,
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { SyncState, UserAccount } from '../types/crm';
@@ -58,7 +58,7 @@ function buildGroups(counts: SidebarCounts, direct = false): Group[] {
     { id: 'overview', label: 'Overview', items: [
       { id: 'today', label: 'Today', icon: Sun },
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'mis', label: 'Sales MIS', icon: ChartColumn },
-      { id: 'performance', label: 'YTD / MTD', icon: TrendingUp }, { id: 'reports', label: 'Reports', icon: FileChartColumn },
+      { id: 'performance', label: 'YTD / MTD', icon: TrendingUp }, { id: 'reports', label: 'Reports', icon: FileChartColumn }, { id: 'clientreport', label: 'Client Report', icon: ClipboardList },
       { id: 'analytics', label: 'Website Analytics', icon: Globe2 }, { id: 'searchconsole', label: 'Search Console', icon: SearchCheck },
     ] },
     { id: 'leads', label: 'Leads', items: [

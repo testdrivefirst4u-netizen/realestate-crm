@@ -10,9 +10,9 @@ import type { Permission } from './rbac';
 
 export type ViewId =
   | 'today' | 'dashboard' | 'mis' | 'performance' | 'leads' | 'segments' | 'kanban' | 'followups' | 'tasks' | 'inventory' | 'chat360' | 'calls'
-  | 'documents' | 'templates' | 'reports' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics' | 'searchconsole' | 'businessprofile' | 'dripcampaigns' | 'whatsappcampaigns' | 'whatsappcredits' | 'chatbots' | 'botanalytics' | 'webchat' | 'competitors' | 'partners';
+  | 'documents' | 'templates' | 'reports' | 'clientreport' | 'audit' | 'settings' | 'inbox' | 'posts' | 'ads' | 'analytics' | 'searchconsole' | 'businessprofile' | 'dripcampaigns' | 'whatsappcampaigns' | 'whatsappcredits' | 'chatbots' | 'botanalytics' | 'webchat' | 'competitors' | 'partners';
 
-export const VIEW_IDS: ViewId[] = ['today', 'dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcampaigns', 'whatsappcredits', 'chatbots', 'botanalytics', 'webchat', 'competitors', 'partners'];
+export const VIEW_IDS: ViewId[] = ['today', 'dashboard', 'mis', 'performance', 'leads', 'segments', 'kanban', 'followups', 'tasks', 'inventory', 'chat360', 'calls', 'documents', 'templates', 'reports', 'clientreport', 'audit', 'settings', 'inbox', 'posts', 'ads', 'analytics', 'searchconsole', 'businessprofile', 'dripcampaigns', 'whatsappcampaigns', 'whatsappcredits', 'chatbots', 'botanalytics', 'webchat', 'competitors', 'partners'];
 
 export const DEFAULT_VIEW: ViewId = 'dashboard';
 
@@ -20,7 +20,7 @@ export const DEFAULT_VIEW: ViewId = 'dashboard';
 export const VIEW_TITLES: Record<ViewId, string> = {
   today: 'Today', dashboard: 'Dashboard', mis: 'Sales MIS', performance: 'YTD / MTD', leads: 'All Leads', segments: 'Client Segments', kanban: 'Enquiry Status', followups: 'Follow-ups', tasks: 'Tasks & Notes',
   inventory: 'Inventory', chat360: 'WhatsApp', calls: 'Call History', documents: 'Documents', templates: 'Templates', reports: 'Reports', audit: 'Audit Log', settings: 'Settings',
-  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcampaigns: 'WhatsApp Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'Chatbots', botanalytics: 'Bot Analytics', webchat: 'Live Chat', competitors: 'Competitor Ads', partners: 'Channel Partners',
+  inbox: 'Social Inbox', posts: 'Post Scheduler', ads: 'Ads Manager', analytics: 'Website Analytics', searchconsole: 'Search Console', businessprofile: 'Business Profile', dripcampaigns: 'Drip Campaigns', whatsappcampaigns: 'WhatsApp Campaigns', whatsappcredits: 'WhatsApp Credits', chatbots: 'Chatbots', botanalytics: 'Bot Analytics', webchat: 'Live Chat', competitors: 'Competitor Ads', partners: 'Channel Partners', clientreport: 'Client Report',
 };
 
 export const viewHref = (view: ViewId) => `/${view}`;
@@ -64,6 +64,7 @@ export function viewAllowed(view: ViewId, settings: SettingsLike, can: (p: Permi
     case 'documents': return on('documents');
     case 'templates': return on('templates');
     case 'reports': return on('reports') && can('reports.view');
+    case 'clientreport': return can('reports.view');
     case 'audit': return can('audit.view');
     case 'inbox': return on('socialInbox') && can('chat.view');
     case 'posts': return on('socialPosts') && can('marketing.posts');
