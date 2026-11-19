@@ -258,7 +258,7 @@ export const BusinessProfileView: React.FC<{ canManage: boolean; canReply: boole
           loading={locsLoading}
           canReply={canReply}
           onRefresh={() => void loadLocations(true)}
-          onOpen={(name) => { setLocation(name); setData(null); setTab('profile'); setView('detail'); }}
+          onOpen={(name, t) => { setLocation(name); setData(null); setTab(t || 'profile'); setView('detail'); }}
         />
       ))}
 

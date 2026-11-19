@@ -9,7 +9,7 @@ import { runWithTenant } from '../server/core/tenant';
 import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { dispatch } from '../server/router';
 import { allLocationReviews, deleteBusinessReply, getBusinessReviews, replyBusinessReview } from '../server/modules/businessReviews';
-import { getBusinessLocations } from '../server/modules/businessProfile';
+import { getBusinessLocations, snapshotBusinessRatings } from '../server/modules/businessProfile';
 import { resetGoogleOAuthTokenCache } from '../server/modules/googleConnect';
 import { BUSINESS_SCOPE } from '../server/modules/googleMarketing';
 
@@ -106,6 +106,15 @@ describe('all locations', () => {
     expect(r).toMatchObject({ connected: true, total: 2, verified: 2 });
     expect(r.locations.map((l) => l.storeCode).sort()).toEqual(['AMY-1', 'AMY-2']);
     expect(r.locations.find((l) => l.name === 'locations/2')).toMatchObject({ title: 'Amaya South', address: 'MG Road, Hyderabad', status: 'verified' });
+  });
+
+  it('snapshotBusinessRatings caches each location rating, and getBusinessLocations serves it', async () => {
+    await seedTwo();
+    const n = await inCo(() => snapshotBusinessRatings());
+    expect(n).toBe(2); // one light reviews call per location
+    const r = await inCo(() => getBusinessLocations({}));
+    expect(r.needsAction).toBe(0);
+    expect(r.locations.every((l) => l.rating === 3.5 && l.reviews === 60)).toBe(true); // from the fake's averageRating/totalReviewCount
   });
 
   it('allLocationReviews aggregates across locations, tags each, and filters unanswered', async () => {

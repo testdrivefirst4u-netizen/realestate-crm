@@ -442,18 +442,55 @@ const feature = () => {
 
 /* --------------------------- all locations ------------------------------ */
 
-export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown' }
-export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; default: string }
+export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown'; rating: number; reviews: number }
+export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; needsAction: number; default: string }
 
-/** Every Business Profile location this account reaches, with store code, address and verification status — the
- * "all locations" overview (reads what Refresh accounts stored; `refresh` re-reads from Google first). */
+const GBP_V4 = 'https://mybusiness.googleapis.com/v4';
+interface RatingDoc { _id: string; rating: number; reviews: number; at: Date }
+
+/**
+ * Record each location's star rating + review count once (best-effort; never throws). Ratings aren't in the location
+ * list, so they're cached here (one light reviews call per location, small concurrency pool) and read by the overview.
+ * Runs daily from the cron, and on an explicit "Refresh from Google". Returns how many were updated.
+ */
+export async function snapshotBusinessRatings(): Promise<number> {
+  try {
+    const { error, d: doc } = await connection();
+    if (error) return 0;
+    const locs = ((doc?.gbpLocations || []) as GbpLocation[]).filter((l) => l.account && l.name).slice(0, 80);
+    const c = await col<RatingDoc>('gbpRatings');
+    let i = 0, n = 0;
+    const worker = async () => {
+      while (i < locs.length) {
+        const loc = locs[i++];
+        try {
+          const j: any = await gbpFetch(`${GBP_V4}/${loc.account}/${loc.name}/reviews?pageSize=1`);
+          await c.updateOne({ _id: loc.name }, { $set: { rating: Number(j?.averageRating) || 0, reviews: Number(j?.totalReviewCount) || 0, at: new Date() } }, { upsert: true });
+          n++;
+        } catch { /* skip this location */ }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, locs.length) }, worker));
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+/** Every Business Profile location this account reaches, with store code, address, verification status and a cached
+ * rating — the "all locations" overview (reads what Refresh accounts stored; `refresh` re-reads from Google). */
 export async function getBusinessLocations(d: any = {}): Promise<BusinessLocationsView> {
-  if (d?.refresh) { try { await refreshGoogleAssets(); } catch { /* best-effort; fall back to stored */ } }
+  if (d?.refresh) { try { await refreshGoogleAssets(); await snapshotBusinessRatings(); } catch { /* best-effort; fall back to stored */ } }
   const { error, d: doc } = await connection();
   const list = (doc?.gbpLocations || []) as GbpLocation[];
-  const rows: BusinessLocationRow[] = list.map((l) => ({ name: l.name, title: l.title, storeCode: l.storeCode || '', address: l.address || '', status: l.status || 'unknown' }));
+  const ratings = new Map((await (await col<RatingDoc>('gbpRatings')).find({}).toArray()).map((r) => [r._id, r]));
+  const rows: BusinessLocationRow[] = list.map((l) => {
+    const rt = ratings.get(l.name);
+    return { name: l.name, title: l.title, storeCode: l.storeCode || '', address: l.address || '', status: l.status || 'unknown', rating: rt?.rating || 0, reviews: rt?.reviews || 0 };
+  });
   rows.sort((a, b) => a.title.localeCompare(b.title));
-  return { error, connected: !error, locations: rows, total: rows.length, verified: rows.filter((r) => r.status === 'verified').length, default: doc?.gbpLocation?.name || '' };
+  const verified = rows.filter((r) => r.status === 'verified').length;
+  return { error, connected: !error, locations: rows, total: rows.length, verified, needsAction: rows.length - verified, default: doc?.gbpLocation?.name || '' };
 }
 
 export const actions: ActionMap = {

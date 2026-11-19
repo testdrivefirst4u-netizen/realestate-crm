@@ -312,8 +312,8 @@ export interface BusinessPerformance {
 export interface BusinessPhoto { name: string; format: string; category: string; url: string; thumbnail: string; createdAt: string; author: string; authorUrl: string; removalUrl: string }
 export interface BusinessReview { id: string; author: string; anonymous: boolean; photo: string; stars: number; comment: string; createdAt: string; updatedAt: string; reply: string; repliedAt: string }
 export interface BusinessReviews { error: string; location: string; reviews: BusinessReview[]; average: number; total: number; nextPage: string }
-export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown' }
-export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; default: string }
+export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown'; rating: number; reviews: number }
+export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; needsAction: number; default: string }
 export interface AllLocationReview extends BusinessReview { location: string; locationTitle: string; storeCode: string }
 export interface AllLocationReviews { error: string; reviews: AllLocationReview[]; scanned: number; locations: number; unansweredTotal: number }
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
