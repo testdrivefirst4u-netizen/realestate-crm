@@ -265,6 +265,9 @@ export type PostType = 'post' | 'video' | 'reel' | 'story';
 export interface InsightValue { id: string; label: string; value: number | null; format: 'number' | 'duration' }
 export interface InsightsAccount { key: string; kind: 'facebook' | 'instagram'; name: string; followers: number | null; metrics: InsightValue[]; chartLabel: string; daily: Array<{ day: string; value: number }>; refused: string[] }
 export interface InsightsOverview { days: number; accounts: InsightsAccount[]; topPosts: Array<{ id: string; text: string; imageUrl: string; url: string; kind: string; account: string; postType: string; at: string; likes: number | null; comments: number | null; shares: number | null }>; fetchedAt: string }
+export interface FollowerPoint { month: string; followers: number }
+export interface FollowerAccount { key: string; kind: 'facebook' | 'instagram'; name: string; points: FollowerPoint[] }
+export interface FollowerHistory { accounts: FollowerAccount[] }
 export interface PostTargetOption { key: string; kind: PostTargetKind; name: string; needsImage: boolean }
 export interface SocialPost {
   id: string; text: string; texts: Partial<Record<PostTargetKind, string>>; firstComment: string; link: string; imageFileId: string; imageFileIds: string[]; imageUrls: string[]; imageUrl: string; scheduledAt: string; status: 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed' | 'deleted'; createdBy: string; publishedAt: string; metrics: { likes: number | null; comments: number | null; shares: number | null } | null; postType: PostType; videoFileId: string; videoUrl: string; imported: boolean;
@@ -823,6 +826,7 @@ export const api = {
     finishVideo: (d: { uploadId: string; parts: number; name: string; mime: string }) => request<{ fileId: string; previewUrl: string }>('finishPostVideo', d, { timeoutMs: 180000 }),
     discardVideo: (fileId: string) => request<{ ok: true }>('discardPostVideo', { fileId }),
     insights: (d: { days: number; account?: string; refresh?: boolean }) => request<InsightsOverview>('getSocialInsights', d, { timeoutMs: 60000 }),
+    followerHistory: () => request<FollowerHistory>('followerHistory', {}),
     postInsights: (id: string) => request<{ targets: Array<{ key: string; kind: string; name: string; metrics: InsightValue[]; refused: string[] }> }>('getPostInsights', { id }, { timeoutMs: 60000 }),
     get: (id: string) => request<{ post: SocialPost }>('getPost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),

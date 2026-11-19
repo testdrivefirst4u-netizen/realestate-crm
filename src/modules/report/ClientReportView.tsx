@@ -7,7 +7,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Printer, RefreshCw, Star } from 'lucide-react';
-import { api, type AnalyticsReport, type BusinessPerformance, type BusinessProfileData, type BusinessReviews, type InsightsOverview, type SocialPost, type SpendRow } from '../../core/api';
+import { api, type AnalyticsReport, type BusinessPerformance, type BusinessProfileData, type BusinessReviews, type FollowerAccount, type InsightsOverview, type SocialPost, type SpendRow } from '../../core/api';
 import type { Lead } from '../../types/crm';
 import { F } from '../../core/config';
 import { enquiryDate, isBooked } from '../../core/analytics';
@@ -49,6 +49,7 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   const [reviews, setReviews] = useState<Slow<BusinessReviews>>(slow0);
   const [perf, setPerf] = useState<Slow<BusinessPerformance>>(slow0);
   const [web, setWeb] = useState<Slow<AnalyticsReport>>(slow0);
+  const [followerHist, setFollowerHist] = useState<FollowerAccount[] | null>(null);
   const [busy, setBusy] = useState(false);
 
   const { from, to } = useMemo(() => rangeOf(month), [month]);
@@ -82,6 +83,7 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   const loadAll = useCallback(async () => { setBusy(true); try { await Promise.all([loadFast(), (async () => loadSlow())()]); } finally { setBusy(false); } }, [loadFast, loadSlow]);
   useEffect(() => { void loadAll(); }, [loadAll]);
   useEffect(() => { api.team.spend().then((r) => setSpend(r.rows)).catch(() => setSpend([])); }, []);
+  useEffect(() => { api.posts.followerHistory().then((r) => setFollowerHist(r.accounts)).catch(() => setFollowerHist([])); }, []);
 
   // ---- derived figures ----
   const spendCur = useMemo(() => (spend || []).filter((r) => r.month === month), [spend, month]);
@@ -104,6 +106,14 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
   }, [leadsCur]);
 
   const followers = (insights.data?.accounts || []).reduce((t, a) => t + (a.followers || 0), 0);
+  // month-on-month follower growth from stored monthly snapshots (empty until the cron has run across two months)
+  const snapAt = useCallback((key: string, ym: string): number | null => (followerHist || []).find((x) => x.key === key)?.points.find((p) => p.month === ym)?.followers ?? null, [followerHist]);
+  const followerDelta = useCallback((key: string): number | null => { const c = snapAt(key, month), p = snapAt(key, prevMonth); return c != null && p != null ? c - p : null; }, [snapAt, month, prevMonth]);
+  const followerGrowth = useMemo(() => {
+    let net = 0, has = false;
+    for (const a of followerHist || []) { const d = followerDelta(a.key); if (d != null) { net += d; has = true; } }
+    return has ? net : null;
+  }, [followerHist, followerDelta]);
   const rating = gbp.data?.rating?.average || null;
   const newReviews = (reviews.data?.reviews || []).filter((r) => { const d = new Date(r.createdAt); return d >= from && d < to; }).length;
 
@@ -142,21 +152,27 @@ export const ClientReportView: React.FC<{ leads: Lead[] }> = ({ leads }) => {
           <KpiTile compact tone="gold" label="Ad spend" value={inr(spendTotal)} trend={{ value: pct(spendTotal, spendTotalPrev) }} />
           <KpiTile compact tone="sage" label="Leads" value={nf(leadsCur.length)} trend={{ value: pct(leadsCur.length, leadsPrev.length) }} />
           <KpiTile compact label="Bookings" value={nf(bookedCur)} trend={{ value: pct(bookedCur, bookedPrev) }} />
-          <KpiTile compact label="Followers" value={insights.loading ? '…' : nf(followers)} hint="current total" />
+          <KpiTile compact label="Followers" value={insights.loading ? '…' : nf(followers)} hint={followerGrowth != null ? `${followerGrowth >= 0 ? '+' : ''}${nf(followerGrowth)} this month` : 'current total'} />
           <KpiTile compact label="Rating" value={rating ? `${rating.toFixed(1)}★` : '—'} hint={reviews.data ? `${newReviews} new this month` : undefined} />
         </div>
 
         {/* audience */}
         <Section title="Audience" hint="Followers per connected account" loading={insights.loading} empty={insights.error && !insights.data ? 'Connect Instagram / Facebook to show audience growth.' : undefined}>
           <div className="grid gap-2 sm:grid-cols-2">
-            {(insights.data?.accounts || []).map((a) => (
-              <div key={a.key} className="flex items-center justify-between rounded-lg border border-[#EEF3F7] px-3 py-2.5">
-                <span className="text-sm font-semibold capitalize text-[#0B2A44]">{a.name} <span className="font-normal text-[#8296A6]">· {a.kind}</span></span>
-                <span className="text-lg font-bold tabular-nums text-[#0B2A44]">{a.followers != null ? nf(a.followers) : '—'}</span>
-              </div>
-            ))}
+            {(insights.data?.accounts || []).map((a) => {
+              const d = followerDelta(a.key);
+              return (
+                <div key={a.key} className="flex items-center justify-between rounded-lg border border-[#EEF3F7] px-3 py-2.5">
+                  <span className="text-sm font-semibold capitalize text-[#0B2A44]">{a.name} <span className="font-normal text-[#8296A6]">· {a.kind}</span></span>
+                  <span className="flex items-baseline gap-2">
+                    {d != null && <span className={cx('text-[11px] font-semibold', d > 0 ? 'text-emerald-600' : d < 0 ? 'text-[#B06A55]' : 'text-[#8296A6]')}>{d > 0 ? '▲' : d < 0 ? '▼' : '•'} {d > 0 ? '+' : ''}{nf(d)}</span>}
+                    <span className="text-lg font-bold tabular-nums text-[#0B2A44]">{a.followers != null ? nf(a.followers) : '—'}</span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
-          <p className="mt-2 text-[11px] text-[#8296A6]">Follower growth month-on-month starts tracking from this report onward.</p>
+          <p className="mt-2 text-[11px] text-[#8296A6]">{followerGrowth != null ? 'Change shown is month-on-month, from stored monthly snapshots.' : 'Follower growth month-on-month starts tracking once snapshots span two months.'}</p>
         </Section>
 
         {/* content & engagement */}

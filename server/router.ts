@@ -68,6 +68,7 @@ import { actions as whatsappCreditActions } from './modules/whatsappCredits';
 import { actions as whatsappBotActions } from './modules/whatsappBots';
 import { actions as webchatActions } from './modules/webchat';
 import { actions as botAnalyticsActions } from './modules/botAnalytics';
+import { actions as followerSnapshotActions } from './modules/followerSnapshots';
 import { actions as whatsappCampaignActions } from './modules/whatsappCampaigns';
 import { actions as connectedAccountActions } from './modules/connectedAccounts';
 import { actions as visitActions } from './modules/visits';
@@ -136,6 +137,7 @@ export const registry: ActionMap = {
   ...whatsappBotActions,
   ...webchatActions,
   ...botAnalyticsActions,
+  ...followerSnapshotActions,
   ...whatsappCampaignActions,
   ...connectedAccountActions,
   ...visitActions,
