@@ -13,6 +13,8 @@ import confetti from 'canvas-confetti';
 import { Eye, EyeOff, GripVertical, KanbanSquare, MessageSquare, Phone, Plus, Search, Users } from 'lucide-react';
 import { CRMConfig, Lead } from '../../types/crm';
 import { F, FUNNEL_STAGES, STAGES, STAGE_CLASS } from '../../core/config';
+import { pipelineFor } from '../../core/features';
+import { useCompany } from '../../core/tenant';
 import { classifyStage, countedLeads, isActive, nextFollowupDate, searchLeads, stageOf } from '../../core/analytics';
 import { formatRelative } from '../../core/dates';
 import { formatPhone, whatsappLink } from '../../core/phone';
@@ -63,14 +65,19 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ leads, config, onOpenLea
     return [...set];
   }, [config.options, base]);
 
+  const sector = useCompany()?.sector;
   const stageOptions = useMemo(() => (config.options[F.STAGE] || []).filter((s) => !STAGE_CLASS.excluded.includes(s)), [config.options]);
 
   const columns = useMemo(() => {
-    const cols = showClosed ? [...FUNNEL_STAGES, ...STAGE_CLASS.lost] : [...FUNNEL_STAGES];
+    // the pipeline order follows the company's sector; real estate keeps the built-in funnel
+    const pipe = pipelineFor(sector);
+    const funnel = pipe ? pipe.funnel : FUNNEL_STAGES;
+    const lostCols = pipe ? pipe.stages.filter((s) => classifyStage(s) === 'lost') : STAGE_CLASS.lost;
+    const cols = showClosed ? [...funnel, ...lostCols] : [...funnel];
     // Config may define stages the pipeline does not know yet — give them a column rather than hiding leads.
     for (const s of stageOptions) if (!cols.includes(s) && (showClosed || classifyStage(s) !== 'lost')) cols.push(s);
     return cols;
-  }, [showClosed, stageOptions]);
+  }, [showClosed, stageOptions, sector]);
 
   const grouped = useMemo(() => {
     const q = query.trim();

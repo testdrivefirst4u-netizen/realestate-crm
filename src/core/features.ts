@@ -167,6 +167,23 @@ export function sectorLabel(sector: string | null | undefined, key: 'leads' | 'i
   return (SECTOR_LABELS[normalizeSector(sector)] || SECTOR_LABELS.realestate)[key];
 }
 
+/**
+ * The lead pipeline (stage options + Kanban order + sources) a sector uses. The terminal stages stay the canonical
+ * 'New'/'Booked'/'Lost' so the won-loss KPI engine is untouched and correct for every sector — only the intermediate
+ * stages change per vertical. Real estate has no entry here and keeps the built-in defaults (config DEFAULT_OPTIONS).
+ */
+export const SECTOR_STAGE_PIPELINES: Record<string, { stages: string[]; funnel: string[]; sources: string[] }> = {
+  automobile: { funnel: ['New', 'Enquiry', 'Test drive', 'Negotiation', 'Booked'], stages: ['New', 'Enquiry', 'Test drive', 'Negotiation', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google', 'OLX'] },
+  healthcare: { funnel: ['New', 'Enquiry', 'Appointment', 'Consulted', 'Booked'], stages: ['New', 'Enquiry', 'Appointment', 'Consulted', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  education: { funnel: ['New', 'Enquiry', 'Counselling', 'Demo', 'Booked'], stages: ['New', 'Enquiry', 'Counselling', 'Demo', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  hospitality: { funnel: ['New', 'Enquiry', 'Quote sent', 'Booked'], stages: ['New', 'Enquiry', 'Quote sent', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Google', 'Facebook', 'Instagram'] },
+  retail: { funnel: ['New', 'Enquiry', 'Quote sent', 'Booked'], stages: ['New', 'Enquiry', 'Quote sent', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral', 'Facebook', 'Instagram', 'Google'] },
+  finance: { funnel: ['New', 'Enquiry', 'Documents', 'Under review', 'Booked'], stages: ['New', 'Enquiry', 'Documents', 'Under review', 'Booked', 'Lost'], sources: ['Website', 'Referral', 'Facebook', 'Google'] },
+  other: { funnel: ['New', 'Enquiry', 'Qualified', 'Booked'], stages: ['New', 'Enquiry', 'Qualified', 'Booked', 'Lost'], sources: ['Website', 'Walk-in', 'Referral'] },
+};
+/** The sector's pipeline, or null for real estate (and unknown sectors) which use the built-in defaults. */
+export const pipelineFor = (sector: string | null | undefined) => SECTOR_STAGE_PIPELINES[String(sector || '')] || null;
+
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */
 export function companyInitials(name: string | null | undefined): string {
   const words = String(name || '').trim().split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w));

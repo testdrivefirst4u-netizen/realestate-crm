@@ -9,6 +9,8 @@ import type { AnyBulkWriteOperation } from 'mongodb';
 import type { ActionMap } from '../core/actions';
 import { SUPPORT_USER_ID, auditLog, can, listUsers, type Ctx } from '../core/auth';
 import { CFG } from '../core/config';
+import { currentTenant } from '../core/tenant';
+import { pipelineFor } from '../../src/core/features';
 import { bumpVersion, col, ensureCounterAtLeast, getClient, getVersion, nextSeq } from '../core/db';
 import { fail } from '../core/errors';
 import { addEvent, addTimeline, logError, serializeTimeline } from '../core/events';
@@ -173,9 +175,12 @@ export async function getLeadsConfig(): Promise<{ fields: string[]; options: Rec
     if (!opts[k]) opts[k] = [];
     if (!opts[k].includes(v)) opts[k].push(v);
   }
+  // the stage & source defaults follow the company's sector (real estate keeps the built-in list); every other field is unchanged
+  const pipe = pipelineFor(currentTenant()?.sector);
+  const defaultsFor = (f: string): string[] => (pipe && f === L.STAGE ? pipe.stages : pipe && f === L.SOURCE ? pipe.sources : CFG.DEFAULT_OPTIONS[f] || []);
   for (const f of Object.keys(CFG.DEFAULT_OPTIONS)) {
     if (!opts[f]) opts[f] = [];
-    for (const o of CFG.DEFAULT_OPTIONS[f]) if (!opts[f].includes(o)) opts[f].push(o);
+    for (const o of defaultsFor(f)) if (!opts[f].includes(o)) opts[f].push(o);
   }
   opts[L.UNIT_TYPE] = dedupeUnitTypes(opts[L.UNIT_TYPE] || []);
   // Relatives is no longer offered (Relative is; a company's saved list may still have it); leads keep their value
@@ -183,7 +188,7 @@ export async function getLeadsConfig(): Promise<{ fields: string[]; options: Rec
   for (const m of MERGED_VALUES) opts[m.header] = (opts[m.header] || []).filter((v) => !m.from.test(v));
   // stages and sources in the agreed order; any the company added keep their place after them
   for (const f of [L.STAGE, L.SOURCE]) {
-    const order = CFG.DEFAULT_OPTIONS[f] || [];
+    const order = defaultsFor(f);
     const rank = (v: string) => (order.includes(v) ? order.indexOf(v) : order.length);
     opts[f] = opts[f].map((v, i) => ({ v, i })).sort((a, b) => rank(a.v) - rank(b.v) || a.i - b.i).map((x) => x.v);
   }
