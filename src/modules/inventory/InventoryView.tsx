@@ -23,7 +23,8 @@ import {
   isLoOwned,
   unitDue,
 } from './inventoryUtils';
-import { useFeature } from '../../core/tenant';
+import { useCompany, useFeature } from '../../core/tenant';
+import { sectorLabel } from '../../core/features';
 import { UnitLocator } from './UnitLocator'; // explicit extension: unitLocator.ts sits next to it (case-only difference)
 import { PageSkeleton } from '../../components/Skeletons';
 
@@ -72,6 +73,7 @@ const LeadChip: React.FC<{ id: string; name?: string; onOpen: (id: string) => vo
 export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, sync, canEdit, onUpdateUnit, onAddUnit, onImportInventory, onRefresh, onOpenLead, initialQuery = '' }) => {
   /** The Unit Locator (3D tower view) is a plan feature. */
   const locatorEnabled = useFeature('unitLocator');
+  const inventoryWord = sectorLabel(useCompany()?.sector, 'inventory');
   const [search, setSearch] = useState(initialQuery);
   useEffect(() => setSearch(initialQuery), [initialQuery]);
   const [tower, setTower] = useState('');
@@ -300,7 +302,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">Residence & Unit Inventory</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-[#0B2A44] tracking-tight">{inventoryWord}</h2>
           <p className="text-xs text-[#5E778C] mt-0.5 flex items-center gap-2 flex-wrap">
             <span>Live inventory — edits here are saved to the CRM server at once; colleagues’ edits appear after the next sync.</span>
             <span className="text-[#7E93A6]">·</span>

@@ -104,6 +104,7 @@ export function toTenant(c: CompanyDoc): Tenant {
     dbName: c.dbName,
     status: c.status === 'Suspended' ? 'Suspended' : 'Active',
     plan: c.plan || '',
+    sector: c.sector || 'realestate',
     maxUsers: Number(c.maxUsers) || 0,
     features: normalizeFeatures(c.features),
     logo: c.logo || '',

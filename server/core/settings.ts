@@ -143,7 +143,7 @@ export async function settingsPublic() {
     })(),
     company: (() => {
       const t = currentTenant();
-      return t ? { id: t.id, slug: t.slug, name: t.name, logo: t.logo, tagline: t.tagline, plan: t.plan, maxUsers: t.maxUsers } : null;
+      return t ? { id: t.id, slug: t.slug, name: t.name, logo: t.logo, tagline: t.tagline, plan: t.plan, sector: t.sector || 'realestate', maxUsers: t.maxUsers } : null;
     })(),
     aiPlatformKey: !!process.env.GEMINI_API_KEY?.trim(),
     /** Live updates over Ably when set up on the platform ('ably'); '' = fall back to the 30s poll only. */

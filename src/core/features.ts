@@ -53,6 +53,8 @@ export interface CompanyInfo {
   logo: string;
   tagline: string;
   plan: string;
+  /** Vertical the company is in (see SECTORS); '' falls back to real estate. */
+  sector?: string;
   /** 0 = unlimited. */
   maxUsers: number;
 }
@@ -148,6 +150,22 @@ export const SECTOR_IDS = SECTORS.map((s) => s.id);
 export const sectorById = (id: string | null | undefined) => SECTORS.find((s) => s.id === id) || null;
 /** A known sector id, or 'realestate' as the default. */
 export const normalizeSector = (id: string | null | undefined) => (SECTOR_IDS.includes(String(id || '')) ? String(id) : 'realestate');
+
+/** Terminology: the words a sector uses for the shared nouns, so the CRM reads naturally per vertical. */
+export const SECTOR_LABELS: Record<string, { leads: string; inventory: string; partners: string }> = {
+  realestate: { leads: 'Leads', inventory: 'Inventory', partners: 'Channel Partners' },
+  automobile: { leads: 'Leads', inventory: 'Vehicles', partners: 'Dealers' },
+  healthcare: { leads: 'Patients', inventory: 'Services', partners: 'Referrers' },
+  education: { leads: 'Students', inventory: 'Courses', partners: 'Referrers' },
+  hospitality: { leads: 'Guests', inventory: 'Rooms', partners: 'Travel agents' },
+  retail: { leads: 'Customers', inventory: 'Products', partners: 'Partners' },
+  finance: { leads: 'Applicants', inventory: 'Products', partners: 'Agents' },
+  other: { leads: 'Leads', inventory: 'Inventory', partners: 'Partners' },
+};
+/** The word a company's sector uses for a shared noun ('leads' | 'inventory' | 'partners'). */
+export function sectorLabel(sector: string | null | undefined, key: 'leads' | 'inventory' | 'partners'): string {
+  return (SECTOR_LABELS[normalizeSector(sector)] || SECTOR_LABELS.realestate)[key];
+}
 
 /** Up to two initials of a company name ("Vera Vita Living" → "VV", "acme" → "A"). */
 export function companyInitials(name: string | null | undefined): string {

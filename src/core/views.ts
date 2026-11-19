@@ -5,7 +5,7 @@
  * before rendering (a typed or bookmarked URL redirects to the dashboard) and the sidebar uses it to
  * hide entries, so both always agree.
  */
-import { hasFeature, type FeatureName } from './features';
+import { hasFeature, sectorLabel, type FeatureName } from './features';
 import type { Permission } from './rbac';
 
 export type ViewId =
@@ -24,6 +24,18 @@ export const VIEW_TITLES: Record<ViewId, string> = {
 };
 
 export const viewHref = (view: ViewId) => `/${view}`;
+
+/**
+ * A screen's title in the words of the company's sector (Leads → Patients/Students, Inventory → Rooms/Vehicles,
+ * Channel Partners → Referrers/Agents). Falls back to VIEW_TITLES for every other screen. Used by the sidebar and
+ * the top bar so navigation and the page header always agree.
+ */
+export function viewTitle(view: ViewId, sector: string | null | undefined, fallback?: string): string {
+  if (view === 'leads') return `All ${sectorLabel(sector, 'leads')}`;
+  if (view === 'inventory') return sectorLabel(sector, 'inventory');
+  if (view === 'partners') return sectorLabel(sector, 'partners');
+  return fallback || VIEW_TITLES[view];
+}
 
 /** Where each person starts after signing in. The Dashboard is openable by every role. */
 export function homeViewFor(_role: string | undefined | null): ViewId {

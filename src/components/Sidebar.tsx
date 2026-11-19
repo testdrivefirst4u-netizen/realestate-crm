@@ -10,7 +10,7 @@ import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
 import { useCompany, useTenantSettings } from '../core/tenant';
-import { type ViewId, VIEW_TITLES, viewAllowed, viewHref } from '../core/views';
+import { type ViewId, VIEW_TITLES, viewAllowed, viewHref, viewTitle } from '../core/views';
 import { formatRelative } from '../core/dates';
 import { Permission, roleLabel } from '../core/rbac';
 
@@ -121,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       >
         {on && !narrow && <span className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-[#5CC8FF]" />}
         <Icon size={18} strokeWidth={on ? 2.2 : 1.8} className={`shrink-0 ${on ? 'text-white' : 'text-[#8FB2D1] group-hover:text-white'}`} />
-        {!narrow && <span className={`truncate flex-1 text-[13.5px] ${on ? 'font-bold' : 'font-medium'}`}>{i.label || VIEW_TITLES[i.id]}</span>}
+        {!narrow && <span className={`truncate flex-1 text-[13.5px] ${on ? 'font-bold' : 'font-medium'}`}>{viewTitle(i.id, company?.sector, i.label || VIEW_TITLES[i.id])}</span>}
         {!narrow && !!i.count && (
           <span className={`text-[11px] font-extrabold rounded-full px-2 py-px ${i.urgent ? 'bg-[#FF8A65] text-[#3D1206]' : on ? 'bg-white/20 text-white' : 'bg-white/10 text-[#D7E6F3]'}`}>{countText(i.count)}</span>
         )}

@@ -72,6 +72,7 @@ export interface Tenant {
   dbName: string;
   status: 'Active' | 'Suspended';
   plan: string;
+  sector?: string; // vertical, see src/core/features.ts SECTORS
   maxUsers: number;
   features: TenantFeatures;
   logo: string; // small data URL or ''

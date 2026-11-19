@@ -7,7 +7,7 @@ import { Permission } from '../core/rbac';
 import { useCompany, useFeature } from '../core/tenant';
 import { CreditsBadge } from '../modules/whatsappCredits/CreditsBadge';
 import { usePathname, useRouter } from 'next/navigation';
-import { DEFAULT_VIEW, VIEW_TITLES, viewHref, type ViewId } from '../core/views';
+import { DEFAULT_VIEW, VIEW_TITLES, viewHref, viewTitle, type ViewId } from '../core/views';
 
 interface TopbarProps {
   currentView: ViewId | null;
@@ -118,7 +118,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
       {/* Phones: current screen (the menu is the bottom bar's "More"; the sidebar holds the navigation on larger screens) */}
       <div className="lg:hidden flex items-center gap-2 min-w-0">
         <span className="hidden sm:inline-flex"><AppLogo size="xs" /></span>
-        <h1 className="hidden sm:block text-base font-bold text-[#0B2A44] tracking-tight truncate">{(currentView && VIEW_TITLES[currentView]) || company?.name || 'CRM'}</h1>
+        <h1 className="hidden sm:block text-base font-bold text-[#0B2A44] tracking-tight truncate">{(currentView && viewTitle(currentView, company?.sector)) || company?.name || 'CRM'}</h1>
       </div>
 
         <div ref={ref} className="relative flex-1 min-w-0 max-w-[460px] ml-auto lg:ml-0">
