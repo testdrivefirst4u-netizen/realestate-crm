@@ -90,14 +90,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
   // Each screen is rendered on the server per person, so it is preloaded only when someone points at it, not all on every page load.
   const [wanted, setWanted] = React.useState<ReadonlySet<ViewId>>(new Set());
   const want = (id: ViewId) => setWanted((w) => (w.has(id) ? w : new Set(w).add(id)));
-  // collapsed sidebar: hovering the rail slides the full menu out as an overlay; leaving slides it back, then unmounts
-  const [hovering, setHovering] = React.useState(false); // cursor intent (drives the in/out animation)
-  const [flyoutMounted, setFlyoutMounted] = React.useState(false); // kept in the DOM through the exit animation
-  const flyoutTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const openFlyout = () => { if (!isCollapsed) return; if (flyoutTimer.current) { clearTimeout(flyoutTimer.current); flyoutTimer.current = null; } setFlyoutMounted(true); setHovering(true); };
-  const closeFlyout = () => { setHovering(false); if (flyoutTimer.current) clearTimeout(flyoutTimer.current); flyoutTimer.current = setTimeout(() => setFlyoutMounted(false), 170); };
-  React.useEffect(() => { if (!isCollapsed) { setHovering(false); setFlyoutMounted(false); if (flyoutTimer.current) clearTimeout(flyoutTimer.current); } }, [isCollapsed]);
-  React.useEffect(() => () => { if (flyoutTimer.current) clearTimeout(flyoutTimer.current); }, []);
+  // collapsed sidebar: hovering the rail slides the full menu out as an overlay; it stays mounted (so its scroll
+  // position is kept) and just fades/slides between open and closed.
+  const [hovering, setHovering] = React.useState(false);
+  const openFlyout = () => { if (isCollapsed) setHovering(true); };
+  const closeFlyout = () => setHovering(false);
+  React.useEffect(() => { if (!isCollapsed) setHovering(false); }, [isCollapsed]);
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats }, direct)
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
@@ -232,10 +230,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       >
         {/* the in-flow rail keeps its width (collapsed = 76px) so the page never shifts */}
         {panel(isCollapsed, false)}
-        {/* on hover, the full menu floats over the page; leaving it slides back, then unmounts */}
-        {isCollapsed && flyoutMounted && (
+        {/* on hover, the full menu floats over the page; it stays mounted so its scroll position is preserved */}
+        {isCollapsed && (
           <div
-            className={`absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)] ${hovering ? 'crm-sidebar-flyout' : 'crm-sidebar-flyout-out'}`}
+            aria-hidden={!hovering}
+            className={`absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${hovering ? 'translate-x-0 opacity-100' : 'pointer-events-none -translate-x-3 opacity-0'}`}
             onMouseEnter={openFlyout}
             onMouseLeave={closeFlyout}
           >

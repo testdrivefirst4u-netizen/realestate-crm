@@ -70,12 +70,6 @@ code, pre, .font-mono {
 .crm-toast-timer { transform-origin: left; animation-name: crm-toast-timer; animation-timing-function: linear; animation-fill-mode: forwards; }
 @media (prefers-reduced-motion: reduce) { .crm-toast-in { animation: none; } }
 @keyframes crm-zoom-in { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-/* Collapsed sidebar hover flyout: slide out from the rail, and slide back on leave. */
-@keyframes crm-sidebar-flyout { from { transform: translateX(-14px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes crm-sidebar-flyout-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-14px); opacity: 0; } }
-.crm-sidebar-flyout { transform-origin: left center; animation: crm-sidebar-flyout 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.crm-sidebar-flyout-out { animation: crm-sidebar-flyout-out 150ms cubic-bezier(0.4, 0, 1, 1) both; }
-@media (prefers-reduced-motion: reduce) { .crm-sidebar-flyout, .crm-sidebar-flyout-out { animation: none; } }
 .animate-in { animation-duration: 180ms; animation-timing-function: ease-out; animation-fill-mode: both; animation-name: crm-fade-in; }
 .animate-in.slide-in-from-right { animation-name: crm-slide-in-right; }
 .animate-in.slide-in-from-bottom-2 { animation-name: crm-slide-in-bottom; }
