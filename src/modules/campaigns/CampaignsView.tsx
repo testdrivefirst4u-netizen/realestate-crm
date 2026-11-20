@@ -1,6 +1,6 @@
 /** WhatsApp campaigns (plan feature whatsappCampaigns; server: modules/whatsappCampaigns.ts): campaigns with their results, and templates. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pause, Play, Plus, RefreshCw, Search, Square, Trash2 } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight, Eye, Pause, Pencil, Play, Plus, RefreshCw, Search, Square, Trash2 } from 'lucide-react';
 import { api, type WaCampaignDetail, type WaCampaignView, type WaCampaignsOverview, type WaDirectTemplate } from '../../core/api';
 import { dateKey, formatDateTime } from '../../core/dates';
 import { reportError, toAppError } from '../../core/errors';
@@ -20,6 +20,19 @@ const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : 
 const th = 'px-3 py-2 text-right text-[11px] font-semibold text-[#5E778C] whitespace-nowrap border-b border-[#D3E3F0]';
 const td = 'px-3 py-2.5 text-right text-xs tabular-nums whitespace-nowrap border-b border-[#EEF4F9] text-[#0B2A44]';
 const left = '!text-left';
+// per-status accent for the summary cards (left bar + label + number colour)
+const TILE_COLOR: Record<string, { bar: string; label: string; num: string }> = {
+  '': { bar: '#0B6BB0', label: '#0B6BB0', num: '#0B2A44' },
+  scheduled: { bar: '#0EA5A3', label: '#0E8A7D', num: '#0B6B63' },
+  running: { bar: '#2563EB', label: '#2563EB', num: '#1D4ED8' },
+  completed: { bar: '#16A34A', label: '#15803D', num: '#166534' },
+  paused: { bar: '#F59E0B', label: '#B45309', num: '#92400E' },
+  stopped: { bar: '#E11D48', label: '#BE123C', num: '#9F1239' },
+  draft: { bar: '#94A3B8', label: '#64748B', num: '#475569' },
+};
+const thHdr = 'px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-white whitespace-nowrap';
+const iconBtn = 'grid h-8 w-8 place-items-center rounded-lg border border-[#D3E3F0] bg-white text-[#3E5A70] transition-colors hover:border-[#0B6BB0] hover:bg-[#F2F8FD] hover:text-[#0B6BB0] disabled:opacity-40';
+const PER_PAGE_OPTS = [10, 25, 50];
 
 const Report: React.FC<{ c: WaCampaignView; creditsOn: boolean; onClose: () => void }> = ({ c, creditsOn, onClose }) => {
   const [d, setD] = useState<WaCampaignDetail | null>(null);
@@ -63,6 +76,8 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
   const [viewingTemplate, setViewingTemplate] = useState<WaDirectTemplate | null>(null);
   const [stopping, setStopping] = useState<{ c: WaCampaignView; action: 'stop' | 'delete' } | null>(null);
   const [busy, setBusy] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
 
   const load = useCallback(async () => {
     try {
@@ -113,6 +128,10 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
     const term = q.trim().toLowerCase();
     return (data?.campaigns || []).filter((c) => (!statusFilter || c.status === statusFilter) && (!term || `${c.name} ${c.template}`.toLowerCase().includes(term)) && (!from || dateKey(c.createdAt) >= from) && (!to || dateKey(c.createdAt) <= to));
   }, [data, q, statusFilter, from, to]);
+  useEffect(() => { setPage(1); }, [q, statusFilter, from, to, perPage]);
+  const totalPages = Math.max(1, Math.ceil(list.length / perPage));
+  const curPage = Math.min(page, totalPages);
+  const paged = useMemo(() => list.slice((curPage - 1) * perPage, curPage * perPage), [list, curPage, perPage]);
 
   if (!data) return failed ? <div className="p-6"><InlineNotice tone="warning">{failed}</InlineNotice></div> : <LoadingState label="Loading campaigns…" />;
   const opened = data.campaigns.find((c) => c.id === report);
@@ -136,7 +155,18 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
       {tab === 'campaigns' && (
         <>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-7">
-            {TILES.map((t) => <button key={t.label} type="button" aria-pressed={statusFilter === t.id} onClick={() => setStatusFilter(t.id)} className={cx('rounded-xl border bg-white px-3 py-2.5 text-left', statusFilter === t.id ? 'border-[#0B6BB0] ring-1 ring-[#0B6BB0]' : 'border-[#D3E3F0] hover:bg-[#F7FBFE]')}><span className="block text-[11px] text-[#5E778C]">{t.label}</span><span className="block text-lg font-bold tabular-nums text-[#0B2A44]">{countOf(t.id)}</span></button>)}
+            {TILES.map((t) => {
+              const col = TILE_COLOR[t.id] || TILE_COLOR[''];
+              const on = statusFilter === t.id;
+              return (
+                <button key={t.label} type="button" aria-pressed={on} onClick={() => setStatusFilter(t.id)}
+                  className={cx('relative overflow-hidden rounded-xl border bg-white py-2.5 pl-4 pr-3 text-left shadow-[0_1px_2px_rgba(11,42,68,.05)] transition-all hover:-translate-y-px hover:shadow-[0_6px_16px_-8px_rgba(11,42,68,.25)]', on ? 'border-[#0B6BB0] ring-1 ring-[#0B6BB0]' : 'border-[#E3EDF5]')}>
+                  <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] rounded-r" style={{ background: col.bar }} />
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide" style={{ color: col.label }}>{t.label}</span>
+                  <span className="mt-0.5 block text-2xl font-bold leading-none tabular-nums" style={{ color: col.num }}>{countOf(t.id)}</span>
+                </button>
+              );
+            })}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="relative min-w-[200px] flex-1"><Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#5E778C]" aria-hidden="true" /><input className={cx(inputCls, 'pl-8')} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search campaigns" aria-label="Search campaigns" /></label>
@@ -145,38 +175,54 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
             <Button variant="secondary" size="sm" icon={<RefreshCw size={13} />} onClick={() => void load()}>Refresh</Button>
           </div>
           {!list.length ? <EmptyState title={data.campaigns.length ? 'No campaigns match' : 'No campaigns yet'} description={data.campaigns.length ? 'Try another search or date.' : 'Create one to send a template to many people at once.'} /> : (
-            <div className="overflow-x-auto rounded-xl border border-[#D3E3F0] bg-white">
-              <table className="w-full border-collapse">
-                <thead><tr><th className={cx(th, left)}>Campaign</th><th className={cx(th, left)}>Status</th><th className={th}>People</th><th className={th}>Sent</th><th className={th}>Delivered</th><th className={th}>Read</th><th className={th}>Replied</th><th className={th}>Failed</th><th className={cx(th, left)}>When</th><th className={th}><span className="sr-only">Actions</span></th></tr></thead>
-                <tbody>
-                  {list.map((c) => {
-                    const st = STATUS[c.status];
-                    const s = c.stats;
-                    return (
-                      <tr key={c.id} className="hover:bg-[#F7FBFE]">
-                        <td className={cx(td, left, '!whitespace-normal min-w-[200px]')}><button type="button" className="text-left font-semibold text-[#0B5E9C] hover:underline" onClick={() => setReport(c.id)}>{c.name}</button><span className="block break-all text-[11px] text-[#5E778C]">{c.template}</span></td>
-                        <td className={cx(td, left)}><Badge tone={st.tone}>{st.label}</Badge>{c.status === 'running' && s.waiting > 0 && <span className="block text-[10.5px] text-[#5E778C]">{s.waiting.toLocaleString('en-IN')} to go</span>}</td>
-                        <td className={td}>{s.total.toLocaleString('en-IN')}</td>
-                        <td className={td}>{s.sent.toLocaleString('en-IN')}</td>
-                        <td className={td}>{s.delivered.toLocaleString('en-IN')}</td>
-                        <td className={td}>{s.read.toLocaleString('en-IN')}</td>
-                        <td className={td}>{s.replied.toLocaleString('en-IN')}</td>
-                        <td className={cx(td, s.failed > 0 && 'text-[#B42318]')}>{s.failed.toLocaleString('en-IN')}</td>
-                        <td className={cx(td, left, 'text-[11px]')}>{formatDateTime(c.status === 'scheduled' ? c.scheduledAt : c.startedAt || c.createdAt)}</td>
-                        <td className={td}>
-                          <span className="inline-flex gap-1">
-                            {c.status === 'draft' && <Button variant="secondary" size="xs" onClick={() => setMaking({ existing: c })}>Edit</Button>}
-                            {(c.status === 'running' || c.status === 'scheduled') && <Button variant="secondary" size="xs" icon={<Pause size={12} />} aria-label={`Pause ${c.name}`} loading={busy === c.id} onClick={() => void change(c, 'pause')} />}
-                            {c.status === 'paused' && <Button variant="secondary" size="xs" icon={<Play size={12} />} aria-label={`Resume ${c.name}`} loading={busy === c.id} onClick={() => void change(c, 'resume')} />}
-                            {['running', 'scheduled', 'paused'].includes(c.status) && <Button variant="secondary" size="xs" icon={<Square size={12} />} aria-label={`Stop ${c.name}`} onClick={() => setStopping({ c, action: 'stop' })} />}
-                            {c.status === 'draft' && <Button variant="secondary" size="xs" icon={<Trash2 size={12} />} aria-label={`Delete ${c.name}`} onClick={() => setStopping({ c, action: 'delete' })} />}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="overflow-hidden rounded-xl border border-[#D3E3F0] bg-white shadow-[0_1px_2px_rgba(11,42,68,.05)]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[920px] border-collapse">
+                  <thead><tr className="bg-gradient-to-r from-[#0B4E85] to-[#0B6BB0]"><th className={cx(thHdr, '!text-left')}>Campaign</th><th className={cx(thHdr, '!text-left')}>Status</th><th className={thHdr}>People</th><th className={thHdr}>Sent</th><th className={thHdr}>Delivered</th><th className={thHdr}>Read</th><th className={thHdr}>Replied</th><th className={thHdr}>Failed</th><th className={cx(thHdr, '!text-left')}>When</th><th className={cx(thHdr, '!text-center')}>Actions</th></tr></thead>
+                  <tbody>
+                    {paged.map((c, i) => {
+                      const st = STATUS[c.status];
+                      const s = c.stats;
+                      return (
+                        <tr key={c.id} className={cx('transition-colors hover:bg-[#F2F8FD]', i % 2 ? 'bg-[#FAFCFE]' : 'bg-white')}>
+                          <td className={cx(td, left, '!whitespace-normal min-w-[200px]')}><button type="button" className="text-left font-semibold text-[#0B5E9C] hover:underline" onClick={() => setReport(c.id)}>{c.name}</button><span className="block break-all text-[11px] text-[#5E778C]">{c.template}</span></td>
+                          <td className={cx(td, left)}><Badge tone={st.tone}>{st.label}</Badge>{c.status === 'running' && s.waiting > 0 && <span className="block text-[10.5px] text-[#5E778C]">{s.waiting.toLocaleString('en-IN')} to go</span>}</td>
+                          <td className={td}>{s.total.toLocaleString('en-IN')}</td>
+                          <td className={td}>{s.sent.toLocaleString('en-IN')}</td>
+                          <td className={td}>{s.delivered.toLocaleString('en-IN')}</td>
+                          <td className={td}>{s.read.toLocaleString('en-IN')}</td>
+                          <td className={td}>{s.replied.toLocaleString('en-IN')}</td>
+                          <td className={cx(td, s.failed > 0 && '!text-[#B42318] font-semibold')}>{s.failed.toLocaleString('en-IN')}</td>
+                          <td className={cx(td, left, 'text-[11px]')}>{formatDateTime(c.status === 'scheduled' ? c.scheduledAt : c.startedAt || c.createdAt)}</td>
+                          <td className={cx(td, '!text-center')}>
+                            <span className="inline-flex items-center gap-1.5">
+                              <button type="button" className={iconBtn} aria-label={`View report for ${c.name}`} title="Report" onClick={() => setReport(c.id)}><BarChart3 size={15} /></button>
+                              {c.status === 'draft' && <button type="button" className={iconBtn} aria-label={`Edit ${c.name}`} title="Edit" onClick={() => setMaking({ existing: c })}><Pencil size={15} /></button>}
+                              {(c.status === 'running' || c.status === 'scheduled') && <button type="button" className={iconBtn} aria-label={`Pause ${c.name}`} title="Pause" disabled={busy === c.id} onClick={() => void change(c, 'pause')}><Pause size={15} /></button>}
+                              {c.status === 'paused' && <button type="button" className={iconBtn} aria-label={`Resume ${c.name}`} title="Resume" disabled={busy === c.id} onClick={() => void change(c, 'resume')}><Play size={15} /></button>}
+                              {['running', 'scheduled', 'paused'].includes(c.status) && <button type="button" className={iconBtn} aria-label={`Stop ${c.name}`} title="Stop" onClick={() => setStopping({ c, action: 'stop' })}><Square size={15} /></button>}
+                              {c.status === 'draft' && <button type="button" className={cx(iconBtn, 'hover:!border-[#E11D48] hover:!text-[#E11D48] hover:!bg-[#FEF2F3]')} aria-label={`Delete ${c.name}`} title="Delete" onClick={() => setStopping({ c, action: 'delete' })}><Trash2 size={15} /></button>}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EEF4F9] px-4 py-2.5">
+                <span className="flex items-center gap-2 text-[12px] text-[#5E778C]">
+                  Showing <b className="text-[#0B2A44]">{(curPage - 1) * perPage + 1}–{Math.min(curPage * perPage, list.length)}</b> of <b className="text-[#0B2A44]">{list.length}</b>
+                  <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))} className="ml-1 rounded-lg border border-[#D3E3F0] bg-white px-2 py-1 text-[12px] text-[#0B2A44] focus:border-[#0B6BB0] focus:outline-none" aria-label="Rows per page">
+                    {PER_PAGE_OPTS.map((n) => <option key={n} value={n}>{n} / page</option>)}
+                  </select>
+                </span>
+                <span className="flex items-center gap-1">
+                  <button type="button" className={cx(iconBtn, 'w-auto px-2 gap-1 text-[12px] font-semibold')} disabled={curPage <= 1} onClick={() => setPage(curPage - 1)}><ChevronLeft size={14} /> Prev</button>
+                  <span className="px-2 text-[12px] font-semibold text-[#3E5A70]">Page {curPage} of {totalPages}</span>
+                  <button type="button" className={cx(iconBtn, 'w-auto px-2 gap-1 text-[12px] font-semibold')} disabled={curPage >= totalPages} onClick={() => setPage(curPage + 1)}>Next <ChevronRight size={14} /></button>
+                </span>
+              </div>
             </div>
           )}
         </>
