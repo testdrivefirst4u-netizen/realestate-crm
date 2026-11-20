@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         {/* on hover, the full menu floats over the page; leaving the floating menu collapses it again */}
         {isCollapsed && hovering && (
           <div
-            className="absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)]"
+            className="crm-sidebar-flyout absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)]"
             onMouseLeave={() => setHovering(false)}
           >
             {panel(false, false)}
