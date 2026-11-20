@@ -14,13 +14,18 @@
   // Automobile scene: a line of cars in front of a small skyline. Replaces the default buildings-only skyline
   // (the .bc-s group) when the tenant's sector is automobile, so the illustration matches the wordmark. Reuses the
   // same draw-outline-then-fill classes (.p/.fr/.bk/.wn) plus .whl/.hub for the wheels. Baseline stays at y=215.
-  var car = function (x, d) {
-    return '<path class="p fr" pathLength="1" style="--d:' + d + 's" d="M' + x + ' 196 L' + x + ' 174 Q' + x + ' 168 ' + (x + 6) + ' 167 L' + (x + 32) + ' 164 L' + (x + 48) + ' 148 Q' + (x + 52) + ' 145 ' + (x + 60) + ' 145 L' + (x + 94) + ' 145 Q' + (x + 102) + ' 145 ' + (x + 106) + ' 148 L' + (x + 122) + ' 164 L' + (x + 128) + ' 167 Q' + (x + 130) + ' 168 ' + (x + 130) + ' 174 L' + (x + 130) + ' 196 Z"/>'
-      + '<path class="wn" style="--d:' + (d + 1.1) + 's" d="M' + (x + 56) + ' 164 L' + (x + 63) + ' 150 L' + (x + 99) + ' 150 L' + (x + 103) + ' 164 Z"/>'
-      + '<circle class="whl" cx="' + (x + 34) + '" cy="200" r="15" style="--d:' + (d + 1.15) + 's"/>'
-      + '<circle class="whl" cx="' + (x + 100) + '" cy="200" r="15" style="--d:' + (d + 1.2) + 's"/>'
-      + '<circle class="hub" cx="' + (x + 34) + '" cy="200" r="5" style="--d:' + (d + 1.3) + 's"/>'
-      + '<circle class="hub" cx="' + (x + 100) + '" cy="200" r="5" style="--d:' + (d + 1.32) + 's"/>';
+  // One sedan, drawn in its own local coords (wheels on y=215), then placed and sized with a translate+scale group so
+  // several fit across the baseline. Sleek silhouette: sloped hood, raked windshield, wheel arches, split side glass.
+  var car = function (tx, d) {
+    return '<g transform="translate(' + tx + ',32.25) scale(0.85)">'
+      + '<path class="p fr" pathLength="1" style="--d:' + d + 's" d="M4 185 Q4 177 10 172 L24 168 L52 165 L68 145 Q71 141 79 141 L116 141 Q125 141 129 145 L148 164 L166 169 Q173 170 173 178 L173 185 Q173 193 165 193 L158 193 C158 179.75 147.25 169 134 169 C120.75 169 110 179.75 110 193 L64 193 C64 179.75 53.25 169 40 169 C26.75 169 16 179.75 16 193 L10 193 Q4 193 4 185 Z"/>'
+      + '<path class="wn" style="--d:' + (d + 1.1) + 's" d="M74 146 L95 146 L95 159 L60 159 Z"/>'
+      + '<path class="wn" style="--d:' + (d + 1.14) + 's" d="M99 146 L118 146 L132 159 L99 159 Z"/>'
+      + '<circle class="whl" cx="40" cy="197" r="18" style="--d:' + (d + 1.15) + 's"/>'
+      + '<circle class="whl" cx="134" cy="197" r="18" style="--d:' + (d + 1.2) + 's"/>'
+      + '<circle class="hub" cx="40" cy="197" r="8" style="--d:' + (d + 1.3) + 's"/>'
+      + '<circle class="hub" cx="134" cy="197" r="8" style="--d:' + (d + 1.32) + 's"/>'
+      + '</g>';
   };
   var win = function (x, y, d) { return '<rect class="wn" x="' + x + '" y="' + y + '" width="6" height="7" rx="1" style="--d:' + d + 's"/>'; };
   var CARS = '<path class="p g" pathLength="1" style="--d:0s" d="M96 215H624"/>'
@@ -33,7 +38,7 @@
     + win(394, 88, 1.12) + win(405, 88, 1.20) + win(416, 88, 1.28) + win(394, 104, 1.16) + win(416, 104, 1.24) + win(405, 120, 1.31)
     + '<path class="p fr" pathLength="1" style="--d:0.25s" d="M540 214V120H584V214Z"/>'
     + win(550, 132, 1.14) + win(561, 132, 1.22) + win(572, 132, 1.29)
-    + car(150, 0.34) + car(318, 0.40) + car(486, 0.46);
+    + car(116, 0.34) + car(286, 0.40) + car(456, 0.46);
 
   // Sector label under the logo: keep the same animation, only change the words. The loader runs before React, so it
   // reads the sector the CRM last saved (localStorage 'bcSector'); unknown / first load shows "Real Estate CRM".
