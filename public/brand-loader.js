@@ -14,46 +14,49 @@
   // Automobile scene: a line of cars in front of a small skyline. Replaces the default buildings-only skyline
   // (the .bc-s group) when the tenant's sector is automobile, so the illustration matches the wordmark. Reuses the
   // same draw-outline-then-fill classes (.p/.fr/.bk/.wn) plus .whl/.hub for the wheels. Baseline stays at y=215.
-  // Detailed alloy wheel: dark tyre, silver rim, six spokes, hub. Local coords.
+  // Premium 10-spoke alloy wheel: dark tyre, silver rim, slim spokes, hub. Local coords.
   var spokes = function (cx, cy, rO, rI, n) {
     var s = '', i, a;
     for (i = 0; i < n; i++) { a = -Math.PI / 2 + i * 2 * Math.PI / n;
-      s += '<line x1="' + (cx + rI * Math.cos(a)).toFixed(1) + '" y1="' + (cy + rI * Math.sin(a)).toFixed(1) + '" x2="' + (cx + rO * Math.cos(a)).toFixed(1) + '" y2="' + (cy + rO * Math.sin(a)).toFixed(1) + '" stroke="#8291B6" stroke-width="2.4" stroke-linecap="round"/>';
+      s += '<line x1="' + (cx + rI * Math.cos(a)).toFixed(1) + '" y1="' + (cy + rI * Math.sin(a)).toFixed(1) + '" x2="' + (cx + rO * Math.cos(a)).toFixed(1) + '" y2="' + (cy + rO * Math.sin(a)).toFixed(1) + '" stroke="#9aa7c6" stroke-width="1.9" stroke-linecap="round"/>';
     }
     return s;
   };
   var wheel = function (cx, cy) {
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="24" fill="#0c1430"/>'
-      + '<circle cx="' + cx + '" cy="' + cy + '" r="15.5" fill="#aab6d4"/>'
-      + '<circle cx="' + cx + '" cy="' + cy + '" r="15.5" fill="none" stroke="#6b7aa2" stroke-width="1.5"/>'
-      + spokes(cx, cy, 14, 5.5, 6)
-      + '<circle cx="' + cx + '" cy="' + cy + '" r="5" fill="#5a6890"/>';
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="26" fill="#0b1330"/>'
+      + '<circle cx="' + cx + '" cy="' + cy + '" r="25" fill="none" stroke="#243154" stroke-width="3.5"/>'
+      + '<circle cx="' + cx + '" cy="' + cy + '" r="16.5" fill="#c6d0e6"/>'
+      + '<circle cx="' + cx + '" cy="' + cy + '" r="16.5" fill="none" stroke="#7a88ab" stroke-width="1.3"/>'
+      + spokes(cx, cy, 15, 5, 10)
+      + '<circle cx="' + cx + '" cy="' + cy + '" r="5" fill="#6878a0"/>'
+      + '<circle cx="' + cx + '" cy="' + cy + '" r="2" fill="#aeb9d6"/>';
   };
-  // One premium sedan, drawn in local coords (wheels on y=100), then placed and sized with a translate+scale group.
-  // The body outline draws then fills (.p fr); the detail layer (glass, chrome, lights, alloys) fades in after.
+  // Premium luxury sedan (Audi A7 / Mercedes CLS fastback), drawn in local coords (wheels on y=100), then placed and
+  // sized with a translate+scale group. The body outline draws then fills; the detail layer fades in after.
   var car = function (tx, s, d) {
     var ty = (215 - 100 * s).toFixed(2);
     return '<g transform="translate(' + tx + ',' + ty + ') scale(' + s + ')">'
-      + '<path class="p fr" pathLength="1" style="--d:' + d + 's" d="M6 84 Q2 84 2 78 L2 70 L4 66 L18 56 L40 52 C54 42 60 38 74 38 C96 30 140 30 165 40 L182 53 L216 61 Q231 62 234 67 L237 77 Q237 84 231 84 L226 84 C226 62 210 50 198 50 C186 50 170 62 170 84 L80 84 C80 62 64 50 52 50 C40 50 24 62 24 84 L6 84 Z"/>'
+      + '<path class="p" pathLength="1" fill="url(#bd)" style="--d:' + d + 's" d="M6 80 Q2 80 2 72 L2 62 L11 57 L28 49 C52 39 70 34 94 33 C118 32 134 37 150 45 L172 55 L212 60 Q231 61 234 66 L238 75 Q238 81 232 81 L222 81 C222 58 206 46 194 46 C182 46 166 58 166 81 L78 81 C78 58 62 46 50 46 C38 46 22 58 22 81 L6 80 Z"/>'
       + '<g class="bc-det">'
-      +   '<path fill="url(#gl)" d="M62 49 L74 40 C92 34 104 33 110 33 L110 49 Z"/>'
-      +   '<path fill="url(#gl)" d="M114 33 C130 33 150 36 158 41 L168 49 L114 49 Z"/>'
-      +   '<path fill="none" stroke="#9fb0e0" stroke-width="1.4" opacity=".7" d="M66 47 L74 41 C96 35 150 38 162 46"/>'
-      +   '<path fill="none" stroke="#20337f" stroke-width="1.3" opacity=".55" d="M112 50 L112 83"/>'
-      +   '<path fill="none" stroke="#5f7ad6" stroke-width="2" opacity=".55" stroke-linecap="round" d="M28 66 Q120 60 210 66"/>'
-      +   '<path fill="none" stroke="#6f8ae0" stroke-width="1.8" opacity=".5" stroke-linecap="round" d="M176 57 Q208 60 230 66"/>'
-      +   '<path fill="#eef3ff" d="M226 63 Q238 63 238 73 L230 74 Q228 68 226 63 Z"/>'
-      +   '<rect x="3" y="60" width="5" height="9" rx="2" fill="#e8403f"/>'
-      +   wheel(52, 76) + wheel(198, 76)
+      +   '<path fill="#0d1d58" opacity=".5" d="M22 81 C22 60 38 48 50 48 C62 48 78 60 78 80 L166 80 C166 60 182 48 194 48 C206 48 222 60 222 81 L219 81 C219 62 205 52 194 52 C183 52 169 62 169 80 L75 80 C75 62 61 52 50 52 C39 52 25 62 25 81 Z"/>'
+      +   '<path fill="url(#gl)" d="M62 44 L82 36 C104 33 132 35 146 42 L154 44 Z"/>'
+      +   '<path fill="none" stroke="#b6c4ea" stroke-width="1.3" opacity=".8" d="M62 43 L82 37 C104 34 132 36 148 43"/>'
+      +   '<path fill="none" stroke="#2a3e82" stroke-width="1.3" opacity=".6" d="M104 35 L104 44"/>'
+      +   '<path fill="none" stroke="#86a0ec" stroke-width="1.8" opacity=".65" stroke-linecap="round" d="M24 58 C92 51 150 52 214 60"/>'
+      +   '<path fill="none" stroke="#0d1d55" stroke-width="1.1" opacity=".35" d="M28 69 L208 69"/>'
+      +   '<path fill="#eef4ff" d="M226 61 L238 63 L238 69 L227 69 Q225 65 226 61 Z"/>'
+      +   '<path fill="#dfe8ff" opacity=".75" d="M232 72 L238 72 L238 76 L232 75 Z"/>'
+      +   '<rect x="2" y="57" width="6" height="6" rx="2" fill="#ef4d4d"/><rect x="2" y="64" width="6" height="2.6" rx="1.2" fill="#c23636"/>'
+      +   wheel(50, 74) + wheel(194, 74)
       + '</g></g>';
   };
-  var CARS = '<defs><linearGradient id="gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a2d6b"/><stop offset="1" stop-color="#0a1740"/></linearGradient></defs>'
+  var CARS = '<defs><linearGradient id="bd" x1="0" y1="0" x2="0.06" y2="1"><stop offset="0" stop-color="#4c6ad9"/><stop offset=".5" stop-color="#2a45ad"/><stop offset="1" stop-color="#15277d"/></linearGradient><linearGradient id="gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24386f"/><stop offset="1" stop-color="#0a1740"/></linearGradient></defs>'
     + '<ellipse class="shd" cx="360" cy="216" rx="140" ry="7"/>'
     + '<path class="p g" pathLength="1" style="--d:0s" d="M195 215H525"/>'
     + '<path class="spd" style="--d:0.95s" d="M188 161 L220 161"/>'
     + '<path class="spd" style="--d:0.90s" d="M176 172 L224 172"/>'
     + '<path class="spd" style="--d:1.00s" d="M192 183 L216 183"/>'
-    + car(222.6, 1.15, 0.25);
+    + car(222, 1.15, 0.25);
 
   // Sector label under the logo: keep the same animation, only change the words. The loader runs before React, so it
   // reads the sector the CRM last saved (localStorage 'bcSector'); unknown / first load shows "Real Estate CRM".
