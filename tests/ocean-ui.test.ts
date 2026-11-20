@@ -45,7 +45,7 @@ describe('sidebar', () => {
 
   it('collapsed: icons only (named for screen readers), with Expand navigation', () => {
     const html = sidebar({ isCollapsed: true, counts: { followupsToday: 3 } });
-    expect(html).not.toContain('>All Leads</span>');
+    expect(html).toContain('w-[76px]'); // the icon-only rail (the full menu rides along as a hidden hover flyout)
     expect(html).toContain('aria-label="All Leads"');
     expect(html).toContain('aria-label="Inventory"');
     expect(html).toContain('aria-label="Expand navigation"');
