@@ -8,6 +8,80 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 :root[data-theme="dark"] { color-scheme: dark; }
 
+/* ---------------------------------------------------------------------------
+   Dark theme base layer (Stage 2). The CRM's screens use hard-coded light
+   colours inline, so rather than rewrite every file we remap the dominant
+   surface / border / ink literals here when data-theme="dark". Semantic colours
+   (brand blue, red/amber/green washes) are intentionally left untouched.
+   Explicit `dark:` utilities on a component still win where they exist.
+--------------------------------------------------------------------------- */
+[data-theme="dark"] body { background: #0e141c; color: #e8eef5; }
+/* surfaces: cards / white panels */
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-\[\#FFFFFF\] { background-color: #141c26; }
+/* subtle page / hover tints */
+[data-theme="dark"] .bg-\[\#F2F7FB\],
+[data-theme="dark"] .bg-\[\#F7FAFD\],
+[data-theme="dark"] .bg-\[\#F7FBFE\],
+[data-theme="dark"] .bg-\[\#F5F9FC\],
+[data-theme="dark"] .bg-\[\#F0F2F5\],
+[data-theme="dark"] .bg-\[\#F1F3F4\],
+[data-theme="dark"] .bg-\[\#F8F9FA\],
+[data-theme="dark"] .bg-\[\#FAFCFE\],
+[data-theme="dark"] .bg-\[\#F7FBFE\] { background-color: #0f1822; }
+/* slightly stronger fills / chips */
+[data-theme="dark"] .bg-\[\#E6EFF6\],
+[data-theme="dark"] .bg-\[\#EEF4F9\],
+[data-theme="dark"] .bg-\[\#E3EDF5\],
+[data-theme="dark"] .bg-\[\#E8F2FB\],
+[data-theme="dark"] .bg-\[\#EEF3F7\] { background-color: #1e2a39; }
+/* ink / headings */
+[data-theme="dark"] .text-\[\#0B2A44\],
+[data-theme="dark"] .text-\[\#0F2233\],
+[data-theme="dark"] .text-\[\#0A1F33\],
+[data-theme="dark"] .text-\[\#202124\],
+[data-theme="dark"] .text-\[\#04263D\],
+[data-theme="dark"] .text-\[\#111B21\] { color: #e8eef5; }
+/* muted text */
+[data-theme="dark"] .text-\[\#5E778C\],
+[data-theme="dark"] .text-\[\#5F6368\],
+[data-theme="dark"] .text-\[\#65676B\],
+[data-theme="dark"] .text-\[\#3E5A70\],
+[data-theme="dark"] .text-\[\#44566B\],
+[data-theme="dark"] .text-\[\#3C4043\],
+[data-theme="dark"] .text-\[\#3F5A70\] { color: #a7b7c7; }
+/* faint text */
+[data-theme="dark"] .text-\[\#7E93A6\],
+[data-theme="dark"] .text-\[\#8296A6\],
+[data-theme="dark"] .text-\[\#80868B\],
+[data-theme="dark"] .text-\[\#9AA0A6\],
+[data-theme="dark"] .text-\[\#7589A0\] { color: #8295a8; }
+/* link blue */
+[data-theme="dark"] .text-\[\#0B6BB0\],
+[data-theme="dark"] .text-\[\#0B5E9C\],
+[data-theme="dark"] .text-\[\#1967D2\],
+[data-theme="dark"] .text-\[\#1559C0\] { color: #6aa6ef; }
+/* borders */
+[data-theme="dark"] .border-\[\#D3E3F0\],
+[data-theme="dark"] .border-\[\#E3EDF5\],
+[data-theme="dark"] .border-\[\#E6EFF6\],
+[data-theme="dark"] .border-\[\#DADDE1\],
+[data-theme="dark"] .border-\[\#DADCE0\],
+[data-theme="dark"] .border-\[\#DCE8F2\],
+[data-theme="dark"] .border-\[\#E8EAED\],
+[data-theme="dark"] .border-\[\#EEF3F7\],
+[data-theme="dark"] .border-\[\#EAF1F7\] { border-color: #273646; }
+[data-theme="dark"] .border-\[\#EEF4F9\],
+[data-theme="dark"] .border-\[\#EDF3F8\],
+[data-theme="dark"] .border-\[\#F3F7FA\],
+[data-theme="dark"] .border-\[\#EEF1F4\] { border-color: #1f2b38; }
+/* divide colours */
+[data-theme="dark"] .divide-\[\#E6EFF6\] > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-\[\#EEF4F9\] > :not([hidden]) ~ :not([hidden]),
+[data-theme="dark"] .divide-\[\#E3EDF5\] > :not([hidden]) ~ :not([hidden]) { border-color: #273646; }
+/* inputs placeholder a touch brighter */
+[data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select { color: #e8eef5; }
+
 /* Jost is loaded once from the root layout (<link> in app/layout.tsx). */
 @theme {
   --font-sans: 'Jost', ui-sans-serif, system-ui, sans-serif;
