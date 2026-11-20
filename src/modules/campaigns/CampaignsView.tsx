@@ -229,31 +229,35 @@ export const CampaignsView: React.FC<{ leads: Lead[]; segments: ClientSegment[];
       )}
 
       {tab === 'templates' && (
-        <div className="rounded-xl border border-[#D3E3F0] bg-white p-4">
+        <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-[#5E778C]">Meta must approve a template before it can be sent, usually quickly, but it can take longer.</p>
-            <span className="flex gap-1.5"><Button variant="secondary" size="xs" icon={<RefreshCw size={12} className={busy === 'sync' ? 'animate-spin' : ''} />} disabled={!data.connected} onClick={() => void refreshTemplates()}>Refresh</Button><Button variant="primary" size="xs" icon={<Plus size={12} />} disabled={!data.connected} onClick={() => setAddingTemplate(true)}>New template</Button></span>
+            <span className="flex gap-1.5"><Button variant="secondary" size="sm" icon={<RefreshCw size={13} className={busy === 'sync' ? 'animate-spin' : ''} />} disabled={!data.connected} onClick={() => void refreshTemplates()}>Refresh</Button><Button variant="primary" size="sm" icon={<Plus size={13} />} disabled={!data.connected} onClick={() => setAddingTemplate(true)}>New template</Button></span>
           </div>
-          {!templates.length ? <p className="py-8 text-center text-xs text-[#5E778C]">No templates yet.</p> : (
-            <ul className="mt-2 divide-y divide-[#E3EDF5]">
+          {!templates.length ? <EmptyState title="No templates yet" description="Add a template and get it approved by Meta before you can send a campaign." /> : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {templates.map((t) => {
                 const s = TEMPLATE_STATUS[t.status] || { label: t.status.toLowerCase(), tone: 'muted' as const };
                 return (
-                  <li key={`${t.name}:${t.language}`} className="flex flex-wrap items-start gap-2 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-[#0B2A44]"><span className="break-all">{t.name}</span><Badge tone={s.tone}>{s.label}</Badge><span className="text-[11px] font-normal text-[#5E778C]">{t.language} · {t.category.toLowerCase()}{t.headerMedia ? ` · ${t.headerMedia}` : ''}</span></p>
-                      <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-[#3E5A70]">{t.body}</p>
-                      {t.reason && <p className="mt-0.5 text-[11px] text-[#B42318]">Meta's reason: {t.reason.toLowerCase().replace(/_/g, ' ')}</p>}
-                      {!t.sendable && !t.headerMedia && <p className="mt-0.5 text-[11px] text-[#8A5A00]">{t.notSendable}</p>}
+                  <div key={`${t.name}:${t.language}`} className="flex flex-col rounded-xl border border-[#E3EDF5] bg-white p-4 shadow-[0_1px_2px_rgba(11,42,68,.05)] transition-shadow hover:shadow-[0_8px_20px_-12px_rgba(11,42,68,.3)]">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 break-all text-[13.5px] font-bold text-[#0B2A44]">{t.name}</span>
+                      <Badge tone={s.tone}>{s.label}</Badge>
                     </div>
-                    <Button variant="secondary" size="xs" onClick={() => setViewingTemplate(t)}>Preview</Button>
-                    <Button variant="secondary" size="xs" icon={<Trash2 size={12} />} aria-label={`Delete ${t.name}`} onClick={() => setRemovingTemplate(t)} />
-                  </li>
+                    <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[#8296A6]">{t.language} · {t.category.toLowerCase()}{t.headerMedia ? ` · ${t.headerMedia}` : ''}</p>
+                    <p className="mt-2 line-clamp-4 flex-1 whitespace-pre-wrap break-words text-xs text-[#3E5A70]">{t.body}</p>
+                    {t.reason && <p className="mt-2 rounded-md bg-[#FEF2F3] px-2 py-1 text-[11px] text-[#B42318]">Meta's reason: {t.reason.toLowerCase().replace(/_/g, ' ')}</p>}
+                    {!t.sendable && !t.headerMedia && <p className="mt-2 rounded-md bg-[#FFF7E6] px-2 py-1 text-[11px] text-[#8A5A00]">{t.notSendable}</p>}
+                    <div className="mt-3 flex items-center justify-end gap-1.5 border-t border-[#EEF4F9] pt-3">
+                      <button type="button" className={cx(iconBtn, 'w-auto gap-1 px-2.5 text-[12px] font-semibold')} onClick={() => setViewingTemplate(t)}><Eye size={14} /> Preview</button>
+                      <button type="button" className={cx(iconBtn, 'hover:!border-[#E11D48] hover:!bg-[#FEF2F3] hover:!text-[#E11D48]')} aria-label={`Delete ${t.name}`} title="Delete" onClick={() => setRemovingTemplate(t)}><Trash2 size={15} /></button>
+                    </div>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
-        </div>
+        </>
       )}
 
       {making && <CampaignWizard leads={leads} segments={segments} stages={stages} sources={sources} rms={rms} templates={templates} creditsOn={data.creditsOn} prices={data.prices} existing={making.existing} onClose={() => { setMaking(null); void load(); }} onDone={() => { setMaking(null); toast('Campaign started', 'You can leave this screen. It keeps sending.', 'success'); void load(); }} />}
