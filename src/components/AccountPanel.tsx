@@ -46,11 +46,14 @@ export const AccountPanel: React.FC<{ open: boolean; onClose: () => void; user?:
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Account">
       <div className="absolute inset-0 bg-[#04121F]/40 animate-[crm-fade-in_.2s_ease]" onClick={onClose} />
       <div className="absolute right-0 top-0 flex h-full w-[min(380px,100vw)] flex-col bg-[#F4F7FB] shadow-[0_0_60px_rgba(8,30,51,0.4)] animate-in slide-in-from-right dark:bg-[#0f1821]">
+        {/* close — floats on the backdrop edge of the panel (kept out of the header's clip) */}
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute -left-4 top-5 z-10 grid h-9 w-9 place-items-center rounded-full bg-white text-[#44566B] shadow-md hover:bg-[#F2F7FB] dark:bg-[#1e2a39] dark:text-[#aab8c7]"><X size={18} /></button>
         {/* header */}
-        <div className="relative flex-none overflow-hidden bg-gradient-to-br from-[#4F46E5] via-[#4458d8] to-[#2646C6] px-5 pb-6 pt-6 text-white">
-          <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full border-[26px] border-white/10" />
-          <span aria-hidden className="pointer-events-none absolute -bottom-20 right-16 h-40 w-40 rounded-full bg-white/5" />
-          <button type="button" onClick={onClose} aria-label="Close" className="absolute -left-4 top-5 grid h-9 w-9 place-items-center rounded-full bg-white text-[#44566B] shadow-md hover:bg-[#F2F7FB]"><X size={18} /></button>
+        <div className="relative flex-none bg-gradient-to-br from-[#4F46E5] via-[#4458d8] to-[#2646C6] px-5 pb-6 pt-6 text-white">
+          <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            <span className="absolute -right-10 -top-16 block h-44 w-44 rounded-full border-[26px] border-white/10" />
+            <span className="absolute -bottom-20 right-16 block h-40 w-40 rounded-full bg-white/5" />
+          </span>
           <div className="relative flex items-center gap-3">
             <span className="rounded-full ring-2 ring-white/40"><Avatar user={user} size="lg" /></span>
             <div className="min-w-0">
