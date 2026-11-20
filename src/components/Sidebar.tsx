@@ -90,6 +90,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
   // Each screen is rendered on the server per person, so it is preloaded only when someone points at it, not all on every page load.
   const [wanted, setWanted] = React.useState<ReadonlySet<ViewId>>(new Set());
   const want = (id: ViewId) => setWanted((w) => (w.has(id) ? w : new Set(w).add(id)));
+  // collapsed sidebar: hovering the rail slides the full menu out as an overlay; leaving collapses it again
+  const [hovering, setHovering] = React.useState(false);
+  React.useEffect(() => { if (!isCollapsed) setHovering(false); }, [isCollapsed]);
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats }, direct)
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
@@ -218,7 +221,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
 
   return (
     <>
-      <div className="hidden lg:flex h-full py-3 pl-3 z-30">{panel(isCollapsed, false)}</div>
+      <div
+        className={`hidden lg:flex h-full py-3 pl-3 z-30 ${isCollapsed ? 'relative' : ''}`}
+        onMouseEnter={() => { if (isCollapsed) setHovering(true); }}
+      >
+        {/* the in-flow rail keeps its width (collapsed = 76px) so the page never shifts */}
+        {panel(isCollapsed, false)}
+        {/* on hover, the full menu floats over the page; leaving the floating menu collapses it again */}
+        {isCollapsed && hovering && (
+          <div
+            className="absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)]"
+            onMouseLeave={() => setHovering(false)}
+          >
+            {panel(false, false)}
+          </div>
+        )}
+      </div>
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
           <div className="absolute inset-0 bg-[#04121F]/55 backdrop-blur-[2px]" onClick={onCloseMobile} />
