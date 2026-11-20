@@ -44,6 +44,8 @@ const WIDGET = `(function(){
   var DOWN_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
   var REFRESH_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
   var MENU_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>';
+  var RESTART_MI_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>';
+  var HUMAN_MI_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-5a9 9 0 0 1 18 0v5"></path><path d="M21 19a2 2 0 0 1-2 2h-2v-6h2a2 2 0 0 1 2 2zM3 19a2 2 0 0 0 2 2h2v-6H5a2 2 0 0 0-2 2z"></path></svg>';
 
   var css = '.bcwc-btn{position:fixed;right:20px;bottom:20px;width:60px;height:60px;border-radius:50%;background:' + brand + ';color:#fff;border:none;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.28);z-index:2147483000;display:flex;align-items:center;justify-content:center;transition:transform .15s}'
     + '.bcwc-btn:hover{transform:scale(1.06)}'
@@ -95,8 +97,13 @@ const WIDGET = `(function(){
     + '.bcwc-menubtn{display:flex;align-items:center;gap:7px;background:none;border:none;color:' + brand + ';font-weight:600;font-size:13px;cursor:pointer}'
     + '.bcwc-menupop{position:absolute;bottom:44px;left:12px;right:12px;background:#fff;border:1px solid #e4e8ec;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;display:none}'
     + '.bcwc-menupop.bcwc-show{display:block;animation:bcwc-in .18s ease both}'
-    + '.bcwc-mi{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:none;border:none;text-align:left;font-size:14px;color:#1f2733;cursor:pointer}'
-    + '.bcwc-mi:hover{background:#f5f7f9}.bcwc-mi+.bcwc-mi{border-top:1px solid #eef1f4}'
+    + '.bcwc-mihdr{padding:11px 14px 7px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#9aa4b0}'
+    + '.bcwc-mi{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;background:none;border:none;text-align:left;cursor:pointer;transition:background .12s}'
+    + '.bcwc-mi:hover{background:#f5f7f9}'
+    + '.bcwc-mi-ic{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}'
+    + '.bcwc-mi-tx{display:flex;flex-direction:column;gap:1px;min-width:0}'
+    + '.bcwc-mi-t{font-weight:600;font-size:13.5px;color:#1f2733;line-height:1.25}'
+    + '.bcwc-mi-s{font-size:11.5px;color:#8a94a2;line-height:1.2}'
     + '.bcwc-greet{position:fixed;right:92px;bottom:34px;z-index:2147483000;display:flex;align-items:center;gap:4px;background:#fff;color:#1f2733;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;padding:10px 8px 10px 13px;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.22);animation:bcwc-in .3s ease both}'
     + '.bcwc-greet::after{content:\\'\\';position:absolute;right:-7px;top:50%;transform:translateY(-50%);border-left:8px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent}'
     + '.bcwc-greet-t{background:none;border:none;color:inherit;font:inherit;font-weight:500;cursor:pointer;padding:0;white-space:nowrap}'
@@ -213,10 +220,21 @@ const WIDGET = `(function(){
   send.onclick = submit;
   input.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); submit(); } });
 
-  function menuItem(emoji, label, fn){ var b = document.createElement('button'); b.className = 'bcwc-mi'; var e = document.createElement('span'); e.textContent = emoji; var s = document.createElement('span'); s.textContent = label; b.appendChild(e); b.appendChild(s); b.onclick = function(){ menuPop.className = 'bcwc-menupop'; fn(); }; return b; }
+  function menuItem(icon, label, sublabel, tone, fn){
+    var b = document.createElement('button'); b.className = 'bcwc-mi';
+    var ic = document.createElement('span'); ic.className = 'bcwc-mi-ic'; ic.innerHTML = icon;
+    if(tone === 'brand'){ ic.style.background = brand + '1a'; ic.style.color = brand; } else { ic.style.background = '#eef1f4'; ic.style.color = '#5a6676'; }
+    var tx = document.createElement('span'); tx.className = 'bcwc-mi-tx';
+    var t = document.createElement('span'); t.className = 'bcwc-mi-t'; t.textContent = label;
+    var s = document.createElement('span'); s.className = 'bcwc-mi-s'; s.textContent = sublabel;
+    tx.appendChild(t); tx.appendChild(s); b.appendChild(ic); b.appendChild(tx);
+    b.onclick = function(){ menuPop.className = 'bcwc-menupop'; fn(); };
+    return b;
+  }
   function talkHuman(){ if(busy || ended){ return; } meBubble('Talk to a human'); turn({ text: 'talk to a human' }); }
-  menuPop.appendChild(menuItem('\\u{1F504}', 'Restart chat', restart));
-  menuPop.appendChild(menuItem('\\u{1F4AC}', 'Talk to a human', talkHuman));
+  var menuHdr = document.createElement('div'); menuHdr.className = 'bcwc-mihdr'; menuHdr.textContent = 'How can we help?'; menuPop.appendChild(menuHdr);
+  menuPop.appendChild(menuItem(HUMAN_MI_ICON, 'Talk to a human', 'Hand off to our team', 'brand', talkHuman));
+  menuPop.appendChild(menuItem(RESTART_MI_ICON, 'Restart chat', 'Start a fresh conversation', 'plain', restart));
   menuBtn.onclick = function(){ menuPop.className = menuPop.className.indexOf('bcwc-show') >= 0 ? 'bcwc-menupop' : 'bcwc-menupop bcwc-show'; };
 })();`;
 
