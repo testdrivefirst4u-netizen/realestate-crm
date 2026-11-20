@@ -344,6 +344,7 @@ export interface BotStepView { pos?: { x: number; y: number }; id: string; type:
 export type BotChannel = 'whatsapp' | 'website' | 'instagram' | 'facebook';
 export interface BotView { id: string; name: string; status: 'draft' | 'active' | 'paused'; trigger: 'new' | 'keyword' | 'any'; keywords: string[]; channels: BotChannel[]; steps: BotStepView[]; knowledge: string; tested: boolean; rev: number; createdBy: string; createdAt: string; updatedAt: string; problems: string[]; stats: { started: number; inProgress: number; finished: number; handedOff: number; stopped: number; visits: number; withAnswers: number; waitingAt: Array<{ step: number; text: string; n: number }> } }
 export interface BotsOverview { connected: boolean; aiAvailable: boolean; bots: BotView[] }
+export interface OfficeHours { enabled: boolean; days: number[]; from: number; to: number; away: string }
 export type BotChannelKey = 'website' | 'whatsapp' | 'instagram' | 'facebook';
 export interface BotAnalyticsChannel { channel: BotChannelKey; sessions: number; uniqueUsers: number; repeatUsers: number; handoffs: number; leads: number; avgSessionSec: number; botMessages: number; userMessages: number; agentMessages: number; prevSessions: number }
 export interface BotAnalyticsData {
@@ -681,6 +682,8 @@ export const api = {
     embed: () => request<{ base: string; slug: string }>('webchatEmbed', {}),
     presence: () => request<ChatPresence>('chatPresence', {}),
     setPresence: (available: boolean) => request<{ available: boolean }>('chatPresenceSet', { available }),
+    officeHours: () => request<OfficeHours>('getWebchatOfficeHours', {}),
+    saveOfficeHours: (d: OfficeHours) => request<OfficeHours>('setWebchatOfficeHours', d),
   },
 
   botAnalytics: {

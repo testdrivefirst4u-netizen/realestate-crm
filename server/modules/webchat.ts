@@ -15,7 +15,8 @@ import { fail } from '../core/errors';
 import { addEvent, logError } from '../core/events';
 import { publishRealtime } from '../core/realtime';
 import { currentTenant, tenantKey } from '../core/tenant';
-import { randomToken, shortId, str, truncate } from '../core/utils';
+import { randomToken, safeJsonParse, shortId, str, truncate } from '../core/utils';
+import { settingsAll, settingSet } from '../core/settings';
 import { activeBotFilter, assignAvailableAgent, availableAgents, botContext, bumpDailyCount, mergeKnowledge, myChatAvailability, setChatAvailability, upsertBotLead } from './botRuntime';
 import { replyToChat, startChat, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepResult } from './whatsappBotEngine';
 
@@ -284,7 +285,57 @@ export function webchatEmbed(): { base: string; slug: string } {
   return { base, slug: str(currentTenant()?.slug) };
 }
 
+/* ------------------------- office hours (website chat) ------------------------- */
+
+export interface OfficeHours { enabled: boolean; days: number[]; from: number; to: number; away: string }
+const DEFAULT_AWAY = "Thanks for your message! Our team is away right now. Leave your name and number and we'll get back during office hours.";
+const DEFAULT_OFFICE_HOURS: OfficeHours = { enabled: false, days: [1, 2, 3, 4, 5, 6], from: 9, to: 18, away: DEFAULT_AWAY };
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const clampHour = (v: unknown, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 0 && n <= 24 ? n : d; };
+
+function parseOfficeHours(s: Record<string, string>): OfficeHours {
+  const raw = (safeJsonParse<Partial<OfficeHours>>(s.webchatOfficeHours, {}) || {}) as Partial<OfficeHours>;
+  const days = Array.isArray(raw.days) ? [...new Set(raw.days.map(Number).filter((d) => d >= 0 && d <= 6))].sort((a, b) => a - b) : DEFAULT_OFFICE_HOURS.days;
+  const from = clampHour(raw.from, 9), to = clampHour(raw.to, 18);
+  return {
+    enabled: !!raw.enabled,
+    days: days.length ? days : DEFAULT_OFFICE_HOURS.days,
+    from, to: to > from ? to : 18,
+    away: typeof raw.away === 'string' && raw.away.trim() ? raw.away.trim().slice(0, 300) : DEFAULT_AWAY,
+  };
+}
+/** India-time weekday (0=Sun..6=Sat) and hour (0-23). */
+function istNow(now: Date): { day: number; hour: number } {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(now);
+  const wd = parts.find((p) => p.type === 'weekday')?.value || 'Sun';
+  const hr = Number(parts.find((p) => p.type === 'hour')?.value || '0') % 24;
+  return { day: Math.max(0, DAY_SHORT.indexOf(wd)), hour: hr };
+}
+/** Is the website chat within office hours now? (Always true when office hours are off.) */
+export function officeOpen(oh: OfficeHours, now = new Date()): boolean {
+  if (!oh.enabled) return true;
+  const { day, hour } = istNow(now);
+  return oh.days.includes(day) && hour >= oh.from && hour < oh.to;
+}
+const hr12 = (h: number) => `${((h % 12) || 12)} ${h < 12 || h === 24 ? 'AM' : 'PM'}`;
+/** "Mon–Sat, 9 AM–6 PM" (empty when office hours are off). */
+export function officeHoursText(oh: OfficeHours): string {
+  if (!oh.enabled || !oh.days.length) return '';
+  const ds = oh.days;
+  const contiguous = ds.every((d, i) => i === 0 || d === ds[i - 1] + 1);
+  const dayLabel = ds.length === 7 ? 'Every day' : contiguous && ds.length > 1 ? `${DAY_SHORT[ds[0]]}–${DAY_SHORT[ds[ds.length - 1]]}` : ds.map((d) => DAY_SHORT[d]).join(', ');
+  return `${dayLabel}, ${hr12(oh.from)}–${hr12(oh.to)}`;
+}
+export async function getWebchatOfficeHours(): Promise<OfficeHours> { return parseOfficeHours(await settingsAll()); }
+export async function setWebchatOfficeHours(d: any, ctx: Ctx): Promise<OfficeHours> {
+  const oh = parseOfficeHours({ webchatOfficeHours: JSON.stringify(d || {}) });
+  await settingSet('webchatOfficeHours', JSON.stringify(oh), ctx.user?.name || 'System');
+  return oh;
+}
+
 export const actions: ActionMap = {
+  getWebchatOfficeHours: { fn: async () => getWebchatOfficeHours(), perm: 'marketing.bots' },
+  setWebchatOfficeHours: { fn: async (d, ctx: Ctx) => setWebchatOfficeHours(d, ctx), perm: 'marketing.bots' },
   botChatsList: { fn: async (d, ctx: Ctx) => { await auditLog(ctx, 'Bot Chats Viewed', 'Chatbot', '', ''); return botChatsList(d); }, perm: 'marketing.bots' },
   botChatThread: { fn: async (d) => botChatThread(d), perm: 'marketing.bots' },
   botChatReply: { fn: async (d, ctx: Ctx) => webchatAgentReply(d, ctx), perm: 'chat.send' },

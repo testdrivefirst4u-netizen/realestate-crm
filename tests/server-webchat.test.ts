@@ -8,7 +8,7 @@ import { getTenantById, invalidateTenant } from '../server/platform/registry';
 import { connectDirect } from '../server/modules/whatsappDirect';
 import { type BotStep } from '../server/modules/whatsappBotEngine';
 import { saveBot, setBotStatus, simulateBot } from '../server/modules/whatsappBots';
-import { botChatsList, webchatAgentReply, webchatTurn } from '../server/modules/webchat';
+import { botChatsList, officeHoursText, officeOpen, webchatAgentReply, webchatTurn, type OfficeHours } from '../server/modules/webchat';
 
 const SECRET = 'app-secret';
 const NUMBER_ID = '10001';
@@ -170,5 +170,21 @@ describe('website chatbot', () => {
     await t.company('nofeature', { whatsappBots: false });
     invalidateTenant();
     await expect(runWithTenant((await getTenantById('CMP-nofeature'))!, () => webchatTurn({ visitorId: 'v1' }))).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('office hours', () => {
+  const oh: OfficeHours = { enabled: true, days: [1, 2, 3, 4, 5, 6], from: 9, to: 18, away: 'Away' };
+  // dates chosen so the IST (UTC+5:30) weekday/hour is unambiguous
+  it('is open within the window and closed outside it', () => {
+    expect(officeOpen({ ...oh, enabled: false }, new Date('2026-11-22T20:00:00Z'))).toBe(true); // off → always open
+    expect(officeOpen(oh, new Date('2026-11-18T05:00:00Z'))).toBe(true); // Wed 10:30 IST
+    expect(officeOpen(oh, new Date('2026-11-18T14:00:00Z'))).toBe(false); // Wed 19:30 IST (after 6 PM)
+    expect(officeOpen(oh, new Date('2026-11-22T05:00:00Z'))).toBe(false); // Sunday (not in days)
+  });
+  it('describes the hours in words', () => {
+    expect(officeHoursText(oh)).toBe('Mon–Sat, 9 AM–6 PM');
+    expect(officeHoursText({ ...oh, enabled: false })).toBe('');
+    expect(officeHoursText({ ...oh, days: [0, 1, 2, 3, 4, 5, 6] })).toBe('Every day, 9 AM–6 PM');
   });
 });

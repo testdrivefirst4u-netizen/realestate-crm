@@ -7,6 +7,8 @@
  * The company's name and logo are baked in server-side (by slug) so each client's widget shows their own branding.
  */
 import { getTenantBySlug } from '@/server/platform/registry';
+import { runWithTenant } from '@/server/core/tenant';
+import { getWebchatOfficeHours, officeOpen, officeHoursText } from '@/server/modules/webchat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +26,10 @@ const WIDGET = `(function(){
   var origin = src.indexOf('/api/') >= 0 ? src.slice(0, src.indexOf('/api/')) : base;
   var brand = S.getAttribute('data-color') || '#2f6fb0';
   var name = CFG.name || S.getAttribute('data-title') || 'Chat with us';
-  var sub = S.getAttribute('data-subtitle') || 'Online';
+  var online = CFG.online !== false;
+  var away = CFG.away || '';
+  var hoursText = CFG.hours || '';
+  var sub = S.getAttribute('data-subtitle') || (online ? 'Online' : 'Away');
   var greeting = S.getAttribute('data-greeting') || 'Chat with us';
   var logo = CFG.logo || '';
   var vid = null, sid = null, seq = 0, started = false, busy = false, ended = false, pollTimer = null, ding = null;
@@ -121,7 +126,7 @@ const WIDGET = `(function(){
   head.appendChild(avaHead());
   var htx = document.createElement('div'); htx.className = 'bcwc-htx';
   var nm = document.createElement('div'); nm.className = 'bcwc-name'; nm.textContent = name;
-  var sb = document.createElement('div'); sb.className = 'bcwc-sub'; var dot = document.createElement('span'); dot.className = 'bcwc-dot'; var sbt = document.createElement('span'); sbt.textContent = sub; sb.appendChild(dot); sb.appendChild(sbt);
+  var sb = document.createElement('div'); sb.className = 'bcwc-sub'; var dot = document.createElement('span'); dot.className = 'bcwc-dot'; if(!online){ dot.style.background = '#c2c9d2'; } var sbt = document.createElement('span'); sbt.textContent = sub; sb.appendChild(dot); sb.appendChild(sbt); if(!online && hoursText){ sb.title = 'Office hours: ' + hoursText; }
   htx.appendChild(nm); htx.appendChild(sb);
   var reBtn = document.createElement('button'); reBtn.className = 'bcwc-hbtn'; reBtn.setAttribute('aria-label', 'Start a new chat'); reBtn.innerHTML = REFRESH_ICON;
   var dnBtn = document.createElement('button'); dnBtn.className = 'bcwc-hbtn'; dnBtn.setAttribute('aria-label', 'Minimise'); dnBtn.innerHTML = DOWN_ICON;
@@ -166,7 +171,7 @@ const WIDGET = `(function(){
   function render(m){ if(!m){ return; } if(m.text){ botBubble(m.text); } if((m.kind === 'buttons' || m.kind === 'list') && m.options && m.options.length){ chips(m.options); } }
 
   function setBusy(v){ busy = v; send.disabled = v; input.disabled = v || ended; }
-  function endChat(status){ ended = true; stopPoll(); input.disabled = true; send.disabled = true; note(status === 'handoff' ? 'A team member will get back to you.' : 'Chat ended.'); saveSid(); }
+  function endChat(status){ ended = true; stopPoll(); input.disabled = true; send.disabled = true; note(status === 'handoff' ? (online ? 'A team member will get back to you.' : (away || 'Our team will reply during office hours.')) : 'Chat ended.'); saveSid(); }
 
   function turn(payload){ if(busy){ return; } setBusy(true); showTyping();
     var data = { visitorId: vid }; if(sid){ data.sessionId = sid; } if(payload){ for(var k in payload){ data[k] = payload[k]; } }
@@ -195,7 +200,7 @@ const WIDGET = `(function(){
     if(code === 'NOT_FOUND' || code === 'FORBIDDEN'){ btn.style.display = 'none'; panel.className = 'bcwc-panel'; return; }
     note((res.j && res.j.error && res.j.error.message) || 'Chat is unavailable right now.'); }
 
-  function begin(){ if(started){ return; } started = true; turn(null); }
+  function begin(){ if(started){ return; } started = true; if(!online && away){ note(away + (hoursText ? ' (' + hoursText + ')' : '')); } turn(null); }
   // after a page refresh: rebuild the saved conversation and continue it (no new chat is created)
   function resume(){ if(started){ return; } started = true; setBusy(true); showTyping();
     fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: sid, visitorId: vid, history: true }) })
@@ -240,10 +245,19 @@ const WIDGET = `(function(){
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = String((await params).slug || '').toLowerCase();
-  let cfg = { name: '', logo: '' };
+  let cfg: { name: string; logo: string; online: boolean; away: string; hours: string } = { name: '', logo: '', online: true, away: '', hours: '' };
   try {
     const t = await getTenantBySlug(slug);
-    if (t && t.status === 'Active') cfg = { name: t.name || '', logo: t.logo || '' };
+    if (t && t.status === 'Active') {
+      cfg.name = t.name || '';
+      cfg.logo = t.logo || '';
+      await runWithTenant(t, async () => {
+        const oh = await getWebchatOfficeHours();
+        cfg.online = officeOpen(oh);
+        cfg.away = oh.enabled ? oh.away : '';
+        cfg.hours = officeHoursText(oh);
+      });
+    }
   } catch { /* unknown company: the widget still loads and hides if no bot answers */ }
   const js = WIDGET.replace('__CFG__', () => JSON.stringify(cfg));
   return new Response(js, {

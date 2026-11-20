@@ -1,7 +1,7 @@
 /** WhatsApp chatbots (plan feature whatsappBots; server: modules/whatsappBots.ts): build from blocks, try it in a test chat, start it, see how it does. */
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, CalendarCheck, CheckCircle2, Clock, Copy, Facebook, Globe, HelpCircle, Instagram, MessageSquare, Pause, Pencil, Play, Plus, Search, Send, Star, Trash2, Upload, UserRound } from 'lucide-react';
-import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview } from '../../core/api';
+import { api, type BotOutgoing, type BotSimResult, type BotStepView, type BotView, type BotsOverview, type OfficeHours } from '../../core/api';
 import { BOT_CHANNELS, BOT_CHANNEL_LABEL, type BotChannel } from '../../core/botEngine';
 import { WhatsAppIcon } from '../../components/WhatsAppIcon';
 import { reportError, toAppError } from '../../core/errors';
@@ -181,6 +181,55 @@ const Info: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   </div>
 );
 
+const OH_DAYS: Array<{ id: number; label: string }> = [{ id: 1, label: 'Mon' }, { id: 2, label: 'Tue' }, { id: 3, label: 'Wed' }, { id: 4, label: 'Thu' }, { id: 5, label: 'Fri' }, { id: 6, label: 'Sat' }, { id: 0, label: 'Sun' }];
+const OH_HOURS = Array.from({ length: 24 }, (_, h) => h);
+const ohLabel = (h: number) => (h === 24 ? '12 AM' : `${(h % 12) || 12} ${h < 12 ? 'AM' : 'PM'}`);
+
+/** Website chat office hours: when closed, the widget shows "Away" and greets with the away message. */
+const OfficeHoursModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [oh, setOh] = useState<OfficeHours | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { api.botChats.officeHours().then(setOh).catch((e) => toast('Could not load', errText('bots.officeHours', e), 'alert')); }, []);
+  const set = (patch: Partial<OfficeHours>) => setOh((o) => (o ? { ...o, ...patch } : o));
+  const toggleDay = (d: number) => setOh((o) => (o ? { ...o, days: o.days.includes(d) ? o.days.filter((x) => x !== d) : [...o.days, d].sort((a, b) => a - b) } : o));
+  const save = async () => {
+    if (!oh) return;
+    if (oh.enabled && (!oh.days.length || oh.to <= oh.from)) { toast('Check office hours', 'Pick at least one day and a closing time after the opening time.', 'alert'); return; }
+    setSaving(true);
+    try { setOh(await api.botChats.saveOfficeHours(oh)); toast('Office hours saved', oh.enabled ? 'The website chat shows “Away” outside these hours.' : 'Office hours are off — the chat always shows “Online”.', 'success'); onClose(); }
+    catch (e) { toast('Not saved', errText('bots.saveOfficeHours', e), 'alert'); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Modal open onClose={onClose} title="Website chat office hours" subtitle="When you're closed, the website chat shows “Away” and greets visitors with your away message. WhatsApp and other channels are not affected." footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" loading={saving} disabled={!oh} onClick={() => void save()}>Save</Button></>}>
+      {!oh ? <LoadingState label="Loading…" /> : (
+        <div className="space-y-4">
+          <label className="flex items-center gap-2.5 text-sm font-semibold text-[#0B2A44]">
+            <input type="checkbox" checked={oh.enabled} onChange={(e) => set({ enabled: e.target.checked })} className="h-4 w-4 rounded border-[#C4D6E6] text-[#0B6BB0]" />
+            Turn on office hours
+          </label>
+          <div className={cx('space-y-4', !oh.enabled && 'pointer-events-none opacity-50')}>
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#8296A6]">Open on</p>
+              <div className="flex flex-wrap gap-1.5">
+                {OH_DAYS.map((d) => <button key={d.id} type="button" onClick={() => toggleDay(d.id)} className={cx('rounded-lg border px-3 py-1.5 text-[13px] font-semibold', oh.days.includes(d.id) ? 'border-[#0B6BB0] bg-[#E8F2FB] text-[#0B2A44]' : 'border-[#D3E3F0] bg-white text-[#5E778C]')}>{d.label}</button>)}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-xs font-semibold text-[#5E778C]">Open from<Select className="mt-1 w-[110px]" value={String(oh.from)} onChange={(e) => set({ from: Number(e.target.value) })} options={OH_HOURS.map((h) => ({ value: String(h), label: ohLabel(h) }))} /></label>
+              <label className="text-xs font-semibold text-[#5E778C]">Until<Select className="mt-1 w-[110px]" value={String(oh.to)} onChange={(e) => set({ to: Number(e.target.value) })} options={OH_HOURS.concat([24]).filter((h) => h > 0).map((h) => ({ value: String(h), label: ohLabel(h) }))} /></label>
+              <span className="pb-2 text-[11px] text-[#8296A6]">India time (IST)</span>
+            </div>
+            <label className="block text-xs font-semibold text-[#5E778C]">Away message
+              <textarea className={cx(inputCls, 'mt-1 w-full resize-y')} rows={3} maxLength={300} value={oh.away} onChange={(e) => set({ away: e.target.value })} placeholder="Thanks for your message! We're away right now — leave your name and number and we'll get back during office hours." />
+            </label>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 export const ChatbotsView: React.FC = () => {
   const [data, setData] = useState<BotsOverview | null>(null);
   const [failed, setFailed] = useState('');
@@ -194,6 +243,7 @@ export const ChatbotsView: React.FC = () => {
   const [page, setPage] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  const [officeHoursOpen, setOfficeHoursOpen] = useState(false);
   const copyId = (id: string) => { navigator.clipboard?.writeText(id).then(() => toast('Copied', 'Bot ID copied', 'success')).catch(() => undefined); };
   const doImport = () => {
     try {
@@ -266,6 +316,7 @@ export const ChatbotsView: React.FC = () => {
           </label>
           <Select value={filter} onChange={(e) => { setFilter(e.target.value as typeof filter); setPage(0); }} aria-label="Filter by status" className="w-[120px]"
             options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
+          <Button variant="secondary" icon={<Clock size={14} />} onClick={() => setOfficeHoursOpen(true)}>Office hours</Button>
           <Button variant="secondary" icon={<Upload size={14} />} onClick={() => setJson({ mode: 'import', text: '' })}>Import JSON</Button>
           <Button variant="primary" icon={<Plus size={14} />} onClick={() => setChoosing(true)}>New bot</Button>
         </div>
@@ -384,6 +435,7 @@ export const ChatbotsView: React.FC = () => {
         <textarea className={`${inputCls} font-mono text-[12px]`} rows={14} readOnly={json?.mode === 'export'} value={json?.text || ''} onChange={(e) => setJson((j) => (j ? { ...j, text: e.target.value } : j))} onFocus={(e) => { if (json?.mode === 'export') e.currentTarget.select(); }} placeholder={'{\n  "name": "My bot",\n  "trigger": "new",\n  "channels": ["website"],\n  "knowledge": "",\n  "steps": [ ... ]\n}'} />
       </Modal>
       <ConfirmDialog open={!!removing} danger title="Delete this chatbot?" message={`“${removing?.name}” will be deleted. Chats it already had stay in WhatsApp.`} confirmLabel="Delete" loading={busy === 'remove'} onConfirm={() => void remove()} onCancel={() => setRemoving(null)} />
+      {officeHoursOpen && <OfficeHoursModal onClose={() => setOfficeHoursOpen(false)} />}
     </div>
   );
 };
