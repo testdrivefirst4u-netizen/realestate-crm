@@ -3,14 +3,14 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, Gauge, ClipboardList, type LucideIcon,
+  Inbox, Send, Megaphone, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, Gauge, ClipboardList, type LucideIcon,
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
 import { useCompany, useTenantSettings } from '../core/tenant';
-import { type ViewId, VIEW_TITLES, viewAllowed, viewHref, viewTitle } from '../core/views';
+import { type ViewId, VIEW_TITLES, DEFAULT_VIEW, viewAllowed, viewHref, viewTitle } from '../core/views';
 import { formatRelative } from '../core/dates';
 import { Permission, roleLabel } from '../core/rbac';
 
@@ -56,7 +56,6 @@ interface Group { id: string; label: string; items: Item[] }
 function buildGroups(counts: SidebarCounts, direct = false): Group[] {
   return [
     { id: 'overview', label: 'Overview', items: [
-      { id: 'today', label: 'Today', icon: Sun },
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'mis', label: 'Sales MIS', icon: ChartColumn },
       { id: 'performance', label: 'YTD / MTD', icon: TrendingUp }, { id: 'reports', label: 'Reports', icon: FileChartColumn }, { id: 'clientreport', label: 'Client Report', icon: ClipboardList },
       { id: 'analytics', label: 'Website Analytics', icon: Globe2 }, { id: 'searchconsole', label: 'Search Console', icon: SearchCheck },
@@ -152,7 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       {/* company — the logo alone identifies the company (name/tagline hidden); large and centred when expanded */}
       <div className={`relative flex items-center ${narrow ? 'justify-center pt-5 pb-4' : 'gap-2 px-4 pt-5 pb-4'}`}>
         <Link
-          href={viewHref('today')}
+          href={viewHref(DEFAULT_VIEW)}
           prefetch={false}
           onClick={go}
           className={`rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36B3F2] ${narrow ? 'shrink-0' : 'flex-1 min-w-0 flex justify-center'}`}
