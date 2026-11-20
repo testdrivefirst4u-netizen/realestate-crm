@@ -382,6 +382,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
               sync={sync}
               unreadCount={unreadCount}
               onToggleNotificationDrawer={() => setIsNotificationDrawerOpen(!isNotificationDrawerOpen)}
+              onLogout={handleLogout}
               onToggleSidebarMobile={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
               currentUser={currentUser}
               can={engine.can}

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Search, BookOpen, Plus, Bell, RefreshCw, Sparkles, FileSpreadsheet, Users, MessageSquareQuote, CheckSquare, StickyNote, ListChecks, Building2, FileText, Layers, UserCircle2, ArrowRight } from 'lucide-react';
 import { Lead, SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
+import { Avatar } from './Avatar';
+import { AccountPanel } from './AccountPanel';
 import { globalSearch, highlightParts, queryTerms, type SearchData, type SearchGroup, type SearchHit, type SearchKind } from '../core/globalSearch';
 import { Permission } from '../core/rbac';
 import { useCompany, useFeature } from '../core/tenant';
@@ -25,8 +27,10 @@ interface TopbarProps {
   onToggleNotificationDrawer: () => void;
   /** @deprecated Phones open the menu from the bottom tab bar's "More"; still accepted so callers compile. */
   onToggleSidebarMobile?: () => void;
-  /** @deprecated The avatar moved to the sidebar; still accepted so callers compile. */
+  /** Signed-in user, for the account panel opened from the top-bar avatar. */
   currentUser?: UserAccount | null;
+  /** Sign the user out (from the account panel). */
+  onLogout?: () => void;
   can: (p: Permission) => boolean;
   aiEnabled: boolean;
   /** Everything else the global search looks through (leads come from `leads`). */
@@ -53,7 +57,8 @@ const Marked: React.FC<{ text: string; terms: string[] }> = ({ text, terms }) =>
 let pagesBack = 0;
 let lastPath = '';
 
-export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, onSyncNow, sync, unreadCount, onToggleNotificationDrawer, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll, phoneSlot }) => {
+export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, onOpenAddLead, onOpenLibrary, onOpenChatbot, onOpenCsvModal, onSyncNow, sync, unreadCount, onToggleNotificationDrawer, currentUser, onLogout, can, aiEnabled, searchData, onSearchSelect, onSearchShowAll, phoneSlot }) => {
+  const [accountOpen, setAccountOpen] = useState(false);
   const company = useCompany();
   const router = useRouter();
   const creditsFeature = useFeature('whatsappCredits');
@@ -213,13 +218,12 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
           <Bell size={18} />
           {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF8A65] text-[#3A1205] text-[10px] font-extrabold flex items-center justify-center">{unreadCount > 9 ? '9+' : unreadCount}</span>}
         </button>
-        {/* New Enquiry: here on larger screens; on phones it is on the Leads screen */}
-        {can('leads.create') && (
-          <button onClick={onOpenAddLead} className="hidden lg:inline-flex items-center gap-2 px-4 h-11 rounded-xl bg-[#36B3F2] text-[#04263D] text-[13.5px] font-extrabold hover:brightness-105" title="New Enquiry">
-            <Plus size={17} strokeWidth={2.6} /><span>New Enquiry</span>
-          </button>
-        )}
+        {/* Account: the avatar opens the account panel */}
+        <button type="button" onClick={() => setAccountOpen(true)} className="ml-0.5 flex-none rounded-full ring-2 ring-[#D3E3F0] transition hover:ring-[#36B3F2]" title={currentUser ? `${currentUser.name} — account` : 'Account'} aria-label="Account" aria-haspopup="dialog">
+          <Avatar user={currentUser} size="md" />
+        </button>
       </div>
+      {onLogout && <AccountPanel open={accountOpen} onClose={() => setAccountOpen(false)} user={currentUser} onLogout={onLogout} />}
     </header>
   );
 };
