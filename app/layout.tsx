@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { RouteLoader } from '@/src/components/RouteLoader';
+import { getPageSession } from '@/server/core/pageSession';
 
 const title = 'CRM';
 const description = 'Sales CRM for real-estate teams';
@@ -20,7 +21,10 @@ export const viewport: Viewport = {
   themeColor: '#0A1F33',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Tell the brand loader the company's sector before it runs, so it shows the right "<Sector> CRM" label on the very
+  // first load (not a reload later). Null for public / signed-out pages, where the loader falls back to localStorage.
+  const sector = (await getPageSession().catch(() => null))?.settings?.company?.sector || '';
   return (
     <html lang="en-GB">
       <head>
@@ -34,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         {/* BroaddCast loader: on every full page load (runs before the page paints and adds its own element,
             outside React's tree) and, faster, on every move to another page (RouteLoader). */}
+        {sector && <script dangerouslySetInnerHTML={{ __html: `window.bcSector=${JSON.stringify(sector)}` }} />}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script src="/brand-loader.js" />
         <RouteLoader />

@@ -14,7 +14,10 @@
   // reads the sector the CRM last saved (localStorage 'bcSector'); unknown / first load shows "Real Estate CRM".
   var SECTOR_LABEL = { realestate: 'Real Estate CRM', automobile: 'Automobile CRM', healthcare: 'Healthcare CRM', education: 'Education CRM', hospitality: 'Hospitality CRM', retail: 'Retail CRM', finance: 'Finance CRM', other: 'Business CRM' };
   var LABEL_CSS = "#bc-loader .bc-sector{position:absolute;left:0;right:0;top:50%;transform:translateY(92px);text-align:center;padding:0 16px;opacity:0;animation:bcSecIn .5s ease .55s forwards;pointer-events:none}#bc-loader .bc-sector b{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:700;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#2646C6}@keyframes bcSecIn{to{opacity:1}}@media (prefers-reduced-motion:reduce){#bc-loader .bc-sector{animation:none;opacity:1}}";
-  var sectorKey = ''; try { sectorKey = (localStorage.getItem('bcSector') || '').trim().toLowerCase(); } catch (e) {}
+  // The page injects window.bcSector server-side (correct on the first load); localStorage is the fallback for navigations.
+  var sectorKey = '';
+  try { sectorKey = String(window.bcSector || '').trim().toLowerCase(); } catch (e) {}
+  if (!sectorKey) { try { sectorKey = (localStorage.getItem('bcSector') || '').trim().toLowerCase(); } catch (e) {} }
   var SLABEL = SECTOR_LABEL[sectorKey] || 'Real Estate CRM';
 
   // Customer-facing and public pages keep their own look.
