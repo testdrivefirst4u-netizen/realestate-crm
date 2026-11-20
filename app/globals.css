@@ -3,6 +3,11 @@
 /* The CRM screens live in src/ (outside app/): scan them explicitly for utility classes. */
 @source "../src";
 
+/* Appearance: Day/Night/Auto sets data-theme on <html>; `dark:` utilities key off it. Dark styling is being rolled
+   out screen by screen behind this variant and the [data-theme="dark"] selector. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+:root[data-theme="dark"] { color-scheme: dark; }
+
 /* Jost is loaded once from the root layout (<link> in app/layout.tsx). */
 @theme {
   --font-sans: 'Jost', ui-sans-serif, system-ui, sans-serif;

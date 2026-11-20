@@ -36,6 +36,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) add attributes to <body> before React hydrates. */}
       <body suppressHydrationWarning>
+        {/* Appearance mode before first paint (no flash): Day / Night / Auto, saved per device. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var m=localStorage.getItem('bcUiMode');var d=m==='night'||(m==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light');}catch(e){}})();` }} />
         {/* BroaddCast loader: on every full page load (runs before the page paints and adds its own element,
             outside React's tree) and, faster, on every move to another page (RouteLoader). */}
         {sector && <script dangerouslySetInnerHTML={{ __html: `window.bcSector=${JSON.stringify(sector)}` }} />}
