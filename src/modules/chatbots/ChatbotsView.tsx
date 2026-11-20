@@ -196,12 +196,12 @@ const OfficeHoursModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     if (!oh) return;
     if (oh.enabled && (!oh.days.length || oh.to <= oh.from)) { toast('Check office hours', 'Pick at least one day and a closing time after the opening time.', 'alert'); return; }
     setSaving(true);
-    try { setOh(await api.botChats.saveOfficeHours(oh)); toast('Office hours saved', oh.enabled ? 'The website chat shows “Away” outside these hours.' : 'Office hours are off — the chat always shows “Online”.', 'success'); onClose(); }
+    try { setOh(await api.botChats.saveOfficeHours(oh)); toast('Office hours saved', oh.enabled ? 'Outside these hours the website and WhatsApp bots send your away message.' : 'Office hours are off — the chat always shows “Online”.', 'success'); onClose(); }
     catch (e) { toast('Not saved', errText('bots.saveOfficeHours', e), 'alert'); }
     finally { setSaving(false); }
   };
   return (
-    <Modal open onClose={onClose} title="Website chat office hours" subtitle="When you're closed, the website chat shows “Away” and greets visitors with your away message. WhatsApp and other channels are not affected." footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" loading={saving} disabled={!oh} onClick={() => void save()}>Save</Button></>}>
+    <Modal open onClose={onClose} title="Chat office hours" subtitle="Outside these hours the website chat shows “Away”, and both the website and WhatsApp bots greet people with your away message so they know when you'll reply." footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" loading={saving} disabled={!oh} onClick={() => void save()}>Save</Button></>}>
       {!oh ? <LoadingState label="Loading…" /> : (
         <div className="space-y-4">
           <label className="flex items-center gap-2.5 text-sm font-semibold text-[#0B2A44]">

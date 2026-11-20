@@ -20,6 +20,7 @@ import { activeBotFilter, assignAvailableAgent, mergeKnowledge } from './botRunt
 import { appendRemark, getLead, updateLead, type UiLead } from './leads';
 import { idsByName, sendPush } from './push';
 import { BOT_CHANNELS, MAX_STEPS, SAVE_TO, STOP_WORDS, botProblems, replyToChat, startChat, type BotChannel, type BotDefinition, type BotStep, type ChatState, type ChatStatus, type Effect, type Outgoing, type StepContext, type StepResult, sameFlow } from './whatsappBotEngine';
+import { getWebchatOfficeHours, officeHoursText, officeOpen } from './webchat';
 import { isConnected, sendDirect } from './whatsappDirect';
 
 const L = CFG.LEAD;
@@ -315,7 +316,16 @@ export async function onCustomerMessage(i: { phone: string; messageId: string; t
         state: { stepId: '', phase: '', day: '', retries: 0, aiReplies: 0, sent: 0, vars }, status: 'active', endReason: '', visits: 0, answers: 0, startedAt: now, lastAt: now,
       };
       await sessions.insertOne(session);
-      await advance(session, startChat({ steps: bot.steps }, await engineContext(kn, now, company), vars), now);
+      const start = startChat({ steps: bot.steps }, await engineContext(kn, now, company), vars);
+      // outside office hours: lead the new chat with the away message so the customer knows we'll reply during hours
+      try {
+        const oh = await getWebchatOfficeHours();
+        if (!officeOpen(oh, now) && oh.away) {
+          const hrs = officeHoursText(oh);
+          start.out = [{ kind: 'text', text: oh.away + (hrs ? `\n\n\u{1F552} ${hrs}` : '') } as Outgoing, ...start.out];
+        }
+      } catch { /* office hours are best-effort; never block the bot */ }
+      await advance(session, start, now);
     }, now);
   } catch (e: any) {
     await logError('whatsappBot', e?.code || 'INTERNAL', e?.message, e?.stack, 'webhook', { phone: phoneKey });
