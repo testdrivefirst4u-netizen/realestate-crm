@@ -71,6 +71,7 @@ export const TillDateTab: React.FC<Props> = ({ leads, tasks, rm, index, onOpenLe
         {trendRecent.length > 0 && <TrendBars series={trendRecent} />}
         <div className="mt-4 -mx-5 border-t border-[#E6EFF6]">
           <DataTable<MonthPoint>
+            variant="bold"
             dense
             rows={trendDesc.slice(0, trendVisible)}
             keyFn={(p) => p.key}

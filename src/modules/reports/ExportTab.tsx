@@ -131,6 +131,7 @@ export const ExportTab: React.FC<Props> = ({ leads, config, rm, onRmChange, onOp
 
       <Card title="Preview" subtitle={filtered.length > PREVIEW_ROWS ? `First ${PREVIEW_ROWS} of ${formatNumber(filtered.length)} leads — the CSV contains all of them` : `${formatNumber(filtered.length)} lead${filtered.length === 1 ? '' : 's'}`} padded={false} actions={<Button variant="secondary" size="xs" onClick={download} disabled={!filtered.length} icon={<Download size={12} />}>CSV</Button>}>
         <DataTable<Lead>
+          variant="bold"
           dense
           rows={filtered.slice(0, PREVIEW_ROWS)}
           keyFn={(l) => l[F.ID]}

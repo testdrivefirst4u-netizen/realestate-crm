@@ -57,6 +57,7 @@ export const CompareTab: React.FC<Props> = ({ leads, tasks, rm, months, defaultP
         padded={false}
       >
         <DataTable<ComparisonRow>
+          variant="bold"
           rows={cmp.rows}
           keyFn={(r) => r.metric}
           columns={[
@@ -94,6 +95,7 @@ export const CompareTab: React.FC<Props> = ({ leads, tasks, rm, months, defaultP
 
 const MiniSourceTable: React.FC<{ rows: Breakdown[] }> = ({ rows }) => (
   <DataTable<Breakdown>
+    variant="bold"
     dense
     rows={rows}
     keyFn={(r) => r.key}
@@ -110,6 +112,7 @@ const MiniSourceTable: React.FC<{ rows: Breakdown[] }> = ({ rows }) => (
 
 const MiniRMTable: React.FC<{ rows: RMPerformance[] }> = ({ rows }) => (
   <DataTable<RMPerformance>
+    variant="bold"
     dense
     rows={rows}
     keyFn={(r) => r.rm}

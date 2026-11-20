@@ -185,6 +185,7 @@ export const MonthSelect: React.FC<{ value: string; onChange: (key: string) => v
 
 export const SourceTable: React.FC<{ rows: Breakdown[]; dense?: boolean; onRowClick?: (r: Breakdown) => void }> = ({ rows, dense = true, onRowClick }) => (
   <DataTable<Breakdown>
+    variant="bold"
     dense={dense}
     rows={rows}
     keyFn={(r) => r.key}
@@ -205,6 +206,7 @@ const slaCls = (v: number | null) => (v === null ? 'bg-[#E6EFF6] text-[#5E778C]'
 
 export const RMTable: React.FC<{ rows: RMPerformance[]; dense?: boolean }> = ({ rows, dense = true }) => (
   <DataTable<RMPerformance>
+    variant="bold"
     dense={dense}
     rows={rows}
     keyFn={(r) => r.rm}

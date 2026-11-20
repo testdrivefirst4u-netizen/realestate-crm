@@ -392,6 +392,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ inventory, leads, 
           {/* Table */}
           <Card padded={false} className="overflow-hidden">
             <DataTable<InventoryUnit>
+              variant="bold"
               columns={columns}
               rows={filtered.slice(0, visible)}
               keyFn={(u, i) => unitKey(u) || String(i)}
