@@ -146,6 +146,10 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
   const features = useMemo(() => resolveFeatures(serverSettings), [serverSettings]);
   const on = useCallback((name: FeatureName) => hasFeature(serverSettings, name), [serverSettings]);
   const companyName = companyOf(serverSettings)?.name || '';
+  const companySector = companyOf(serverSettings)?.sector || 'realestate';
+  // remember the sector so the brand loader (public/brand-loader.js) can theme itself on the next load — it runs
+  // before React knows which tenant this is, so it reads this value from localStorage.
+  useEffect(() => { try { localStorage.setItem('bcSector', companySector); } catch { /* storage blocked */ } }, [companySector]);
   const aiOn = on('aiCopilot');
   const aiConfigured = !!data.settings.aiConfigured && aiOn;
   const libraryOn = on('projectLibrary');
