@@ -595,17 +595,20 @@ export const Bar: React.FC<{ value: number; max: number; color?: string; classNa
 
 /* ----------------------------- Simple table ----------------------------- */
 
-export function DataTable<T>({ columns, rows, keyFn, onRowClick, empty, dense }: {
+export function DataTable<T>({ columns, rows, keyFn, onRowClick, empty, dense, variant = 'default' }: {
   columns: Array<{ key: string; label: React.ReactNode; render?: (row: T) => React.ReactNode; align?: 'left' | 'right' | 'center'; className?: string; onSort?: () => void; sortIndicator?: React.ReactNode }>;
   rows: T[]; keyFn: (row: T, i: number) => string; onRowClick?: (row: T) => void; empty?: React.ReactNode; dense?: boolean;
+  /** 'bold' = gradient header + white text + zebra rows (opt-in, e.g. the Leads table). */
+  variant?: 'default' | 'bold';
 }) {
+  const bold = variant === 'bold';
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse text-xs">
         <thead>
-          <tr className="bg-[#E6EFF6] border-b border-[#D3E3F0] text-[#5E778C] uppercase font-bold tracking-wider text-[10px]">
+          <tr className={cx('uppercase text-[10px]', bold ? 'bg-gradient-to-r from-[#0B4E85] to-[#0B6BB0] text-white font-semibold tracking-wide' : 'bg-[#E6EFF6] border-b border-[#D3E3F0] text-[#5E778C] font-bold tracking-wider')}>
             {columns.map((c) => (
-              <th key={c.key} onClick={c.onSort} className={cx(dense ? 'p-2.5' : 'p-3.5', c.onSort && 'cursor-pointer hover:text-[#0B2A44] select-none', c.align === 'right' && 'text-right', c.align === 'center' && 'text-center', c.className)}>
+              <th key={c.key} onClick={c.onSort} className={cx(dense ? 'p-2.5' : 'p-3.5', c.onSort && cx('cursor-pointer select-none', bold ? 'hover:text-white/80' : 'hover:text-[#0B2A44]'), c.align === 'right' && 'text-right', c.align === 'center' && 'text-center', c.className)}>
                 <span className="inline-flex items-center gap-1">{c.label}{c.sortIndicator}</span>
               </th>
             ))}
@@ -615,7 +618,7 @@ export function DataTable<T>({ columns, rows, keyFn, onRowClick, empty, dense }:
           {rows.length === 0 ? (
             <tr><td colSpan={columns.length} className="p-6 text-center text-[#7E93A6]">{empty || 'No records'}</td></tr>
           ) : rows.map((r, i) => (
-            <tr key={keyFn(r, i)} onClick={onRowClick ? () => onRowClick(r) : undefined} className={cx('transition', onRowClick && 'hover:bg-[#F2F7FB] cursor-pointer')}>
+            <tr key={keyFn(r, i)} onClick={onRowClick ? () => onRowClick(r) : undefined} className={cx('transition', bold && (i % 2 ? 'bg-[#FAFCFE]' : 'bg-white'), onRowClick && 'hover:bg-[#F2F7FB] cursor-pointer')}>
               {columns.map((c) => (
                 <td key={c.key} className={cx(dense ? 'p-2.5' : 'p-3.5', 'text-[#0F2233] align-top', c.align === 'right' && 'text-right', c.align === 'center' && 'text-center', c.className)}>
                   {c.render ? c.render(r) : String((r as any)[c.key] ?? '')}

@@ -46,10 +46,10 @@ export function BillingClient() {
 
   const tiles = d
     ? [
-        { label: 'Monthly recurring revenue', value: fmtPrice(d.mrr, d.currency), hint: `${d.payingCompanies} paying compan${d.payingCompanies === 1 ? 'y' : 'ies'}` },
-        { label: 'Due in 30 days', value: fmtPrice(d.dueNext30, d.currency), hint: `${d.renewalsNext30} renewal${d.renewalsNext30 === 1 ? '' : 's'} coming up` },
-        { label: 'Overdue', value: fmtPrice(d.overdue, d.currency), hint: d.overdueCount ? `${d.overdueCount} invoice${d.overdueCount === 1 ? '' : 's'}` : 'Nothing outstanding', bad: d.overdueCount > 0 },
-        { label: 'Trials ending', value: String(d.trialsEnding), hint: 'in the next 14 days' },
+        { label: 'Monthly recurring revenue', value: fmtPrice(d.mrr, d.currency), hint: `${d.payingCompanies} paying compan${d.payingCompanies === 1 ? 'y' : 'ies'}`, accent: '#16A34A' },
+        { label: 'Due in 30 days', value: fmtPrice(d.dueNext30, d.currency), hint: `${d.renewalsNext30} renewal${d.renewalsNext30 === 1 ? '' : 's'} coming up`, accent: '#2563EB' },
+        { label: 'Overdue', value: fmtPrice(d.overdue, d.currency), hint: d.overdueCount ? `${d.overdueCount} invoice${d.overdueCount === 1 ? '' : 's'}` : 'Nothing outstanding', bad: d.overdueCount > 0, accent: '#E11D48' },
+        { label: 'Trials ending', value: String(d.trialsEnding), hint: 'in the next 14 days', accent: '#B45309' },
       ]
     : [];
 
@@ -64,11 +64,12 @@ export function BillingClient() {
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(d ? tiles : [0, 1, 2, 3].map(() => null)).map((t, i) => (
-          <Card key={i} className="p-4">
+          <Card key={i} className="relative overflow-hidden p-4 pl-5">
+            {t && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] rounded-r" style={{ background: t.bad ? '#E11D48' : t.accent }} />}
             {t ? (
               <>
-                <div className="text-[13px] text-[#5E778C]">{t.label}</div>
-                <div className={cx('mt-1 text-[1.6rem] font-semibold tabular-nums', t.bad ? 'text-[#B42318]' : 'text-[#0A1F33]')}>{t.value}</div>
+                <div className="text-[12px] font-medium uppercase tracking-wide text-[#7E93A6]">{t.label}</div>
+                <div className={cx('mt-1 text-[1.6rem] font-bold tabular-nums', t.bad ? 'text-[#B42318]' : 'text-[#0A1F33]')}>{t.value}</div>
                 <div className="text-[12px] text-[#5E778C]">{t.hint}</div>
               </>
             ) : <div className="h-[72px]" />}

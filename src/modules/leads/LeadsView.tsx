@@ -531,6 +531,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
       {/* Table (tablets and up) */}
       <div className="hidden md:block bg-white rounded-2xl border border-[#D3E3F0] shadow-xs overflow-hidden">
         <DataTable<Lead>
+          variant="bold"
           columns={columns}
           rows={visible}
           keyFn={(l) => String(l[F.ID])}

@@ -10,17 +10,22 @@ const rupees = (n: number) => (n < 0 ? '-' : '') + '₹' + Math.abs(n).toLocaleS
 const TYPE_LABEL: Record<string, string> = { marketing: 'Marketing', utility: 'Utility', authentication: 'Authentication', service: 'Replies' };
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const dayName = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-const th = 'px-3 py-2 text-right text-[11px] font-semibold text-[#5E778C] whitespace-nowrap border-b border-[#D3E3F0]';
 const td = 'px-3 py-2 text-right text-xs tabular-nums whitespace-nowrap border-b border-[#EEF4F9] text-[#0B2A44]';
 const first = '!text-left !whitespace-normal';
+const thHdr = 'px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-white whitespace-nowrap';
+const hdrRow = 'bg-gradient-to-r from-[#0B4E85] to-[#0B6BB0]';
 
-const Tile: React.FC<{ label: string; value: string; hint?: string; tone?: 'warn' | 'bad' }> = ({ label, value, hint, tone }) => (
-  <div className="rounded-xl border border-[#D3E3F0] bg-white px-4 py-3">
-    <p className="text-[11px] text-[#5E778C]">{label}</p>
-    <p className={cx('text-xl font-bold tabular-nums', tone === 'bad' ? 'text-[#B42318]' : tone === 'warn' ? 'text-[#B54708]' : 'text-[#0B2A44]')}>{value}</p>
-    {hint && <p className="text-[11px] text-[#5E778C]">{hint}</p>}
-  </div>
-);
+const Tile: React.FC<{ label: string; value: string; hint?: string; tone?: 'warn' | 'bad'; accent?: string }> = ({ label, value, hint, tone, accent = '#0B6BB0' }) => {
+  const bar = tone === 'bad' ? '#E11D48' : tone === 'warn' ? '#F59E0B' : accent;
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-[#E3EDF5] bg-white py-3 pl-4 pr-4 shadow-[0_1px_2px_rgba(11,42,68,.05)]">
+      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] rounded-r" style={{ background: bar }} />
+      <p className="text-[11px] font-medium uppercase tracking-wide text-[#8296A6]">{label}</p>
+      <p className={cx('mt-0.5 text-xl font-bold tabular-nums', tone === 'bad' ? 'text-[#B42318]' : tone === 'warn' ? 'text-[#B54708]' : 'text-[#0B2A44]')}>{value}</p>
+      {hint && <p className="mt-0.5 text-[11px] text-[#5E778C]">{hint}</p>}
+    </div>
+  );
+};
 
 /** Usage day by day: thin bars from one baseline, the exact figure on hover and in the statement below. */
 const DayBars: React.FC<{ days: WaCreditsOverview['byDay'] }> = ({ days }) => {
@@ -75,9 +80,9 @@ export const WhatsappCreditsView: React.FC = () => {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="Available" value={rupees(data.available)} hint={data.held > 0 ? `${rupees(data.held)} held for messages on their way` : undefined} tone={data.finished ? 'bad' : data.low ? 'warn' : undefined} />
-        <Tile label="Used today" value={rupees(data.usedToday)} />
-        <Tile label={`Used in ${monthName(data.month)}`} value={rupees(data.usedMonth)} />
-        <Tile label={`Added in ${monthName(data.month)}`} value={rupees(data.addedMonth)} />
+        <Tile label="Used today" value={rupees(data.usedToday)} accent="#2563EB" />
+        <Tile label={`Used in ${monthName(data.month)}`} value={rupees(data.usedMonth)} accent="#B45309" />
+        <Tile label={`Added in ${monthName(data.month)}`} value={rupees(data.addedMonth)} accent="#16A34A" />
       </div>
 
       {!data.statement.length ? <EmptyState icon={<Wallet size={22} />} title="Nothing this month yet" description="Credits added and messages sent will show here." /> : (
@@ -85,22 +90,22 @@ export const WhatsappCreditsView: React.FC = () => {
           <DayBars days={data.byDay} />
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title="By type of message">
-              <div className="overflow-x-auto"><table className="w-full border-collapse">
-                <thead><tr><th className={cx(th, first)}>Type</th><th className={th}>Rate</th><th className={th}>Messages</th><th className={th}>Free</th><th className={th}>Amount</th></tr></thead>
+              <div className="overflow-x-auto rounded-lg border border-[#E3EDF5]"><table className="w-full border-collapse">
+                <thead><tr className={hdrRow}><th className={cx(thHdr, first)}>Type</th><th className={thHdr}>Rate</th><th className={thHdr}>Messages</th><th className={thHdr}>Free</th><th className={thHdr}>Amount</th></tr></thead>
                 <tbody>{data.byType.map((r) => <tr key={r.key}><td className={cx(td, first)}>{TYPE_LABEL[r.key] || r.key}</td><td className={td}>₹{data.prices[r.key as keyof typeof data.prices] ?? '—'}</td><td className={td}>{r.messages.toLocaleString('en-IN')}</td><td className={td}>{r.free.toLocaleString('en-IN')}</td><td className={td}>{rupees(r.amount)}</td></tr>)}</tbody>
               </table></div>
               <p className="mt-2 text-[11px] text-[#5E778C]">Before GST. Free: WhatsApp's own free messages, like the first 1,000 replies a month.</p>
             </Card>
             <Card title="By template">
-              <div className="overflow-x-auto"><table className="w-full border-collapse">
-                <thead><tr><th className={cx(th, first)}>Template</th><th className={th}>Messages</th><th className={th}>Amount</th></tr></thead>
+              <div className="overflow-x-auto rounded-lg border border-[#E3EDF5]"><table className="w-full border-collapse">
+                <thead><tr className={hdrRow}><th className={cx(thHdr, first)}>Template</th><th className={thHdr}>Messages</th><th className={thHdr}>Amount</th></tr></thead>
                 <tbody>{data.byTemplate.map((r) => <tr key={r.key}><td className={cx(td, first, 'break-all')}>{r.key}</td><td className={td}>{r.messages.toLocaleString('en-IN')}</td><td className={td}>{rupees(r.amount)}</td></tr>)}</tbody>
               </table></div>
             </Card>
           </div>
           <Card title="Statement">
-            <div className="overflow-x-auto"><table className="w-full border-collapse">
-              <thead><tr><th className={cx(th, first)}>Date</th><th className={cx(th, first)}>Details</th><th className={th}>Added</th><th className={th}>Used</th><th className={th}>Balance</th></tr></thead>
+            <div className="overflow-x-auto rounded-lg border border-[#E3EDF5]"><table className="w-full border-collapse">
+              <thead><tr className={hdrRow}><th className={cx(thHdr, first)}>Date</th><th className={cx(thHdr, first)}>Details</th><th className={thHdr}>Added</th><th className={thHdr}>Used</th><th className={thHdr}>Balance</th></tr></thead>
               <tbody>{data.statement.map((r, i) => <tr key={i}><td className={cx(td, '!text-left')}>{dayName(r.date)}</td><td className={cx(td, first)}>{r.details}</td><td className={td}>{r.credit ? rupees(r.credit) : ''}</td><td className={td}>{r.used ? rupees(r.used) : ''}</td><td className={cx(td, 'font-semibold')}>{rupees(r.balance)}</td></tr>)}</tbody>
             </table></div>
           </Card>
