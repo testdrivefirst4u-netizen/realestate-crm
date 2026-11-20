@@ -198,11 +198,6 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, leads, onOpenLead, 
             <Sparkles size={16} className="text-[#36B3F2]" /><span className="hidden sm:inline">AI Copilot</span>
           </button>
         )}
-        {(can('leads.import') || can('leads.export')) && (
-          <button onClick={onOpenCsvModal} className="hidden md:inline-flex items-center gap-2 px-4 h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Bulk upload &amp; export (Excel / CSV)">
-            <FileSpreadsheet size={16} className="text-[#0B6BB0]" /><span>Import / Export</span>
-          </button>
-        )}
         {libraryEnabled && (
         <button onClick={onOpenLibrary} className="inline-flex flex-none items-center justify-center gap-2 w-10 sm:w-11 md:w-auto md:px-4 h-10 sm:h-11 rounded-xl text-[13.5px] font-bold border border-[#D3E3F0] bg-white text-[#0F2233] hover:bg-[#F2F7FB]" title="Project knowledge library" aria-label="Library">
           <BookOpen size={16} className="text-[#0B6BB0]" /><span className="hidden md:inline">Library</span>
