@@ -12,6 +12,7 @@ import React, { Suspense, createContext, lazy, useCallback, useContext, useEffec
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Sidebar } from '@/src/components/Sidebar';
 import { MobileTabBar } from '@/src/components/MobileTabBar';
+import { BottomBar } from '@/src/components/BottomBar';
 import { api } from '@/src/core/api';
 import { NotificationPrompt } from '@/src/components/NotificationPrompt';
 import { isViewOnly } from '@/src/core/rbac';
@@ -363,8 +364,6 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
             features={features}
             onLogout={handleLogout}
             counts={{ ...sidebarCounts, unreadChats }}
-            unreadCount={unreadCount}
-            onToggleNotifications={() => setIsNotificationDrawerOpen(!isNotificationDrawerOpen)}
           />
 
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -403,6 +402,7 @@ export function CrmShell({ init, children }: { init: CrmEngineInit; children: Re
                 {mounted ? children : <PageSkeleton variant={currentView ? VIEW_SKELETON[currentView] : undefined} />}
               </ErrorBoundary>
             </main>
+            <BottomBar currentView={currentView} can={engine.can} features={features} unreadChats={unreadChats} callsOn={callWindowOn} />
             <MobileTabBar
               currentView={currentView}
               showChats={showChats}

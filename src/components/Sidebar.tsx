@@ -3,14 +3,13 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, CheckSquare, Building2, Settings, ChevronLeft, ChevronRight, LogOut, X,
   ChartColumn, TrendingUp, FileChartColumn, SquareKanban, CalendarClock, ChartPie, PhoneCall, LayoutTemplate, FolderOpen, ShieldCheck,
-  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, Gauge, ClipboardList, Bell, HelpCircle, type LucideIcon,
+  Inbox, Send, Megaphone, Sun, Globe2, SearchCheck, Binoculars, Store, Droplets, Wallet, Bot, Rocket, MessagesSquare, Handshake, Gauge, ClipboardList, type LucideIcon,
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { SyncState, UserAccount } from '../types/crm';
 import { AppLogo } from './AppLogo';
 import { Avatar } from './Avatar';
 import { useCompany, useTenantSettings } from '../core/tenant';
-import { api } from '../core/api';
 import { type ViewId, VIEW_TITLES, viewAllowed, viewHref, viewTitle } from '../core/views';
 import { formatRelative } from '../core/dates';
 import { Permission, roleLabel } from '../core/rbac';
@@ -48,12 +47,7 @@ interface SidebarProps {
   unreadChats?: number;
   /** Unanswered social inbox conversations. */
   unreadSocial?: number;
-  /** Unread notifications (for the footer bell). */
-  unreadCount?: number;
-  /** Open / close the notifications drawer. */
-  onToggleNotifications?: () => void;
 }
-const HELP_URL = 'https://broaddcast.com';
 
 interface Item { id: ViewId; label: string; icon: LucideIcon | React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>; count?: number; urgent?: boolean }
 interface Group { id: string; label: string; items: Item[] }
@@ -88,7 +82,7 @@ function buildGroups(counts: SidebarCounts, direct = false): Group[] {
 
 const countText = (n: number) => (n > 999 ? '999+' : String(n));
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, counts = {}, unreadChats, unreadCount = 0, onToggleNotifications }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, isMobileOpen, onCloseMobile, sync, isOnline, currentUser, can, features, onLogout, counts = {}, unreadChats }) => {
   const company = useCompany();
   // a company on WhatsApp direct goes through Meta, not Chat360
   const direct = !!(useTenantSettings() as { whatsappDirect?: boolean } | null)?.whatsappDirect;
@@ -102,21 +96,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
   const openFlyout = () => { if (isCollapsed) setHovering(true); };
   const closeFlyout = () => setHovering(false);
   React.useEffect(() => { if (!isCollapsed) setHovering(false); }, [isCollapsed]);
-  // live-chat presence (agents only, when the company uses chat): a quick Online/Away toggle in the footer
-  const chatOn = can('chat.view') && (!!features.whatsappBots || !!features.socialInbox || !!features.chat360);
-  const [presence, setPresence] = React.useState<boolean | null>(null);
-  const [presBusy, setPresBusy] = React.useState(false);
-  React.useEffect(() => {
-    if (!chatOn) return;
-    let live = true;
-    api.botChats.presence().then((r) => { if (live) setPresence(!!r.available); }).catch(() => undefined);
-    return () => { live = false; };
-  }, [chatOn]);
-  const togglePresence = async () => {
-    if (presence == null || presBusy) return;
-    setPresBusy(true);
-    try { await api.botChats.setPresence(!presence); setPresence(!presence); } catch { /* leave as-is */ } finally { setPresBusy(false); }
-  };
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats }, direct)
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
@@ -203,31 +182,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       <div className={`relative border-t border-white/10 ${narrow ? 'px-2 py-3' : 'px-3 py-3'} flex flex-col gap-2.5`}>
         {narrow ? (
           <>
-            {/* quick utilities: notifications · live-chat presence · help · settings */}
-            <div className="grid grid-cols-2 gap-1.5">
-              {onToggleNotifications && (
-                <button type="button" onClick={onToggleNotifications} className="relative flex h-9 items-center justify-center rounded-xl bg-white/[0.06] text-[#BFD3E6] hover:bg-white/10 hover:text-white" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'} title="Notifications">
-                  <Bell size={16} />
-                  {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#FF8A65] px-1 text-[9px] font-extrabold text-[#3A1205]">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-                </button>
-              )}
-              {chatOn && presence != null && (
-                <button type="button" onClick={() => void togglePresence()} disabled={presBusy} className="relative flex h-9 items-center justify-center rounded-xl bg-white/[0.06] hover:bg-white/10 disabled:opacity-60" aria-label={presence ? 'Available for live chat — tap to go away' : 'Away — tap to go available'} title={presence ? 'Available for live chat' : 'Away from live chat'}>
-                  <MessagesSquare size={16} className={presence ? 'text-[#8FE3B6]' : 'text-[#6F94B6]'} />
-                  <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-[#0B2A44] ${presence ? 'bg-[#49d36a]' : 'bg-[#6F94B6]'}`} />
-                </button>
-              )}
-              <a href={HELP_URL} target="_blank" rel="noopener noreferrer" className="flex h-9 items-center justify-center rounded-xl bg-white/[0.06] text-[#BFD3E6] hover:bg-white/10 hover:text-white" title="Help & support" aria-label="Help and support"><HelpCircle size={16} /></a>
-              <Link href={viewHref('settings')} prefetch={false} onClick={go} className="flex h-9 items-center justify-center rounded-xl bg-white/[0.06] text-[#BFD3E6] hover:bg-white/10 hover:text-white" title="Settings" aria-label="Settings"><Settings size={16} /></Link>
-            </div>
-            <span className="mx-auto h-2 w-2 rounded-full" style={{ background: syncBad ? '#F3B3A3' : '#7EE2AE' }} title={`CRM server · ${syncText}`} aria-label={`CRM server ${syncLabel}`} role="img" />
+            <span className="mx-auto w-2 h-2 rounded-full" style={{ background: syncBad ? '#F3B3A3' : '#7EE2AE' }} title={`CRM server · ${syncText}`} aria-label={`CRM server ${syncLabel}`} role="img" />
             <Link href={`${viewHref('settings')}?section=profile`} prefetch={false} onClick={go} className="mx-auto rounded-full ring-2 ring-white/15 hover:ring-[#5CC8FF]" title={currentUser ? `${currentUser.name} · ${roleLabel(currentUser.role)}` : 'Your profile'} aria-label="Your profile">
               <Avatar user={currentUser} size="md" />
             </Link>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button type="button" onClick={() => { go(); onLogout(); }} className="flex h-9 items-center justify-center rounded-xl bg-white/[0.06] text-[#BFD3E6] hover:bg-[#FF8A65]/20 hover:text-[#FFB59E]" aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
-              <button type="button" onClick={onToggleCollapse} className="flex h-9 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20" aria-label="Expand navigation" title="Expand navigation"><ChevronRight size={16} strokeWidth={2.4} /></button>
-            </div>
+            <button type="button" onClick={onToggleCollapse} className="mx-auto w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20" aria-label="Expand navigation" title="Expand navigation"><ChevronRight size={16} strokeWidth={2.6} /></button>
           </>
         ) : (
           <>
