@@ -3,7 +3,7 @@
  * e-mail or an RM task, for new leads. A campaign starts as a draft and needs a test send before it can run.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Activity, ArrowDown, FileText, Mail, MessageCircle, Pause, Pencil, Play, Plus, Send, Settings2, Trash2, UserCheck } from 'lucide-react';
+import { Activity, ArrowDown, ChevronRight, FileText, Mail, MessageCircle, Pause, Pencil, Play, Plus, Send, Settings2, Trash2, UserCheck } from 'lucide-react';
 import { api, type DripActivity, type DripCampaignView, type DripOverview, type DripStepInput, type DripTemplate } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -13,6 +13,9 @@ const errText = (scope: string, e: unknown) => toAppError(reportError(scope, e))
 const CHANNELS = { whatsapp: { label: 'WhatsApp', icon: MessageCircle }, email: { label: 'E-mail', icon: Mail }, task: { label: 'RM task', icon: UserCheck } } as const;
 type Channel = keyof typeof CHANNELS;
 const STATUS = { draft: { label: 'Draft', tone: 'muted' }, active: { label: 'Running', tone: 'sage' }, paused: { label: 'Paused', tone: 'amber' }, archived: { label: 'Archived', tone: 'muted' } } as const;
+// per-channel tint for the step timeline, and per-metric colour for the stat row
+const CH_COLOR: Record<Channel, { bg: string; fg: string }> = { whatsapp: { bg: '#E7F7EE', fg: '#0B7A43' }, email: { bg: '#E8F0FE', fg: '#1559C0' }, task: { bg: '#FFF4E0', fg: '#8A5A00' } };
+const STAT_COLOR: Record<string, string> = { 'In progress': '#2563EB', Finished: '#16A34A', Stopped: '#64748B', Sent: '#0B6BB0', Skipped: '#B45309', Failed: '#B42318' };
 const VAR_HINT = 'You can use {name}, {first_name}, {rm}, {source} and {company}.';
 
 const waitText = (m: number) => (!m ? 'Straight away' : m % 1440 === 0 ? `After ${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `After ${m / 60} hour${m === 60 ? '' : 's'}` : `After ${m} minutes`);
@@ -373,14 +376,23 @@ export const DripCampaignsView: React.FC = () => {
       {data?.campaigns.map((c) => (
         <Card key={c.id} title={<span className="inline-flex flex-wrap items-center gap-2">{c.name}<Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge></span>}
           subtitle={`${c.stages && c.stages.length ? `Starts at stage: ${c.stages.join(', ')}${c.sources.length ? ` (from ${c.sources.join(', ')})` : ''}` : c.sources.length ? c.sources.join(', ') : 'All new leads'} · ${hourText(c.hoursFrom)} to ${hourText(c.hoursTo)} India time · up to ${c.dailyLimit} a day`}>
-          <ol className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
             {c.steps.map((s, i) => {
               const Icon = CHANNELS[s.channel].icon;
-              return <li key={s.id || i} className="inline-flex items-center gap-1.5 rounded-full border border-[#D3E3F0] bg-[#F7FBFE] px-2.5 py-1 text-[11px] text-[#0B2A44]"><Icon size={12} aria-hidden="true" />{CHANNELS[s.channel].label}<span className="text-[#5E778C]">· {waitText(s.waitMinutes)}</span></li>;
+              const col = CH_COLOR[s.channel];
+              return (
+                <div key={s.id || i} className="flex items-center gap-1">
+                  {i > 0 && <ChevronRight size={14} className="text-[#B6C6D4]" aria-hidden="true" />}
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-[#E3EDF5] bg-white px-2.5 py-1.5 shadow-[0_1px_1px_rgba(11,42,68,.04)]">
+                    <span className="grid h-6 w-6 flex-none place-items-center rounded-lg" style={{ background: col.bg, color: col.fg }}><Icon size={13} aria-hidden="true" /></span>
+                    <span className="leading-tight"><span className="block text-[11.5px] font-semibold text-[#0B2A44]">{CHANNELS[s.channel].label}</span><span className="block text-[10px] text-[#7E93A6]">{waitText(s.waitMinutes)}</span></span>
+                  </span>
+                </div>
+              );
             })}
-          </ol>
-          <dl className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {([['In progress', c.stats.running], ['Finished', c.stats.finished], ['Stopped', c.stats.stopped], ['Sent', c.stats.sent], ['Skipped', c.stats.skipped], ['Failed', c.stats.failed]] as Array<[string, number]>).map(([label, v]) => <div key={label}><dt className="text-[10.5px] text-[#5E778C]">{label}</dt><dd className="text-base font-semibold text-[#0B2A44]">{v.toLocaleString('en-IN')}</dd></div>)}
+          </div>
+          <dl className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-[#EEF4F9] bg-[#FAFCFE] p-3 sm:grid-cols-6">
+            {([['In progress', c.stats.running], ['Finished', c.stats.finished], ['Stopped', c.stats.stopped], ['Sent', c.stats.sent], ['Skipped', c.stats.skipped], ['Failed', c.stats.failed]] as Array<[string, number]>).map(([label, v]) => <div key={label}><dt className="text-[10.5px] font-medium uppercase tracking-wide text-[#8296A6]">{label}</dt><dd className="text-xl font-bold tabular-nums" style={{ color: v ? STAT_COLOR[label] : '#B6C6D4' }}>{v.toLocaleString('en-IN')}</dd></div>)}
           </dl>
           {c.stats.entered > 0 && (
             <div className="mt-3 rounded-lg bg-[#F7FBFE] border border-[#E3EDF5] px-3 py-2">
