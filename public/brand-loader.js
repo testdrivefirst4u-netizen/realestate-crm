@@ -1,4 +1,5 @@
-/* BroaddCast page loader: the bc mark and "Real Estate CRM" draw their outline, then fill.
+/* BroaddCast page loader: the skyline and bc mark draw their outline then fill, and the tenant's sector wordmark
+   (e.g. "Real Estate CRM", "Automobile CRM") fades in beside it.
    Plays on every full page load (first open, refresh, after sign-in) and, faster, on every move to another
    screen (RouteLoader calls window.bcLoaderShow / window.bcLoaderDone).
    Generated from broaddcast-loader-snippet.html; edit the timings below, not the paths. */
@@ -13,7 +14,7 @@
   // Sector label under the logo: keep the same animation, only change the words. The loader runs before React, so it
   // reads the sector the CRM last saved (localStorage 'bcSector'); unknown / first load shows "Real Estate CRM".
   var SECTOR_LABEL = { realestate: 'Real Estate CRM', automobile: 'Automobile CRM', healthcare: 'Healthcare CRM', education: 'Education CRM', hospitality: 'Hospitality CRM', retail: 'Retail CRM', finance: 'Finance CRM', other: 'Business CRM' };
-  var LABEL_CSS = "#bc-loader .bc-sector{position:absolute;left:0;right:0;top:50%;transform:translateY(92px);text-align:center;padding:0 16px;opacity:0;animation:bcSecIn .5s ease .55s forwards;pointer-events:none}#bc-loader .bc-sector b{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:700;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#2646C6}@keyframes bcSecIn{to{opacity:1}}@media (prefers-reduced-motion:reduce){#bc-loader .bc-sector{animation:none;opacity:1}}";
+  var LABEL_CSS = "#bc-loader .bc-word-text{font-family:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-weight:800;font-size:52px;letter-spacing:-.5px;fill:#2646C6;opacity:0;animation:bcSecIn .45s ease .5s forwards}#bc-loader.bc-done .bc-word-text{animation:none;opacity:1}@keyframes bcSecIn{to{opacity:1}}@media (prefers-reduced-motion:reduce){#bc-loader .bc-word-text{animation:none;opacity:1}}";
   // The page injects window.bcSector server-side (correct on the first load); localStorage is the fallback for navigations.
   var sectorKey = '';
   try { sectorKey = String(window.bcSector || '').trim().toLowerCase(); } catch (e) {}
@@ -31,12 +32,16 @@
   function lockup() {
     try {
       var q = function (s) { return el.querySelector(s); };
-      var MS = 0.62, TS = 0.5, GAP = 22, CY = 292;
-      var mb = q('.bc-mark').getBBox(), wb = q('.bc-word').getBBox(), cb = q('.m1').getBBox();
+      var MS = 0.62, GAP = 26, CY = 292;
+      var mb = q('.bc-mark').getBBox(), cb = q('.m1').getBBox(), word = q('.bc-word-text');
       var bowlMid = (cb.y + mb.y + mb.height) / 2;
-      var MW = mb.width * MS, X0 = 360 - (MW + GAP + wb.width * TS) / 2;
+      var wb = word.getBBox();
+      var MW = mb.width * MS, X0 = 360 - (MW + GAP + wb.width) / 2;
       q('.bc-mark').setAttribute('transform', 'translate(' + (X0 - mb.x * MS) + ',' + (CY - bowlMid * MS) + ') scale(' + MS + ')');
-      q('.bc-word').setAttribute('transform', 'translate(' + (X0 + MW + GAP - wb.x * TS) + ',' + (CY - (wb.y + wb.height / 2) * TS) + ') scale(' + TS + ')');
+      word.setAttribute('x', X0 + MW + GAP);
+      word.setAttribute('y', CY);
+      word.setAttribute('text-anchor', 'start');
+      word.setAttribute('dominant-baseline', 'central');
     } catch (e) {}
   }
 
@@ -56,7 +61,16 @@
     el.setAttribute('aria-hidden', 'true');
     el.className = mode === 'again' ? 'bc-done bc-wait' : mode === 'nav' ? 'bc-fast' : '';
     el.innerHTML = SVG;
-    var sb = document.createElement('div'); sb.className = 'bc-sector'; sb.innerHTML = '<b>' + SLABEL + '</b>'; el.appendChild(sb);
+    // The SVG ships with a baked-in "Real Estate CRM" wordmark; swap it for the tenant's sector text so the loader
+    // reads correctly for every sector (Automobile CRM, Healthcare CRM, …) with no duplicated label.
+    var baked = el.querySelector('.bc-word'); if (baked) baked.parentNode.removeChild(baked);
+    var wg = el.querySelector('.bc-w');
+    if (wg) {
+      var txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('class', 'bc-word-text');
+      txt.textContent = SLABEL;
+      wg.appendChild(txt);
+    }
     (document.body || document.documentElement).appendChild(el);
     lockup();
     t0 = performance.now();
