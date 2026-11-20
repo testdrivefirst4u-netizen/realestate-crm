@@ -90,9 +90,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
   // Each screen is rendered on the server per person, so it is preloaded only when someone points at it, not all on every page load.
   const [wanted, setWanted] = React.useState<ReadonlySet<ViewId>>(new Set());
   const want = (id: ViewId) => setWanted((w) => (w.has(id) ? w : new Set(w).add(id)));
-  // collapsed sidebar: hovering the rail slides the full menu out as an overlay; leaving collapses it again
-  const [hovering, setHovering] = React.useState(false);
-  React.useEffect(() => { if (!isCollapsed) setHovering(false); }, [isCollapsed]);
+  // collapsed sidebar: hovering the rail slides the full menu out as an overlay; leaving slides it back, then unmounts
+  const [hovering, setHovering] = React.useState(false); // cursor intent (drives the in/out animation)
+  const [flyoutMounted, setFlyoutMounted] = React.useState(false); // kept in the DOM through the exit animation
+  const flyoutTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openFlyout = () => { if (!isCollapsed) return; if (flyoutTimer.current) { clearTimeout(flyoutTimer.current); flyoutTimer.current = null; } setFlyoutMounted(true); setHovering(true); };
+  const closeFlyout = () => { setHovering(false); if (flyoutTimer.current) clearTimeout(flyoutTimer.current); flyoutTimer.current = setTimeout(() => setFlyoutMounted(false), 170); };
+  React.useEffect(() => { if (!isCollapsed) { setHovering(false); setFlyoutMounted(false); if (flyoutTimer.current) clearTimeout(flyoutTimer.current); } }, [isCollapsed]);
+  React.useEffect(() => () => { if (flyoutTimer.current) clearTimeout(flyoutTimer.current); }, []);
   const groups = buildGroups({ ...counts, unreadChats: counts.unreadChats ?? unreadChats }, direct)
     .map((g) => ({ ...g, items: g.items.filter((i) => allowed(i.id)) }))
     .filter((g) => g.items.length > 0);
@@ -223,15 +228,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
     <>
       <div
         className={`hidden lg:flex h-full py-3 pl-3 z-30 ${isCollapsed ? 'relative' : ''}`}
-        onMouseEnter={() => { if (isCollapsed) setHovering(true); }}
+        onMouseEnter={openFlyout}
       >
         {/* the in-flow rail keeps its width (collapsed = 76px) so the page never shifts */}
         {panel(isCollapsed, false)}
-        {/* on hover, the full menu floats over the page; leaving the floating menu collapses it again */}
-        {isCollapsed && hovering && (
+        {/* on hover, the full menu floats over the page; leaving it slides back, then unmounts */}
+        {isCollapsed && flyoutMounted && (
           <div
-            className="crm-sidebar-flyout absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)]"
-            onMouseLeave={() => setHovering(false)}
+            className={`absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)] ${hovering ? 'crm-sidebar-flyout' : 'crm-sidebar-flyout-out'}`}
+            onMouseEnter={openFlyout}
+            onMouseLeave={closeFlyout}
           >
             {panel(false, false)}
           </div>
