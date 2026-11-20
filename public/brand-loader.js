@@ -51,12 +51,12 @@
       + '</g></g>';
   };
   var CARS = '<defs><linearGradient id="bd" x1="0" y1="0" x2="0.06" y2="1"><stop offset="0" stop-color="#4c6ad9"/><stop offset=".5" stop-color="#2a45ad"/><stop offset="1" stop-color="#15277d"/></linearGradient><linearGradient id="gl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24386f"/><stop offset="1" stop-color="#0a1740"/></linearGradient></defs>'
-    + '<ellipse class="shd" cx="360" cy="216" rx="178" ry="8"/>'
-    + '<path class="p g" pathLength="1" style="--d:0s" d="M160 215H560"/>'
-    + '<path class="spd" style="--d:0.95s" d="M150 151 L184 151"/>'
-    + '<path class="spd" style="--d:0.90s" d="M136 163 L188 163"/>'
-    + '<path class="spd" style="--d:1.00s" d="M154 175 L180 175"/>'
-    + car(180, 1.5, 0.25);
+    + '<ellipse class="shd" cx="360" cy="216" rx="130" ry="7"/>'
+    + '<path class="p g" pathLength="1" style="--d:0s" d="M205 215H515"/>'
+    + '<path class="spd" style="--d:0.95s" d="M200 169 L230 169"/>'
+    + '<path class="spd" style="--d:0.90s" d="M188 180 L234 180"/>'
+    + '<path class="spd" style="--d:1.00s" d="M204 191 L228 191"/>'
+    + car(234, 1.05, 0.25);
 
   // Sector label under the logo: keep the same animation, only change the words. The loader runs before React, so it
   // reads the sector the CRM last saved (localStorage 'bcSector'); unknown / first load shows "Real Estate CRM".
