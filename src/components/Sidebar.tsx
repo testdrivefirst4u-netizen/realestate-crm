@@ -234,7 +234,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         {isCollapsed && (
           <div
             aria-hidden={!hovering}
-            className={`absolute left-3 top-3 bottom-3 z-40 drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)] transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${hovering ? 'translate-x-0 opacity-100' : 'pointer-events-none -translate-x-3 opacity-0'}`}
+            style={{ transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)' }}
+            className={`absolute left-3 top-3 bottom-3 z-40 origin-left drop-shadow-[0_24px_55px_rgba(8,30,51,0.55)] transition duration-300 ease-out motion-reduce:transition-none motion-reduce:duration-0 ${hovering ? 'translate-x-0 scale-100 opacity-100' : 'pointer-events-none -translate-x-2 scale-[0.98] opacity-0'}`}
             onMouseEnter={openFlyout}
             onMouseLeave={closeFlyout}
           >
