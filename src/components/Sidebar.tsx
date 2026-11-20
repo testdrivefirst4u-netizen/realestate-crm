@@ -168,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         {groups.map((g, gi) => (
           <div key={g.id} className={gi ? 'mt-4' : 'mt-1'}>
             {narrow
-              ? gi > 0 && <div className="mx-3 mb-3 border-t border-white/10" aria-hidden="true" />
+              ? <div className={`mb-1.5 break-words px-1 text-center text-[9px] font-bold uppercase leading-[1.15] tracking-[.08em] text-[#6F94B6] ${gi ? 'mt-2 border-t border-white/10 pt-3' : ''}`}>{g.label}</div>
               : <div className="px-3 mb-1.5 text-[10.5px] font-bold tracking-[.12em] uppercase text-[#6F94B6]">{g.label}</div>}
             <div className="flex flex-col gap-0.5">{g.items.map((i) => link(i, narrow, mobile))}</div>
           </div>
