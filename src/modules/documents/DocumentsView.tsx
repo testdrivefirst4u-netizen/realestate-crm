@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Calendar, ExternalLink, FileText, Plus, Search, Trash2, User, X } from 'lucide-react';
+import { BookOpen, Calendar, ExternalLink, File, FileSpreadsheet, FileText, Image as ImageIcon, Link2, Plus, Search, Trash2, User, X } from 'lucide-react';
 import { CrmDocument, Lead } from '../../types/crm';
 import { F } from '../../core/config';
 import { searchLeads } from '../../core/analytics';
 import { formatDate } from '../../core/dates';
 import { toast } from '../../core/notifications';
-import { Badge, Button, Card, EmptyState, Field, InlineNotice, Modal, Select, inputCls } from '../../components/ui';
+import { Button, Card, EmptyState, Field, InlineNotice, Modal, Select, inputCls } from '../../components/ui';
 
 export interface DocumentsViewProps {
   documents: CrmDocument[];
@@ -21,6 +21,21 @@ export interface DocumentsViewProps {
 
 const CATEGORIES = ['Brochure', 'Floor Plans', 'Legal & RERA', 'Pricing', 'Customer Document', 'General'];
 const PAGE = 48;
+// category pill colours and a file-type glyph derived from the link's extension
+const CAT_COLOR: Record<string, { bg: string; fg: string }> = {
+  Brochure: { bg: '#EAF2FB', fg: '#0B5E9C' }, 'Floor Plans': { bg: '#E7F6EF', fg: '#0B7A43' }, 'Legal & RERA': { bg: '#F3EEFB', fg: '#6D3BBF' },
+  Pricing: { bg: '#FFF4E0', fg: '#B45309' }, 'Customer Document': { bg: '#E8F0FE', fg: '#1559C0' }, General: { bg: '#EEF3F7', fg: '#5E778C' },
+};
+const catColor = (c?: string) => CAT_COLOR[c || 'General'] || CAT_COLOR.General;
+function fileKind(url?: string): { Icon: typeof FileText; bg: string; fg: string } {
+  const ext = (url || '').split(/[?#]/)[0].split('.').pop()?.toLowerCase() || '';
+  if (ext === 'pdf') return { Icon: FileText, bg: '#FDECEC', fg: '#D93025' };
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'svg'].includes(ext)) return { Icon: ImageIcon, bg: '#E7F6EF', fg: '#0B7A43' };
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return { Icon: FileSpreadsheet, bg: '#E7F6EF', fg: '#0B7A43' };
+  if (['doc', 'docx', 'txt', 'ppt', 'pptx'].includes(ext)) return { Icon: FileText, bg: '#E8F0FE', fg: '#1559C0' };
+  if (url) return { Icon: Link2, bg: '#EEF3F7', fg: '#5E778C' };
+  return { Icon: File, bg: '#EEF3F7', fg: '#7E93A6' };
+}
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -157,39 +172,42 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ documents, leads, 
             {visible.map((doc) => {
               const lead = doc.leadId ? leadById.get(doc.leadId) : undefined;
               const confirming = deleteId === doc.id;
+              const kind = fileKind(doc.fileUrl);
+              const cat = catColor(doc.category);
               return (
-                <div key={doc.id} className="bg-white rounded-xl p-5 border border-[#D3E3F0] shadow-xs flex flex-col justify-between hover:border-[#0B6BB0] transition">
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <Badge tone="gold">{doc.category || 'General'}</Badge>
-                      {confirming ? (
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <span className="text-[#8A3E28] font-medium">Delete?</span>
-                          <Button variant="danger" size="xs" loading={deleting} onClick={() => confirmDelete(doc.id)}>Yes</Button>
-                          <button onClick={() => setDeleteId(null)} className="p-1 text-[#7E93A6] hover:text-[#0B2A44]" aria-label="Cancel"><X size={12} /></button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setDeleteId(doc.id)} className="p-1 text-[#7E93A6] hover:text-[#8A3E28] transition" title="Delete document"><Trash2 size={13} /></button>
-                      )}
+                <div key={doc.id} className="group flex flex-col rounded-2xl border border-[#E3EDF5] bg-white p-4 shadow-[0_1px_2px_rgba(11,42,68,.05)] transition hover:border-[#0B6BB0] hover:shadow-[0_8px_20px_-12px_rgba(11,42,68,.3)]">
+                  <div className="flex items-start gap-3">
+                    <span className="grid h-11 w-11 flex-none place-items-center rounded-xl" style={{ background: kind.bg, color: kind.fg }}><kind.Icon size={20} aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="break-words text-[13.5px] font-bold leading-snug text-[#0B2A44]">{doc.name}</h4>
+                      <span className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold" style={{ background: cat.bg, color: cat.fg }}>{doc.category || 'General'}</span>
                     </div>
-                    <h4 className="text-sm font-bold text-[#0B2A44] mb-1.5 leading-snug break-words">{doc.name}</h4>
-                    <p className="text-xs text-[#5E778C] leading-relaxed mb-3 break-words">{doc.description || 'No description provided.'}</p>
-                    {(lead || doc.leadId) && (
-                      <button onClick={() => doc.leadId && onOpenLead(doc.leadId)} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-[#0B2A44]/10 text-[#0B2A44] hover:bg-[#0B2A44]/15 font-semibold mb-3" title="Open the enquiry">
-                        <User size={11} />{lead ? lead[F.NAME] : doc.leadId}<span className="font-mono opacity-60">· {doc.leadId}</span>
-                      </button>
+                    {confirming ? (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="font-medium text-[#8A3E28]">Delete?</span>
+                        <Button variant="danger" size="xs" loading={deleting} onClick={() => confirmDelete(doc.id)}>Yes</Button>
+                        <button onClick={() => setDeleteId(null)} className="p-1 text-[#7E93A6] hover:text-[#0B2A44]" aria-label="Cancel"><X size={12} /></button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setDeleteId(doc.id)} className="grid h-8 w-8 flex-none place-items-center rounded-lg text-[#9AA7B4] transition-colors hover:bg-[#FEF2F3] hover:text-[#D93025]" title="Delete document"><Trash2 size={15} /></button>
                     )}
                   </div>
-                  <div className="pt-3 border-t border-[#E6EFF6] flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[10px] text-[#7E93A6] inline-flex items-center gap-1" title={doc.uploadedBy ? `Added by ${doc.uploadedBy}` : undefined}>
+                  <p className="mt-2.5 line-clamp-3 flex-1 break-words text-xs leading-relaxed text-[#5E778C]">{doc.description || 'No description provided.'}</p>
+                  {(lead || doc.leadId) && (
+                    <button onClick={() => doc.leadId && onOpenLead(doc.leadId)} className="mt-2.5 inline-flex max-w-full items-center gap-1 self-start rounded-md bg-[#0B2A44]/[.08] px-2 py-0.5 text-[11px] font-semibold text-[#0B2A44] hover:bg-[#0B2A44]/[.14]" title="Open the enquiry">
+                      <User size={11} className="flex-none" /><span className="truncate">{lead ? lead[F.NAME] : doc.leadId}</span><span className="flex-none font-mono opacity-60">· {doc.leadId}</span>
+                    </button>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEF4F9] pt-3">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-[#7E93A6]" title={doc.uploadedBy ? `Added by ${doc.uploadedBy}` : undefined}>
                       <Calendar size={11} />{formatDate(doc.uploadedDate, '—')}{doc.uploadedBy ? ` · ${doc.uploadedBy}` : ''}
                     </span>
                     <div className="flex items-center gap-1.5">
                       {onOpenLibrary && <Button variant="secondary" size="xs" onClick={() => onOpenLibrary(doc.name)} icon={<BookOpen size={11} />} title="Search the Library for this document">Library</Button>}
                       {doc.fileUrl && isHttpUrl(doc.fileUrl) ? (
-                        <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold bg-[#0B2A44] text-white hover:brightness-110 transition">Open <ExternalLink size={11} /></a>
+                        <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg bg-[#0B2A44] px-3 py-1 text-[11px] font-semibold text-white transition hover:brightness-110">Open <ExternalLink size={11} /></a>
                       ) : (
-                        <span className="text-[10px] text-[#7E93A6] italic">No link</span>
+                        <span className="text-[10px] italic text-[#7E93A6]">No link</span>
                       )}
                     </div>
                   </div>
