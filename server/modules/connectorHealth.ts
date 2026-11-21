@@ -25,7 +25,7 @@ import { currentTenant } from '../core/tenant';
 
 export type ConnectorState = 'connected' | 'needs_reconnect' | 'degraded' | 'not_configured' | 'disconnected';
 export interface ConnectorHealth {
-  id: 'metaLeads' | 'whatsappDirect' | 'chat360' | 'telephony' | 'justconnect';
+  id: 'metaLeads' | 'whatsappDirect' | 'chat360' | 'telephony' | 'justconnect' | 'metaCapi' | 'googleConversions';
   name: string;
   state: ConnectorState;
   identity: string;
@@ -47,6 +47,16 @@ async function inboxStats(provider: string) {
     c.find({ provider }, { projection: { receivedAt: 1 } }).sort({ receivedAt: -1 }).limit(1).next(),
   ]);
   return { failing, dead, last: last?.receivedAt ? new Date(last.receivedAt).toISOString() : '' };
+}
+
+/** Outbound conversion events (adConversions queue), by platform — for the Meta CAPI and Google conversion cards. */
+async function convStats(platforms: string[]) {
+  const c = await col<any>(CFG.COLL.CONVERSIONS);
+  const [failing, last] = await Promise.all([
+    c.countDocuments({ platform: { $in: platforms }, status: 'failed' }),
+    c.find({ platform: { $in: platforms }, status: 'sent' }, { projection: { sentAt: 1 } }).sort({ sentAt: -1 }).limit(1).next(),
+  ]);
+  return { failing, last: last?.sentAt ? new Date(last.sentAt).toISOString() : '' };
 }
 
 function withDeliveries(h: Omit<ConnectorHealth, 'failing' | 'deadLetters' | 'lastEventAt'>, s: { failing: number; dead: number; last: string }): ConnectorHealth {
@@ -120,6 +130,40 @@ export async function getConnectorHealth(): Promise<ConnectorHealth[]> {
       detail: revoked ? 'JustConnect refused the API key in the last 24 hours (wrong, revoked or expired).' : '',
       action: !jc ? 'Platform support adds the JustConnect key in Settings › Integrations.' : revoked ? 'Create a new API key in JustConnect and paste it in Settings › Integrations › JustConnect, then press Test.' : '',
       lastEventAt: '', failing: 0, deadLetters: 0,
+    });
+  }
+
+  // Outbound: Meta Conversions API (CAPI) — lead results sent back to the company's Meta dataset.
+  if (f.adConversions) {
+    const d = await (await col<any>(CFG.COLL.INTEGRATIONS)).findOne({ _id: 'metaCapi' as any });
+    const configured = !!(d?.datasetId && d?.token);
+    const expired = !!(d?.tokenExpiresAt && new Date(d.tokenExpiresAt).getTime() <= Date.now());
+    const st = await convStats(['meta']);
+    let state: ConnectorState = !configured ? 'not_configured' : expired ? 'needs_reconnect' : d?.enabled ? 'connected' : 'disconnected';
+    if (state === 'connected' && st.failing > 0) state = 'degraded';
+    out.push({
+      id: 'metaCapi', name: 'Meta Conversions API (CAPI)', identity: String(d?.datasetName || d?.datasetId || ''),
+      state,
+      detail: !configured ? 'No dataset or access token is set.' : expired ? 'The Conversions API token has expired — lead results are not reaching Meta.' : !d?.enabled ? 'Connected but turned off: no conversions are being sent to Meta.' : st.failing > 0 ? `${st.failing} event(s) failed to reach Meta in the last 30 days.` : '',
+      action: !configured ? 'Open Settings › Meta ads and connect a dataset (Events Manager access token).' : expired ? 'Settings › Meta ads › reconnect the Conversions API with a new Events Manager token.' : !d?.enabled ? 'Turn on Settings › Meta ads to start sending conversions.' : st.failing > 0 ? 'Open Settings › Meta ads to see the failed events and why.' : '',
+      lastEventAt: st.last, failing: st.failing, deadLetters: 0,
+    });
+  }
+
+  // Outbound: Google conversions (Google Ads offline conversions + GA4 Measurement Protocol).
+  if (f.googleConversions) {
+    const d = await (await col<any>(CFG.COLL.INTEGRATIONS)).findOne({ _id: 'google' as any });
+    const connected = !!(d?.connectionId || d?.email);
+    const targetOn = !!(d?.adsConversions?.enabled || d?.ga4?.enabled);
+    const st = await convStats(['google_ads', 'ga4']);
+    let state: ConnectorState = !connected || !targetOn ? 'not_configured' : 'connected';
+    if (state === 'connected' && (d?.setupError || st.failing > 0)) state = 'degraded';
+    out.push({
+      id: 'googleConversions', name: 'Google conversions (Ads / GA4)', identity: String(d?.email || ''),
+      state,
+      detail: !connected ? 'No Google account is connected.' : !targetOn ? 'Connected, but neither Google Ads conversions nor GA4 is switched on.' : d?.setupError ? String(d.setupError) : st.failing > 0 ? `${st.failing} event(s) failed to reach Google in the last 30 days.` : '',
+      action: !connected ? 'Open Settings › Google and connect your Google account.' : !targetOn ? 'Settings › Google › turn on Google Ads conversions or GA4.' : (d?.setupError || st.failing > 0) ? 'Open Settings › Google to see the error.' : '',
+      lastEventAt: st.last, failing: st.failing, deadLetters: 0,
     });
   }
   return out;

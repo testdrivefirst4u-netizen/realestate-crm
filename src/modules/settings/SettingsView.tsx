@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Building2, Target, Globe, Share2, ShieldCheck, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays, MessageCircle } from 'lucide-react';
+import { Activity, Building2, Target, Globe, Share2, ShieldCheck, DatabaseBackup, FileSpreadsheet, Inbox, Monitor, Plug, PlugZap, RefreshCw, Trash2, UserCircle2, Users, BellRing, CalendarDays, MessageCircle } from 'lucide-react';
 import { CRMSettings, CrmDocument, InventoryUnit, Lead, MessageTemplate, ServerSettings, SyncState, UserAccount } from '../../types/crm';
 import { api } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
@@ -27,6 +27,7 @@ import { AdConversionsSection } from './AdConversionsSection';
 import { GoogleSection } from './GoogleSection';
 import { SocialAccountsSection } from './SocialAccountsSection';
 import { ConnectedAccountsSection } from './ConnectedAccountsSection';
+import { IntegrationHealthSection } from './IntegrationHealthSection';
 
 export interface SettingsViewProps {
   settings: CRMSettings;
@@ -58,7 +59,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'whatsappDirect', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'health', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'whatsappDirect', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -86,6 +87,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'users', label: 'Team', icon: <Users size={14} />, show: can('users.manageAgents') },
       { id: 'roles', label: 'Roles & access', icon: <ShieldCheck size={14} />, show: can('users.manage') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
+      { id: 'health', label: 'Integration health', icon: <PlugZap size={14} />, show: can('integrations.connect') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
       { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('integrations.connect') },
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
@@ -162,6 +164,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'roles' && can('users.manage') && <RolesSection />}
           {active === 'users' && can('users.manageAgents') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
+          {active === 'health' && can('integrations.connect') && <IntegrationHealthSection />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}
           {active === 'metaSync' && metaOn && can('integrations.connect') && <MetaSyncSection canEdit={can('integrations.connect')} />}
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}

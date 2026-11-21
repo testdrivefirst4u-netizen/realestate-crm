@@ -149,4 +149,24 @@ describe('Release C: connector health', () => {
     expect(meta.action).toMatch(/Reconnect/);
     expect(h.find((x) => x.id === 'telephony')).toMatchObject({ state: 'degraded', deadLetters: 1 });
   });
+
+  it('Meta CAPI health: not set up → working → turned off as the dataset is connected then disabled', async () => {
+    const { getConnectorHealth } = await import('../server/modules/connectorHealth');
+    const { runWithTenant } = await import('../server/core/tenant');
+    const { getTenantById } = await import('../server/platform/registry');
+    await (await import('../server/core/db')).pcol<any>('companies').then((c) => c.updateOne({ _id: 'CMP-test' }, { $set: { 'features.adConversions': true } }));
+    (await import('../server/platform/registry')).invalidateTenant();
+    const tenant = (await getTenantById('CMP-test'))!;
+
+    let h = await runWithTenant(tenant, () => getConnectorHealth());
+    expect(h.find((x) => x.id === 'metaCapi')).toMatchObject({ state: 'not_configured' });
+
+    await (await col<any>(CFG.COLL.INTEGRATIONS)).insertOne({ _id: 'metaCapi', enabled: true, datasetId: '1234567890123456', token: 'enc', datasetName: 'My Dataset' } as any);
+    h = await runWithTenant(tenant, () => getConnectorHealth());
+    expect(h.find((x) => x.id === 'metaCapi')).toMatchObject({ state: 'connected', identity: 'My Dataset' });
+
+    await (await col<any>(CFG.COLL.INTEGRATIONS)).updateOne({ _id: 'metaCapi' }, { $set: { enabled: false } });
+    h = await runWithTenant(tenant, () => getConnectorHealth());
+    expect(h.find((x) => x.id === 'metaCapi')).toMatchObject({ state: 'disconnected' });
+  });
 });

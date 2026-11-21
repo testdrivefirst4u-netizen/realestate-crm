@@ -276,6 +276,10 @@ export interface SocialPost {
 }
 /** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
 export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'searchConsole' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
+
+/** Settings › Integration health (server: modules/connectorHealth.ts). One shape per connector, newest states live. */
+export type ConnectorState = 'connected' | 'needs_reconnect' | 'degraded' | 'not_configured' | 'disconnected';
+export interface ConnectorHealth { id: 'metaLeads' | 'whatsappDirect' | 'chat360' | 'telephony' | 'justconnect' | 'metaCapi' | 'googleConversions'; name: string; state: ConnectorState; identity: string; detail: string; action: string; lastEventAt: string; failing: number; deadLetters: number }
 /** Competitor ads (server: modules/competitors.ts). */
 export interface CompetitorCheck { status: 'running' | 'not_running'; at: string; by: string }
 export interface CompetitorAd { id: string; platform: 'meta' | 'google'; link: string; imageUrl: string; offer: string; project: string; price: string; format: string; note: string; seenOn: string; active: boolean; startedOn: string; libraryId: string; placements: string[]; createdBy: string }
@@ -842,6 +846,7 @@ export const api = {
   },
   connectedAccounts: {
     list: () => request<ConnectedAccount[]>('getConnectedAccounts'),
+    health: () => request<ConnectorHealth[]>('getConnectorHealth'),
   },
   clientReport: {
     share: () => request<ClientReportShareView>('getClientReportShare', {}),
