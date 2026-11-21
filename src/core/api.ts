@@ -505,6 +505,7 @@ export const api = {
     enquiryHistory: (id: string) => request<EnquiryHistoryRow[]>('getEnquiryHistory', { id }),
     /** One change to many leads: assign (RM name, '' = unassigned) · stage · followup (ISO, '' = clear) · remark · trash. */
     bulk: (ids: string[], op: BulkOp, value = '') => request<{ done: number; skipped: number; failed: Array<{ id: string; message: string }>; version: string }>('bulkLeads', { ids, op, value }),
+    assignAll: (ids: string[], to: string) => request<{ updated: number; skipped: number; version: string }>('assignAllLeads', { ids, to }, { timeoutMs: 120000 }),
     merge: (keepId: string, mergeIds: string[]) => request<{ id: string; merged: string[]; version: string }>('mergeLeads', { keepId, mergeIds }),
     importBulk: (leads: Lead[], strategy: string) => request<{ created: number; updated: number; skipped?: number; version: string }>('importLeads', { leads, strategy }),
   },

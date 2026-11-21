@@ -23,6 +23,7 @@ import {
   DateRangeFilter,
   EmptyState,
   ErrorState,
+  Modal,
   Select,
   StageBadge,
   cx,
@@ -54,6 +55,8 @@ export interface LeadsViewProps {
   onMergeLeads?: (keepId: string, mergeIds: string[]) => Promise<boolean>;
   /** Applies one change to the ticked leads; undefined hides the tick boxes (no edit rights). */
   onBulk?: (ids: string[], op: BulkOp, value?: string) => Promise<boolean>;
+  /** Assign every lead matching the current filters to one agent (managers; past the 500 bulk cap). */
+  onAssignAll?: (ids: string[], to: string) => Promise<boolean>;
   /** Bulk reassign (managers) and move to the bin. */
   canBulkAssign?: boolean;
   canBulkTrash?: boolean;
@@ -65,7 +68,7 @@ type SortKey = Extract<LeadSortKey, 'id' | 'name' | 'enquiryDate' | 'stage' | 'u
 const DATE_SORT_KEYS: SortKey[] = ['enquiryDate', 'nextDue'];
 const PAGE_SIZE = 50;
 
-export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, onMergeLeads, onBulk, canBulkAssign = false, canBulkTrash = false, sync }) => {
+export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead, activeFilterLabel, onClearActiveFilter, canExport, onOpenAddLead, onOpenImport, onMergeLeads, onBulk, onAssignAll, canBulkAssign = false, canBulkTrash = false, sync }) => {
   const [dupOpen, setDupOpen] = useState(false);
   const dupCount = useMemo(() => (onMergeLeads ? findDuplicateGroups(leads).length : 0), [leads, onMergeLeads]);
   const [query, setQuery] = useState('');
@@ -82,6 +85,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
   const [filtersOpen, setFiltersOpen] = useState(false);
   /** Ticked leads (kept while filters change, so a selection can be built from several searches). */
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [assignAllOpen, setAssignAllOpen] = useState(false);
+  const [assignAllTo, setAssignAllTo] = useState('');
+  const [assignAllBusy, setAssignAllBusy] = useState(false);
 
   const range = useMemo(() => resolveDateFilter(dateFilter), [dateFilter]);
   const base = useMemo(() => countedLeads(leads), [leads]);
@@ -477,6 +483,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
             Clear
           </Button>
         )}
+        {onAssignAll && canBulkAssign && sorted.length > 0 && (
+          <Button variant="secondary" icon={<Users size={13} />} onClick={() => setAssignAllOpen(true)} title="Assign every lead matching the current filters to one agent">
+            Assign all…
+          </Button>
+        )}
         <span className="hidden md:inline ml-auto text-xs text-[#5E778C] font-medium whitespace-nowrap">
           {sorted.length === base.length ? (
             <>
@@ -579,6 +590,43 @@ export const LeadsView: React.FC<LeadsViewProps> = ({ leads, config, onOpenLead,
             return ok;
           }}
         />
+      )}
+
+      {onAssignAll && (
+        <Modal
+          open={assignAllOpen}
+          onClose={() => !assignAllBusy && setAssignAllOpen(false)}
+          width="sm"
+          title="Assign all matching leads"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setAssignAllOpen(false)} disabled={assignAllBusy}>Cancel</Button>
+              <Button
+                variant="primary"
+                loading={assignAllBusy}
+                disabled={!assignAllTo || assignAllBusy || sorted.length === 0 || sorted.length > 20000}
+                onClick={async () => {
+                  setAssignAllBusy(true);
+                  const ok = await onAssignAll(sorted.map((l) => String(l[F.ID])), assignAllTo);
+                  setAssignAllBusy(false);
+                  if (ok) { setAssignAllOpen(false); setAssignAllTo(''); setPicked(new Set()); }
+                }}
+              >
+                Assign {sorted.length} {sorted.length === 1 ? 'lead' : 'leads'}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-sm text-[#2B4A63]">
+            <p>Assign <strong>all {sorted.length} {sorted.length === 1 ? 'lead' : 'leads'}</strong> that match the current filters to one agent — not only the ones ticked. Leads already on that agent, or in the bin, are skipped.</p>
+            <label className="block">
+              <span className="text-xs font-semibold text-[#0B2A44]">Assign to</span>
+              <Select value={assignAllTo} onChange={(e) => setAssignAllTo(e.target.value)} options={(config.options[F.RM] || []).filter(Boolean)} placeholder="Choose an agent" className="mt-1 w-full" aria-label="Agent to assign to" />
+            </label>
+            {sorted.length > 20000 && <p className="text-xs text-[#B54708]">That is more than 20,000 leads. Narrow the filters first and do it in parts.</p>}
+            <p className="text-[11px] text-[#7E93A6]">This is a bulk reassignment and is recorded in the Audit Log. It can take a few seconds for large numbers.</p>
+          </div>
+        </Modal>
       )}
     </div>
   );

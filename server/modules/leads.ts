@@ -834,6 +834,43 @@ export async function bulkLeads(d: { ids?: unknown; op?: unknown; value?: unknow
 
 const NO_DELETE = 'Leads cannot be deleted or moved to the bin. Change the stage instead (e.g. Lost or a Disqualified stage).';
 
+const ASSIGN_ALL_MAX = 20000;
+
+/**
+ * Reassign a large set of leads to one agent in a single call, past the 500 bulk-bar cap (the Leads screen's
+ * "Assign all matching to…"). Managers only. Written in chunks with bulkWrite so thousands stay fast; leads the
+ * manager cannot see, already on the target, or in the bin are skipped. One audit entry and one event summarise it.
+ */
+export async function assignAllLeads(d: { ids?: unknown; to?: unknown }, ctx: Ctx) {
+  if (!can(ctx.user, 'leads.viewAll')) throw fail('FORBIDDEN', 'Only managers can reassign leads');
+  const to = str(d?.to).trim();
+  if (!to) throw fail('VALIDATION', 'Choose the agent to assign the leads to');
+  if (!(await listUsers()).some((u) => u.status === 'Active' && u.name === to)) throw fail('VALIDATION', `"${to}" is not an active user`);
+  const ids = [...new Set((Array.isArray(d?.ids) ? d.ids : []).map((x) => str(x).trim()).filter(Boolean))];
+  if (!ids.length) throw fail('VALIDATION', 'No leads to assign');
+  if (ids.length > ASSIGN_ALL_MAX) throw fail('VALIDATION', `Too many leads (${ids.length}). Narrow the filter — at most ${ASSIGN_ALL_MAX} at a time.`);
+
+  const toId = await userIdByName(to);
+  const vis = await leadFilter(ctx);
+  const leads = await leadsCol();
+  const now = new Date();
+  let updated = 0, skipped = 0;
+  for (let i = 0; i < ids.length; i += 1000) {
+    const chunk = ids.slice(i, i + 1000);
+    const parts: any[] = [{ _id: { $in: chunk } }, { stage: { $nin: [S.DELETED, S.TRASH] } }, { assignedRm: { $ne: to } }];
+    if (vis) parts.push(vis);
+    const targetIds = (await leads.find({ $and: parts } as any, { projection: { _id: 1 } }).toArray()).map((x) => x._id);
+    skipped += chunk.length - targetIds.length;
+    if (!targetIds.length) continue;
+    const r = await leads.updateMany({ _id: { $in: targetIds } } as any, { $set: { assignedRm: to, assignedRmId: toId, assignedAt: now, updatedAt: now }, $inc: { reassignCount: 1 } });
+    updated += r.modifiedCount || 0;
+    await insertTimelineBulk(targetIds.map((id) => ({ leadId: String(id), type: 'reassigned', title: `Reassigned to ${to}`, details: 'Bulk “assign all”', actor: ctx.user?.name || 'System', refType: '', refId: '' })));
+  }
+  await auditLog(ctx, 'Assign all', 'Lead', truncate(`${updated} leads`, 500), `${updated} reassigned to ${to}${skipped ? `, ${skipped} skipped (hidden, binned or already on the agent)` : ''}`);
+  await insertEventsBulk([{ type: 'bulk_reassign', recordType: 'Lead', recordId: '', title: `Reassigned ${updated} leads to ${to}`, message: `by ${ctx.user?.name || 'System'}`, actor: ctx.user?.name || 'System' }]);
+  return { updated, skipped, version: await getVersion() };
+}
+
 /** The hidden Platform support account (Super Admin › Open company settings) is the only one that may bin or delete a lead. */
 function isPlatformSupport(ctx: Ctx | null | undefined): boolean {
   return !!ctx?.user && ctx.user.id === SUPPORT_USER_ID && ctx.user.role === 'Developer';
@@ -888,5 +925,6 @@ export const actions: ActionMap = {
   getLeadTimeline: { fn: onLead((d) => timelineForLead(d.id)), perm: 'leads.view' },
   getEnquiryHistory: { fn: onLead((d, ctx) => enquiryHistory(String(d.id), ctx)), perm: 'leads.view' },
   bulkLeads: { fn: (d, ctx) => bulkLeads(d, ctx), perm: 'leads.edit' },
+  assignAllLeads: { fn: (d, ctx) => assignAllLeads(d, ctx), perm: 'leads.edit' },
   importLeads: { fn: (d, ctx) => importLeads(d.leads, d.strategy, ctx), perm: 'leads.import' },
 };

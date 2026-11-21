@@ -352,3 +352,20 @@ describe('jobs', () => {
     expect((await runDaily()).backup).toBeUndefined(); // one backup per day
   });
 });
+
+describe('assign all (past the 500 bulk cap)', () => {
+  it('reassigns many leads to one agent, skipping ones already on the target or binned, and rejects an unknown agent', async () => {
+    const { assignAllLeads } = await import('../server/modules/leads');
+    await t.ctx('RM', 'Bob RM'); // active target user
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++) ids.push((await addLead(sample({ [L.PHONE]: `90000000${10 + i}` }), admin)).id);
+    await updateLead(ids[0], { [L.RM]: 'Bob RM' }, admin); // already on target → skipped
+
+    const res = await assignAllLeads({ ids, to: 'Bob RM' }, admin);
+    expect(res.updated).toBe(3);
+    for (const id of ids) expect((await getLead(id))![L.RM]).toBe('Bob RM');
+
+    await expect(assignAllLeads({ ids, to: 'Ghost' }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+    await expect(assignAllLeads({ ids: [], to: 'Bob RM' }, admin)).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+});

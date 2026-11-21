@@ -140,6 +140,7 @@ export interface CrmEngine {
   mergeLeads: (keepId: string, mergeIds: string[]) => Promise<boolean>;
   /** One change to many leads (the Leads table's bulk bar); true when at least one lead changed. */
   bulkLeads: (ids: string[], op: BulkOp, value?: string) => Promise<boolean>;
+  assignAllLeads: (ids: string[], to: string) => Promise<boolean>;
 
   addTask: (task: Omit<TaskItem, 'id'>) => Promise<TaskItem | null>;
   updateTask: (id: string, patch: Partial<TaskItem>) => Promise<boolean>;
@@ -860,6 +861,21 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     [refresh]
   );
 
+  const assignAllLeads = useCallback(
+    async (ids: string[], to: string) => {
+      try {
+        const res = await write(() => api.leads.assignAll(ids, to));
+        toast(res.updated ? `${res.updated} lead${res.updated === 1 ? '' : 's'} assigned to ${to}` : 'No leads changed', res.skipped ? `${res.skipped} skipped (hidden, binned or already on the agent)` : undefined, 'success');
+        await refresh({ silent: true, force: true });
+        return res.updated > 0;
+      } catch (e) {
+        failToast('leads.assignAll', e);
+        return false;
+      }
+    },
+    [refresh]
+  );
+
   /* -------------------------------- tasks ------------------------------- */
 
   const addTask = useCallback(
@@ -1119,13 +1135,13 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     () => ({
       data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, can: canDo,
       login, logout, updateProfile, refresh, updateLocalSettings,
-      addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, bulkLeads,
+      addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, bulkLeads, assignAllLeads,
       addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm,
       updateUnit, addUnit, importInventory,
       saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist,
       createSegment, updateSegment, deleteSegment, applyServerSettings,
     }),
-    [data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, canDo, login, logout, updateProfile, refresh, updateLocalSettings, addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, bulkLeads, addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm, updateUnit, addUnit, importInventory, saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist, createSegment, updateSegment, deleteSegment, applyServerSettings]
+    [data, authStatus, session, currentUser, sync, isOnline, activeAlarmTask, canDo, login, logout, updateProfile, refresh, updateLocalSettings, addLead, updateLead, appendRemark, setLeadStage, trashLead, restoreLead, deleteLeadPermanently, importLeads, mergeLeads, bulkLeads, assignAllLeads, addTask, updateTask, toggleTask, deleteTask, toggleTaskChecklist, snoozeAlarm, dismissAlarm, completeAlarm, updateUnit, addUnit, importInventory, saveDocument, deleteDocument, saveTemplate, deleteTemplate, addNote, deleteNote, addChecklist, toggleChecklist, deleteChecklist, createSegment, updateSegment, deleteSegment, applyServerSettings]
   );
 }
 
