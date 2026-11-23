@@ -13,6 +13,7 @@
  * which works even before the webhook is set up.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ExternalLink, Loader2, Phone, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing, Sparkles, UserPlus, X } from 'lucide-react';
 import { api, type MyCall } from '../../core/api';
 import { F } from '../../core/config';
@@ -150,6 +151,10 @@ export const CallWindow: React.FC<{
   const [closed, setClosed] = useState<{ keys: Set<string>; phone: string; at: number }>({ keys: new Set(), phone: '', at: 0 });
   const [minimised, setMinimised] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // Render into <body> so the fixed window always docks to the viewport corner — never shifted by an ancestor that
+  // has a transform / filter (dark-mode layers, route and panel animations), which would otherwise mis-place it.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   /* --------------------------- "is my phone ringing?" --------------------------- */
 
@@ -338,9 +343,10 @@ export const CallWindow: React.FC<{
     : view.stage === 'ended' ? (view.durationSec ? `Talked ${minutes(view.durationSec)}` : 'Call over')
     : view.message || '';
   const LabelIcon = view.stage === 'missed' ? PhoneMissed : view.stage === 'failed' ? PhoneOff : view.direction === 'Inbound' ? PhoneIncoming : PhoneOutgoing;
+  const portal = (node: React.ReactNode) => (mounted ? createPortal(node, document.body) : null);
 
   if (minimised) {
-    return (
+    return portal(
       <button
         type="button"
         onClick={() => setMinimised(false)}
@@ -359,7 +365,7 @@ export const CallWindow: React.FC<{
   const chips = lead ? [String(lead[F.STAGE] || ''), String(lead[F.UNIT_TYPE] || ''), String(lead[F.SOURCE] || '')].filter(Boolean) : [];
   const c = view.call;
 
-  return (
+  return portal(
     <section
       role="dialog"
       aria-label={`${label}: ${name}`}
