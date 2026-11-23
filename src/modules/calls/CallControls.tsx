@@ -58,8 +58,9 @@ export const CallControls: React.FC<{
       onChanged?.(action, call.id);
     } catch (e) {
       const err = toAppError(e);
-      // The call was already over (its end reached JustConnect but not the CRM): clear the window instead of erroring.
-      if (action === 'end' && err.code === 'CONFLICT') {
+      // Only the specific "already ended" conflict means the call is over (its end reached JustConnect but not the CRM):
+      // clear the window. Other CONFLICTs (not answered yet, colleague call, colleague offline) leave the call running.
+      if (err.code === 'CONFLICT' && /already ended/i.test(err.userMessage)) {
         onChanged?.('end', call.id);
         toast('Call already ended', undefined, 'info');
       } else {

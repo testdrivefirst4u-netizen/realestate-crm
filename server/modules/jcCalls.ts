@@ -374,11 +374,13 @@ export async function jcMyCall(d: { id?: string } | undefined, ctx: Ctx): Promis
     : await c.find({ provider: PROVIDER, jcLiveAt: { $gte: new Date(Date.now() - LIVE_MAX_MS) }, ...mine }).sort({ jcLiveAt: -1 }).limit(3).toArray();
   for (const r of rows) {
     const ended = r.status !== 'In Progress';
-    const liveAgeMs = Date.now() - new Date(r.jcLiveAt || r.startTime || 0).getTime();
+    const liveAgeMs = Date.now() - new Date(r.jcLiveAt).getTime();
     if (!d?.id) {
       if (ended && liveAgeMs > ENDED_SHOW_MS) continue;
-      // still "In Progress" but ringing (unanswered) for too long: a terminal webhook we never got — the call is dead.
-      if (!ended && !r.jcAnsweredAt && liveAgeMs > RINGING_MAX_MS) continue;
+      // An inbound call still "In Progress" but never answered for too long: its missed/ended webhook never reached us,
+      // so the call is dead — don't resurface it as an incoming ring on every refresh. (Outbound rings can legitimately
+      // run longer, and answered calls are bounded by LIVE_MAX_MS, so neither of those is cut off here.)
+      if (!ended && !r.jcAnsweredAt && r.direction === 'Inbound' && liveAgeMs > RINGING_MAX_MS) continue;
     }
     // a colleague took it: not my call any more
     if (r.jcAgentUserId && r.jcAgentUserId !== me && (r.jcAnsweredAt || r.status === 'Completed')) continue;
