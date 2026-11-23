@@ -1,6 +1,6 @@
 /**
  * Public, no-login dashboard: /p/<slug>/<token>. The slug finds the company; the secret token is verified against the
- * company's revocable share settings. Shows the real Dashboard, Sales MIS, YTD/MTD and Pipeline screens, read-only,
+ * company's revocable share settings. Shows the real Dashboard, Sales MIS and YTD/MTD screens, read-only,
  * with customer names masked and phone/e-mail removed. Recomputed on every load; the tab auto-refreshes. Never indexed.
  */
 import type { Metadata } from 'next';
