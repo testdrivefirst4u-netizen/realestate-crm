@@ -255,7 +255,7 @@ const AllReviewsFeed: React.FC<{ canReply: boolean }> = ({ canReply }) => {
   useEffect(() => { if (canReply) api.businessProfile.reviewAutoReply().then(setAuto).catch(() => {}); }, [canReply]);
   const saveAuto = async (next: { enabled: boolean; minStars: number }) => {
     setAutoBusy(true);
-    try { setAuto(await api.businessProfile.setReviewAutoReply(next)); toast(next.enabled ? 'Auto-reply on' : 'Auto-reply off', next.enabled ? `New reviews ${next.minStars}★ and up get an AI reply each day.` : undefined, 'success'); }
+    try { setAuto(await api.businessProfile.setReviewAutoReply(next)); toast(next.enabled ? 'Auto-reply on' : 'Auto-reply off', next.enabled ? `New reviews ${next.minStars}★ and up get an AI reply within minutes.` : undefined, 'success'); }
     catch (e) { toast('Not saved', errText('gbp.autoReply', e), 'alert'); }
     finally { setAutoBusy(false); }
   };
@@ -287,7 +287,7 @@ const AllReviewsFeed: React.FC<{ canReply: boolean }> = ({ canReply }) => {
               {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n}★{n < 5 ? ' & up' : ''}</option>)}
             </select>
           </label>
-          <span className="text-[11px] text-[#5F6368]">Each day, unanswered reviews at or above this rating — across every location — get a short AI reply posted to Google in your name. Lower-rated ones are left for your team to answer personally.</span>
+          <span className="text-[11px] text-[#5F6368]">Within minutes, unanswered reviews at or above this rating — across every location — get a short AI reply posted to Google in your name. Lower-rated ones are left for your team to answer personally.</span>
         </div>
       )}
       {failed && <div className="rounded-lg bg-[#FCE8E6] px-3 py-2 text-[13px] text-[#C5221F]">{failed}</div>}

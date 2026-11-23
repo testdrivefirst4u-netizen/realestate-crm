@@ -20,6 +20,7 @@ export const JOB_RUNS = 'jobRuns';
 
 /** The scheduled jobs and how often they should run (minutes). */
 export const JOBS: Array<{ id: string; label: string; path: string; everyMin: number }> = [
+  { id: 'reviews', label: 'AI auto-reply to Google reviews', path: '/api/cron/reviews', everyMin: 10 },
   { id: 'meta', label: 'Facebook lead backup check', path: '/api/cron/meta', everyMin: 10 },
   { id: 'sheets', label: 'Google Sheets sync', path: '/api/cron/sheets', everyMin: 10 },
   { id: 'watch', label: 'Lead watch (reassign, visit reminders, summary)', path: '/api/cron/watch', everyMin: 10 },

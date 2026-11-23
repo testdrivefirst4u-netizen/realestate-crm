@@ -111,7 +111,7 @@ export const ReviewsTab: React.FC<{ location: string; canReply: boolean }> = ({ 
   useEffect(() => { api.businessProfile.reviewAutoReply().then(setAuto).catch(() => undefined); }, []);
   const saveAuto = async (next: { enabled: boolean; minStars: number }) => {
     setAutoBusy(true);
-    try { setAuto(await api.businessProfile.setReviewAutoReply(next)); toast(next.enabled ? 'Auto-reply on' : 'Auto-reply off', next.enabled ? `New reviews ${next.minStars}★ and up get an AI reply each day.` : undefined, 'success'); }
+    try { setAuto(await api.businessProfile.setReviewAutoReply(next)); toast(next.enabled ? 'Auto-reply on' : 'Auto-reply off', next.enabled ? `New reviews ${next.minStars}★ and up get an AI reply within minutes.` : undefined, 'success'); }
     catch (e) { toast('Not saved', errText('gbp.autoReply', e), 'alert'); }
     finally { setAutoBusy(false); }
   };
@@ -161,7 +161,7 @@ export const ReviewsTab: React.FC<{ location: string; canReply: boolean }> = ({ 
                   </select>
                 </label>
               </div>
-              <p className="mt-1.5 text-[11px] text-[#5F6368]">Each day, unanswered reviews at or above this rating get a short, friendly AI reply posted to Google in your name. Lower-rated reviews are left for your team to answer personally. Needs the AI assistant and a connected Google Business Profile.</p>
+              <p className="mt-1.5 text-[11px] text-[#5F6368]">Within minutes, unanswered reviews at or above this rating get a short, friendly AI reply posted to Google in your name. Lower-rated reviews are left for your team to answer personally. Needs the AI assistant and a connected Google Business Profile.</p>
             </section>
           )}
           <section className="rounded-lg border border-[#DADCE0] bg-white">
