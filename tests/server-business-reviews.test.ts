@@ -32,6 +32,10 @@ const REVIEWS = [
 async function fake(input: any, init: any = {}): Promise<Response> {
   const url = new URL(String(input));
   if (url.host === 'oauth2.googleapis.com') return json(200, { access_token: 'GAT', expires_in: 3600 });
+  if (url.host === 'api.anthropic.com') {
+    calls.push({ path: 'anthropic', method: String(init.method || 'POST'), body: init.body ? JSON.parse(String(init.body)) : null, query: url.searchParams });
+    return json(200, { content: [{ type: 'text', text: 'Thank you, Neha! So glad you enjoyed your visit — we hope to see you again soon.' }] });
+  }
   const method = String(init.method || 'GET');
   calls.push({ path: url.pathname.replace(/^\/v4\//, ''), method, body: init.body ? JSON.parse(String(init.body)) : null, query: url.searchParams });
   if (refuse) return json(400, { error: { message: refuse } });
@@ -189,5 +193,19 @@ describe('who', () => {
     expect((await inCo(() => dispatch('replyBusinessReview', reply, { ...base, token: manager }))).status).toBe(200);
     await t.company('test', { businessProfile: false });
     expect((await inCo(() => dispatch('getBusinessReviews', {}, { ...base, token: manager }))).status).toBe(403);
+  });
+});
+
+describe('AI draft reply (Claude)', () => {
+  it('drafts a reply with Claude (Haiku) when the Anthropic key is set, without posting anything', async () => {
+    const { aiDraftReviewReply } = await import('../server/modules/businessReviews');
+    await inCo(async () => (await col<any>(CFG.COLL.SECRETS)).insertOne({ _id: 'ANTHROPIC_API_KEY', value: encryptSecret('sk-ant-test') }));
+    const r = await inCo(() => aiDraftReviewReply({ stars: 5, author: 'Neha', comment: 'Lovely' }));
+    expect(r.reply).toContain('Neha');
+    const call = calls.find((c) => c.path === 'anthropic');
+    expect(call).toBeTruthy();
+    expect(call!.body.model).toBe('claude-haiku-5-5');
+    expect(String(call!.body.system)).toMatch(/Google review/i);
+    expect(writes().filter((c) => c.path !== 'anthropic')).toHaveLength(0); // drafting never writes to Google
   });
 });

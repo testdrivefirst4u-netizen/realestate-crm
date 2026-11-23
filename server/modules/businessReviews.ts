@@ -10,7 +10,7 @@ import { logError } from '../core/events';
 import { settingSet, settingsAll } from '../core/settings';
 import { currentTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
-import { generateText } from './ai';
+import { claudeText, generateText, hasClaude } from './ai';
 import { place } from './businessPhotos';
 import { connection, pick, safeLink, short } from './businessProfile';
 import { gbpFetch } from './googleMarketing';
@@ -116,6 +116,33 @@ export async function setReviewAutoReply(d: any, ctx: Ctx): Promise<ReviewAutoRe
 
 const PER_RUN = 10; // keep AI cost and Google writes bounded per daily run
 
+/** Write a review reply with Claude (Anthropic) when its key is set — more accurate for short, on-brand replies —
+ *  otherwise with Gemini. Both take the same owner-style system prompt. */
+async function reviewReplyText(system: string, prompt: string): Promise<string> {
+  if (await hasClaude()) return (await claudeText(system, prompt, { maxTokens: 220 })).trim();
+  return (await generateText(prompt, SYSTEM_CTX, { fast: true, system, maxOutputTokens: 160, temperature: 0.5 })).trim();
+}
+
+/** Owner-style system prompt + user prompt for one review, shared by the daily auto-reply and the manual "Draft with AI". */
+function reviewPrompts(r: { stars: number; comment?: string; author?: string; locationTitle?: string }): { system: string; prompt: string } {
+  const company = String(currentTenant()?.name || 'our company');
+  const author = String(r.author || '').trim();
+  const good = (r.stars || 0) >= 4;
+  const system = `You write the owner's public reply to a Google review for ${company}, a business in India. Reply in 1–3 short, warm, specific sentences: thank the reviewer${author ? ` (${author})` : ''}, acknowledge what they said if there is a comment, and ${good ? 'invite them back' : 'apologise sincerely and invite them to contact you so you can make it right'}. Plain text only — no emojis, hashtags, links or star mentions. Never invent facts, offers, discounts or promises. Do not exceed 70 words. Output only the reply text.`;
+  const prompt = `Review: ${r.stars} stars${r.comment ? ` — "${truncate(String(r.comment), 600)}"` : ' (no written comment)'} by ${author || 'a customer'}${r.locationTitle ? ` at ${r.locationTitle}` : ''}. Write the public reply.`;
+  return { system, prompt };
+}
+
+/** Manual "Draft with AI" on one review: returns a suggested reply for a person to edit and post (no auto-posting). */
+export async function aiDraftReviewReply(d: any): Promise<{ reply: string }> {
+  feature();
+  const stars = clampStars(d?.stars);
+  const { system, prompt } = reviewPrompts({ stars, comment: String(d?.comment || ''), author: String(d?.author || '') });
+  const reply = await reviewReplyText(system, prompt);
+  if (!reply || reply === 'HANDOFF') throw fail('SERVER', 'The AI could not draft a reply. Please write one.');
+  return { reply: truncate(reply, 1500) };
+}
+
 /** Daily: reply to new Google reviews (no reply yet) at/above the star floor with a short AI-written, owner-style reply. */
 export async function autoReplyReviews(): Promise<{ replied: number }> {
   try {
@@ -126,15 +153,13 @@ export async function autoReplyReviews(): Promise<{ replied: number }> {
     // every location, not just the default one — unanswered reviews from all branches
     const data = await allLocationReviews({ unansweredOnly: true, limit: 300 });
     if (data.error || !data.reviews.length) return { replied: 0 };
-    const company = String(t?.name || 'our company');
-    const system = `You write the owner's public reply to a Google review for ${company}, a real-estate business in India. Reply in 1–2 short, warm, specific sentences: thank the reviewer, acknowledge what they said if there is a comment, and invite them back. Plain text only — no emojis, no hashtags, no links, no star mentions. Never promise anything specific. Do not exceed 60 words.`;
     let replied = 0;
     for (const r of data.reviews) {
       if (replied >= PER_RUN) break;
       if (r.reply || r.stars < cfg.minStars) continue; // already answered, or below the floor (left for the team)
       try {
-        const prompt = `Review: ${r.stars} stars${r.comment ? ` — "${truncate(r.comment, 600)}"` : ' (no written comment)'} by ${r.author} at ${r.locationTitle}. Write the public reply.`;
-        const text = (await generateText(prompt, SYSTEM_CTX, { fast: true, system, maxOutputTokens: 160, temperature: 0.5 })).trim();
+        const { system, prompt } = reviewPrompts(r);
+        const text = await reviewReplyText(system, prompt);
         if (!text || text === 'HANDOFF') continue;
         await replyBusinessReview({ reviewId: r.id, location: r.location, comment: text.slice(0, 1500) }, SYSTEM_CTX);
         replied++;
@@ -195,4 +220,5 @@ export const actions: ActionMap = {
   deleteBusinessReply: { fn: (d, ctx) => { feature(); return deleteBusinessReply(d, ctx); }, perm: 'marketing.manage' },
   getReviewAutoReply: { fn: () => { feature(); return getReviewAutoReply(); }, perm: 'reports.view' },
   setReviewAutoReply: { fn: (d, ctx) => setReviewAutoReply(d, ctx), perm: 'marketing.manage' },
+  aiDraftReviewReply: { fn: (d) => aiDraftReviewReply(d), perm: 'marketing.manage' },
 };

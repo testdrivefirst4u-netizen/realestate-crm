@@ -295,6 +295,54 @@ export async function generateText(
   return textOf(resp);
 }
 
+/* --------------------------------- Claude ---------------------------------- */
+
+/** True when a Claude (Anthropic) API key is available (company secret or the platform ANTHROPIC_API_KEY env). */
+export async function hasClaude(): Promise<boolean> {
+  return !!(await getSecret('ANTHROPIC_API_KEY'));
+}
+
+/**
+ * Draft short text with Claude via the Anthropic Messages API (raw HTTP — no SDK dependency). Haiku is used: it is
+ * fast and cheap, and ideal for short, on-brand replies (e.g. Google review replies). The key never leaves the server.
+ */
+export async function claudeText(system: string, prompt: string, opts?: { maxTokens?: number }): Promise<string> {
+  const key = await getSecret('ANTHROPIC_API_KEY');
+  if (!key) throw fail('NOT_CONFIGURED', 'Claude API key is not set (ANTHROPIC_API_KEY). Add it under Settings → Integrations → AI.');
+  const p = String(prompt || '').trim();
+  if (!p) throw fail('VALIDATION', 'Prompt is required');
+  let res: Response;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-5-5',
+        max_tokens: Math.min(Math.max(64, opts?.maxTokens || 400), 1024),
+        system: truncate(system || '', MAX_SYSTEM_CHARS),
+        messages: [{ role: 'user', content: truncate(p, 20000) }],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e: any) {
+    await logError('ai.claude', 'NETWORK', e?.message, '', '', {});
+    throw upstream('Could not reach Claude. Please try again.');
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    await logError('ai.claude', 'UPSTREAM_' + res.status, truncate(body, 300), '', '', { status: res.status });
+    throw upstream(
+      res.status === 401 ? 'The Claude API key is wrong, revoked or out of credit.'
+        : res.status === 429 ? 'Claude is busy right now (rate limit). Try again in a moment.'
+        : `Claude could not generate the text (HTTP ${res.status}).`,
+    );
+  }
+  const j = await res.json().catch(() => null);
+  const text = (j?.content || []).filter((b: any) => b?.type === 'text').map((b: any) => String(b?.text || '')).join('').trim();
+  if (!text) throw upstream('Claude returned an empty response.');
+  return text;
+}
+
 /* ------------------------------- lead summary ------------------------------ */
 
 /** Narrative summary of a lead's full history (timeline + calls + chats). */

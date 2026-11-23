@@ -3,7 +3,7 @@
  * written, changed and deleted here. A reply is public on Google. Customers write the reviews, so none can be added or deleted.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, Star } from 'lucide-react';
+import { RefreshCw, Sparkles, Star } from 'lucide-react';
 import { api, type BusinessReview } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -22,6 +22,18 @@ const Stars: React.FC<{ n: number; size?: number }> = ({ n, size = 14 }) => (
 const ReviewCard: React.FC<{ r: BusinessReview; location: string; canReply: boolean; onChanged: (id: string, reply: string) => void }> = ({ r, location, canReply, onChanged }) => {
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const draft = async () => {
+    setDrafting(true);
+    try {
+      const { reply } = await api.businessProfile.aiDraftReply({ stars: r.stars, comment: r.comment, author: r.author });
+      setText(reply);
+    } catch (e) {
+      toast('Could not draft a reply', errText('gbp.aiDraft', e), 'alert');
+    } finally {
+      setDrafting(false);
+    }
+  };
   const save = async () => {
     setBusy(true);
     try {
@@ -65,11 +77,12 @@ const ReviewCard: React.FC<{ r: BusinessReview; location: string; canReply: bool
           )}
           {text !== null && (
             <div className="mt-2 space-y-2">
-              <textarea rows={4} className={inputCls} value={text} aria-label={`Reply to ${r.author}`} onChange={(e) => setText(e.target.value)} />
+              <textarea rows={4} className={inputCls} value={text} aria-label={`Reply to ${r.author}`} onChange={(e) => setText(e.target.value)} placeholder="Write a reply, or let AI draft one for you…" />
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="primary" size="sm" loading={busy} disabled={!text.trim()} onClick={() => void save()}>Send to Google</Button>
-                <Button variant="secondary" size="sm" disabled={busy} onClick={() => setText(null)}>Cancel</Button>
-                <span className="text-[11px] text-[#5F6368]">Everyone can see this on Google.</span>
+                <Button variant="primary" size="sm" loading={busy} disabled={!text.trim() || drafting} onClick={() => void save()}>Send to Google</Button>
+                <Button variant="secondary" size="sm" icon={<Sparkles size={13} />} loading={drafting} disabled={busy} onClick={() => void draft()}>Draft with AI</Button>
+                <Button variant="secondary" size="sm" disabled={busy || drafting} onClick={() => setText(null)}>Cancel</Button>
+                <span className="text-[11px] text-[#5F6368]">AI writes a suggestion — you review and edit before it posts. Everyone can see this on Google.</span>
               </div>
             </div>
           )}

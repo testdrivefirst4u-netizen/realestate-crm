@@ -902,6 +902,7 @@ export const api = {
     locations: (refresh = false) => request<BusinessLocationsView>('getBusinessLocations', { refresh }, { timeoutMs: 120000 }),
     allReviews: (d: { unansweredOnly?: boolean; limit?: number } = {}) => request<AllLocationReviews>('allLocationReviews', d, { timeoutMs: 180000 }),
     replyReview: (location: string, reviewId: string, comment: string) => request<{ ok: true }>('replyBusinessReview', { location, reviewId, comment }, { timeoutMs: 60000 }),
+    aiDraftReply: (d: { stars: number; comment?: string; author?: string }) => request<{ reply: string }>('aiDraftReviewReply', d, { timeoutMs: 45000 }),
     reviewAutoReply: () => request<{ enabled: boolean; minStars: number }>('getReviewAutoReply', {}),
     setReviewAutoReply: (d: { enabled: boolean; minStars: number }) => request<{ enabled: boolean; minStars: number }>('setReviewAutoReply', d),
     deleteReply: (location: string, reviewId: string) => request<{ ok: true }>('deleteBusinessReply', { location, reviewId, confirm: true }, { timeoutMs: 60000 }),

@@ -89,14 +89,16 @@ function decrypt(blob: string) {
 }
 
 /**
- * A company's own secret. Only GEMINI_API_KEY may fall back to a platform-wide environment key
- * (AI provided by the platform); Chat360 keys and webhook secrets are always per company.
+ * A company's own secret. Only the AI keys (GEMINI_API_KEY, ANTHROPIC_API_KEY) may fall back to a platform-wide
+ * environment key (AI provided by the platform); Chat360 keys and webhook secrets are always per company.
  */
 export async function getSecret(key: SecretKey): Promise<string> {
   const doc = await (await col<{ _id: string; value: string }>(CFG.COLL.SECRETS)).findOne({ _id: key });
   const own = doc?.value ? decrypt(doc.value) : '';
   if (own) return own;
-  return key === 'GEMINI_API_KEY' ? process.env.GEMINI_API_KEY?.trim() || '' : '';
+  if (key === 'GEMINI_API_KEY') return process.env.GEMINI_API_KEY?.trim() || '';
+  if (key === 'ANTHROPIC_API_KEY') return process.env.ANTHROPIC_API_KEY?.trim() || '';
+  return '';
 }
 
 /** In multi-company mode no secret is locked to the environment (each company manages its own). */
