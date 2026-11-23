@@ -4,7 +4,7 @@
  * the whole account can be worked from one screen. Clicking a business opens the existing per-location detail.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ChevronRight, Copy, ExternalLink, ImagePlus, Pencil, RefreshCw, Search, Send, ShieldCheck, Star } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Copy, ExternalLink, ImagePlus, Pencil, RefreshCw, Search, Send, ShieldCheck, Sparkles, Star } from 'lucide-react';
 import { api, type AllLocationReview, type BusinessLocationRow, type BusinessLocationsView } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
@@ -195,6 +195,13 @@ const ReviewRow: React.FC<{ r: AllLocationReview; canReply: boolean; onReplied: 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(r.reply || '');
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
+  const draft = async () => {
+    setDrafting(true);
+    try { const { reply } = await api.businessProfile.aiDraftReply({ stars: r.stars, comment: r.comment, author: r.author }); setText(reply); }
+    catch (e) { toast('Could not draft a reply', errText('gbp.allReviews.aiDraft', e), 'alert'); }
+    finally { setDrafting(false); }
+  };
   const send = async () => {
     if (!text.trim()) return;
     setBusy(true);
@@ -223,10 +230,11 @@ const ReviewRow: React.FC<{ r: AllLocationReview; canReply: boolean; onReplied: 
           )}
           {canReply && (open || !r.reply) && (
             <div className="mt-2">
-              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="Write a public reply…" className={cx(inputCls, 'w-full resize-y')} />
-              <div className="mt-1.5 flex gap-2">
-                <Button size="sm" variant="primary" icon={<Send size={13} />} loading={busy} onClick={() => void send()}>{r.reply ? 'Update reply' : 'Reply'}</Button>
-                {open && <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>}
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="Write a reply, or let AI draft one…" className={cx(inputCls, 'w-full resize-y')} />
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" icon={<Send size={13} />} loading={busy} disabled={drafting} onClick={() => void send()}>{r.reply ? 'Update reply' : 'Reply'}</Button>
+                <Button size="sm" variant="secondary" icon={<Sparkles size={13} />} loading={drafting} disabled={busy} onClick={() => void draft()}>Draft with AI</Button>
+                {open && <Button size="sm" variant="secondary" disabled={busy || drafting} onClick={() => setOpen(false)}>Cancel</Button>}
               </div>
             </div>
           )}
@@ -242,6 +250,15 @@ const AllReviewsFeed: React.FC<{ canReply: boolean }> = ({ canReply }) => {
   const [unansweredOnly, setUnansweredOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState('');
+  const [auto, setAuto] = useState<{ enabled: boolean; minStars: number } | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
+  useEffect(() => { if (canReply) api.businessProfile.reviewAutoReply().then(setAuto).catch(() => {}); }, [canReply]);
+  const saveAuto = async (next: { enabled: boolean; minStars: number }) => {
+    setAutoBusy(true);
+    try { setAuto(await api.businessProfile.setReviewAutoReply(next)); toast(next.enabled ? 'Auto-reply on' : 'Auto-reply off', next.enabled ? `New reviews ${next.minStars}★ and up get an AI reply each day.` : undefined, 'success'); }
+    catch (e) { toast('Not saved', errText('gbp.autoReply', e), 'alert'); }
+    finally { setAutoBusy(false); }
+  };
   const latest = useRef(0);
   const load = useCallback(async (unanswered: boolean) => {
     const mine = ++latest.current;
@@ -262,6 +279,17 @@ const AllReviewsFeed: React.FC<{ canReply: boolean }> = ({ canReply }) => {
         <span className="text-[12.5px] text-[#5F6368]">{data ? `Reviewing ${data.scanned} of ${data.locations} locations` : ''}</span>
         <Button size="sm" variant="secondary" className="ml-auto" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} disabled={loading} onClick={() => void load(unansweredOnly)}>Refresh</Button>
       </div>
+      {canReply && auto && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-[#DADCE0] bg-white p-3">
+          <label className="inline-flex items-center gap-2 text-[13px] font-medium text-[#202124]"><input type="checkbox" className="h-4 w-4 accent-[#1A73E8]" disabled={autoBusy} checked={auto.enabled} onChange={(e) => void saveAuto({ enabled: e.target.checked, minStars: auto.minStars })} /> Auto-reply to new reviews with AI</label>
+          <label className="inline-flex items-center gap-1.5 text-[12px] text-[#5F6368]">from
+            <select className={cx(inputCls, 'w-auto py-1')} disabled={autoBusy || !auto.enabled} value={auto.minStars} onChange={(e) => void saveAuto({ enabled: auto.enabled, minStars: Number(e.target.value) })} aria-label="Minimum stars to auto-reply">
+              {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n}★{n < 5 ? ' & up' : ''}</option>)}
+            </select>
+          </label>
+          <span className="text-[11px] text-[#5F6368]">Each day, unanswered reviews at or above this rating — across every location — get a short AI reply posted to Google in your name. Lower-rated ones are left for your team to answer personally.</span>
+        </div>
+      )}
       {failed && <div className="rounded-lg bg-[#FCE8E6] px-3 py-2 text-[13px] text-[#C5221F]">{failed}</div>}
       {loading && !data && <p className="py-10 text-center text-[13px] text-[#5F6368]">Reading reviews from every location… this can take a moment.</p>}
       {data && data.reviews.length === 0 && !loading && <p className="py-10 text-center text-[13px] text-[#5F6368]">{unansweredOnly ? 'No reviews are waiting for a reply.' : 'No reviews found.'}</p>}
