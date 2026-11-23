@@ -293,6 +293,26 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
         </Panel>
       </div>
 
+      {publicView && lostRows.length > 0 && (() => {
+        const total = lostRows.reduce((s, r) => s + r.count, 0) || 1;
+        const max = Math.max(1, ...lostRows.map((r) => r.count));
+        return (
+          <Panel flush title="Why leads were disqualified" subtitle={`${rangeLabel} · disqualified & lost stages`}>
+            <div className="px-5 py-4 space-y-2.5">
+              {lostRows.map((r) => (
+                <div key={r.key}>
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
+                    <span className="truncate text-[#2B4A63]">{r.label}</span>
+                    <span className="flex-none tabular-nums text-[#5E778C]"><b className="text-[#0F2233]">{r.count}</b> · {Math.round((r.count / total) * 100)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-[#F4E3E3]"><div className="h-full rounded-full" style={{ width: `${Math.max(3, (r.count / max) * 100)}%`, background: '#C5221F' }} /></div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        );
+      })()}
+
       {!publicView && <Leaderboard />}
     </div>
   );
