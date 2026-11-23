@@ -332,6 +332,9 @@ export async function announceRinging(c: JcCall, ringing: { id: string; name: st
 /** How long an ended call stays in the caller's call window, and how long an unfinished one is believed. */
 const ENDED_SHOW_MS = 2 * 60_000;
 const LIVE_MAX_MS = 2 * 3600_000;
+/** An incoming/ringing call that was never answered only really rings for ~a minute. If it is still marked "In Progress"
+ *  after this (its "missed"/"ended" webhook never reached us), treat it as dead so it does not resurface on every refresh. */
+const RINGING_MAX_MS = 2 * 60_000;
 
 export interface MyCall {
   id: string;
@@ -371,7 +374,12 @@ export async function jcMyCall(d: { id?: string } | undefined, ctx: Ctx): Promis
     : await c.find({ provider: PROVIDER, jcLiveAt: { $gte: new Date(Date.now() - LIVE_MAX_MS) }, ...mine }).sort({ jcLiveAt: -1 }).limit(3).toArray();
   for (const r of rows) {
     const ended = r.status !== 'In Progress';
-    if (!d?.id && ended && Date.now() - new Date(r.jcLiveAt).getTime() > ENDED_SHOW_MS) continue;
+    const liveAgeMs = Date.now() - new Date(r.jcLiveAt || r.startTime || 0).getTime();
+    if (!d?.id) {
+      if (ended && liveAgeMs > ENDED_SHOW_MS) continue;
+      // still "In Progress" but ringing (unanswered) for too long: a terminal webhook we never got — the call is dead.
+      if (!ended && !r.jcAnsweredAt && liveAgeMs > RINGING_MAX_MS) continue;
+    }
     // a colleague took it: not my call any more
     if (r.jcAgentUserId && r.jcAgentUserId !== me && (r.jcAnsweredAt || r.status === 'Completed')) continue;
     // the summary is on its way: not started yet (JustConnect's transcript or the recording to come), or started in the last 3 minutes

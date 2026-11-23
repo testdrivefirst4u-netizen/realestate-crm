@@ -57,7 +57,14 @@ export const CallControls: React.FC<{
       if (r.muted !== undefined) setMuted(r.muted);
       onChanged?.(action, call.id);
     } catch (e) {
-      toast(action === 'end' ? 'Call not ended' : 'Mute not changed', toAppError(e).userMessage, 'alert');
+      const err = toAppError(e);
+      // The call was already over (its end reached JustConnect but not the CRM): clear the window instead of erroring.
+      if (action === 'end' && err.code === 'CONFLICT') {
+        onChanged?.('end', call.id);
+        toast('Call already ended', undefined, 'info');
+      } else {
+        toast(action === 'end' ? 'Call not ended' : 'Mute not changed', err.userMessage, 'alert');
+      }
     }
     setBusy('');
   };

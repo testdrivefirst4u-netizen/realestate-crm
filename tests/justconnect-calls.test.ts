@@ -278,6 +278,14 @@ describe('call window (jcMyCall)', () => {
     expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ended' });
   });
 
+  it('a ringing call stuck "In Progress" (its missed/ended webhook never arrived) does not resurface after a couple of minutes', async () => {
+    await ingestJcCall(inbound(), undefined, { id: 'ag1', name: 'Priya S' }); // incoming, rings Priya, unanswered
+    expect(await jcMyCall({}, priya)).toMatchObject({ phase: 'ringing' });
+    // it was never answered and the terminal event never came; age it past the ringing window
+    await (await col<any>(CFG.COLL.CALLS)).updateOne({ providerCallId: 'in1' }, { $set: { jcLiveAt: new Date(Date.now() - 5 * 60_000) } });
+    expect(await jcMyCall({}, priya)).toBeNull();
+  });
+
   it('a call a colleague picked up leaves my window', async () => {
     const ravi = await t.ctx('RM', 'Ravi Rao');
     await ingestJcCall(inbound(), undefined, { id: 'ag1', name: 'Priya S' });
