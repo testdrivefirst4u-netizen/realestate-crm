@@ -28,6 +28,7 @@ import { GoogleSection } from './GoogleSection';
 import { SocialAccountsSection } from './SocialAccountsSection';
 import { ConnectedAccountsSection } from './ConnectedAccountsSection';
 import { IntegrationHealthSection } from './IntegrationHealthSection';
+import { DataApiSection } from './DataApiSection';
 
 export interface SettingsViewProps {
   settings: CRMSettings;
@@ -59,7 +60,7 @@ export interface SettingsViewProps {
   onLinkConsumed?: () => void;
 }
 
-const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'health', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'whatsappDirect', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
+const SECTION_IDS = ['sync', 'display', 'profile', 'company', 'users', 'roles', 'integrations', 'health', 'dataApi', 'leadSources', 'metaSync', 'leadAlerts', 'visitBooking', 'connections', 'adConversions', 'whatsappDirect', 'google', 'social', 'googleSheets', 'backups', 'recycle'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 export const SettingsView: React.FC<SettingsViewProps> = (props) => {
@@ -88,6 +89,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
       { id: 'roles', label: 'Roles & access', icon: <ShieldCheck size={14} />, show: can('users.manage') },
       { id: 'integrations', label: 'Integrations', icon: <Plug size={14} />, show: can('settings.view') },
       { id: 'health', label: 'Integration health', icon: <PlugZap size={14} />, show: can('integrations.connect') },
+      { id: 'dataApi', label: 'Read-only API', icon: <Plug size={14} />, show: can('integrations.connect') },
       { id: 'leadSources', label: 'Lead sources', icon: <Inbox size={14} />, show: can('settings.view') },
       { id: 'metaSync', label: 'Facebook sync', icon: <Activity size={14} />, show: metaOn && can('integrations.connect') },
       { id: 'leadAlerts', label: 'Alerts & follow-ups', icon: <BellRing size={14} />, show: can('settings.view') },
@@ -165,6 +167,7 @@ export const SettingsView: React.FC<SettingsViewProps> = (props) => {
           {active === 'users' && can('users.manageAgents') && <UsersSection users={users} currentUser={currentUser} onRefreshAll={onRefreshAll} onUpdateProfile={onUpdateProfile} />}
           {active === 'integrations' && can('settings.view') && <IntegrationsSection {...base} rmOptions={rmOptions} onUpdateLocalSettings={onUpdateLocalSettings} />}
           {active === 'health' && can('integrations.connect') && <IntegrationHealthSection />}
+          {active === 'dataApi' && can('integrations.connect') && <DataApiSection />}
           {active === 'leadSources' && can('settings.view') && <LeadSourcesSection can={can} stageOptions={stageOptions || []} rmOptions={rmOptions} onOpenLead={onOpenLead} metaConnect={link?.metaConnect} metaError={link?.metaError} onMetaLinkConsumed={onLinkConsumed} />}
           {active === 'metaSync' && metaOn && can('integrations.connect') && <MetaSyncSection canEdit={can('integrations.connect')} />}
           {active === 'leadAlerts' && can('settings.view') && <LeadAlertsSection {...base} users={users} />}

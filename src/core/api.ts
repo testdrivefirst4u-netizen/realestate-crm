@@ -275,6 +275,15 @@ export interface SocialPost {
   targets: Array<{ key: string; kind: PostTargetKind; name: string; status: 'pending' | 'posted' | 'failed' | 'deleted'; postId?: string; url?: string; error?: string; commentError?: string; text?: string; deletedAt?: string; deletedBy?: string }>;
 }
 /** Settings › Connected accounts (server: modules/connectedAccounts.ts). */
+/** Pipeline dashboard (server: modules/pipelineShare.ts). */
+export interface PipelineRow { label: string; count: number }
+export interface PipelinePeriod { label: string; leads: number; bookings: number }
+export interface PipelineData { company: string; generatedAt: string; kpis: { leads: number; qualified: number; siteVisits: number; bookings: number; bookingValue: number }; mtd: PipelinePeriod; prevMonth: PipelinePeriod; ytd: PipelinePeriod; weeks: Array<{ label: string; count: number }>; byStage: PipelineRow[]; bySource: PipelineRow[]; byOwner: PipelineRow[]; byDisqualReason: PipelineRow[] }
+export interface PipelineShare { enabled: boolean; url: string; slug: string }
+
+/** Settings › Integrations › Read-only API (server: modules/dataApi.ts). The key is shown once, on creation. */
+export interface ReadKeyRow { id: string; label: string; prefix: string; createdAt: string; lastUsedAt: string; disabled: boolean }
+
 export interface ConnectedAccount { key: 'meta' | 'facebook' | 'google' | 'searchConsole' | 'linkedin' | 'pinterest'; platform: string; account: string; connectedBy: string; at: string; usedFor: string[]; status: 'connected' | 'error'; note: string; section: string; revokeAt: string }
 
 /** Settings › Integration health (server: modules/connectorHealth.ts). One shape per connector, newest states live. */
@@ -845,6 +854,16 @@ export const api = {
     postInsights: (id: string) => request<{ targets: Array<{ key: string; kind: string; name: string; metrics: InsightValue[]; refused: string[] }> }>('getPostInsights', { id }, { timeoutMs: 60000 }),
     get: (id: string) => request<{ post: SocialPost }>('getPost', { id }),
     uploadImage: (d: { name: string; mime: string; base64: string }) => request<{ fileId: string; previewUrl: string }>('uploadPostImage', d, { timeoutMs: 60000 }),
+  },
+  pipeline: {
+    share: () => request<PipelineShare>('getPipelineShare'),
+    setShare: (enabled: boolean) => request<PipelineShare>('setPipelineShare', { enabled }),
+    rotate: () => request<PipelineShare>('rotatePipelineShareToken'),
+  },
+  dataApi: {
+    keys: () => request<ReadKeyRow[]>('listReadKeys'),
+    createKey: (label: string) => request<{ key: string; row: ReadKeyRow }>('createReadKey', { label }),
+    revokeKey: (id: string) => request<ReadKeyRow[]>('revokeReadKey', { id }),
   },
   connectedAccounts: {
     list: () => request<ConnectedAccount[]>('getConnectedAccounts'),

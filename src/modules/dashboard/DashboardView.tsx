@@ -21,6 +21,10 @@ interface Props {
   onRefresh: () => void;
   onFilterClick: (label: string, ids: string[]) => void;
   onOpenLead: (id: string) => void;
+  /** Public share link: hide the actionable "Follow-ups due today" list (no drill-in, no contact details). */
+  publicView?: boolean;
+  /** Extra controls for the header toolbar (e.g. the public-link Share button in the in-app Dashboard). */
+  headerExtra?: React.ReactNode;
 }
 
 const PRESETS = [
@@ -70,7 +74,7 @@ function greetingFor(date = new Date()) {
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, greeting, userName, onRefresh, onFilterClick, onOpenLead }) => {
+export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, greeting, userName, onRefresh, onFilterClick, onOpenLead, publicView, headerExtra }) => {
   const [filter, setFilter] = useState<DateFilterValue>({ preset: 'this_month' });
   const [rm, setRm] = useState('');
   const range = useMemo(() => resolveDateFilter(filter), [filter]);
@@ -175,6 +179,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
         <div className="flex items-center gap-2 flex-wrap">
           <DateRangeFilter value={filter} onChange={setFilter} presets={PRESETS} />
           <Select value={rm} onChange={(e) => setRm(e.target.value)} options={rmOptions} placeholder="All RMs" className="!w-auto" aria-label="Filter by RM" />
+          {headerExtra}
         </div>
       </div>
 
@@ -241,7 +246,8 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
       </div>
 
       {/* Due today · RM performance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className={`grid grid-cols-1 gap-5 ${publicView ? '' : 'lg:grid-cols-2'}`}>
+        {!publicView && (
         <Panel flush title={`Follow-ups due today (${dueToday.length})`} subtitle={new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}>
           {dueToday.length === 0 ? (
             <EmptyState title="Nothing due today" description="Schedule the next follow-up from a lead's profile and it will appear here." className="py-6" />
@@ -260,6 +266,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
             </div>
           )}
         </Panel>
+        )}
         <Panel flush title="RM-wise performance" subtitle={rangeLabel}>
           <div className="overflow-x-auto">
             <table className="w-full text-[13.5px]">

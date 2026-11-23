@@ -77,6 +77,8 @@ import { actions as salesReportActions } from './modules/salesReport';
 import { actions as journeyActions } from './modules/journey';
 import { actions as workspaceActions } from './modules/workspace';
 import { actions as connectorHealthActions } from './modules/connectorHealth';
+import { actions as dataApiActions } from './modules/dataApi';
+import { actions as pipelineActions } from './modules/pipelineShare';
 import { actions as paymentActions } from './modules/payments';
 import { actions as reraActions } from './modules/rera';
 import { actions as engagementActions } from './modules/engagement';
@@ -147,6 +149,8 @@ export const registry: ActionMap = {
   ...journeyActions,
   ...workspaceActions,
   ...connectorHealthActions,
+  ...dataApiActions,
+  ...pipelineActions,
   ...paymentActions,
   ...reraActions,
   ...engagementActions,
