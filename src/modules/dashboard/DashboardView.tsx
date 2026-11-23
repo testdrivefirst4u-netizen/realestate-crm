@@ -293,7 +293,7 @@ export const DashboardView: React.FC<Props> = ({ leads, tasks, rmOptions, sync, 
         </Panel>
       </div>
 
-      <Leaderboard />
+      {!publicView && <Leaderboard />}
     </div>
   );
 };
