@@ -117,15 +117,29 @@ export async function connection() {
   if (!(d.scopes || []).includes(BUSINESS_SCOPE)) return { error: 'Google access to the Business Profile was not given. Connect again in Settings › Google and tick the permission.', d };
   return { error: '', d };
 }
-/** The location asked for must be one this connection reaches. */
+/**
+ * The locations the company has chosen to manage. The google doc's `gbpSelected` is a list of location names; when it
+ * is empty or unset, every connected location is managed (the backward-compatible default). Once a subset is chosen,
+ * only those count — across the Businesses list, the Reviews feed, auto-reply and the single-location dropdown.
+ */
+export function selectedGbp<T extends { name?: string }>(doc: any, list?: T[]): T[] {
+  const all = (list || doc?.gbpLocations || []) as T[];
+  const sel: string[] = Array.isArray(doc?.gbpSelected) ? doc.gbpSelected.map(String) : [];
+  if (!sel.length) return all;
+  const set = new Set(sel);
+  return all.filter((l) => l.name && set.has(String(l.name)));
+}
+
+/** The location asked for must be one this connection reaches and the company manages. */
 export function pick(d: any, wanted: unknown): { name: string; title: string; account: string } | null {
-  const list: any[] = d?.gbpLocations || [];
+  const list: any[] = selectedGbp(d);
   if (wanted) {
     const hit = list.find((l) => l.name === String(wanted));
     if (!hit) throw fail('VALIDATION', 'Choose one of your Business Profile locations.');
     return hit;
   }
-  return d?.gbpLocation?.name ? d.gbpLocation : list[0] || null;
+  const def = d?.gbpLocation?.name && list.find((l) => l.name === d.gbpLocation.name);
+  return def || list[0] || null;
 }
 const key = (...parts: unknown[]) => JSON.stringify([currentTenant()?.id || '', ...parts]);
 export const short = (e: any) => truncate(String(e?.message || e), 300);
@@ -137,7 +151,7 @@ function remember<T extends object>(k: string, data: T): T {
 
 export async function getBusinessProfile(d: any = {}, now = new Date()): Promise<BusinessProfileData> {
   const { error, d: doc } = await connection();
-  const locations = (doc?.gbpLocations || []).map((l: any) => ({ name: String(l.name), title: String(l.title) }));
+  const locations = selectedGbp<any>(doc).map((l: any) => ({ name: String(l.name), title: String(l.title) }));
   const empty: BusinessProfileData = { error, locations, location: '', profile: null, live: null, liveError: '', fields: [], mapsUri: '', reviewUri: '', managed: true, duplicate: false, rating: null, fetchedAt: now.toISOString(), edit: null, version: '' };
   if (error) return empty;
   const loc = pick(doc, d?.location);
@@ -457,7 +471,7 @@ export async function snapshotBusinessRatings(): Promise<number> {
   try {
     const { error, d: doc } = await connection();
     if (error) return 0;
-    const locs = ((doc?.gbpLocations || []) as GbpLocation[]).filter((l) => l.account && l.name).slice(0, 80);
+    const locs = selectedGbp<GbpLocation>(doc).filter((l) => l.account && l.name).slice(0, 80);
     const c = await col<RatingDoc>('gbpRatings');
     let i = 0, n = 0;
     const worker = async () => {
@@ -482,7 +496,7 @@ export async function snapshotBusinessRatings(): Promise<number> {
 export async function getBusinessLocations(d: any = {}): Promise<BusinessLocationsView> {
   if (d?.refresh) { try { await refreshGoogleAssets(); await snapshotBusinessRatings(); } catch { /* best-effort; fall back to stored */ } }
   const { error, d: doc } = await connection();
-  const list = (doc?.gbpLocations || []) as GbpLocation[];
+  const list = selectedGbp<GbpLocation>(doc);
   const ratings = new Map((await (await col<RatingDoc>('gbpRatings')).find({}).toArray()).map((r) => [r._id, r]));
   const rows: BusinessLocationRow[] = list.map((l) => {
     const rt = ratings.get(l.name);
@@ -493,10 +507,38 @@ export async function getBusinessLocations(d: any = {}): Promise<BusinessLocatio
   return { error, connected: !error, locations: rows, total: rows.length, verified, needsAction: rows.length - verified, default: doc?.gbpLocation?.name || '' };
 }
 
+/* -------------------- which locations the CRM manages -------------------- */
+
+export interface GbpSelectionView { locations: Array<{ name: string; title: string; storeCode: string; address: string }>; selected: string[]; all: boolean }
+
+/** The full list of connected locations (to choose from) and which are currently managed ('all' when none chosen). */
+export async function getGbpSelection(): Promise<GbpSelectionView> {
+  const { d: doc } = await connection();
+  const locations = ((doc?.gbpLocations || []) as GbpLocation[])
+    .map((l) => ({ name: l.name, title: l.title, storeCode: l.storeCode || '', address: l.address || '' }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  const selected: string[] = Array.isArray(doc?.gbpSelected) ? doc.gbpSelected.map(String) : [];
+  return { locations, selected, all: selected.length === 0 };
+}
+
+/** Choose which connected locations the CRM manages. Selecting all (or none) means "manage everything". */
+export async function setGbpSelection(d: any, ctx: Ctx): Promise<GbpSelectionView> {
+  feature();
+  const { d: doc } = await connection();
+  const names = new Set(((doc?.gbpLocations || []) as GbpLocation[]).map((l) => l.name));
+  let chosen = Array.isArray(d?.names) ? [...new Set((d.names as unknown[]).map(String).filter((n) => names.has(n)))] : [];
+  if (chosen.length === 0 || chosen.length === names.size) chosen = []; // all/none both mean "manage everything"
+  await (await col<any>(CFG.COLL.INTEGRATIONS)).updateOne({ _id: 'google' }, { $set: { gbpSelected: chosen } });
+  await auditLog(ctx, 'Business Locations Selected', 'Settings', 'google', chosen.length ? `${chosen.length} of ${names.size} locations` : `All ${names.size} locations`);
+  return getGbpSelection();
+}
+
 export const actions: ActionMap = {
   getBusinessProfile: { fn: (d) => { feature(); return getBusinessProfile(d); }, perm: 'reports.view' },
   getBusinessLocations: { fn: (d) => { feature(); return getBusinessLocations(d); }, perm: 'reports.view' },
   getBusinessPerformance: { fn: (d) => { feature(); return getBusinessPerformance(d); }, perm: 'reports.view' },
   updateBusinessProfile: { fn: (d, ctx) => { feature(); return updateBusinessProfile(d, ctx); }, perm: 'integrations.connect' },
   searchBusinessCategories: { fn: (d) => { feature(); return searchBusinessCategories(d); }, perm: 'integrations.connect' },
+  getGbpSelection: { fn: () => { feature(); return getGbpSelection(); }, perm: 'reports.view' },
+  setGbpSelection: { fn: (d, ctx) => setGbpSelection(d, ctx), perm: 'integrations.connect' },
 };

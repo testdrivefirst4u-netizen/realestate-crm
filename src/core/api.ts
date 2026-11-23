@@ -318,6 +318,7 @@ export interface BusinessReview { id: string; author: string; anonymous: boolean
 export interface BusinessReviews { error: string; location: string; reviews: BusinessReview[]; average: number; total: number; nextPage: string }
 export interface BusinessLocationRow { name: string; title: string; storeCode: string; address: string; status: 'verified' | 'duplicate' | 'unverified' | 'unknown'; rating: number; reviews: number }
 export interface BusinessLocationsView { error: string; connected: boolean; locations: BusinessLocationRow[]; total: number; verified: number; needsAction: number; default: string }
+export interface GbpSelectionView { locations: Array<{ name: string; title: string; storeCode: string; address: string }>; selected: string[]; all: boolean }
 export interface AllLocationReview extends BusinessReview { location: string; locationTitle: string; storeCode: string }
 export interface AllLocationReviews { error: string; reviews: AllLocationReview[]; scanned: number; locations: number; unansweredTotal: number }
 export interface BusinessPhotos { error: string; location: string; photos: BusinessPhoto[]; total: number; customerPhotos: BusinessPhoto[]; customerTotal: number; customersError: string }
@@ -900,6 +901,8 @@ export const api = {
     photos: (location: string) => request<BusinessPhotos>('getBusinessPhotos', { location }, { timeoutMs: 60000 }),
     reviews: (d: { location: string; order?: string; page?: string }) => request<BusinessReviews>('getBusinessReviews', d, { timeoutMs: 60000 }),
     locations: (refresh = false) => request<BusinessLocationsView>('getBusinessLocations', { refresh }, { timeoutMs: 120000 }),
+    selection: () => request<GbpSelectionView>('getGbpSelection'),
+    setSelection: (names: string[]) => request<GbpSelectionView>('setGbpSelection', { names }),
     allReviews: (d: { unansweredOnly?: boolean; limit?: number } = {}) => request<AllLocationReviews>('allLocationReviews', d, { timeoutMs: 180000 }),
     replyReview: (location: string, reviewId: string, comment: string) => request<{ ok: true }>('replyBusinessReview', { location, reviewId, comment }, { timeoutMs: 60000 }),
     aiDraftReply: (d: { stars: number; comment?: string; author?: string }) => request<{ reply: string }>('aiDraftReviewReply', d, { timeoutMs: 45000 }),

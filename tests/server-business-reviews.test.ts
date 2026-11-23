@@ -133,6 +133,31 @@ describe('all locations', () => {
     expect(only.reviews.every((x) => !x.reply)).toBe(true);
     expect(only.reviews).toHaveLength(2);
   });
+
+  it('a chosen subset limits the CRM to those locations everywhere (list + reviews feed)', async () => {
+    const { getGbpSelection, setGbpSelection } = await import('../server/modules/businessProfile');
+    await seedTwo();
+    // default: manage all
+    expect((await inCo(() => getGbpSelection())).all).toBe(true);
+    expect((await inCo(() => getBusinessLocations({}))).total).toBe(2);
+
+    // choose only the second location
+    const saved = await inCo(() => setGbpSelection({ names: ['locations/2'] }, ctx));
+    expect(saved).toMatchObject({ all: false, selected: ['locations/2'] });
+
+    const list = await inCo(() => getBusinessLocations({}));
+    expect(list.total).toBe(1);
+    expect(list.locations[0].name).toBe('locations/2');
+
+    const feed = await inCo(() => allLocationReviews({}));
+    expect(feed.locations).toBe(1);
+    expect(new Set(feed.reviews.map((x) => x.locationTitle))).toEqual(new Set(['Amaya South']));
+
+    // selecting every location again means "manage everything" (stored as empty)
+    const back = await inCo(() => setGbpSelection({ names: ['locations/1', 'locations/2'] }, ctx));
+    expect(back.all).toBe(true);
+    expect((await inCo(() => getBusinessLocations({}))).total).toBe(2);
+  });
 });
 
 describe('reply', () => {

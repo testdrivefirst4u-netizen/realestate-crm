@@ -4,11 +4,11 @@
  * the whole account can be worked from one screen. Clicking a business opens the existing per-location detail.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ChevronRight, Copy, ExternalLink, ImagePlus, Pencil, RefreshCw, Search, Send, ShieldCheck, Sparkles, Star } from 'lucide-react';
-import { api, type AllLocationReview, type BusinessLocationRow, type BusinessLocationsView } from '../../core/api';
+import { AlertTriangle, ChevronRight, Copy, ExternalLink, ImagePlus, ListChecks, Pencil, RefreshCw, Search, Send, ShieldCheck, Sparkles, Star } from 'lucide-react';
+import { api, type AllLocationReview, type BusinessLocationRow, type BusinessLocationsView, type GbpSelectionView } from '../../core/api';
 import { reportError, toAppError } from '../../core/errors';
 import { toast } from '../../core/notifications';
-import { Button, cx, inputCls } from '../../components/ui';
+import { Button, Modal, cx, inputCls } from '../../components/ui';
 
 type DetailTab = 'profile' | 'photos' | 'reviews' | 'performance';
 const errText = (s: string, e: unknown) => toAppError(reportError(s, e)).userMessage;
@@ -300,10 +300,69 @@ const AllReviewsFeed: React.FC<{ canReply: boolean }> = ({ canReply }) => {
   );
 };
 
+/* --------------------- choose which locations to manage ------------------ */
+
+const LocationPicker: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
+  const [rows, setRows] = useState<GbpSelectionView['locations'] | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.businessProfile.selection()
+      .then((v) => { setRows(v.locations); setSel(new Set(v.all ? v.locations.map((l) => l.name) : v.selected)); })
+      .catch((e) => { toast('Could not load locations', errText('gbp.selection', e), 'alert'); onClose(); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = useMemo(() => (rows || []).filter((l) => !q || `${l.title} ${l.storeCode} ${l.address}`.toLowerCase().includes(q.toLowerCase())), [rows, q]);
+  const toggle = (name: string) => setSel((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+  const save = async () => {
+    setBusy(true);
+    try {
+      const v = await api.businessProfile.setSelection([...sel]);
+      toast('Locations saved', v.all ? 'The CRM now manages all locations.' : `The CRM now manages ${v.selected.length} location${v.selected.length === 1 ? '' : 's'}.`, 'success');
+      onSaved();
+      onClose();
+    } catch (e) {
+      toast('Not saved', errText('gbp.setSelection', e), 'alert');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal open onClose={onClose} width="md" title="Choose which locations to manage"
+      subtitle="Only ticked locations appear in the CRM — the Businesses list, the Reviews feed and AI auto-reply. Untick any branch you don't want handled here."
+      footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" loading={busy} disabled={!rows || sel.size === 0} onClick={() => void save()}>Save ({sel.size})</Button></div>}>
+      {rows === null ? <p className="text-xs text-[#5F6368]">Loading…</p> : !rows.length ? <p className="text-xs text-[#5F6368]">No locations are connected yet.</p> : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search locations…" className={cx(inputCls, 'min-w-[160px] flex-1')} aria-label="Search locations" />
+            <Button size="sm" variant="secondary" onClick={() => setSel(new Set((rows || []).map((l) => l.name)))}>Select all</Button>
+            <Button size="sm" variant="secondary" onClick={() => setSel(new Set())}>Clear</Button>
+          </div>
+          <p className="text-[11px] text-[#5F6368]">{sel.size} of {rows.length} selected{sel.size === 0 ? ' — pick at least one' : ''}.</p>
+          <ul className="max-h-[48vh] divide-y divide-[#EEF4F9] overflow-y-auto rounded-lg border border-[#E3E6EA]">
+            {shown.map((l) => (
+              <li key={l.name}>
+                <label className="flex cursor-pointer items-start gap-2.5 p-2.5 hover:bg-[#F8F9FA]">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1A73E8]" checked={sel.has(l.name)} onChange={() => toggle(l.name)} />
+                  <span className="min-w-0">
+                    <span className="block text-[13px] font-medium text-[#202124]">{l.title}{l.storeCode && <span className="ml-1.5 font-mono text-[11px] text-[#80868B]">{l.storeCode}</span>}</span>
+                    {l.address && <span className="block truncate text-[12px] text-[#5F6368]">{l.address}</span>}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 /* ------------------------------- Overview ------------------------------- */
 
 export const LocationsOverview: React.FC<{ data: BusinessLocationsView; loading: boolean; onOpen: (name: string, tab?: DetailTab) => void; onRefresh: () => void; canReply: boolean }> = ({ data, loading, onOpen, onRefresh, canReply }) => {
   const [tab, setTab] = useState<'businesses' | 'reviews'>('businesses');
+  const [picker, setPicker] = useState(false);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -312,9 +371,11 @@ export const LocationsOverview: React.FC<{ data: BusinessLocationsView; loading:
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('rounded-md px-3.5 py-1.5 text-[13px] font-semibold capitalize', tab === t ? 'bg-[#1A73E8] text-white' : 'text-[#5F6368] hover:bg-[#F1F3F4]')}>{t}</button>
           ))}
         </div>
-        <Button size="sm" variant="secondary" className="ml-auto" icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} disabled={loading} onClick={onRefresh}>Refresh from Google</Button>
+        {canReply && <Button size="sm" variant="secondary" className="ml-auto" icon={<ListChecks size={13} />} onClick={() => setPicker(true)}>Choose locations</Button>}
+        <Button size="sm" variant="secondary" className={canReply ? '' : 'ml-auto'} icon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />} disabled={loading} onClick={onRefresh}>Refresh from Google</Button>
       </div>
       {tab === 'businesses' ? <BusinessesList data={data} onOpen={onOpen} /> : <AllReviewsFeed canReply={canReply} />}
+      {picker && <LocationPicker onClose={() => setPicker(false)} onSaved={onRefresh} />}
     </div>
   );
 };

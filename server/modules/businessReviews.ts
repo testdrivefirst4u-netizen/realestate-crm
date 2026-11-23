@@ -12,7 +12,7 @@ import { currentTenant } from '../core/tenant';
 import { truncate } from '../core/utils';
 import { claudeText, generateText, hasClaude } from './ai';
 import { place } from './businessPhotos';
-import { connection, pick, safeLink, short } from './businessProfile';
+import { connection, pick, safeLink, selectedGbp, short } from './businessProfile';
 import { gbpFetch } from './googleMarketing';
 import { inboxCol } from './socialInbox';
 
@@ -190,7 +190,7 @@ export async function allLocationReviews(d: any = {}): Promise<AllLocationReview
   const { error, d: doc } = await connection();
   const empty: AllLocationReviews = { error, reviews: [], scanned: 0, locations: 0, unansweredTotal: 0 };
   if (error) return empty;
-  const locs = ((doc?.gbpLocations || []) as Array<{ name: string; title: string; account?: string; storeCode?: string }>).filter((l) => l.account && l.name);
+  const locs = selectedGbp<{ name: string; title: string; account?: string; storeCode?: string }>(doc).filter((l) => l.account && l.name);
   const slice = locs.slice(0, 60); // quota guard for very large accounts
   const all: AllLocationReview[] = [];
   let scanned = 0, i = 0;
