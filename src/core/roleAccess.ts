@@ -60,6 +60,9 @@ export const ACCESS_ITEMS: AccessItem[] = [
   { id: 'screen.segments', group: 'Screens', label: 'Client Segments', perms: [], screen: 'segments' },
   { id: 'screen.templates', group: 'Screens', label: 'Templates', perms: [], screen: 'templates' },
   { id: 'screen.documents', group: 'Screens', label: 'Documents', perms: [], screen: 'documents' },
+  { id: 'screen.businessprofile', group: 'Screens', label: 'Business Profile', perms: [], screen: 'businessprofile', note: 'Google Business Profile: reviews, posts and insights.' },
+  { id: 'screen.analytics', group: 'Screens', label: 'Website Analytics', perms: [], screen: 'analytics' },
+  { id: 'screen.searchconsole', group: 'Screens', label: 'Search Console', perms: [], screen: 'searchconsole' },
 ];
 
 /** What a role can have before anything is chosen. Kept with the list: both sides must start from the same answer. */

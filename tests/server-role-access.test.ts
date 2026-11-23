@@ -83,6 +83,16 @@ describe('the list', () => {
     expect(viewAllowed('kanban', { features: {} }, can as any)).toBe(true);
     expect(viewAllowed('dashboard', { features: {} }, can as any)).toBe(true);
   });
+
+  it('can hide Business Profile, Website Analytics and Search Console per role', () => {
+    const a = accessFor('Manager', { Manager: { 'screen.businessprofile': false, 'screen.searchconsole': false } })!;
+    expect(a.hide.sort()).toEqual(['businessprofile', 'searchconsole']);
+    const can = (p: string) => accessSays(a, p) ?? true;
+    const feats = { features: { businessProfile: true, searchConsole: true, websiteAnalytics: true } };
+    expect(viewAllowed('businessprofile', feats, can as any)).toBe(false);
+    expect(viewAllowed('searchconsole', feats, can as any)).toBe(false);
+    expect(viewAllowed('analytics', feats, can as any)).toBe(true); // left on
+  });
 });
 
 describe('the marketing switches', () => {
