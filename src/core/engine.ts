@@ -581,14 +581,12 @@ export function useCrmEngine(init?: CrmEngineInit): CrmEngine {
     if (authStatus !== 'ready') return;
     const check = () => {
       const now = Date.now();
-      const user = sessionRef.current?.user || null;
-      const me = user?.name || '';
-      // A reminder is for the person it is set for: an agent's alarm rings only on the agent's screen. Admins (and the
-      // Platform support account) also get every reminder's alarm, so nothing set by anyone is missed. Managers and
-      // agents still only get their own. A follow-up reminder stays with the lead's own RM (below), never broadcast.
-      const seesAllReminders = can(user, 'users.manage');
+      const me = sessionRef.current?.user?.name || '';
+      // A reminder is private to the person it is set for: its alarm rings only on that person's screen, whatever their
+      // role. No one — not even an Admin — gets someone else's reminder. Scope to the assignee, falling back to the
+      // creator for a task with no assignee, so a reminder never broadcasts to everyone. (Follow-ups stay with the RM.)
       const nameEq = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
-      const mineTask = (t: TaskItem) => !me || seesAllReminders || (!!t.assignedTo && nameEq(t.assignedTo, me));
+      const mineTask = (t: TaskItem) => !me || (t.assignedTo ? nameEq(t.assignedTo, me) : !!t.createdBy && nameEq(t.createdBy, me));
       const tasks = dataRef.current.tasks;
       let candidate: TaskItem | null = null;
       for (const t of tasks) {
